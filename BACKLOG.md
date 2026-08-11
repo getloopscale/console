@@ -4967,7 +4967,11 @@ evidence: |
   nginx-security-headers.conf:31 — add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://auth.usetheo.dev https://cloud.usetheo.dev; ..." always;  ||  index.html:52 — <meta http-equiv="Content-Security-Policy" content="... img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev https://storage.usetheo.dev https://storage-dev.usetheo.dev; ..." />  ||  nginx.conf:13,51,71,78,86 — include /etc/nginx/security-headers.conf;  ||  src/build/csp.test.ts asserts only that script-src lacks 'unsafe-inline' in index.html and dist/index.html — it never compares the two policies, so the drift is unguarded.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `nginx-security-headers.conf:31`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Derive both policies from one source of truth (generate the nginx snippet from the same directive list the meta uses, or drop the meta and keep only the header) and extend src/build/csp.test.ts to assert directive-by-directive that the head
@@ -4991,7 +4995,11 @@ evidence: |
   theo-cli/src/register/team.ts:17,21,51,82,112,148 -> team | list | add | remove | role | switch (no delete)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/settings-routes.tsx:51`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Either drop cliCommand for these three routes (the /databases precedent in src/app.tsx:180 is the governed answer), or replace each with a command that exists. Add a guard to placeholder-honesty.test.ts asserting every cliCommand names a co
@@ -5015,7 +5023,11 @@ evidence: |
   theo-cli/src/register/auth.ts:21-36 login options: --token, --team, --refresh-token, --expires-in, --device-flow
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/profile-routes.tsx:32`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Drop cliCommand on all three profile placeholders (matching the governed /databases precedent in src/app.tsx:180) until the corresponding CLI commands ship, and extend placeholder-honesty.test.ts with a cliCommand-exists assertion
@@ -5040,7 +5052,11 @@ evidence: |
   node_modules/@usetheo/ui/dist/index.js:6040  project.branch  (rendered verbatim by ProjectCard)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/overview/overview.tsx:154`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Until the projects summary payload exposes deploy_branch, render an honest unknown state rather than a plausible wrong one — pass an em-dash or omit the branch line entirely, consistent with the codebase-wide null-to-em-dash convention. Whe
@@ -5067,7 +5083,11 @@ evidence: |
   src/components/layout/app-sidebar.tsx:142  <TeamSwitcher fallbackName={userName} />   // onCreateTeam never supplied
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/layout/team-switcher.tsx:126`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Relabel the item to match what it does (e.g. How to create a team) with an external-link icon, or mark it with the same coming-soon treatment used elsewhere, until POST /v1/teams ships. Once the endpoint exists, wire onCreateTeam at the app
@@ -5093,7 +5113,11 @@ evidence: |
   src/pages/overview/components/overview-kpi-strip.tsx:15-17  export function formatPlanPrice(pp: OverviewPlanPrice | null): string { ... const amount = pp.amount_minor / 100;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/settings/billing.tsx:380`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Bind the upgrade CTAs to the plan catalogue the API already returns (reuse formatPlanPrice from overview-kpi-strip rather than duplicating the formatting), and render the target-plan quotas from the same source as the current-plan rows. If
@@ -5142,7 +5166,11 @@ evidence: |
               <p 
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/infra/domains.tsx:189`. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Extract the ladder into ONE primitive instead of continuing to copy it - the error leg then cannot be forgotten because it is a required prop. Two options already present in the codebase:
@@ -5206,7 +5234,11 @@ evidence: |
     window.location.href = '/login';
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/auth/session.ts:163`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Distinguish the outcomes: on a failed/incomplete Kratos logout, do not navigate to /login as if it succeeded. Report the error (reportEvent/reportError), and either retry once, or surface a blocking 'We could not fully sign you out — close
@@ -5231,7 +5263,11 @@ evidence: |
         }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/use-auth.ts:17`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Have `getSession()` return a discriminated result (`{kind:'session'} | {kind:'expired'} | {kind:'unavailable', status}`) instead of `Session | null`, or make `useRequireAuth` consult `sessionDefinitivelyExpired()` before redirecting: `if (!
@@ -5258,7 +5294,11 @@ evidence: |
       });
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/login.tsx:136`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Replace the terminal empty catch with `setNetworkError(true)` (the banner already exists at line 330) and, in the non-throwing branches, treat `hydrateFresh()` returning null the same way — today `if (fresh) setFlow(fresh)` drops a null sil
@@ -5283,14 +5323,18 @@ evidence: |
       }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:303`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Expose the recorded exchange status (`lastExchangeStatus`) and throw `new ApiError(lastExchangeStatus ?? 0, undefined, 'session token exchange failed')`, so status 0 = network, 429 = rate limit, 5xx = upstream. Then `retryGuard` retries 0/5
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-fabricates-apierror-429-for-failures`). Source: code-review finding #44, `code-review-output/code-review.db`.
 
-## B-143 — Exponential backoff defeated by reopenAttempts reset on onopen — open/close cycle reconnects every ~750ms fore   [ ]
+## B-143 — Exponential backoff defeated by reopenAttempts reset on onopen — open/close cycle reconnects every ~750ms fore   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5315,14 +5359,17 @@ evidence: |
   const delay = base / 2 + Math.random() * (base / 2);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:192`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: killed
+kill_reason: |
+  Closed by B-160 with a different remedy than this DoD proposed: `reopenAttempts` no longer resets on `onopen` but on the first MESSAGE, which is the first evidence the connection did any work.
+  Re-measured 2026-08-11 at `src/hooks/deploy/use-sse-stream.ts:187-197,201`; regression tests at `use-sse-stream.test.tsx:306-341`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Two changes, both small. (1) Only reset the backoff after the connection has been stable for a while, not at onopen: record `openedAt` in onopen and reset `reopenAttempts` in onerror only when `Date.now() - openedAt > STABLE_CONNECTION_MS`
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-exponential-backoff-defeated-by-reopenattempts-reset`). Source: code-review finding #62, `code-review-output/code-review.db`.
 
-## B-144 — Every SSE error clears the application-wide access token, not just the SSE credential   [ ]
+## B-144 — Every SSE error clears the application-wide access token, not just the SSE credential   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5342,7 +5389,12 @@ evidence: |
   es?.close();
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:234`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: killed
+kill_reason: |
+  Closed by B-160.
+  The error event now carries a typed `reason: StreamEndReason` and a clean `server-closed` end is excluded from the failure count, so `clearToken()` is no longer called on every SSE error.
+  Re-measured 2026-08-11 at `use-sse-stream.ts:242-247`; guarded by `use-sse-stream.test.tsx:260,324,341`.
+  NOTE: the narrower defect — every non-2xx still wipes the app-wide JWT because `StreamEndReason` carries no status — survives as B-172.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Make the failure typed instead of guessing. Have FetchEventSource carry the HTTP status (and a 'stream ended cleanly' marker) on the error event it dispatches, and call `clearToken()` only for status 401/403. For every other failure reconne
@@ -5366,7 +5418,11 @@ evidence: |
   onSuccess: (_data, buildId) => {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/mutations/use-cancel-build.ts:9`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Add `{ throwOnError: true }` as the third argument to the engineFetch calls in useCancelBuild, useCreateEnvironment and useDeleteEnvironment so a non-2xx rejects and reaches `mutation.error`, matching usePromote/useRollback. Then confirm ea
@@ -5387,7 +5443,11 @@ evidence: |
   Executed against the file's own fixture: naoPromovidos=2 vs SEM_AMBIENTE=1. Both values locked in by passing tests (overview.test.tsx:63 /^Not promoted2$/ and /not promoted\s*1/).
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/promptly/components/projections.ts:77`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Rename the bar's bucket to 'No environment' to match catalogo.tsx's existing vocabulary
@@ -5408,7 +5468,11 @@ evidence: |
   Executed: promptsPorAmbiente([{labels:[{label:'prod',version:1}]},{labels:[{version:1}]}]) throws TypeError: Cannot read properties of undefined (reading 'localeCompare').
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/promptly/components/projections.ts:113`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Filter label entries to those with a string `label` before sorting, mirroring trust-series.ts:165
@@ -5429,7 +5493,11 @@ evidence: |
   Rendered: bars=[{label:'nan',value:NaN},{label:'str',value:'12'}] produces style="width: 0%" beside <td>NaN</td> and <td>12</td>.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:100`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Sanitise once and render the sanitised value in both the bar and the cell
@@ -5451,14 +5519,18 @@ evidence: |
   overview.tsx:263 gate is `!query.error && !query.loading`; memory/overview.tsx:124 (cited by this file as precedent) uses metricsQuery.isSuccess.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.tsx:263`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Gate on isSuccess && data != null, and feed the chart the same `acervo` fallback the table uses
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-the-chart-gate-error-loading-is`). Source: code-review finding #86, `code-review-output/code-review.db`.
 
-## B-150 — Same paused/idle blind spot on the one screen where an empty distribution is a compliance claim   [ ]
+## B-150 — Same paused/idle blind spot on the one screen where an empty distribution is a compliance claim   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5473,14 +5545,18 @@ evidence: |
   overview.tsx:87 `const isLoading = violationsQuery.loading || validatorsQuery.loading`; gate at :204 is `!failed && !isLoading`.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/trust/overview.tsx:204`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: killed
+kill_reason: |
+  Closed by the B-161 commit.
+  `coverageSettled = violationsQuery.isSuccess && validatorsQuery.isSuccess` (`src/pages/trust/overview.tsx:97`) replaced the `!failed && !isLoading` shape, which no longer exists in the file.
+  Re-measured 2026-08-11.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Gate on settled success of both queries
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-same-paused-idle-blind-spot-on`). Source: code-review finding #87, `code-review-output/code-review.db`.
 
-## B-151 — When only the validators query fails, every bar is painted amber 'unblocked' — asserting nothing is stopped pr   [ ]
+## B-151 — When only the validators query fails, every bar is painted amber 'unblocked' — asserting nothing is stopped pr   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5495,7 +5571,12 @@ evidence: |
   overview.tsx:88 `failed` from violationsQuery.error only; :90 catalogBlind; :213 tone: c.enforced ? 'muted' : 'warning'.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/trust/overview.tsx:213`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: killed
+kill_reason: |
+  Closed under B-227.
+  With only the validators query failing, `coverageSettled` is false and the chart is suppressed entirely — the second option this DoD offered.
+  Regression test at `src/pages/trust/overview.test.tsx:185-193`.
+  Re-measured 2026-08-11.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Add a third tone for unknown coverage, or suppress the chart when catalogBlind
@@ -5517,7 +5598,11 @@ evidence: |
   Mechanical scan of 376 test files: 96 match expect(queryBy...).toBeNull()/not.toBeInTheDocument() as their only negative assertion. Six match the queryByRole(table) form. Falsification (external review, by execution): guard deleted from skills/overview.tsx -> 10/10 tests still pass. category-bars.tsx:74-76 returns a <p> and no table when bars.length === 0.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.test.tsx:184`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Assert the absence of the chart heading (an element that IS present in the passing case), not the absence of a table role
@@ -5537,14 +5622,18 @@ evidence: |
   src/lib/http/config.ts:9 — ENGINE_URL: string;  (interface field, no corresponding `export const ENGINE_URL`, unlike API_URL:32, AUTH_URL:34, ACCOUNTS_URL:36)  ||  docker-entrypoint.sh:39 — ENGINE_URL: "${VITE_ENGINE_URL:-}",  ||  public/__config.js:4 — ENGINE_URL: "/engine",  ||  src/lib/http/api.ts:315 — return cloudFetch<T>(`/engine${path}`, options, cfg);  ||  grep -rn ENGINE_URL over non-test src/ yields only config.ts declarations and mock-comment mentions — zero readers.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/config.ts:9`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Either delete ENGINE_URL from the interface, the entrypoint, __config.js and the 8 test mocks, or make api.ts:315 read it (export const ENGINE_URL, default "/engine") and relax validate_url to accept a leading-slash path
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-config-engine-url-runtime-config-key-is`). Source: code-review finding #2, `code-review-output/code-review.db`.
 
-## B-154 — TESTING.md documents the tree-shake gate as a grep that was proven to be a tautology   [ ]
+## B-154 — TESTING.md documents the tree-shake gate as a grep that was proven to be a tautology   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5557,14 +5646,18 @@ evidence: |
   TESTING.md:174-181 — "The CI gate `npm run tree-shake-check` greps the prod bundle for `lib/mocks` strings" / "! grep -q 'lib/mocks' dist/assets/*.js"  ||  scripts/check-mocks-tree-shaken.mjs:7-16 — "O `tree-shake-check` anterior era: grep -q 'lib/mocks' dist/assets/*.js. Ele procurava o caminho do modulo, e o empacotador apaga caminhos. Medido em 2026-08-08: injetei `installAllMocks` em `main.tsx`, os mocks foram para o bundle de producao, e o check imprimiu PASS."  ||  scripts/check-mocks-tree-shaken.mjs:43-68 — MARCAS = [{marca: '__theo_mocks_present_in_bundle__'}, {marca: 'choose_method'}]
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `TESTING.md:174`.
-status: raw
+status: killed
+kill_reason: |
+  TESTING.md was rewritten to describe the sentinel-marker gate (`scripts/check-mocks-tree-shaken.mjs`) and names both markers.
+  The tautological grep survives only inside the post-mortem prose that forbids it.
+  Re-measured 2026-08-11 at `TESTING.md:172-182`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Rewrite TESTING.md § VITE_USE_MOCKS to describe the sentinel-marker gate (two markers, one per mock framework, plus the source-presence pre-check), and delete the `grep -q lib/mocks` snippet so nobody restores it
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-TESTING-testing-md-documents-the-tree-shake`). Source: code-review finding #4, `code-review-output/code-review.db`.
 
-## B-155 — DESIGN.md forbids rendering ANSI logs as HTML; the log viewer renders them via dangerouslySetInnerHTML   [ ]
+## B-155 — DESIGN.md forbids rendering ANSI logs as HTML; the log viewer renders them via dangerouslySetInnerHTML   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5577,14 +5670,17 @@ evidence: |
   DESIGN.md:306 — "ANSI escape codes stripped via `strip-ansi` (NEVER render as HTML)."  ||  src/pages/deploy/components/ansi.tsx:1 — "import Convert from 'ansi-to-html';"  ||  src/pages/deploy/components/ansi.tsx:66 — "return <span dangerouslySetInnerHTML={{ __html: html }} />;"  ||  src/pages/deploy/components/ansi.tsx:21-24 — "`ansi-to-html` was chosen over ... `strip-ansi` (loses color)"  ||  package.json:73 — "ansi-to-html": "^0.7.2" declared; no strip-ansi dependency exists
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:306`.
-status: raw
+status: killed
+kill_reason: |
+  DESIGN.md replaced the blanket "never render ANSI as HTML" clause with the narrower enforceable rule — never construct the converter without `escapeXML: true` — which matches the shipped code at `src/pages/deploy/components/ansi.tsx:34`.
+  Re-measured 2026-08-11 at `DESIGN.md:313-322`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Update DESIGN.md § 7.3 to record the actual decision (ansi-to-html with `escapeXML: true` plus the adversarial test) and restate the ban as `never render unescaped ANSI-to-HTML output`, or open an ADR that supersedes the clause. Either way
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-forbids-rendering-ansi-logs`). Source: code-review finding #6, `code-review-output/code-review.db`.
 
-## B-156 — DESIGN.md mandates @tanstack/react-virtual for log virtualization; the dependency is absent and the code rejec   [ ]
+## B-156 — DESIGN.md mandates @tanstack/react-virtual for log virtualization; the dependency is absent and the code rejec   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5597,14 +5693,18 @@ evidence: |
   DESIGN.md:304 — "Virtualized rendering (`@tanstack/react-virtual`) for >1000 lines."  ||  src/pages/deploy/components/log-viewer.tsx:86-89 — "A escada da parcimonia respondeu antes da biblioteca. `@tanstack/react-virtual` NAO esta instalado (verificado no package.json)"  ||  src/pages/deploy/components/log-viewer.tsx:57-61 — "Renderiza ate MAX_LOG_LINES (5000) sem remover nos do DOM: o custo ... e pago por `content-visibility`"  ||  package.json:60-91 — dependencies block contains no @tanstack/react-virtual
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:304`.
-status: raw
+status: killed
+kill_reason: |
+  DESIGN.md now records the actual choice: `content-visibility`, NOT `@tanstack/react-virtual`, with the rejection rationale cited at `src/pages/deploy/components/log-viewer.tsx:86`.
+  `grep react-virtual package.json` is empty, so doc and code agree.
+  Re-measured 2026-08-11 at `DESIGN.md:307-310`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Replace the § 7.3 virtualization bullet with the content-visibility decision actually shipped (and cite log-viewer.tsx), or record an ADR that keeps virtualization as the target and marks the current implementation as an accepted deviation
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-mandates-tanstack-react-virtual`). Source: code-review finding #7, `code-review-output/code-review.db`.
 
-## B-157 — DOGFOOD.md documents two npm scripts that do not exist (test:lighthouse, test:visual)   [ ]
+## B-157 — DOGFOOD.md documents two npm scripts that do not exist (test:lighthouse, test:visual)   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5617,7 +5717,10 @@ evidence: |
   DOGFOOD.md:17-18 — "npm run test:lighthouse           # Lighthouse CI against dev server with mocks" / "npm run test:visual               # Visual regression (vendor TBD)"  ||  package.json:6-22 — scripts block has no test:lighthouse and no test:visual  ||  DOGFOOD.md:124 — "## 6. Visual regression — vendor decision OPEN"
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DOGFOOD.md:17`.
-status: raw
+status: killed
+kill_reason: |
+  Both commands are commented out in DOGFOOD.md and explicitly labelled as gaps rather than instructions — the second option this DoD offered.
+  Re-measured 2026-08-11 at `DOGFOOD.md:17-20`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Either add the two scripts (lighthouse: `lhci autorun --config=./lighthouserc.json`, which already has a config file; visual: whichever vendor is chosen) or delete the two lines from the quick reference and keep only the manual `npx lhci au
@@ -5637,7 +5740,11 @@ evidence: |
   DOGFOOD.md:13 — "npm run size                      # size-limit cap (180 KB brotli)"  ||  DOGFOOD.md:173 — "- [ ] Production build green + bundle <180 KB brotli cap"  ||  package.json:50-57 — {"name": "TOTAL EAGER — HARD GATE (os 4 chunks com modulepreload no index.html, brotli)", "limit": "320 kB"}
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DOGFOOD.md:13`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Update both DOGFOOD.md lines to cite the size-limit configuration as the single source of the budget (TOTAL EAGER 320 kB) rather than restating a number that drifts, e.g. "npm run size — budget enforced by package.json#size-limit"
@@ -5657,7 +5764,11 @@ evidence: |
   docs/architecture.md:99 — "`app.tsx` tem 757 linhas — 49 a mais que o `trace-detail.tsx`" vs `wc -l src/app.tsx` = 226  ||  docs/architecture.md:106 — "`pages/promptly/detail.tsx`, 916 LOC num unico componente com 15 `useState` e 9 `useQuery`" vs `wc -l src/pages/promptly/detail.tsx` = 465  ||  docs/architecture.md:53 — "Hoje existe **um** (`components/layout/index.ts` ...) nas **28** subpastas de `src/components/`" vs `find src/components -mindepth 1 -type d | wc -l` = 9  ||  docs/architecture.md:25 cites `components/lens/ask-thread.tsx`; that directory no longer exists (file is now src/pages/lens/components/ask-thread.tsx)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:99`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Re-run the measurements and either refresh the table or date-stamp each number inline ("medido 2026-08-06, nao re-medido"). Given the doc is cited as the architecture contract, prefer regenerating the numbers from a script that can be re-ru
@@ -5745,7 +5856,11 @@ evidence: |
   grep -rn "createElement(.a.)" src --include=*.ts --include=*.tsx | grep -v .test. -> exactly these 3 sites.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/workspace/overview.tsx:193`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 id_correction: |
   Registered 2026-08-11 as B-162, an id already held by a live item registered
   earlier (see B-162 below). No commit ever referenced this block under the old id,
@@ -5774,7 +5889,11 @@ evidence: |
         const newToken = await ensureToken();
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:379`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 id_correction: |
   Registered 2026-08-11 as B-163, an id already held by a live item registered
   earlier (see B-163 below). No commit ever referenced this block under the old id,
@@ -5806,7 +5925,11 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:72`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 id_correction: |
   Registered 2026-08-11 as B-164, an id already held by a live item registered
   earlier (see B-164 below). No commit ever referenced this block under the old id,
@@ -5837,7 +5960,11 @@ evidence: |
       } finally {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:240`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 id_correction: |
   Registered 2026-08-11 as B-165, an id already held by a live item registered
   earlier (see B-165 below). No commit ever referenced this block under the old id,
@@ -5864,7 +5991,11 @@ evidence: |
         if (msg.type === 'logged-out') {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:93`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 id_correction: |
   Registered 2026-08-11 as B-166, an id already held by a live item registered
   earlier (see B-166 below). No commit ever referenced this block under the old id,
@@ -5894,7 +6025,11 @@ evidence: |
       return null;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 id_correction: |
   Registered 2026-08-11 as B-167, an id already held by a live item registered
   earlier (see B-167 below). No commit ever referenced this block under the old id,
@@ -5922,7 +6057,11 @@ evidence: |
     );
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/dialogs/plan-limit-upgrade-modal.tsx:55`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 id_correction: |
   Registered 2026-08-11 as B-168, an id already held by a live item registered
   earlier (see B-168 below). No commit ever referenced this block under the old id,
@@ -5953,7 +6092,11 @@ evidence: |
     }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:48`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Use `redirect: 'follow'` (as login.tsx:91 already does) and drop the manual branch, or keep 'manual' and stop pretending to read the Location. If any redirect target is ever followed, gate it: `if (!isSafeRedirectUrl(location)) throw new Er
@@ -5979,7 +6122,11 @@ evidence: |
     }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/auth/logout-cache-purge.ts:79`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Keep the never-throw contract but emit a signal: collect the per-cache results and `reportEvent`/`console.warn` with the names that failed, e.g. `if (falhas.length) reportEvent('logout.cache_purge_failed', { caches: falhas })`. Returning `{
@@ -5999,7 +6146,11 @@ evidence: |
   error: enabled && (query.isError || (query.isFetched && query.data === null)),
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/use-api.ts:48`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Fix the contract at the source (see the cloudFetch `T | null` finding) so 'no content' and 'failure' are different values; until then, pass `{ throwOnError: true }` in the queryFn so real failures reach `query.isError` and drop the `data ==
@@ -6028,7 +6179,11 @@ evidence: |
           es?.close();
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:234`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Have FetchEventSource surface the HTTP status on the error event and only call `clearToken()` for 401/403. For every other status, reopen with the existing token under backoff. If the status cannot be surfaced, prefer a stream-scoped invali
@@ -6052,7 +6207,11 @@ evidence: |
   if (!fechadoPeloBrowser && failureCount < TOKEN_REFRESH_THRESHOLD) return;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:229`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Delete `failureCount`, `TOKEN_REFRESH_THRESHOLD` and the line-229 guard, and rewrite the lines 66-72 / 216-227 comments so they describe the fetch transport instead of the browser's native retry. Replace the removed test with one that drive
@@ -6085,7 +6244,11 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:176`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Decide which invariant is wanted and implement or delete. If the cascade is wanted: walk PHASE_ORDER in reverse, and once a phase with status 'completed' (or any terminal status) is seen, force every earlier phase still 'pending' to 'comple
@@ -6115,7 +6278,11 @@ evidence: |
         aplicarSnapshot(data);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-build-logs.ts:211`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Hold a mount flag in a ref (`const montado = useRef(true)` with `useEffect(() => () => { montado.current = false }, [])`) and gate every setState in `refresh` on it, or better, hoist an AbortController ref that both the initial effect and `
@@ -6139,7 +6306,11 @@ evidence: |
     )}/metrics?range=${encodeURIComponent(range)}&signal=${encodeURIComponent(signal)}`;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/projects/use-metrics-range.ts:72`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Confirm against the backend handler whether /metrics accepts an env parameter. If it does, append `&env=${encodeURIComponent(resolvedEnv)}` to the path so the key and the request agree. If it does not, delete the `env` parameter from the ho
@@ -6160,7 +6331,11 @@ evidence: |
   }, [stream.events, projectName, filters, initial.builds, queryClient]);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deployments-list-stream.ts:131`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Depend on a serialized key rather than the object identity: `const filtersKey = JSON.stringify(filters ?? {})` (or destructure `filters?.status`, `filters?.env`, `filters?.limit` into three scalar deps) and use that in the array, reading `f
@@ -6187,7 +6362,11 @@ evidence: |
     registerSSE('/api/v1/deploys/{id}/timeline', (es) => {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/mocks/handlers.ts:343`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Register the two missing patterns with emitters that mirror the real event names — build.started / build.succeeded / build.failed for projects/{name}/builds/stream, and the named `signal.changed` frame for projects/{name}/signals/stream. Ad
@@ -6213,7 +6392,11 @@ evidence: |
         }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:150`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Add an effect keyed on `paused` that flushes on the falling edge: `useEffect(() => { if (!paused) { setEvents([...bufferRef.current]); setLastEventID(lastIDRef.current); setDroppedCount(droppedRef.current); } }, [paused])`. Add a test that
@@ -6237,7 +6420,11 @@ evidence: |
     );
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-build-logs.ts:203`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Apply the shared rule at the join: `() => capLogLines([...historical, ...stream.lines])`, so the ceiling is enforced once on the value the consumer sees. Extend use-log-stream.cap.test.ts with a case that renders useBuildLogs with a 5000-li
@@ -6264,7 +6451,11 @@ evidence: |
     });
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:136`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Stop deriving durable state from an evictable buffer. Accumulate phases incrementally in a ref-backed reducer driven by `onEvent` (the pattern use-status-stream.ts:61 already uses and documents) so an evicted event cannot un-apply a transit
@@ -6287,7 +6478,11 @@ evidence: |
       const byPhase = new Map<Phase, PhaseState>();
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:138`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Extract the event application into a pure module-level reducer `applyTimelineEvent(state, event): TimelineState` (mirroring use-status-stream.reducer.ts, which was split out for exactly this reason and is unit-tested without React), and ext
@@ -6327,7 +6522,11 @@ evidence: |
     attempt_count: number;                        attempt_coun
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/webhooks.tsx:34`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Add `memory` as a third entry in WEBHOOK_CONTEXTS rather than a third file. The map needs two new fields the existing two contexts already imply: `basePath` (`/v1/settings/webhooks` | `/v1/dashboard/memory/webhooks`) and a capability flag f
@@ -6370,7 +6569,11 @@ evidence: |
     <Button variant="ghost" size="sm" disabled={page >
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/lens/sessions.tsx:58`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Extract two artifacts and migrate the five sites: (1) `useOffsetPagination({ total, pageSize })` returning { page, setPage, offset, pageCount, firstShown, lastShown } and owning the labeling-queue clamp effect so every consumer inherits the
@@ -6390,7 +6593,11 @@ evidence: |
   Measured: barWidths([3, 9000]) -> [0.0333, 100].
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:54`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Apply the floor to non-zero values only: v > 0 ? Math.max(min, pct) : 0
@@ -6410,7 +6617,11 @@ evidence: |
   Measured outerHTML shows <tbody> with no <thead> and a td whose only child is aria-hidden.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:82`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Add a thead with column headers, or reuse the design system's Table as TrendChart does
@@ -6430,7 +6641,11 @@ evidence: |
   Measured: TONE collapsed to default, 36/36 tests still pass; no test file references the tone vocabulary.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:95`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Assert the tone mapping, and convey enforcement in text as the house rule already requires
@@ -6452,7 +6667,11 @@ evidence: |
   Measured: old floor restored, 18/18 pass.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/overview.test.tsx:158`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Add a case asserting width === 0 for a genuine zero beside a positive max
@@ -6474,7 +6693,11 @@ evidence: |
   Measured: guard deleted, 10/10 still pass.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.test.tsx:184`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Assert absence of the chart heading, not absence of a table role
@@ -6496,7 +6719,11 @@ evidence: |
   Verified: CATALOGO.validators[0] has no policy and no category key; coverageGap resolves it to ''.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/trust/overview.test.tsx:39`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Give the fixture a validator that actually enforces a policy present in the violations fixture, and correct the comment
@@ -6518,7 +6745,11 @@ evidence: |
   Executed the literal regex against five inputs; comment and string-literal forms both return true.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/capability-overview.test.ts:76`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test that FAILS on the current state exists and passes after the fix
   - Strip comments and string literals before matching, or assert on the rendered output instead of the source
@@ -6558,7 +6789,11 @@ evidence: |
           <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/overview.tsx:255`. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Fix the defect first, then remove its cause. (1) Immediately change memory/overview.tsx:262 and rag/overview.tsx:200 to the `<Button asChild><Link to={href}>` form already proven in lens/overview.tsx:260-262 — this is a user-visible navigat
@@ -6596,7 +6831,11 @@ evidence: |
     settings:436 function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, events }: AddWebhookDialogProps)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/webhooks.tsx:470`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Promote the settings/webhooks.tsx version verbatim to a shared module (e.g. src/components/dialogs/add-webhook-dialog.tsx), have both pages import it, and pass memory's `AVAILABLE_EVENTS` and its description string as the `events` / `descri
@@ -6642,7 +6881,11 @@ evidence: |
             <SignalGrid signals={signals} onDrillDown={handleDrillDown} />
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/projects/components/kpi-strip-status.tsx:74`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Create one module (e.g. src/pages/projects/components/signal-tone.ts) exporting named constants and the tone functions — `UPTIME_SLO_TARGET = 99.9`, `UPTIME_SLO_WARNING = 99.0`, `P95_LATENCY_CRITICAL_MS = 1000`, `P95_LATENCY_WARNING_MS = 50
@@ -6685,7 +6928,11 @@ evidence: |
     cons
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/infra/components/delete-secret-dialog.tsx:41`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Migrate the six to `<ConfirmDialog confirmationPhrase={...} intent="destructive" onConfirm={...} />`, keeping only the genuinely extra body content as children (cascade warning, the rollback `ack` checkbox, the new-value field for rotate).
@@ -6712,7 +6959,11 @@ evidence: |
   Counted coverage: 767 of 775 src/ files marked inspected by maturity-detective; the 8 failures are exactly this directory.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/build/manual-chunks.ts:1`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Register the 8 paths via add-file-inventoried so Phase 3 agents can record coverage against them, then re-run the affected Phase 3 passes over src/build/. Separately, check why Phase 1's enumeration missed the directory — if the walk filter
@@ -6733,7 +6984,11 @@ evidence: |
   Mechanical scan: 37 of 376 test files match ^\s*let\s+\w+ at module scope.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/test/arvore-estavel.ts:1`. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Run the suite with vitest --sequence.shuffle to convert this from a suspicion into a measurement
@@ -6753,7 +7008,11 @@ evidence: |
   Phase-1 inventory reported src/build/ files=0 loc=0 while ls src/build shows 8 files (csp.test.ts, manual-chunks.ts + test, nginx-cache-policy.test.ts, sw-bff-paths.ts + test, sw-runtime-caching.ts + test). Root cause: SKIP_DIRS = {node_modules, .git, dist, build, ...} matched the path segment src/build.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/build/manual-chunks.ts:1`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Anchor artefact exclusions to the repo root (./dist, ./build) rather than matching any path segment
@@ -6777,7 +7036,11 @@ evidence: |
   $ grep -rn "hobby" src --include=*.tsx --include=*.ts | grep -v .test. -> src/pages/settings/billing.tsx:100 (PLAN_TIER_MAP, API-driven) and the comment above
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/layout/app-sidebar.tsx:42`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Delete lines 42-43 if the plan badge was intentionally removed from the sidebar; if a plan badge is still wanted there, restore it bound to the /v1/billing tier and keep the TODO only until that binding lands
@@ -6797,7 +7060,11 @@ evidence: |
   docs/architecture.md:112 — "`docs/adr/`. Oito ADRs em `status: proposed`, aguardando aceite do time"  ||  `head -3` of each file in docs/adr/ shows status: accepted in 0001, 0003, 0004, 0010, 0011, 0012, 0013, 0014 and status: proposed in 0002, 0005, 0006, 0007, 0008, 0009 (14 files total)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:112`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Replace the count with a pointer to docs/adr/README.md (which already carries the index) and state only the invariant: "o aceite e do time". A count restated in two places drifts by construction
@@ -6817,7 +7084,11 @@ evidence: |
   docs/architecture.md:16 — "cujo relatorio esta em `system-design-output/final_report.md`"  ||  docs/architecture.md:123 — "Relatorio completo em `system-design-output/final_report.md`"  ||  `find /home/paulo/Projetos/theo/theo-platform/theo-cloud -maxdepth 3 -name system-design-output -not -path "*/node_modules/*"` returns nothing
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:16`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Commit the report (or its summary) under .claude/knowledge-base/audits/ and update both citations, or mark the numbers as unverifiable-by-reference and re-derive them with a committed script
@@ -6841,7 +7112,11 @@ evidence: |
   src/pages/promptly/diff.tsx:72 export function PromptlyDiffPage() / :235 export default PromptlyDiffPage;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/exports.tsx:212`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Delete the two unreferenced aliases. For create.tsx and diff.tsx, pick one export style and align them with the rest of src/pages (the named export, which app-routes-lazy already consumes) and drop the default
@@ -6865,7 +7140,11 @@ evidence: |
   $ per-name grep across src/ excluding types.ts -> 0 importers for the 18 declarations listed above
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/api/types.ts:172`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Decide per type: either wire the input shapes into the corresponding mutation hooks (so the declared contract actually types the request bodies), or delete the ones no longer mirrored by the Go API. Leaving them exported-but-unused keeps a
@@ -6885,7 +7164,11 @@ evidence: |
   DESIGN.md:126-127 — "| Deploy progress | `DeployTimeline` + `BuildStepList` |" / "| Canary | `CanaryProgress` |"  ||  `grep -rl BuildStepList src/` and `grep -rl CanaryProgress src/` return zero files (DeployTimeline returns 7)  ||  DESIGN.md:315-322 lists /onboarding/{welcome,github,repo,configure,deploy,streaming,success}  ||  `grep -rn onboarding src/routes/*.tsx src/app.tsx` returns nothing; ls src/components/onboarding/ shows only onboarding-panel.tsx
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:126`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Split DESIGN.md into what is contracted-and-shipped versus what is still target state, marking each unbuilt item with its backlog id. A locked contract that mixes both is unusable as a review gate
@@ -6905,7 +7188,11 @@ evidence: |
   DESIGN.md:683 — "Instrumentation lives in `cloud/dashboard/src/lib/rum.ts` (Web Vitals already wired) + new `lib/ux-metrics.ts` (planned T4.7)."  ||  `ls src/lib/` shows no rum.ts and no ux-metrics.ts; `ls src/lib/telemetry/` shows error-reporter.ts, error-reporter.test.ts, rum.ts, rum.test.ts  ||  `grep -rl ux-metrics src/` returns zero files
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:683`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Fix the path to src/lib/telemetry/rum.ts and mark the § 17.1-17.3 metrics as not-yet-captured (with backlog ids) instead of implying instrumentation exists
@@ -6928,7 +7215,11 @@ evidence: |
   src/lib/placeholder-honesty.test.ts:46-47  "Nao exige o contrario: uma rota em placeholder pode legitimamente ficar FORA do menu"
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/settings-routes.tsx:26`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Replace both routes with <Navigate to="/team" replace /> and <Navigate to="/billing" replace /> (the same treatment /api-keys already gets at src/app.tsx:173), so an old bookmark lands on the working screen instead of a coming-soon page for
@@ -6948,7 +7239,11 @@ evidence: |
   DESIGN.md:809-812 cites `.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-edge-cases.md`, `.claude/knowledge-base/architecture/dashboard/`  ||  `ls theo-cloud/.claude/knowledge-base/` = adrs audits backlog discoveries grills implementations plans reviews roadmap-runs (no architecture/)  ||  `ls .claude/knowledge-base/audits/2026-05-25/` = no such directory  ||  `find theo-cloud -name "*faang*" -not -path "*/node_modules/*"` returns nothing  ||  DOGFOOD.md:147-149 cites the same missing audit file
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:809`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Either restore the referenced artifacts under .claude/knowledge-base/ or strip the dead citations and the T-numbers that depend on them, replacing each with the ADR or backlog id that survives
@@ -6968,7 +7263,11 @@ evidence: |
   DESIGN.md:93-94 — "| `@usetheo/ui` | `0.35.1` | components | 183 files import it |" / "| `@theokit/ui` | `1.3.2` | the theme ... | 3 files, 4 symbols |"  ||  `grep -rl "@usetheo/ui" src/ | wc -l` = 231  ||  `grep -rln "@theokit/ui" src/` = src/main.tsx, src/test/render.tsx, src/lib/theme/theo-theme.ts, src/pages/settings/billing.tsx, src/pages/overview/overview.tsx, src/index.primary-token.test.ts, src/pages/lens/traces.test.tsx, src/pages/lens/compare.test.tsx, src/pages/lens/traces/columns-toggle.test.tsx
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:93`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Turn the containment claim into an executable check (a test asserting the @theokit/ui importer set) rather than a number in prose; the doc already states the split is only defensible while the surface stays small
@@ -6988,7 +7287,11 @@ evidence: |
   DESIGN.md:139 "`--motion-{instant,fast,base,slow}` in `index.css:113-119`" vs src/index.css:108 `--motion-instant: 0ms;` .. :111 `--motion-slow: 320ms;`  ||  DESIGN.md:466 "Already partially done in `cloud/dashboard/src/index.css:122-136`" vs src/index.css:181 `@media (prefers-reduced-motion: reduce) {`  ||  DESIGN.md:492 "NOT `<span>` like current `top-bar.tsx:67`" vs src/components/layout/top-bar.tsx:65-67 `<Select.Trigger aria-label="Select project" ...>`  ||  DESIGN.md:663 "the exact smoking gun in `settings.tsx:13-21` + `profile.tsx:30-40`" vs src/pages/settings/profile.tsx:31-40 "SG-05 CLOSED ... replaced setTimeout fake with real DELETE /api/v1/tenants/{id}" and no src/pages/settings.tsx exists
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:139`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Drop the line numbers and cite symbols/files only, or add a doc-link test (the repo already has this pattern in src/lib/*.test.ts) that fails when a cited path stops resolving
@@ -7008,7 +7311,11 @@ evidence: |
   docs/adr/README.md:8 — "Arquivos neste diretorio: `0001-…` a `0009-…`." vs docs/adr/README.md:13-26 listing ADR-0001..ADR-0014, and `ls docs/adr/` showing 0001..0014 plus README.md  ||  docs/adr/README.md:62 — "`docs/adr/adr-nomenclature.test.ts` falha se a contagem de `ADR D<n>` no codigo crescer" vs actual location src/lib/adr-nomenclature.test.ts (verified: `find . -name "*nomenclature*"` = ./src/lib/adr-nomenclature.test.ts)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/adr/README.md:8`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Change line 8 to "0001-… a 0014-…" (or drop the range, since the table below is the index) and correct the test path to src/lib/adr-nomenclature.test.ts
@@ -7028,7 +7335,11 @@ evidence: |
   docs/padronizacao-ui-2026-08-09.md:217 — "### P2 — Migrar os 14 call sites de pagina e remover `ui/dialog`"; :230 — "**Pronto quando:** `components/ui/dialog.tsx` e deletado e a suite passa."  ||  `wc -l src/components/ui/dialog.tsx` = "Arquivo ou diretorio inexistente"; `ls src/components/ui/ | grep -i dialog` returns nothing  ||  `grep -rln "ui/dialog" src/` returns only files where the string appears inside comments (redeploy-dialog.tsx:63, confirm-dialog.test.tsx:138, redeploy-dialog.test.tsx:99, modal-primitive.test.ts, promote-to-production-dialog.test.tsx)  ||  doc:54 "`components/ui/dialog.tsx` (97 LoC) e `components/ui/app-modal.tsx` (104 LoC)" vs `wc -l src/components/ui/app-modal.tsx` = 148  ||  doc:10 "423 arquivos `.tsx`" vs `find src -name "*.tsx" | wc -l` = 434
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/padronizacao-ui-2026-08-09.md:217`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Add a status header to the document (executed / superseded, with the commit or backlog ids that closed P1-P3) or move it under a docs/history/ directory. A dated measurement report is fine; a dated report that still reads as an open work or
@@ -7048,7 +7359,11 @@ evidence: |
   docs/adr/0002-orcamento-de-loc-por-arquivo.md § Decisao — "acompanhado de uma **allowlist explicita dos 32 arquivos atuais** que excedem o limite"  ||  docs/architecture.md:67 — "| `max-lines` (B-033) | 500 LOC por arquivo, com allowlist de 18 arquivos que carrega o LOC de cada um. |"  ||  eslint.config.js:222 — "Esta regra NAO pede refactor: ela trava a divida onde esta. Os 18 arquivos que hoje excedem estao listados" vs eslint.config.js:253-267 which lists 15 paths  ||  eslint.config.js:227-230 cites src/app.tsx as the flagship allowlist entry; app.tsx is absent from the list and is 226 lines
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/adr/0002-orcamento-de-loc-por-arquivo.md:15`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Let the allowlist be its own source of truth: remove the count from the eslint comment and from architecture.md, and mark ADR-0002 as superseded-in-part by the B-033 implementation (which is what src/lib/loc-budget-ratchet.test.ts already e
@@ -7071,7 +7386,11 @@ evidence: |
     });
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:57`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Build the URL with URLSearchParams or wrap the value: `?id=${encodeURIComponent(flowId)}`. Apply at all five call sites; a single `flowUrl(flowType, id)` helper in kratos.ts would remove the possibility of missing one
@@ -7101,7 +7420,11 @@ evidence: |
     }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/safe-redirect.ts:57`. It is one instance of F1 · a security guard exists, is tested, and is not called — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Hoist the environment check once (`const origin = typeof window === 'undefined' ? null : window.location.origin;`) and express the rule as a flat sequence of guard clauses over `origin` — same behaviour, roughly half the branches, and every
@@ -7125,7 +7448,11 @@ evidence: |
       errorsThisSession++;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/telemetry/error-reporter.ts:21`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Extract `buildPayload(error, info)` and `dispatch(body)` so each has one reason to fail, keep the single outer try/catch on the composed call, and increment an in-memory `reporterFailures` counter in the outer catch so a systematically brok
@@ -7146,7 +7473,11 @@ evidence: |
     console.error('[auth.error-mapper]', input);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/error-mapper.ts:135`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Gate the log (`if (import.meta.env.DEV) console.debug(...)`) or move it to the call site that actually handles the error, keeping the mapper pure. If operator debuggability in production is the goal (ADR D2), route it through `reportEvent`
@@ -7172,7 +7503,11 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/telemetry/rum.ts:30`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Either implement the beacon (the sibling `reportEvent` in the same file already has the sendBeacon/fetch fallback to reuse) or make `reportInProd` a no-op and drop the misleading header claim. Silent console noise in production is the worst
@@ -7195,7 +7530,11 @@ evidence: |
       setTimeout(() => { window.location.href = `/login${params}`; }, 2000);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:256`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Name the constant (`const SESSION_EXPIRY_NOTICE_MS = 2_000;`) and move the notice out of the HTTP layer: dispatch a `theo:session-expired` window event (the 402 interceptor 12 lines below already uses exactly this pattern) and let a top-lev
@@ -7220,7 +7559,11 @@ evidence: |
    * backend-frontend integration plan).
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:25`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Replace the paragraph with the current contract: 'Auth: the JWT goes in the Authorization header — the transport is fetch + ReadableStream (fetch-event-source.ts), not EventSource. See ADR-0009 / B-088.' Also revisit the sibling claim at sr
@@ -7249,7 +7592,11 @@ evidence: |
       }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/shared-event-source.ts:113`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Include the resume cursor in the registry key (`${url}|${lastEventId ?? ''}`) so subscribers that disagree get their own connection, or — cheaper and probably right here — document the rule explicitly and normalize at the caller: since the
@@ -7283,7 +7630,11 @@ evidence: |
     };
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:262`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Wrap `clear` in useCallback with an empty dependency array (it only touches refs and setters, all stable) and wrap the returned object in useMemo keyed on the five values it exposes. Do the same at use-log-stream.ts:103, then `[stream]` in
@@ -7309,7 +7660,11 @@ evidence: |
         }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deployment-stream.ts:177`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Return the anchor instead of the derived elapsed value — expose `startedAt` and let the presentation layer tick with its own interval or a `useElapsed(startedAt)` hook — or keep the field and drive it from a 1s interval so the memo is pure
@@ -7336,7 +7691,11 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/mocks/sse.ts:163`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Remove installSSEMocks / uninstallSSEMocks and their call in installAllMocks, keeping MockEventSource and registerSSE (both still used through __setTransporte), and update the file header at lines 8-14 to describe the transport-injection pa
@@ -7359,7 +7718,11 @@ evidence: |
           msg: raw.msg ?? raw.line ?? '',
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-log-stream.ts:95`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Stamp the arrival time once, at ingestion, rather than at projection: capture it in useSSEStream's `push` (which runs exactly once per event) or leave `ts` undefined and let the viewer render a placeholder for lines the server did not times
@@ -7389,7 +7752,11 @@ evidence: |
         ),
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/projects/use-readiness-signals.ts:62`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Make the signal definitions data. Extend the SIGNALS table in signals.ts with an `evaluate(inputs): ReadinessStatus` per signal (or a declarative `{ unknownWhen, thresholds }` descriptor) and reduce the memo to a map over SIGNALS. CCN then
@@ -7423,7 +7790,11 @@ evidence: |
     if (code === 'NO_ACTIVE_RELEASE' || /no active release/i.test(detail)) {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/deploy/components/promote-to-production-dialog.tsx:216`.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Extract one `deployErrorMessage(status, body)` into a sibling module (e.g. src/pages/deploy/components/deploy-error-message.ts) and import it from both dialogs, keeping any dialog-specific wording as a parameter. This puts the backend error
@@ -7681,7 +8052,7 @@ dod:
   - the count of unused exported types can only descend
   - the ratchet is proven able to fail
 
-## B-167 — Six list pages state absence when the read failed   [~]
+## B-167 — Six list pages state absence when the read failed   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7707,7 +8078,27 @@ why_now: |
   The query layer is guarded — `lib/silent-null-guard.test.ts` demands `throwOnError` on every
   read — and all six offending pages PASS it. Nothing checks that anyone renders the rejection,
   so the guard covers the fetch and not the screen.
-status: partial
+status: triaged
+remeasured: |
+  Re-opened 2026-08-11. `partial` was never a status this schema declares
+  (raw | triaged | planned | shipped | killed) — corrected to `triaged`.
+  Real arithmetic measured today: 8 `empty=` call sites + 1 non-`empty=` site;
+  5 correct, 4 remaining. The `shipped_note` is stale in both directions — it
+  says "three remain", names four, and one of those (`infra/secrets.tsx`) is
+  already migrated.
+  Remaining: `src/pages/projects/projects.tsx:364` (plus `<EmptyProjectsHero />`
+  at :379, a SECOND absence assertion the note never listed),
+  `src/pages/infra/environments.tsx:192`, `src/pages/deploy/deployments.tsx:271`,
+  and `src/pages/settings/webhooks.tsx:347` — the last one is an inline ternary,
+  not an `empty=` prop, so it is invisible to any `empty=`-shaped sweep.
+  Every missing error flag already exists on the hook; no hook signature changes.
+  The DoD guard does NOT exist yet (swept `scripts/`, `lint`, `eslint.config.js`).
+  CORRECTION to this block's own premise: `PageShell` DOES accept `error` in the
+  installed `@usetheo/ui@0.35.1` (`error?: { message; onRetry?; docsHref? }`,
+  precedence `loading > error > empty`), and `lens/labeling-queue.tsx:183` already
+  uses it. The justification written into `src/lib/list-state.ts:31-34` is false.
+  Full detail in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 shipped_note: |
   `lib/list-state.ts` is the missing decision, as a pure function rather than a wrapper around
   a design-system component we do not own. THREE of the pages now use it — infra/domains.tsx,
@@ -7748,7 +8139,11 @@ evidence: |
 why_now: |
   Cancelling a build is destructive and the operator acts on the answer. Telling them it
   worked when it did not is the failure mode that costs most on this surface.
-status: raw
+status: triaged
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
 dod:
   - a BEHAVIOURAL test (not a source-text assertion) shows the mutation ends in `isError`
     when the request fails
