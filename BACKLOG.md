@@ -7505,3 +7505,36 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `theo-cloud-release-version-detection`).
 > Corrected the same day after verifying against the remote; see `why_now`.
+
+## B-163 — Two documents present stale numbers as measured fact   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  docs/architecture.md:99
+  The document opens asserting "nada aqui e estimativa" and then cited `app.tsx` at 757 lines
+  (measured 2026-08-11: 226), `pages/promptly/detail.tsx` at 916 (real: 465), 28 component
+  subfolders (real: 9) and `api.ts` at 183 importers (real: 211).
+
+  TESTING.md:174 told contributors `npm run tree-shake-check` greps the bundle for `lib/mocks`.
+  That form was DELETED for being a check that cannot fail — the bundler erases module paths.
+  Measured 2026-08-08 in `scripts/check-mocks-tree-shaken.mjs`'s own post-mortem: mocks were
+  injected into `main.tsx`, shipped in the production bundle, and the grep printed PASS.
+why_now: |
+  A doc that claims measurement and carries 3x-stale figures is worse than one that admits
+  estimating — a reader budgets refactoring against it. And TESTING.md actively taught the
+  broken gate as the correct one, so the next contributor would have restored it as a fix.
+status: shipped
+shipped_note: |
+  Figures re-measured and DATED, so the next reader can tell when they were true rather than
+  trusting an undated claim. TESTING.md now names the two string sentinels that actually run
+  and says why the grep is not coming back.
+dod:
+  - every figure the document presents as measured matches the disk
+  - the claim of measurement carries the date it was taken
+  - TESTING.md describes the gate that exists
+

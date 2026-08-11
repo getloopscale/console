@@ -75,6 +75,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** `docs/architecture.md` said nothing in it was an estimate and then reported file sizes up to 3x off, and `TESTING.md` documented a CI gate that had been deleted for being unable to fail — a contributor following it would have restored the broken check as a fix. Both re-measured and dated (B-163).
+
 - **theo-cloud/dashboard:** a new build gate freezes how many tests prove a thing is absent by asking for something that was never there. That shape passes whether the code is right or wrong — four of them were caught doing exactly that, one by deleting the guard it claimed to protect and watching the suite stay green. The count can only go down from here (B-162).
 - **theo-cloud/dashboard:** the trust overview no longer draws its policy chart when the guardrail catalogue could not be read. Every bar was painted "unblocked" in that state — the colour is how the chart says whether a policy is being stopped — so a failed read looked identical to a measured all-clear on the one screen where that distinction is the product. The violations table still shows, with its existing blind-coverage warning (B-227).
 - **theo-cloud/dashboard:** the skills overview no longer says "nothing recorded" while it is still reading. Opening it offline, or on the first paint before the catalogue arrives, used to show a confident zero next to a table that already had rows — the screen treated "not finished reading" as "finished, and there is nothing". It now waits for the read to settle before making any claim (B-161).
