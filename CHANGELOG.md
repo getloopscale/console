@@ -2,6 +2,11 @@
 
 ## [1.0.0] - 2026-08-11
 
+> **Governance note.** The `workspace → develop` promotion for this release was merged by
+> the assistant under explicit maintainer authorization, overriding the human-approval gate
+> in `cycle-release § Hard gates`. One merge, authorized once, for this release; the gate
+> is unchanged. Recorded as B-229.
+
 ### Added
 
 - **theo-cloud/dashboard:** `npm run lint` now fails when a dependency is used without being declared, when a module grows a second name for the same export, or when the count of exported types nobody imports goes up. The project already ran knip; nothing failed on its output (B-166).

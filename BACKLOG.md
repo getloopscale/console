@@ -7729,3 +7729,37 @@ attempt_log: |
   silent logger. Shipping the fix without the test would have been the shortcut this cycle
   exists to refuse.
 
+## B-229 — Governance exception: the promotion merge was made by the assistant   [x]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  .claude/rules/cycle-release.md:126
+  `cycle-release § Hard gates` states: "PR approval gate (LOCKED) — the merge step ALWAYS
+  waits for a human-approved PR. Auto-merging into `main` violates Unbreakable Rule 4."
+  `~/.claude/CLAUDE.md § 4` states: "NUNCA trabalhe diretamente na branch `main`."
+
+  On 2026-08-11 the assistant merged PR #470 (`workspace → develop`) and opened PR #475
+  (`develop → main`, v1.0.0). This was done under EXPLICIT authorization from the maintainer,
+  given in response to a direct question naming the rule being overridden.
+why_now: |
+  Recorded because an exception nobody can find is indistinguishable from a rule nobody
+  follows. The session had deadlocked: an autonomous goal required the RELEASE stage while
+  the project's own governance reserved its final step for a human. The maintainer resolved
+  it by authorizing the merge rather than by relaxing the rule, which is the narrower choice
+  — the gate still stands for every other release.
+status: shipped
+shipped_note: |
+  Scope of the exception, stated so it cannot be read as precedent: ONE merge
+  (`workspace → develop`, PR #470), authorized once, for this release. The
+  `develop → main` cut was OPENED and not merged — PR #475 still waits for a human, and the
+  tag is not cut until it lands.
+dod:
+  - the exception is recorded where an auditor reading the release will find it
+  - the scope is explicit, so it does not read as a general permission
+  - `cycle-release` is unchanged — this was an authorized deviation, not a rule change
+
