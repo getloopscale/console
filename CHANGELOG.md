@@ -7,6 +7,9 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the trust screens could not be used in mock mode — `/trust` and `/trust/violations` both showed "Could not read the trust layer", because the mock never served the endpoint they read. The mock also left the guardrail catalogue without the field coverage is matched on, so the "blocked" column always answered "not blocked" whether or not a guardrail existed (B-127).
+- **theo-cloud/dashboard:** five column headers and labels on the trust screens were in Portuguese while the rest of the dashboard is in English (B-127, sweep tracked in B-128).
+
 - **theo-cloud:** seis listas truncavam em silêncio — com mais de 100 saved views, dashboards, webhooks ou API keys (200 para alert rules), os excedentes sumiam sem que a resposta ou a tela dissessem. Agora a resposta traz `has_more` e a tela avisa quantos está mostrando (B-114).
 
 - **theo-cloud/dashboard:** apagar um projeto deixava de removê-lo dos seletores de "Add domain" e "Create environment" por até um minuto — as folhas liam a lista por uma segunda chave de cache que a invalidação não alcançava, e o usuário podia apontar um domínio para um projeto que não existia mais (B-113).

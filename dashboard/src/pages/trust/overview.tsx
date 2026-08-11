@@ -111,17 +111,17 @@ export function TrustOverviewPage() {
     },
     {
       key: 'observed',
-      label: 'Observada',
+      label: 'Observed',
       render: (row) => (
         <span className="tabular-nums text-muted-foreground">{row.observed}&times;</span>
       ),
     },
     {
       key: 'enforced',
-      label: 'No caminho inline',
+      label: 'On the inline path',
       align: 'right',
-      // A linha descoberta termina numa AÇÃO, não num rótulo: uma tela que só avisa é um alarme
-      // sem interruptor. A bloqueada termina num Badge, porque não há nada a decidir nela.
+      // An uncovered row ends in an ACTION, not a label: a screen that only warns is an alarm with
+      // no switch. A blocked row ends in a Badge, because there is nothing to decide about it.
       render: (row) =>
         row.enforced ? (
           <Badge variant="outline">
@@ -214,7 +214,7 @@ export function TrustOverviewPage() {
               description={
                 failed
                   ? 'Try again in a moment. Until then, there is no way to know what got through.'
-                  : 'As guardrails ativas seguem valendo no caminho inline.'
+                  : 'The active guardrails still apply on the inline path.'
               }
             />
           }

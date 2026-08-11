@@ -4772,7 +4772,7 @@ entregue_2026-08-11: |
   ACHADO COLATERAL: `pages/skills/` não tinha teste de tela algum — a cobertura vivia nos hooks e
   no e2e, e um teste de hook passa idêntico com a tela nunca montada.
 
-## B-127 — The trust mock does not serve `/policy-violations`, so two screens cannot be exercised in mock mode   [ ]
+## B-127 — The trust mock does not serve `/policy-violations`, so two screens cannot be exercised in mock mode   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -4780,7 +4780,28 @@ suggested_mode: bug
 source: human
 evidence: `src/lib/mocks/trust-handlers.ts:45-87` registers five routes (`/validators`, `/enforcement-events`, `POST /guardrails/test`, `POST /guardrails/`, `DELETE /guardrails/{id}`) and NOT `/policy-violations`, which `src/hooks/trust/use-trust.ts:85` requests. Measured in the browser 2026-08-11 with `VITE_USE_MOCKS=true` on `localhost:5199/trust`: the screen renders "Could not read the trust layer" and "No data — the read failed". `/violations` reads the same endpoint and is equally blind.
 why_now: B-126 put a KPI dashboard on `/trust`, and its screen-sweep DoD could not be verified in mock mode — the read fails before any number is computed. The screen behaved correctly (it refused to show four fabricated zeros over a failed read), which is what exposed the gap in the mock rather than in the product.
-status: raw
+status: shipped
+shipped_note: |
+  Measuring the fix found two more divergences in the same mock, both of which made a screen read
+  confidently over data that could not support it:
+
+  - The catalogue's validators carried no `category`, which is the field `coverageGap` matches an
+    observed policy against (`pages/trust/components/trust-series.ts:162-172`) and which is REQUIRED
+    on the canonical entry (`theo-trust/packages/guardrails-client/src/types.ts:10`). With nothing
+    to match on, the "blocked" column was structurally blind: `/trust` read `3 policies / 0 blocked`
+    over a catalogue covering one of them. A column that always answers "uncovered" is
+    indistinguishable from a real coverage gap — alarming and meaningless.
+  - `/policy-violations` did not return `has_more`, which `theo-trust/openapi.yaml:365` makes
+    required — the same silent-truncation discipline B-114/B-120 established.
+
+  The seed is now asymmetric on purpose (one covered policy, two not) and the test asserts the
+  asymmetry: `3 of 3 uncovered` looks the same whether the matching works or is broken, which is
+  exactly how the blind column survived.
+
+  Four Portuguese UI strings on the two screens were translated on the way (`Observada`,
+  `No caminho inline`, `Detectada em`, `Severidade`, `Trecho (redigido)`). Date formatting was NOT
+  touched: two call sites hardcode `pt-BR` and picking a replacement is a product decision, recorded
+  as an open question on B-128 rather than made silently inside a translation sweep.
 dod:
   - `localhost/trust` in mock mode renders the verdict and the four KPIs, with no error banner
   - `localhost/violations` in mock mode lists rows
@@ -4796,6 +4817,17 @@ suggested_mode: review
 source: human
 evidence: three trust screens labelled the refresh button `'Atualizar'` while the other five capabilities label it `'Refresh'` (`pages/memory/overview.tsx:85`, `pages/lens/overview.tsx:149`, `pages/rag/overview.tsx:57`, `pages/workspace/overview.tsx:273`) — measured in the browser 2026-08-11 and fixed in the B-126 commit. The comment layer is far wider: most files under `src/pages/` and `src/lib/` carry Portuguese doc comments.
 why_now: the owner declared an unbreakable rule that every artifact in the projects is written in English, and that anything found in PT/PT-BR is translated. The UI label was a user-visible instance of it. Nothing enforces the rule, so it decays back one file at a time.
+open_question: |
+  DATE FORMATTING IS A SEPARATE DECISION, not a translation, and it is deliberately left open here.
+
+  Measured 2026-08-11 in mock mode: `/trust/violations` renders "9 de ago. de 2026, 11:22
+  (anteontem)" and "há 20 horas". Two call sites hardcode the locale —
+  `pages/promptly/components/projections.ts:343` and `pages/lens/usage-by-user.tsx:118` both pass
+  `'pt-BR'` — and the relative-time phrasing comes from elsewhere again.
+
+  Translating the strings does not answer what locale the product should format dates in. Hardcoding
+  `en-US` is as much a decision as hardcoding `pt-BR` was, and following the browser is a third. That
+  is a product call, and picking one silently while doing a translation sweep would bury it.
 status: raw
 dod:
   - no user-visible string in the dashboard is in Portuguese

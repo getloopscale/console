@@ -71,7 +71,7 @@ export function violationColumns(
       // Sem data, duas violacoes iguais em politica e severidade sao indistinguiveis, e "isso e
       // de agora ou de semanas atras?" e a primeira pergunta de quem abre a tela.
       key: 'detectedAt',
-      label: 'Detectada em',
+      label: 'Detected at',
       render: (row) =>
         row.detectedAt ? (
           <Timestamp value={row.detectedAt} format="both" />
@@ -89,7 +89,7 @@ export function violationColumns(
     },
     {
       key: 'severity',
-      label: 'Severidade',
+      label: 'Severity',
       render: (row) =>
         row.severity ? (
           <Badge
@@ -111,7 +111,7 @@ export function violationColumns(
       // 2026-08-01, o `/policy-violations` do deploy não devolve `detectedAt`, e uma coluna
       // permanentemente vazia é ruído que empurra a informação real para fora da tela.
       key: 'redacted',
-      label: 'Trecho (redigido)',
+      label: 'Excerpt (redacted)',
       render: (row) =>
         row.redacted ? (
           <code className="font-mono text-xs">{row.redacted}</code>
