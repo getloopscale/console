@@ -5305,7 +5305,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-login-login-page-swallows-both-flow-hydration`). Source: code-review finding #43, `code-review-output/code-review.db`.
 
-## B-142 — cloudFetch fabricates ApiError(429) for failures that were not rate limits — and retryGuard then refuses to re   [ ]
+## B-142 — cloudFetch fabricates ApiError(429) for failures that were not rate limits — and retryGuard then refuses to re   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5323,7 +5323,11 @@ evidence: |
       }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:303`.
-status: triaged
+status: shipped
+shipped_note: |
+  `transientAuthError()` builds the error from `lastExchangeStatus` (0 for a network rejection, the value `ApiError` already defines).
+  No literal 429 remains in `api.ts`.
+  Three tests cover 502, network-reject and a genuine 429 — the last one guards against overshooting.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5882,7 +5886,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-blob-anchor-download-implemented-3-times`). Source: code-review finding #38, `code-review-output/code-review.db`.
 
-## B-231 — Concurrent 401s each null the access token, re-triggering the token exchange the #324 fix exists to prevent   [ ]
+## B-231 — Concurrent 401s each null the access token, re-triggering the token exchange the #324 fix exists to prevent   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5900,7 +5904,11 @@ evidence: |
         const newToken = await ensureToken();
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:379`.
-status: triaged
+status: shipped
+shipped_note: |
+  `tokenGeneration` compare-and-swap: a 401 invalidates the token only if nobody renewed between the request going out and the response arriving.
+  Bumped on successful exchange and on `clearToken()`.
+  The regression test controls the interleaving explicitly — an earlier version that let the two 401s race naturally passed against the unfixed code, because both landed before the exchange completed.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6037,6 +6045,14 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
 status: triaged
+scope_narrowed: |
+  2026-08-11 — deliberately NOT closed by the http-error-contract slice. The ambiguity
+  was mitigated where it produced a visible defect (B-171, at the hook) and is now
+  documented in `cloudFetch`'s own docblock, enumerating the five outcomes `null` collapses
+  — including a SUCCESSFUL 204. What remains is one decision: whether the default signature
+  becomes a discriminated result, which is a breaking change across 151 importers. Recorded
+  as an open question in `plans/http-error-contract-plan.md`. Marking this shipped on the
+  mitigation would claim the contract was fixed when only one consumer of it was.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6144,7 +6160,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-logout-cache-purge-tenant-cache-purge-on-logout-fails`). Source: code-review finding #52, `code-review-output/code-review.db`.
 
-## B-171 — useCloudApi reports `error: true` for a successful empty response   [ ]
+## B-171 — useCloudApi reports `error: true` for a successful empty response   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6157,7 +6173,10 @@ evidence: |
   error: enabled && (query.isError || (query.isFetched && query.data === null)),
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/use-api.ts:48`.
-status: triaged
+status: shipped
+shipped_note: |
+  Both hooks pass `{ throwOnError: true }` and return `error: query.isError`.
+  `src/hooks/use-api.test.tsx` created — the hook had NO test of its own, which is how a wrong boolean survived across 13 production consumers.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

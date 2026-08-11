@@ -454,3 +454,151 @@ describe('rate limit no refresh apos 401 (#324, segunda rodada)', () => {
     expect(sessionDefinitivelyExpired()).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// B-142 — the client threw a status it never received.
+//
+// On the transient-auth path `cloudFetch` threw `ApiError(429, 'Too many requests')` for EVERY
+// failure of the token exchange: a 500, a 502 whose own message says "Try again", or a network
+// rejection with no response at all. `lastExchangeStatus` already held the truth and was read by
+// nothing but `sessionDefinitivelyExpired()`.
+//
+// It is not a cosmetic lie. `retryGuard` keys on the status and refuses to retry any 4xx, so the
+// one failure class that most deserves a retry was guaranteed never to get one.
+// ---------------------------------------------------------------------------
+
+describe('B-142 — the thrown error carries the status that actually happened', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('a 502 from the exchange is not reported as a rate limit', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        return new Response(JSON.stringify({ code: 'AUTH_SERVICE_UNAVAILABLE' }), { status: 502 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const erro = await cloudFetch('/foo', {}, { throwOnError: true }).catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(ApiError);
+    expect((erro as ApiError).status).toBe(502);
+    expect((erro as ApiError).message).not.toMatch(/too many requests/i);
+  });
+
+  it('a network rejection from the exchange surfaces as status 0, the value that means "no response"', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) throw new TypeError('network down');
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const erro = await cloudFetch('/foo', {}, { throwOnError: true }).catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(ApiError);
+    expect((erro as ApiError).status).toBe(0);
+  });
+
+  it('a genuine 429 from the exchange still says 429', async () => {
+    // The fix must not overshoot: when the exchange really WAS rate limited, that is the status.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        return new Response(JSON.stringify({ code: 'RATE_LIMITED' }), { status: 429 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const erro = await cloudFetch('/foo', {}, { throwOnError: true }).catch((e: unknown) => e);
+
+    expect((erro as ApiError).status).toBe(429);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-231 — a 401 that arrives late destroys the token the refresh just minted.
+//
+// `refreshPromise` dedups the EXCHANGE, not the eager `accessToken = null` that precedes it. With
+// two requests in flight: A gets 401, nulls the token, starts the exchange; the exchange succeeds
+// and sets a fresh token; B then gets its own 401 and nulls THAT fresh token, so its `ensureToken`
+// finds nothing valid and starts a second exchange — against the endpoint whose quota #324
+// records as already blown once. The loop feeds itself with a perfectly valid Kratos session.
+//
+// The race is between continuations on one thread, across an await. That is why the fix is a
+// generation counter (compare-and-swap) and not a lock.
+// ---------------------------------------------------------------------------
+
+describe('B-231 — concurrent 401s do not each invalidate the token', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('a 401 that arrives AFTER the refresh does not throw away the fresh token', async () => {
+    // The interleaving is the defect, so the interleaving is controlled rather than hoped for.
+    // Request B's first attempt is held open until A has finished refreshing; B's 401 therefore
+    // lands on a token that is already fresh, which is exactly the case where nulling it is wrong.
+    let exchanges = 0;
+    // `!` (definite assignment): o executor do Promise roda sincronamente, entao a atribuicao
+    // aconteceu antes de qualquer uso — o que o fluxo de controle do TS nao consegue ver.
+    let soltarB!: () => void;
+    const bSegurado = new Promise<void>((r) => { soltarB = r; });
+    let bJaFalhou = false;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes('/v1/auth/session/token')) {
+        exchanges += 1;
+        return new Response(
+          JSON.stringify({ access_token: `tk-${String(exchanges)}`, expires_in: 3600 }),
+          { status: 200 },
+        );
+      }
+      if (u.includes('/b') && !bJaFalhou) {
+        bJaFalhou = true;
+        await bSegurado; // held until A's refresh has completed
+        return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+      }
+      if (u.includes('/a')) return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    await exchangeSessionToken();
+    const antes = exchanges;
+
+    const b = cloudFetch('/b');
+    await cloudFetch('/a'); // A: 401 -> refresh -> retry, all while B is held
+    const aposA = exchanges;
+    expect(aposA - antes).toBe(1); // A refreshed once, as it should
+
+    soltarB();
+    await b;
+
+    // B's late 401 must NOT null the token A just minted. If it does, B's ensureToken finds
+    // nothing valid and runs a SECOND exchange — the self-feeding loop #324 is about.
+    expect(exchanges - aposA).toBe(0);
+  });
+
+  it('a 401 on the CURRENT token still refreshes — the guard must not disable the mechanism', async () => {
+    let exchanges = 0;
+    let dataCalls = 0;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes('/v1/auth/session/token')) {
+        exchanges += 1;
+        return new Response(
+          JSON.stringify({ access_token: `tk-${String(exchanges)}`, expires_in: 3600 }),
+          { status: 200 },
+        );
+      }
+      dataCalls += 1;
+      if (dataCalls === 1) return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    await exchangeSessionToken();
+    const antes = exchanges;
+
+    await expect(cloudFetch('/a')).resolves.toEqual({ ok: true });
+    expect(exchanges - antes).toBe(1);
+  });
+});

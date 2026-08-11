@@ -63,6 +63,15 @@ let accessToken: string | null = null;
 let tokenExpiresAt = 0;
 let refreshPromise: Promise<boolean> | null = null; // Dedup concurrent refreshes
 
+/**
+ * Quantas vezes a credencial DESTA aba mudou (B-231). `refreshPromise` deduplica a TROCA, nao o
+ * `accessToken = null` que a antecede, entao um 401 emitido contra o token VELHO mas processado
+ * DEPOIS da renovacao apagava o token novo e disparava uma segunda troca. Compare-and-swap, nao
+ * lock: a corrida e entre continuacoes de uma thread ao redor de um `await`. Cenario completo em
+ * `api.test.ts § B-231`.
+ */
+let tokenGeneration = 0;
+
 // §3.3: BroadcastChannel for cross-tab coordination.
 // SECURITY: the JWT is NEVER broadcast. The token lives only in this tab's
 // memory; broadcasting it would let any same-origin XSS subscribe to the channel
@@ -159,6 +168,22 @@ export function sessionDefinitivelyExpired(): boolean {
   return lastExchangeStatus === 401;
 }
 
+/**
+ * B-142 — aqui se lancava `ApiError(429)` para QUALQUER falha da troca (429, 500, 502, rede).
+ * Nao era cosmetico: `retryGuard` decide pelo status e recusa repetir 4xx, entao a classe que mais
+ * merece nova tentativa era a unica com repeticao desligada. Ver `api.test.ts § B-142`.
+ */
+function transientAuthError(): ApiError {
+  const status = lastExchangeStatus ?? 0;
+  return new ApiError(
+    status,
+    undefined,
+    status === 0
+      ? 'could not reach the authentication service — no response'
+      : `authentication service returned ${String(status)} — try again in a moment`,
+  );
+}
+
 /** Exchange Kratos session cookie for a JWT. Called after login. */
 export async function exchangeSessionToken(): Promise<boolean> {
   // Visual-validation mock layer (dev-only, gated by VITE_USE_MOCKS).
@@ -167,6 +192,7 @@ export async function exchangeSessionToken(): Promise<boolean> {
   if (mocksEnabled()) {
     accessToken = 'mock-jwt-for-visual-validation';
     tokenExpiresAt = Date.now() + 3600 * 1000;
+    tokenGeneration += 1;
     return true;
   }
 
@@ -200,6 +226,7 @@ export async function exchangeSessionToken(): Promise<boolean> {
       accessToken = data.access_token;
       tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000; // 60s buffer
       lastIdentity = data.identity ?? null;
+      tokenGeneration += 1; // B-231 — a credencial mudou; 401s emitidos contra a anterior ficam obsoletos.
 
       // SECURITY: do NOT broadcast the token. Each tab exchanges its own token
       // from its Kratos session cookie on demand (see ensureToken).
@@ -265,6 +292,7 @@ export function clearToken(): void {
   accessToken = null;
   tokenExpiresAt = 0;
   lastIdentity = null;
+  tokenGeneration += 1; // B-231 — um logout tambem obsoleta os 401 ainda em voo.
 }
 
 /**
@@ -289,6 +317,16 @@ export function clearTokenAcrossTabs(): void {
 // MEET-040: Unified API fetch. All paths relative to same origin.
 // /v1/billing, /v1/auth/* → cloud service (direct, same origin)
 // /engine/api/v1/* → cloud service proxy → engine API (BFF pattern)
+/**
+ * B-235 — no contrato PADRAO, `null` colapsa cinco desfechos: falha transitoria de auth, sessao
+ * encerrada, nao-2xx, rejeicao de rede e um `204`/`205` **bem-sucedido** (`parseOkBody`). O quinto
+ * e o que virou defeito visivel: `useCloudApi` lia `null` como falha e pintava erro sobre uma
+ * leitura que funcionou (B-171), corrigido la optando pelo erro tipado.
+ *
+ * O default continua ambiguo e **nao e item fechado**: discriminar a assinatura quebra 151
+ * importadores. Decisao em aberto em `plans/http-error-contract-plan.md § Unresolved Questions`.
+ * Codigo novo passa `{ throwOnError: true }`.
+ */
 export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {
   // Plan v1.0 (2026-05-26): mock mode no longer short-circuits via FIXTURES
   // map. Instead, lib/mocks/server.ts wraps window.fetch and intercepts all
@@ -300,9 +338,7 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg
     // #324: so redireciona quando a sessao de fato acabou (401). Qualquer outra
     // falha e transitoria — ver `sessionDefinitivelyExpired()`.
     if (!sessionDefinitivelyExpired()) {
-      if (cfg.throwOnError === true) {
-        throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
-      }
+      if (cfg.throwOnError === true) throw transientAuthError();
       return null;
     }
     redirectToLogin('expired');
@@ -356,6 +392,8 @@ async function toApiError(resp: Response): Promise<ApiError> {
 }
 
 async function fetchWithAuth<T>(base: string, path: string, token: string, options: RequestInit = {}, redirectOnAuthFailure = true, throwOnError = false, onResponse?: (resp: Response) => void): Promise<T | null> {
+  // B-231 — a geracao com que ESTE pedido saiu; um 401 so fala da credencial de entao.
+  const geracaoUsada = tokenGeneration;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,
@@ -376,17 +414,19 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
     const resp = await fetch(`${base}${path}`, { ...options, headers });
     if (resp.status === 401) {
       if (!redirectOnAuthFailure) return null;
-      // Token expired — try refresh once
-      accessToken = null;
+      // Token expired — try refresh once.
+      // B-231: so invalida se ninguem renovou entre o envio deste pedido e esta resposta.
+      if (geracaoUsada === tokenGeneration) {
+        accessToken = null;
+        tokenExpiresAt = 0;
+      }
       const newToken = await ensureToken();
       if (!newToken) {
         // #324: um 401 na chamada de DADOS dispara o refresh; se o refresh
         // falhar por algo transitorio (cota, 5xx, rede), o redirect recarrega a
         // pagina e realimenta o problema. So o 401 NA TROCA encerra a sessao.
         if (!sessionDefinitivelyExpired()) {
-          if (throwOnError) {
-            throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
-          }
+          if (throwOnError) throw transientAuthError();
           return null;
         }
         redirectToLogin('expired');
