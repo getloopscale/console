@@ -2,6 +2,11 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** a momentary failure reaching the login service no longer signs you out. Three different causes produced the same empty answer, and all three were read as "the session ended" — so a gateway hiccup bounced a signed-in person to the login screen, where the page reload re-attempted the same call that had just failed (B-140).
+- **theo-cloud/dashboard:** when the login form cannot be prepared, the page says so instead of leaving a button that does nothing. Both attempts to load it were swallowed — the second by an empty error handler — so the Sign in button became a no-op: people clicked, nothing happened, and they concluded their password was wrong (B-141).
+
+### Fixed
+
 - **theo-cloud/dashboard:** a sign-out the identity service did not confirm no longer looks exactly like one that worked. A refused logout, a missing redirect and a network drop all landed on the same login screen, so someone on a shared computer saw the login page and concluded they had signed out — while the session stayed alive on the server. The browser is still signed out in every case; what changed is that the failure is now said, on screen and in telemetry (B-139).
 
 ### Fixed

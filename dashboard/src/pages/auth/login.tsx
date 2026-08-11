@@ -129,13 +129,21 @@ export function LoginPage() {
       if (fresh) setFlow(fresh);
     };
 
+    // B-141 — as DUAS falhas de hidratação eram engolidas, e a segunda por um `catch(() => {})`
+    // literalmente vazio. Sem fluxo não há `action` nem `csrf_token`, então o botão "Sign in" vira
+    // um no-op: a pessoa clica, nada acontece, e a tela não diz nada. Um botão que não responde é
+    // pior que um erro, porque ela tenta de novo — e conclui que a senha está errada.
+    //
+    // `setNetworkError` já existia neste arquivo (é usado no submit) e nunca era alcançado por
+    // este caminho. O estado existia; faltava chegar nele.
     hydrate().catch(() => {
       // Last-resort fallback: try once more without flow param.
       hydrateFresh()
         .then((fresh) => {
           if (fresh) setFlow(fresh);
+          else setNetworkError(true);
         })
-        .catch(() => {});
+        .catch(() => { setNetworkError(true); });
     });
   }, [searchParams, loading, setSearchParams]);
 

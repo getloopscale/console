@@ -15,7 +15,21 @@ export function useRequireAuth(): Session | null {
     async function init() {
       const s = await getSession();
       if (!s) {
-        navigate('/login', { replace: true });
+        // B-140 — `getSession()` devolve `null` por TRÊS causas: a troca não deu ok, ela deu 200
+        // sem identidade, ou houve rejeição de rede/parse. Só a primeira, e só quando o status foi
+        // 401, significa que a sessão ACABOU.
+        //
+        // A disciplina do #324 já estava aplicada no caminho de troca diferida trinta linhas
+        // abaixo, e não aqui — e é a assimetria que era o defeito, não a ausência da ideia. Mandar
+        // para /login numa falha transitória é falso E se realimenta: a navegação remonta a árvore
+        // e refaz a troca contra o mesmo endpoint que acabou de falhar.
+        //
+        // Numa falha transitória a tela fica montada sem sessão; quem consome decide o que
+        // mostrar, e o próximo `cloudFetch` tenta de novo. Isso é melhor do que mandar alguém
+        // logado para o login por causa de um 502.
+        if (sessionDefinitivelyExpired()) {
+          navigate('/login', { replace: true });
+        }
         setChecked(true);
         return;
       }

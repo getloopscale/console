@@ -5269,7 +5269,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-session-logout-silently-proceeds-to-login-when`). Source: code-review finding #41, `code-review-output/code-review.db`.
 
-## B-140 — getSession() null collapses transient token-exchange failures into a forced /login redirect   [ ]
+## B-140 — getSession() null collapses transient token-exchange failures into a forced /login redirect   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5287,7 +5287,12 @@ evidence: |
         }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/use-auth.ts:17`.
-status: triaged
+status: shipped
+shipped_note: |
+  The first redirect now consults `sessionDefinitivelyExpired()`, which the deferred-exchange path thirty lines below was ALREADY doing — the asymmetry was the defect, not the absence of the idea.
+  `getSession()` returns null for three causes and only a 401 on the exchange means the session ended; redirecting on the other two is false AND self-feeding, because the navigation remounts the tree and repeats the exchange against the endpoint that just failed.
+  The existing test conflated 'no session' with 'session ended' — it mocked only `getSession -> null` — and was amended to state its premise, with a sibling covering the transient case.
+  Mutation-verified.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5298,7 +5303,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-auth-getsession-null-collapses-transient-token-exchange`). Source: code-review finding #42, `code-review-output/code-review.db`.
 
-## B-141 — Login page swallows both flow-hydration failures — Sign in button becomes a no-op with zero feedback   [ ]
+## B-141 — Login page swallows both flow-hydration failures — Sign in button becomes a no-op with zero feedback   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5318,7 +5323,13 @@ evidence: |
       });
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/login.tsx:136`.
-status: triaged
+status: shipped
+shipped_note: |
+  Both hydration failures now reach `setNetworkError`, including the branch that resolves without a flow.
+  The state already existed in this file and was used by the submit path; it was simply never reached from here.
+  Without a flow there is no `action` and no `csrf_token`, so Sign in was a no-op — and a button that does nothing is worse than an error, because the person retries and concludes their password is wrong.
+  A test also pins that the happy path shows NO banner: a warning that always fires is one people learn to ignore.
+  Mutation-verified.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

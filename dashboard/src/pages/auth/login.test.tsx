@@ -649,3 +649,29 @@ describe('LoginPage', () => {
     expect(forgotPassword.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
   });
 });
+
+describe('B-141 — uma hidratação que falhou não deixa o botão mudo', () => {
+  it('diz que não conseguiu preparar o formulário quando as DUAS tentativas falham', async () => {
+    // Sem fluxo não há `action` nem `csrf_token`: o botão "Sign in" vira um no-op. A pessoa
+    // clica, nada acontece, e a tela não diz nada — então ela tenta de novo e conclui que a senha
+    // está errada. As duas falhas eram engolidas, a segunda por um `catch(() => {})` vazio.
+    mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    render(<LoginPage />);
+
+    expect(await screen.findByText(/network error/i)).toBeInTheDocument();
+  });
+
+  it('uma hidratação que FUNCIONA não mostra erro nenhum', async () => {
+    // A correção não pode virar "sempre avisa": um aviso que aparece no caminho feliz ensina a
+    // ignorá-lo.
+    mockFetch.mockResolvedValue({ ok: true, json: async () => flowFixture() });
+
+    render(<LoginPage />);
+
+    await waitFor(() => { expect(screen.getByLabelText('Email')).toBeInTheDocument(); });
+    // Lido sobre o TEXTO renderizado: a catraca de asserções de ausência (B-162) congela a forma
+    // `queryBy…toBeNull()`, e ler o corpo é a afirmação mais forte de qualquer modo.
+    expect(document.body.textContent ?? '').not.toMatch(/network error/i);
+  });
+});

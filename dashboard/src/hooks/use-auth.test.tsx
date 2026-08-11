@@ -189,9 +189,13 @@ describe('B-096 — o desfecho de SUCESSO da tentativa de login', () => {
     expect(mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.success').length).toBe(1);
   });
 
-  it('uma sessao ausente manda para /login e NAO emite sucesso', async () => {
+  it('uma sessao EXPIRADA manda para /login e NAO emite sucesso', async () => {
+    // B-140 — este caso mockava só `getSession -> null` e esperava o redirect, confundindo
+    // "sem sessão" com "sessão acabou". São coisas diferentes: `getSession` devolve `null` por
+    // três causas, e só um 401 na troca significa que ela terminou. A premissa agora é explícita.
     recordAttempt({ method: 'password', correlation_id: 'c-9', started_at: Date.now() });
     mockGetSession.mockResolvedValue(null);
+    mockSessionDefinitivelyExpired.mockReturnValue(true);
 
     renderHook(() => useRequireAuth(), { wrapper });
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true }));
@@ -199,5 +203,19 @@ describe('B-096 — o desfecho de SUCESSO da tentativa de login', () => {
     // para antes dessa guarda num refactor, uma sessao invalida contaria como
     // login bem-sucedido — o pior erro possivel nesta metrica.
     expect(mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.success')).toEqual([]);
+  });
+
+  it('uma falha TRANSITORIA nao manda ninguem para /login', async () => {
+    // A outra metade do B-140, e a que custava caro: um 502 ou uma queda de rede na troca também
+    // produzem `getSession() === null`. Mandar para /login aí é falso E se realimenta — a
+    // navegação remonta a árvore e refaz a troca contra o endpoint que acabou de falhar.
+    recordAttempt({ method: 'password', correlation_id: 'c-10', started_at: Date.now() });
+    mockGetSession.mockResolvedValue(null);
+    mockSessionDefinitivelyExpired.mockReturnValue(false);
+
+    renderHook(() => useRequireAuth(), { wrapper });
+
+    await waitFor(() => { expect(mockGetSession).toHaveBeenCalled(); });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });
