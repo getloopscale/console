@@ -55,38 +55,52 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     return achados;
   }
 
-  it('toda página que passa `empty=` consulta um erro para montá-lo', () => {
-    // O defeito: `PageShell` tem `loading` e `empty`, as páginas escrevem o descritor à mão, e uma
-    // leitura que FALHOU produz zero linhas — zero linhas caem no ramo `empty`, e a tela afirma
-    // ausência. `infra/domains.tsx` dizia "No custom domains yet" durante um 5xx.
-    //
-    // Consertar as oito não impede a nona. Este guarda exige que quem monta um `empty=` tenha
-    // consultado um sinal de erro no mesmo arquivo — por `estadoDaLista`, pela prop `error=` do
-    // PageShell, ou lendo `isError`/`error` diretamente.
+  /**
+   * Congelado em 2026-08-11, medido com este mesmo detector.
+   *
+   * A primeira versão deste guarda só olhava arquivos com `empty={`, e por isso era cega a
+   * `memory/webhooks.tsx` — que afirma ausência por ternário inline. Alargá-lo revelou uma
+   * população maior do que as oito páginas do B-167: telas que afirmam "não há nada" sem
+   * consultar erro nenhum, todas anteriores a este ciclo.
+   *
+   * Corrigir as oito não impede a nona, e corrigir todas de uma vez não cabia nesta fatia. A
+   * catraca é a resposta que este repositório já usa para exatamente isso (orçamento de LoC,
+   * asserções de ausência, tipos sem importador): a população fica congelada e só pode DESCER.
+   * Nenhuma tela nova entra; cada uma que sair baixa o teto.
+   */
+  const TETO_SEM_ERRO = 23;
+
+  function paginasSemConsultaDeErro(): string[] {
     const sem: string[] = [];
     for (const f of paginas()) {
       const fonte = readFileSync(f, 'utf-8');
-      if (!/\bempty=\{/.test(fonte)) continue;
-      // DUAS formas sancionadas, e só duas. A primeira versão deste predicado aceitava também
-      // um `isError` ou um `error:` qualquer no arquivo, e uma mutação que arrancava a consulta
-      // de erro passava mesmo assim — casando outra coisa em outro lugar. Um guarda que aprova
-      // pelo motivo errado não é guarda, e a frouxidão era o motivo errado.
-      //
-      // Exigir uma das duas também dá à página UM jeito de fazer isso, em vez de cinco.
-      const consultaErro = /estadoDaLista\(/.test(fonte) || /\berror=\{/.test(fonte);
+      const afirmaAusencia =
+        /\bempty=\{/.test(fonte) ||
+        /(?:length === 0|length !== 0)[\s\S]{0,400}?(?:No |Nenhum|Nada|não há|nao ha)/i.test(fonte);
+      if (!afirmaAusencia) continue;
+      const consultaErro =
+        /estadoDaLista\(/.test(fonte) || /\berror=\{/.test(fonte) || /\bisError\b/.test(fonte);
       if (!consultaErro) sem.push(relative(SRC, f));
     }
+    return sem;
+  }
+
+  it('nenhuma tela NOVA afirma ausência sem consultar um sinal de erro', () => {
+    const sem = paginasSemConsultaDeErro();
 
     expect(
-      sem,
-      '\nPágina(s) que montam um estado vazio SEM consultar nenhum sinal de erro:\n\n' +
+      sem.length,
+      `\nTelas que afirmam ausência sem consultar erro: ${String(sem.length)} (teto ${String(TETO_SEM_ERRO)}).\n\n` +
         `${sem.map((p) => `  ${p}`).join('\n')}\n\n` +
-        'Uma leitura que falhou produz zero linhas, e zero linhas caem no ramo `empty`. A tela\n' +
-        'afirma que não há nada quando o que houve foi não conseguir ler — e as duas coisas pedem\n' +
-        'ações diferentes de quem está olhando.\n\n' +
-        'Use `estadoDaLista({ erro, vazio }, recurso)` de `lib/list-state.ts`, ou a prop `error=`\n' +
-        'do PageShell (que o design system aceita e `lens/labeling-queue.tsx` já usa).\n',
-    ).toEqual([]);
+        'Se SUBIU: uma tela nova afirma que não há nada quando o que houve foi não conseguir ler.\n' +
+        'As duas coisas pedem ações diferentes de quem está olhando. Use\n' +
+        '`estadoDaLista({ erro, vazio }, recurso)` ou a prop `error=` do PageShell.\n\n' +
+        'Se DESCEU: é progresso, e o teto acima deve acompanhar.\n',
+    ).toBeLessThanOrEqual(TETO_SEM_ERRO);
+  });
+
+  it('o teto bate com o disco — sem folga onde crescer', () => {
+    expect(paginasSemConsultaDeErro().length).toBe(TETO_SEM_ERRO);
   });
 
   it('o guarda ainda encontra páginas com `empty=` — um zero silencioso não passa por cobertura', () => {

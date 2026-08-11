@@ -16,6 +16,7 @@ import {
   useToast,
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
 import type { Delivery } from '@/lib/webhooks/delivery';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
@@ -265,6 +266,10 @@ function RecentDeliveriesBadge({
   if (query.isLoading) {
     return <span className="text-xs text-muted-foreground">…</span>;
   }
+  // B-167, nono local — achado pela revisão DEPOIS de o item ter sido marcado shipped.
+  if (query.isError) {
+    return <span className="text-xs text-muted-foreground" data-testid={`deliveries-error-${webhookId}`}>Could not read</span>;
+  }
   if (deliveries.length === 0) {
     return (
       <span className="text-xs text-muted-foreground" data-testid={`deliveries-empty-${webhookId}`}>
@@ -355,6 +360,8 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
           <Sheet.Body className="space-y-3">
             {query.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading deliveries…</p>
+            ) : query.isError ? (
+              <EmptyState title="Could not read this webhook's deliveries" description={FALHA_AO_LER_ENTREGAS} />
             ) : deliveries.length === 0 ? (
               <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
             ) : (

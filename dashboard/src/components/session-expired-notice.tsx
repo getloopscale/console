@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { SESSION_EXPIRY_NOTICE_MS } from '@/lib/http/event-payloads';
 
 /**
  * O aviso que aparece quando a sessão termina, antes da navegação para o login (B-218).
@@ -24,21 +23,9 @@ import { SESSION_EXPIRY_NOTICE_MS } from '@/lib/http/event-payloads';
  * aparece é aceitável — uma pessoa presa numa tela morta não é. O transporte agenda a navegação;
  * este componente só ocupa a janela até ela.
  *
- * `SESSION_EXPIRY_NOTICE_MS` é compartilhado exatamente por isso: se os dois lados escolhessem
- * o próprio número, o aviso sumiria antes ou depois da navegação e não haveria como saber qual
- * dos dois estava errado.
+ * E quando a navegação é RECUSADA — `safeNavigator.goTo` julga o destino e devolve `false` —, é o
+ * transporte que avisa, num segundo evento. Este componente não infere nada.
  */
-/**
- * Margem sobre a janela do aviso antes de admitir que a navegação não aconteceu.
- *
- * Existe porque `safeNavigator.goTo` PODE recusar (ele julga o destino — ver B-138), e um
- * `setTimeout` pode ser adiado numa aba em segundo plano. Sem esta segunda fase, o aviso ficaria
- * para sempre dizendo "Redirecting to login..." enquanto nada redireciona — uma frase que afirma
- * um futuro que não vai acontecer, que é a mesma classe de mentira que esta varredura inteira
- * está corrigindo em outras telas.
- */
-const GRACE_MS = 1500;
-
 export function SessionExpiredNotice() {
   const [visivel, setVisivel] = useState(false);
   const [redirecionouFalhou, setRedirecionouFalhou] = useState(false);
@@ -50,12 +37,18 @@ export function SessionExpiredNotice() {
   }, []);
 
   useEffect(() => {
-    if (!visivel) return;
-    // Se este componente ainda está montado depois da janela inteira, a navegação não levou —
-    // este componente vive na árvore que a navegação desmontaria.
-    const t = setTimeout(() => { setRedirecionouFalhou(true); }, SESSION_EXPIRY_NOTICE_MS + GRACE_MS);
-    return () => { clearTimeout(t); };
-  }, [visivel]);
+    // O transporte AVISA quando a navegação foi recusada, em vez de este componente inferir isso
+    // correndo um temporizador contra a própria desmontagem.
+    //
+    // A primeira versão fazia exatamente essa inferência, e a revisão a derrubou com um caso
+    // concreto: numa aba em segundo plano o browser adia `setTimeout`, então o aviso mostrava
+    // "não deu certo" por cima de um redirect que ainda ia acontecer — e, ao contrário, uma
+    // recusa que `safeNavigator.goTo` relatou no ato só aparecia 1,5 s depois. A informação
+    // fluía para trás: a camada que SABE ficava calada e a que NÃO PODE saber adivinhava.
+    const aoRecusar = () => { setRedirecionouFalhou(true); };
+    window.addEventListener('theo:session-redirect-refused', aoRecusar);
+    return () => { window.removeEventListener('theo:session-redirect-refused', aoRecusar); };
+  }, []);
 
   if (!visivel) return null;
 

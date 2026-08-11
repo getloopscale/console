@@ -219,7 +219,9 @@ export function SkillVersionsPage() {
                 failed ? undefined : (
                   <CodeBlock
                     caption="Publish the first version of this skill"
-                    code={`theo skills publish ${skillId} --file SKILL.md`}
+                    /* B-132/B-133 — `theo skills` NAO e um comando registrado (medido
+                       2026-08-11). O acervo de skills so tem superficie de API e de UI hoje. */
+                    code={`# publishing a skill revision has no CLI command yet`}
                     terminal
                   />
                 )

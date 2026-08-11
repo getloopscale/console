@@ -89,12 +89,3 @@ export function readPlanLimitDetail(v: unknown): PlanLimitDetail | null {
   if (typeof v.limit === 'number' && Number.isFinite(v.limit)) lido.limit = v.limit;
   return lido;
 }
-
-/**
- * Quanto tempo o aviso de sessao expirada fica na tela antes da navegacao (B-218).
- *
- * Mora aqui, e nao em `api.ts`, porque os DOIS lados precisam do mesmo numero: o transporte, que
- * agenda a navegacao, e o componente, que renderiza o aviso. Se cada um escolhesse o seu, o aviso
- * sumiria antes ou depois da navegacao e nao haveria como saber qual dos dois estava errado.
- */
-export const SESSION_EXPIRY_NOTICE_MS = 2000;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { arquivosDoManifestoDeRotas } from '@/test/manifesto-de-rotas';
 
@@ -215,65 +215,99 @@ const OPCOES_CONHECIDAS: Record<string, Set<string>> = {
 };
 
 describe('B-132/B-133 — a tela não anuncia comando de CLI que não existe', () => {
-  const arquivosDeRota = [
-    ...readdirSync(join(SRC, 'routes')).map((f) => join(SRC, 'routes', f)),
-    join(SRC, 'app.tsx'),
-  ].filter((f) => f.endsWith('.tsx'));
-
-  function comandosAnunciados(): { arquivo: string; comando: string }[] {
-    const achados: { arquivo: string; comando: string }[] = [];
-    for (const f of arquivosDeRota) {
-      for (const m of readFileSync(f, 'utf-8').matchAll(/cliCommand="([^"]+)"/g)) {
-        achados.push({ arquivo: relative(SRC, f), comando: m[1] });
+  /**
+   * Varre TODO o `src/`, e não só as rotas.
+   *
+   * A PRIMEIRA versão deste guarda lia `src/routes/*.tsx` + `src/app.tsx` e casava apenas a forma
+   * `cliCommand="…"`. Ela reportou VERDE enquanto `pages/settings/profile.tsx` mostrava
+   * `theo account delete` num bloco de código copiável — um dos comandos que o próprio docblock
+   * deste guarda diz não existir. A revisão pegou; um guarda que aprova por não olhar é pior que
+   * nenhum, porque produz a sensação de cobertura.
+   *
+   * O escopo agora é qualquer menção a `theo <comando>` em qualquer fonte de produção, em qualquer
+   * forma — atributo JSX, literal de template, propriedade de objeto. É onde a pessoa que lê a
+   * tela encontra o comando, então é onde o guarda tem de olhar.
+   */
+  function fontesDeProducao(): string[] {
+    const achados: string[] = [];
+    const pilha = [SRC];
+    while (pilha.length > 0) {
+      const atual = pilha.pop();
+      if (atual === undefined) break;
+      for (const nome of readdirSync(atual)) {
+        if (nome === 'test' || nome === 'mocks' || nome === 'vendor') continue;
+        const caminho = join(atual, nome);
+        if (statSync(caminho).isDirectory()) pilha.push(caminho);
+        else if (/\.tsx?$/.test(nome) && !nome.includes('.test.')) achados.push(caminho);
       }
     }
     return achados;
   }
 
-  it('todo comando anunciado nomeia algo que a CLI registra', () => {
-    const invalidos = comandosAnunciados().filter(({ comando }) => {
-      const partes = comando.trim().split(/\s+/);
-      if (partes[0] !== 'theo') return true;
-      const pai = partes[1];
-      if (pai === undefined || !COMANDOS_CONHECIDOS.has(pai)) return true;
-      const flags = partes.slice(2).filter((p) => p.startsWith('-'));
-      const conhecidas = OPCOES_CONHECIDAS[pai];
-      if (conhecidas !== undefined && flags.some((f) => !conhecidas.has(f))) return true;
+  function comandosAnunciados(): { arquivo: string; comando: string }[] {
+    const achados: { arquivo: string; comando: string }[] = [];
+    for (const f of fontesDeProducao()) {
+      const fonte = readFileSync(f, 'utf-8');
+      for (const linha of fonte.split('\n')) {
+        // Uma linha que DIZ que o comando não existe é prosa correta, não uma afirmação de
+        // produto — quatro dos sete achados iniciais eram exatamente isso, comentários explicando
+        // por que aquela tela deliberadamente NÃO sugere um comando. Reprová-los obrigaria a
+        // apagar a nota, que é a informação. Mesma dispensa do guarda de caminhos em
+        // `docs-claims.test.ts`, pelo mesmo motivo.
+        if (/nao ha comando|não há comando|is NOT a real|não existe|nao existe|inexistente|non-existent|does not exist|NAO e um comando|não é um comando|no CLI command yet/i.test(linha)) continue;
+        for (const m of linha.matchAll(/\btheo ([a-z][a-z-]*)((?: --?[a-z][a-z-]*)*)/g)) {
+          achados.push({ arquivo: relative(SRC, f), comando: `theo ${m[1]}${m[2]}` });
+        }
+      }
+    }
+    return achados;
+  }
 
-      const sub = partes[2];
-      if (sub === undefined || sub.startsWith('-')) return false;
-      const subs = SUBCOMANDOS_CONHECIDOS[pai];
-      return subs !== undefined && !subs.has(sub);
-    });
+  /** O comando nomeia algo que a CLI registra? */
+  function ehValido(comando: string): boolean {
+    const partes = comando.trim().split(/\s+/);
+    const pai = partes[1];
+    if (pai === undefined || !COMANDOS_CONHECIDOS.has(pai)) return false;
+    const conhecidas = OPCOES_CONHECIDAS[pai];
+    const flags = partes.slice(2).filter((x) => x.startsWith('-'));
+    if (conhecidas !== undefined && flags.some((x) => !conhecidas.has(x))) return false;
+    const sub = partes[2];
+    if (sub === undefined || sub.startsWith('-')) return true;
+    const subs = SUBCOMANDOS_CONHECIDOS[pai];
+    return subs === undefined || subs.has(sub);
+  }
+
+  it('todo comando anunciado nomeia algo que a CLI registra', () => {
+    const invalidos = comandosAnunciados().filter((c) => !ehValido(c.comando));
 
     expect(
       invalidos,
       '\nComando(s) de CLI anunciados numa tela e NÃO registrados pela CLI:\n\n' +
         `${invalidos.map((i) => `  ${i.arquivo} → \`${i.comando}\``).join('\n')}\n\n` +
         'A tela diz "use a CLI para fazer isto hoje" e a pessoa vai tentar. O precedente\n' +
-        'governado é `/databases` (`app.tsx`), que NÃO sugere comando algum, porque não existe um:\n' +
-        'inventar um mente de forma mais convincente que a ausência.\n\n' +
+        'governado é `/databases` (`app.tsx`), que NÃO sugere comando algum, porque não existe um.\n\n' +
         'Se o comando passou a existir, acrescente-o a COMANDOS_CONHECIDOS com a medição.\n',
     ).toEqual([]);
   });
 
-  it('o extrator continua enxergando a forma — um zero silencioso não passa por cobertura', () => {
-    // Hoje o repositório anuncia ZERO comandos: os seis inventados saíram, e o único válido
-    // (`theo team list`) saiu junto com o placeholder de `/settings/members`, que virou redirect
-    // (B-206). Então "encontrou algum" não serve mais como prova de que o extrator funciona — o
-    // zero é o estado correto.
-    //
-    // O que ainda precisa ser provado é que a regex casa a FORMA. Contra uma amostra sintética,
-    // ela ou casa ou o guarda inteiro passou a ser decorativo.
-    const amostra = '<SubPagePlaceholder cliCommand="theo deploy --env prod" />';
-    const casados = [...amostra.matchAll(/cliCommand="([^"]+)"/g)];
-    expect(casados).toHaveLength(1);
-    expect(casados[0][1]).toBe('theo deploy --env prod');
+  it('o guarda encontra comandos de verdade — um zero silencioso não passa por cobertura', () => {
+    // A primeira versão deste guarda filtrava um array VAZIO e passava verde por isso. A contagem
+    // faz parte da prova: se ela cair a zero, o extrator parou de enxergar.
+    expect(comandosAnunciados().length).toBeGreaterThan(0);
   });
 
-  it('DETECTA um comando inventado', () => {
-    // Auto-teste: sem ele, um extrator que parasse de casar deixaria o caso acima verde.
-    expect(COMANDOS_CONHECIDOS.has('notify')).toBe(false);
-    expect(SUBCOMANDOS_CONHECIDOS.billing.has('status')).toBe(false);
+  it('DETECTA um comando inventado, exercitando o predicado', () => {
+    // O auto-teste anterior só afirmava coisas sobre as CONSTANTES e nunca chamava o predicado —
+    // substituir o corpo dele por `return false` deixava tudo verde. Este chama.
+    expect(ehValido('theo notify list')).toBe(false);
+    expect(ehValido('theo billing status')).toBe(false);
+    expect(ehValido('theo account delete')).toBe(false);
+    expect(ehValido('theo login --rotate-credentials')).toBe(false);
+    expect(ehValido('theo team delete')).toBe(false);
+
+    expect(ehValido('theo whoami')).toBe(true);
+    expect(ehValido('theo team list')).toBe(true);
+    expect(ehValido('theo deploy --project x')).toBe(true);
+    expect(ehValido('theo billing portal')).toBe(true);
   });
 });

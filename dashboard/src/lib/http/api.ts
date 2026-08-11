@@ -11,8 +11,8 @@
 // MEET-040: Single origin. Dashboard served at cloud.{domain} — all API calls are relative.
 // Runtime config via /__config.js (empty in prod = same-origin, set per-env in container).
 import { API_URL, mocksEnabled } from './config';
-import { safeNavigator } from '@/lib/navigation';
-import { isLoggedOutMessage, readPlanLimitDetail, SESSION_EXPIRY_NOTICE_MS } from './event-payloads';
+import { isLoggedOutMessage, readPlanLimitDetail } from './event-payloads';
+import { redirectToLogin } from './session-redirect';
 
 const API_BASE = API_URL;
 
@@ -266,26 +266,6 @@ export async function ensureSSEToken(): Promise<string | null> {
   return ensureToken();
 }
 
-let redirecting = false;
-
-/** §3.6: Show notification before redirect, with reason in query param. */
-/**
- * §3.6 — anuncia o fim da sessao e navega. B-218: montava um `<div>` com treze declaracoes de CSS
- * inline e um `2000` literal. Um transporte que constroi DOM nao e testavel sem documento nem
- * re-estilizavel sem edita-lo. Segue o precedente do mesmo arquivo (`maybeEmitPaymentRequired`):
- * o cliente ANUNCIA, `components/session-expired-notice` decide o que aparece. A navegacao fica
- * aqui — ela tem de acontecer mesmo sem ninguem ouvindo.
- */
-function redirectToLogin(reason?: string): void {
-  if (redirecting) return;
-  redirecting = true;
-  const params = reason ? `?reason=${reason}` : '';
-  if (reason !== 'expired') { safeNavigator.goTo(`/login${params}`); return; }
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('theo:session-expired'));
-  }
-  setTimeout(() => { safeNavigator.goTo(`/login${params}`); }, SESSION_EXPIRY_NOTICE_MS);
-}
 
 /** Clear token (on logout or login page visit). */
 export function clearToken(): void {
@@ -319,13 +299,10 @@ export function clearTokenAcrossTabs(): void {
 // /engine/api/v1/* → cloud service proxy → engine API (BFF pattern)
 /**
  * B-235 — no contrato PADRAO, `null` colapsa cinco desfechos: falha transitoria de auth, sessao
- * encerrada, nao-2xx, rejeicao de rede e um `204`/`205` **bem-sucedido** (`parseOkBody`). O quinto
- * e o que virou defeito visivel: `useCloudApi` lia `null` como falha e pintava erro sobre uma
- * leitura que funcionou (B-171), corrigido la optando pelo erro tipado.
- *
- * O default continua ambiguo e **nao e item fechado**: discriminar a assinatura quebra 151
- * importadores. Decisao em aberto em `plans/http-error-contract-plan.md § Unresolved Questions`.
- * Codigo novo passa `{ throwOnError: true }`.
+ * encerrada, nao-2xx, rejeicao de rede e um `204`/`205` **bem-sucedido**. O quinto virou defeito
+ * visivel em `useCloudApi` (B-171), corrigido la com o erro tipado. O default segue ambiguo e
+ * **nao e item fechado** — discriminar quebra 151 importadores; ver
+ * `plans/http-error-contract-plan.md § Unresolved Questions`. Codigo novo passa `throwOnError`.
  */
 export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {
   // Plan v1.0 (2026-05-26): mock mode no longer short-circuits via FIXTURES

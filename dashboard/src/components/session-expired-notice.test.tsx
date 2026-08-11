@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, act } from '@/test/render';
 import { SessionExpiredNotice } from './session-expired-notice';
-import { SESSION_EXPIRY_NOTICE_MS } from '@/lib/http/event-payloads';
 
 /**
  * B-218 — o aviso de sessão expirada saiu de dentro do cliente HTTP.
@@ -58,7 +57,7 @@ describe('SessionExpiredNotice', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent(/redirecting/i);
 
-    act(() => { vi.advanceTimersByTime(SESSION_EXPIRY_NOTICE_MS + 2000); });
+    act(() => { window.dispatchEvent(new CustomEvent('theo:session-redirect-refused')); });
 
     const aviso = screen.getByRole('status');
     expect(aviso).not.toHaveTextContent(/redirecting/i);
@@ -68,7 +67,7 @@ describe('SessionExpiredNotice', () => {
   it('does not fall back while the redirect window is still open', () => {
     render(<SessionExpiredNotice />);
     act(() => { window.dispatchEvent(new CustomEvent('theo:session-expired')); });
-    act(() => { vi.advanceTimersByTime(SESSION_EXPIRY_NOTICE_MS - 1); });
+    act(() => { vi.advanceTimersByTime(5000); });
 
     expect(screen.getByRole('status')).toHaveTextContent(/redirecting/i);
   });

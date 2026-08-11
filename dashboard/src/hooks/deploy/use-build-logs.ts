@@ -43,7 +43,7 @@ interface BackendLogsResponse {
  * Convert backend LogEntry → frontend LogLine.
  *
  * Plan J-17 Layer 4 (2026-06-06): pipeline lines that go through the
- * theo marker wrapper come prefixed with
+ * the `::theo::` marker wrapper come prefixed with
  *   `::theo:: phase=X step=Y level=Z msg="..."`
  * Strip the marker and surface only the human message + structured
  * fields. The phase is used as source so the LogViewer can color-code
