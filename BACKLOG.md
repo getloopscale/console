@@ -4214,7 +4214,7 @@ entregue_2026-08-10: |
   ACHADO COLATERAL, registrado sem expandir escopo: `lens/saved-views` e `api-keys` não têm mock,
   então em modo mock caem no proxy — a mesma classe que o `B-112` fechou para outras quatro rotas.
 
-## B-115 — Não existe contrato de superfície HTTP: doze serviços, doze convenções   [ ]
+## B-115 — Não existe contrato de superfície HTTP: doze serviços, doze convenções   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-surface-contract`).
 > **Item-âncora do programa de padronização.** Ele NÃO conforma repo nenhum — ele escreve o
@@ -4286,7 +4286,17 @@ dod:
   - o contrato declara a ESTRATÉGIA DE MIGRAÇÃO como parte de si: o caminho canônico resolve AO LADO do antigo, o antigo carrega prazo de deprecação declarado, e a remoção é uma etapa própria — nenhum repo renomeia de uma vez
   - existe um teste que falha hoje contra pelo menos um serviço real, provando que o contrato discrimina em vez de descrever o que já existe
 
-## B-116 — theo-rag conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `2261d50 · d0baa90 (theo-contracts)`.
+
+  O contrato como REGRAS SOBRE DOCUMENTOS OpenAPI, não biblioteca Go — a proposta do meu
+  intake não alcançava os seis serviços TypeScript. 12 regras, cada uma verificada por
+  `verify_ruleset.py`: toda regra dispara contra um fixture feito para quebrá-la, e nenhuma
+  dispara contra um conforme. Três das minhas próprias regras estavam quebradas e ele as pegou.
+  Uma quarta correção veio do B-123: as regras de caminho casavam `^/v1/` só, e o ruleset era
+  CEGO para o `/api/v1` do engine — zero achados lê-se como "limpo".
+
+## B-116 — theo-rag conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-rag`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4312,7 +4322,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-117 — theo-lens conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `c30c9362 (theo-rag)`.
+
+  `/v1/health` + `/v1/health/ready` compartilhando os handlers existentes; exemption numa fonte só (`AUTH_EXEMPT_PATHS`, lida por auth e rate-limit).
+
+## B-117 — theo-lens conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-lens`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4338,7 +4353,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-118 — theo-memory conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `7b5b982 (theo-lens)`.
+
+  Nomes canônicos + o documento passou a descrever health e version. A exclusão deles do spec não era controle: respondem sem credencial. A do `/v1/admin` é, e ficou.
+
+## B-118 — theo-memory conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-memory`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4364,7 +4384,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-119 — theo-skills conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `710f072d (theo-memory)`.
+
+  Quatro rotas serviam duas respostas e a canônica não estava entre elas — `/v1/health/ready` caía na superfície autenticada e respondia 401. Rótulos do OpenAPI estavam trocados.
+
+## B-119 — theo-skills conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-skills`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4390,7 +4415,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-120 — theo-trust conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `4b25375 (theo-skills)`.
+
+  Servia só liveness. Readiness sonda Postgres e fila e responde 503 quando uma cai — divergindo do trust, com o motivo escrito nos dois.
+
+## B-120 — theo-trust conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-trust`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4416,7 +4446,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-121 — theo-promptly conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `8cb29c0 · 6dd5a57 (theo-trust)`.
+
+  Não tinha health algum. Ganhou os dois, um `openapi.yaml` com teste de deriva NOS DOIS SENTIDOS, `has_more` em três listas que truncavam em silêncio, e o teste de forma de resposta que pegou três mentiras do meu próprio spec.
+
+## B-121 — theo-promptly conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-promptly`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4442,7 +4477,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-122 — theo-storage conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `948b52d (theo-promptly)`.
+
+  Nomes canônicos aditivos. NÃO move as outras 30 rotas para `/v1`: isso exige mudar o `promptly-rewrite` no `theo-workspace`, outro repo, aterrissando junto ou a capacidade cai.
+
+## B-122 — theo-storage conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-storage`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4468,7 +4508,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-123 — theo (engine) conforma-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `2715684 (theo-storage)`.
+
+  Era o ÚNICO de nove aninhando o erro. Passou a servir as duas formas — o `theo-cloud` lê `payload.Error.Code` e os dois repos não sobem juntos. Dois erros viviam fora do escritor central, como literais.
+
+## B-123 — theo (engine) conforma-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4495,7 +4540,12 @@ dod:
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
 
-## B-124 — theo-cloud e o dashboard conformam-se ao contrato de superfície HTTP   [ ]
+entregue_2026-08-10: |
+  Fechado em `d305a5e6 (theo)`.
+
+  `/api/v1/health/ready` ao lado do `deep`. O gate de conformidade do próprio repo exigiu documentar a rota — funcionou. E foi aqui que a cegueira do ruleset apareceu.
+
+## B-124 — theo-cloud e o dashboard conformam-se ao contrato de superfície HTTP   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-cloud`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4521,3 +4571,8 @@ dod:
   - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
   - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
   - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+entregue_2026-08-10: |
+  Fechado em `1321fde1 (theo-cloud)`.
+
+  Último de propósito: é BFF e espelha os upstream. Estava inconsistente consigo mesmo — `/v1/version` versionado, os dois probes não.
