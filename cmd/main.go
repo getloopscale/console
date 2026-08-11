@@ -1094,7 +1094,7 @@ func main() {
 	// O corpo passa a nomear integracao desligada, reusando o mesmo config.MissingSettings do
 	// boot (#334). Reportada, NUNCA gatilho de reprovacao: sao opcionais por ambiente, e reprovar
 	// por causa delas derrubaria o container em toda topologia que nao as configura.
-	r.Get("/health", routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
+	livenessHandler := routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
 		return map[string][]string{
 			"skills": config.MissingSettings(
 				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
@@ -1109,13 +1109,13 @@ func main() {
 				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
 			),
 		}
-	}).ServeHTTP)
+	})
 
 	// /ready — READINESS. Mesma sonda, pergunta diferente: "consigo servir AGORA?". Reprova com
 	// a dependencia fora, para que o trafego seja retirado desta instancia. O /health acima
 	// NUNCA reprova por dependencia: liveness reprovada MATA o processo, e reiniciar nao
 	// conserta um banco fora (LT-038 do theo-trust, LT-040/LT-041 do promptly).
-	r.Get("/ready", routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
+	readinessHandler := routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
 		return map[string][]string{
 			"skills": config.MissingSettings(
 				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
@@ -1130,7 +1130,25 @@ func main() {
 				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
 			),
 		}
-	}).ServeHTTP)
+	})
+
+	// B-124 — the ecosystem's canonical names for these two answers
+	// (theo-contracts/httpsurface, D5), mounted alongside the unversioned pair.
+	//
+	// This service was inconsistent with itself: `/v1/version` below is versioned
+	// while these two were not, and all three are unauthenticated and consumed by
+	// infrastructure. That split was two decisions made at different times.
+	//
+	// SAME handlers, not copies. A second implementation drifts, and what drifts
+	// quietly is the degraded-detection — the half that keeps traffic off an
+	// instance that cannot serve.
+	//
+	// The unversioned pair stays: container probes and the load balancer point at
+	// it today. Additive by contract; removal is its own item after a deadline.
+	r.Get("/health", livenessHandler.ServeHTTP)
+	r.Get("/v1/health", livenessHandler.ServeHTTP)
+	r.Get("/ready", readinessHandler.ServeHTTP)
+	r.Get("/v1/health/ready", readinessHandler.ServeHTTP)
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())

@@ -23,6 +23,8 @@
 
 ### Added
 
+- **`GET /v1/health` and `GET /v1/health/ready`** — the ecosystem-canonical names, mounted alongside `/health` and `/ready` and served by the same two handlers. The service was inconsistent with itself: `/v1/version` was versioned while the two probes were not, though all three are unauthenticated and consumed by infrastructure. The unversioned pair is unchanged — container probes and the load balancer point at it. (B-124)
+
 - **umbrella:** backlog B-115 — programa de padronização da superfície HTTP: não existe contrato entre os doze serviços que expõem rotas, e as seis divergências medidas (health/version, forma do erro, convenção do código, nome do resumo de capacidade, contrato de lista, nome da raiz do recurso) chegam ao dashboard multiplicadas pelo BFF.
 - **umbrella:** backlog B-116..B-124 — um item de conformação por repo (theo-rag, theo-lens, theo-memory, theo-skills, theo-trust, theo-promptly, theo-storage, theo, theo-cloud+dashboard), todos bloqueados pelo B-115.
 
