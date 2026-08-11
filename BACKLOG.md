@@ -5994,7 +5994,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-recovery-error-classification-computed-then-thrown-away`). Source: code-review finding #47, `code-review-output/code-review.db`.
 
-## B-234 — BroadcastChannel message consumed without validating its shape   [ ]
+## B-234 — BroadcastChannel message consumed without validating its shape   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6010,7 +6010,10 @@ evidence: |
         if (msg.type === 'logged-out') {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:93`.
-status: triaged
+status: shipped
+shipped_note: |
+  `isLoggedOutMessage` validates the inbound message; the handler returns early on anything else.
+  Nine unit cases plus two integration cases proving a null and an unknown-type broadcast leave the token intact.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6067,7 +6070,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-s-t-null-collapses-at`). Source: code-review finding #49, `code-review-output/code-review.db`.
 
-## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [ ]
+## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6084,7 +6087,10 @@ evidence: |
     );
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/dialogs/plan-limit-upgrade-modal.tsx:55`.
-status: triaged
+status: shipped
+shipped_note: |
+  `readPlanLimitDetail` validates at the emitter, and the modal consumes the same validator as defence in depth — `theo:plan-limit` is a window event and a second emitter would not inherit the care of the first.
+  The duplicate `PlanLimitDetail` declaration in the modal was deleted: two declarations of one payload are two chances to disagree.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7555,7 +7561,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-rum-web-vitals-reporter-logs-to-console`). Source: code-review finding #58, `code-review-output/code-review.db`.
 
-## B-218 — HTTP client builds a DOM toast and hardcodes a 2000 ms redirect delay   [ ]
+## B-218 — HTTP client builds a DOM toast and hardcodes a 2000 ms redirect delay   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7571,7 +7577,11 @@ evidence: |
       setTimeout(() => { window.location.href = `/login${params}`; }, 2000);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:256`.
-status: triaged
+status: shipped
+shipped_note: |
+  `redirectToLogin` dispatches `theo:session-expired`; `components/session-expired-notice.tsx` renders it and is mounted at the app root beside the 402 modal it copies.
+  `SESSION_EXPIRY_NOTICE_MS` is a shared named constant.
+  The component also handles a failure the DOM toast never could: if the navigation is refused or deferred, it stops promising a redirect and offers the link.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
