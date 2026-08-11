@@ -215,3 +215,20 @@ describe('OverviewPage', () => {
     expect(ausentes, 'capacidade declarada no menu e ausente da tela inicial').toEqual([]);
   });
 });
+
+describe('B-134 — o cartão não afirma uma branch que não leu', () => {
+  it('mostra um travessão em vez de um "main" plausível e possivelmente errado', async () => {
+    // O payload do resumo de projetos não expõe `deploy_branch`, e o cartão preenchia a lacuna com
+    // `main` fixo. Para um projeto que faz deploy de `develop`, isso não é um default sensato: é
+    // uma afirmação errada com a confiança de uma certa, e quem lê não tem como saber que aquele
+    // campo é um chute. O travessão é a convenção deste repositório para "não sabemos".
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'alpha', apps: [], last_deploy: '2026-05-23' }],
+      loading: false,
+    });
+    const { container } = render(<OverviewPage />);
+
+    expect(screen.getByText('alpha')).toBeInTheDocument();
+    expect(container.textContent ?? '').not.toMatch(/\bmain\b/);
+  });
+});

@@ -4978,7 +4978,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-nginx-security-headers-the-shipped-response-header-csp-is`). Source: code-review finding #3, `code-review-output/code-review.db`.
 
-## B-132 — Placeholder screens advertise theo CLI commands that do not exist (settings domain)   [ ]
+## B-132 — Placeholder screens advertise theo CLI commands that do not exist (settings domain)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -4995,7 +4995,10 @@ evidence: |
   theo-cli/src/register/team.ts:17,21,51,82,112,148 -> team | list | add | remove | role | switch (no delete)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/settings-routes.tsx:51`.
-status: triaged
+status: shipped
+shipped_note: |
+  The three commands were dropped, following the governed `/databases` precedent (no command suggested, because none exists).
+  A guard in `placeholder-honesty.test.ts` compares every advertised `cliCommand` against a measured list of the commands theo-cli registers.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5006,7 +5009,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-settings-routes-placeholder-screens-advertise-theo-cli-commands`). Source: code-review finding #5, `code-review-output/code-review.db`.
 
-## B-133 — Placeholder screens advertise theo CLI commands that do not exist (profile domain)   [ ]
+## B-133 — Placeholder screens advertise theo CLI commands that do not exist (profile domain)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5023,7 +5026,10 @@ evidence: |
   theo-cli/src/register/auth.ts:21-36 login options: --token, --team, --refresh-token, --expires-in, --device-flow
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/profile-routes.tsx:32`.
-status: triaged
+status: shipped
+shipped_note: |
+  Same guard, same remedy.
+  It also caught the fabricated OPTION `--rotate-credentials` that a command-name check alone would have missed.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5034,7 +5040,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-profile-routes-placeholder-screens-advertise-theo-cli-commands`). Source: code-review finding #8, `code-review-output/code-review.db`.
 
-## B-134 — Overview project cards display a hardcoded deploy branch of main for every project   [ ]
+## B-134 — Overview project cards display a hardcoded deploy branch of main for every project   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5052,7 +5058,10 @@ evidence: |
   node_modules/@usetheo/ui/dist/index.js:6040  project.branch  (rendered verbatim by ProjectCard)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/overview/overview.tsx:154`.
-status: triaged
+status: shipped
+shipped_note: |
+  Renders an em-dash — the repository's convention for 'we do not know' — instead of a hardcoded `main`.
+  The original comment was right about the payload and wrong about the remedy: a guess presented with the confidence of a fact is not a sensible default.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7302,7 +7311,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-points-ux-instrumentation-at`). Source: code-review finding #22, `code-review-output/code-review.db`.
 
-## B-206 — Two placeholder routes are unreachable from navigation and duplicate screens that already shipped   [ ]
+## B-206 — Two placeholder routes are unreachable from navigation and duplicate screens that already shipped   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7318,7 +7327,10 @@ evidence: |
   src/lib/placeholder-honesty.test.ts:46-47  "Nao exige o contrario: uma rota em placeholder pode legitimamente ficar FORA do menu"
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/settings-routes.tsx:26`.
-status: triaged
+status: shipped
+shipped_note: |
+  Both routes became `<Navigate replace />` to the shipped screens, matching the `/api-keys` precedent.
+  Their stale PLACEHOLDER banners went with them.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

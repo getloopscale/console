@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { arquivosDoManifestoDeRotas } from '@/test/manifesto-de-rotas';
 
 const SRC = resolve(__dirname, '..');
@@ -160,5 +160,120 @@ describe('honestidade dos placeholders (B-069/B-076)', () => {
         'conclui que a funcionalidade não existe. Uma das duas está errada:\n' +
         'aponte as duas para a tela real, ou remova a entrada em placeholder.\n',
     ).toEqual([]);
+  });
+});
+
+/**
+ * B-132/B-133 — as telas anunciavam comandos de CLI que não existem.
+ *
+ * Sete `cliCommand` estavam nas rotas; SEIS nomeavam algo que `theo-cli` não registra:
+ * `billing status` (existe `billing`, com `portal` — não `status`), `notify` (nenhum comando
+ * `notify` é registrado), `team delete` (existem list/add/remove/role/switch), `session`,
+ * `account`, e a opção `--rotate-credentials` de `login` (as opções são
+ * `--token/--team/--refresh-token/--expires-in/--device-flow`).
+ *
+ * O custo não é cosmético: a tela diz "use a CLI para fazer isto hoje" e a pessoa vai tentar. Uma
+ * funcionalidade ausente que se admite ausente custa uma decepção; uma que aponta para um caminho
+ * inexistente custa a decepção MAIS o tempo de descobrir que o caminho não existe — e alguma
+ * confiança no resto do que a tela diz.
+ *
+ * ## Limite honesto deste guarda
+ *
+ * `theo-cli` é outro repositório e pode não estar clonado onde esta suíte roda, então este teste
+ * NÃO o lê. Ele confere contra `COMANDOS_CONHECIDOS`, uma lista que este repositório mantém e que
+ * foi MEDIDA em 2026-08-11 com
+ * `grep -rho "\.command('[a-z:-]*'" theo-cli/src/register/*.ts`.
+ *
+ * Isso pega o que importa — uma tela inventando um comando — e NÃO pega `theo-cli` removendo um
+ * que existia. Esse segundo caso é um item de ecossistema, não deste repo, e fingir que um teste
+ * local o cobre seria a mesma classe de afirmação que ele existe para impedir.
+ */
+const COMANDOS_CONHECIDOS = new Set([
+  'audit', 'auth', 'billing', 'build', 'connect', 'deploy', 'disconnect', 'doctor',
+  'domain', 'env', 'login', 'logout', 'logs', 'preview', 'project', 'promote',
+  'rollback', 'scale', 'secret', 'status', 'storage', 'team', 'validate', 'whoami',
+]);
+
+/** Subcomandos medidos por comando-pai. Ausência aqui = o pai não tem subcomandos declarados. */
+const SUBCOMANDOS_CONHECIDOS: Record<string, Set<string>> = {
+  billing: new Set(['portal']),
+  team: new Set(['list', 'add', 'remove', 'role', 'switch']),
+};
+
+/**
+ * Opções medidas, só para os comandos que alguma tela anuncia COM uma flag.
+ *
+ * A tabela é deliberadamente pequena: enumerar todas as opções de 24 comandos seria uma segunda
+ * cópia da CLI dentro deste repo, e uma cópia que ninguém atualiza é pior que nenhuma. Ela cobre
+ * exatamente o que as telas afirmam — que é o que este guarda existe para manter verdadeiro.
+ *
+ * `login` está aqui porque uma tela anunciava `theo login --rotate-credentials`, e as opções
+ * medidas são `--token/--team/--refresh-token/--expires-in/--device-flow`.
+ */
+const OPCOES_CONHECIDAS: Record<string, Set<string>> = {
+  login: new Set(['--token', '--team', '--refresh-token', '--expires-in', '--device-flow']),
+};
+
+describe('B-132/B-133 — a tela não anuncia comando de CLI que não existe', () => {
+  const arquivosDeRota = [
+    ...readdirSync(join(SRC, 'routes')).map((f) => join(SRC, 'routes', f)),
+    join(SRC, 'app.tsx'),
+  ].filter((f) => f.endsWith('.tsx'));
+
+  function comandosAnunciados(): { arquivo: string; comando: string }[] {
+    const achados: { arquivo: string; comando: string }[] = [];
+    for (const f of arquivosDeRota) {
+      for (const m of readFileSync(f, 'utf-8').matchAll(/cliCommand="([^"]+)"/g)) {
+        achados.push({ arquivo: relative(SRC, f), comando: m[1] });
+      }
+    }
+    return achados;
+  }
+
+  it('todo comando anunciado nomeia algo que a CLI registra', () => {
+    const invalidos = comandosAnunciados().filter(({ comando }) => {
+      const partes = comando.trim().split(/\s+/);
+      if (partes[0] !== 'theo') return true;
+      const pai = partes[1];
+      if (pai === undefined || !COMANDOS_CONHECIDOS.has(pai)) return true;
+      const flags = partes.slice(2).filter((p) => p.startsWith('-'));
+      const conhecidas = OPCOES_CONHECIDAS[pai];
+      if (conhecidas !== undefined && flags.some((f) => !conhecidas.has(f))) return true;
+
+      const sub = partes[2];
+      if (sub === undefined || sub.startsWith('-')) return false;
+      const subs = SUBCOMANDOS_CONHECIDOS[pai];
+      return subs !== undefined && !subs.has(sub);
+    });
+
+    expect(
+      invalidos,
+      '\nComando(s) de CLI anunciados numa tela e NÃO registrados pela CLI:\n\n' +
+        `${invalidos.map((i) => `  ${i.arquivo} → \`${i.comando}\``).join('\n')}\n\n` +
+        'A tela diz "use a CLI para fazer isto hoje" e a pessoa vai tentar. O precedente\n' +
+        'governado é `/databases` (`app.tsx`), que NÃO sugere comando algum, porque não existe um:\n' +
+        'inventar um mente de forma mais convincente que a ausência.\n\n' +
+        'Se o comando passou a existir, acrescente-o a COMANDOS_CONHECIDOS com a medição.\n',
+    ).toEqual([]);
+  });
+
+  it('o extrator continua enxergando a forma — um zero silencioso não passa por cobertura', () => {
+    // Hoje o repositório anuncia ZERO comandos: os seis inventados saíram, e o único válido
+    // (`theo team list`) saiu junto com o placeholder de `/settings/members`, que virou redirect
+    // (B-206). Então "encontrou algum" não serve mais como prova de que o extrator funciona — o
+    // zero é o estado correto.
+    //
+    // O que ainda precisa ser provado é que a regex casa a FORMA. Contra uma amostra sintética,
+    // ela ou casa ou o guarda inteiro passou a ser decorativo.
+    const amostra = '<SubPagePlaceholder cliCommand="theo deploy --env prod" />';
+    const casados = [...amostra.matchAll(/cliCommand="([^"]+)"/g)];
+    expect(casados).toHaveLength(1);
+    expect(casados[0][1]).toBe('theo deploy --env prod');
+  });
+
+  it('DETECTA um comando inventado', () => {
+    // Auto-teste: sem ele, um extrator que parasse de casar deixaria o caso acima verde.
+    expect(COMANDOS_CONHECIDOS.has('notify')).toBe(false);
+    expect(SUBCOMANDOS_CONHECIDOS.billing.has('status')).toBe(false);
   });
 });
