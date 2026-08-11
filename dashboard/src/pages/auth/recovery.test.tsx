@@ -5,7 +5,6 @@ import { render, screen, waitFor } from '@/test/render';
 vi.mock('@/lib/http/config', () => ({
   API_URL: 'https://auth-dev.usetheo.dev',
   AUTH_URL: '',
-  ENGINE_URL: '',
   ACCOUNTS_URL: '',
 }));
 

@@ -2,6 +2,14 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** page-performance measurements now reach the server in production instead of being written to the browser console, where nobody reads them. The metrics are sent with a transport that survives the page unloading, which is when two of the three are reported (B-217).
+
+### Removed
+
+- **theo-cloud/dashboard:** a configuration value (`ENGINE_URL`) that was validated at container start, written into the runtime config and read by no code at all. It was plumbed through four layers to nothing; a setting nobody reads is a setting an operator can set wrongly with no effect and no warning (B-153).
+
+### Fixed
+
 - **theo-cloud/dashboard:** downloading a file from the workspace no longer fails silently, and no longer breaks in Safari. The download was the third hand-written copy of the same browser pattern, and it had lost both safeguards the shared one documents — so the browser could abort the transfer partway. A refused download also just returned without saying anything; it now says so (B-230).
 - **theo-cloud/dashboard:** the identity-flow id taken from the URL is now encoded before it goes back into one. Raw, an `&` or a `#` in it stopped being data and became structure — appending a query parameter nobody wrote, which the identity service then read as ours. Five call sites; a helper now does the encoding so the sixth cannot forget (B-213).
 - **theo-cloud/dashboard:** a password-recovery attempt that fails because the identity SERVICE is down is no longer indistinguishable from one that fails because the form was wrong. The HTTP status was being discarded entirely, so a 500 came back looking like a normal flow and the screen showed no error at all. A validation 400 still returns the flow — that is how "password too short" reaches the user (B-232).

@@ -5644,7 +5644,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-96-test-files-assert-absence-with`). Source: code-review finding #110, `code-review-output/code-review.db`.
 
-## B-153 — ENGINE_URL runtime config key is plumbed through four layers and read by no production code   [ ]
+## B-153 — ENGINE_URL runtime config key is plumbed through four layers and read by no production code   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5657,7 +5657,10 @@ evidence: |
   src/lib/http/config.ts:9 — ENGINE_URL: string;  (interface field, no corresponding `export const ENGINE_URL`, unlike API_URL:32, AUTH_URL:34, ACCOUNTS_URL:36)  ||  docker-entrypoint.sh:39 — ENGINE_URL: "${VITE_ENGINE_URL:-}",  ||  public/__config.js:4 — ENGINE_URL: "/engine",  ||  src/lib/http/api.ts:315 — return cloudFetch<T>(`/engine${path}`, options, cfg);  ||  grep -rn ENGINE_URL over non-test src/ yields only config.ts declarations and mock-comment mentions — zero readers.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/config.ts:9`.
-status: triaged
+status: shipped
+shipped_note: |
+  Removed from all four layers: the `TheoConfig` interface, the default, `docker-entrypoint.sh` (validation AND emission) and `public/__config.js`, plus eight test mocks that declared it.
+  `api.ts` hardcodes `/engine` and always did — the setting was validated at container start and read by nothing, so an operator could set it wrongly and get no effect and no warning.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7621,7 +7624,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-error-reporter-reporterror-has-measured-cc-16-from`). Source: code-review finding #56, `code-review-output/code-review.db`.
 
-## B-216 — mapKratosError console.errors on every call, including from a render path   [ ]
+## B-216 — mapKratosError console.errors on every call, including from a render path   [~]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7635,7 +7638,13 @@ evidence: |
     console.error('[auth.error-mapper]', input);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/error-mapper.ts:135`.
-status: triaged
+status: killed
+kill_reason: |
+  NOT a bug.
+  `mapKratosError`'s ungated `console.error` is a deliberate decision recorded as ADR D2 and PINNED by a passing test that asserts it happens BEFORE the return (`error-mapper.test.ts:50`).
+  Closing it would mean superseding that ADR and rewriting the test that enforces it — a policy change, which is not what this item asked for and not something a maintenance sweep should take unilaterally.
+  Re-measured 2026-08-11 at `src/pages/auth/error-mapper.ts:136`.
+  If the policy should change, that is a new item with the ADR named.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7646,7 +7655,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-error-mapper-mapkratoserror-console-errors-on-every-call`). Source: code-review finding #57, `code-review-output/code-review.db`.
 
-## B-217 — Web Vitals reporter logs to console in production instead of beaconing   [ ]
+## B-217 — Web Vitals reporter logs to console in production instead of beaconing   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7665,7 +7674,13 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/telemetry/rum.ts:30`.
-status: triaged
+status: shipped
+shipped_note: |
+  `reportInProd` sends the metric to `/v1/telemetry/web-vitals` via `sendBeacon`, falling back to `fetch(keepalive: true)`.
+  The comment said 'for now: same as dev (console)' and pointed in prose at a `sendBeacon` that already existed TWELVE lines away in the same file.
+  `keepalive` matters because LCP and CLS are reported on page unload, when a plain fetch is cancelled.
+  Mutation-verified: reverting to the console turns two tests red.
+  The first version of that test asserted `typeof beacon === 'function'` — inert, and replaced.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

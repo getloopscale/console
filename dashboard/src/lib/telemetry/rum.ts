@@ -23,11 +23,39 @@ function reportInDev(metric: Metric): void {
   );
 }
 
-function reportInProd(metric: Metric): void {
-  // Prod: POST to telemetry endpoint when backend ships /v1/telemetry/web-vitals
-  // For now: same as dev (console). Future:
-  //   navigator.sendBeacon('/v1/telemetry/web-vitals', JSON.stringify(metric))
-  reportInDev(metric);
+/**
+ * B-217 — em produção, as Web Vitals iam para o `console`.
+ *
+ * O comentário anterior dizia "por enquanto: igual ao dev (console)" e apontava, em prosa, para o
+ * `sendBeacon` que deveria existir. Ele existe — a DOZE linhas daqui, em `reportEvent`, com o
+ * fallback para `fetch(keepalive)` já resolvido. O "por enquanto" descrevia um trabalho já feito
+ * no mesmo arquivo.
+ *
+ * Medir no console de produção não é medir: ninguém lê o console de outra pessoa, e o dado que
+ * justifica a instrumentação nunca chega a lugar nenhum. `keepalive` importa porque LCP e CLS são
+ * reportados no descarregamento da página, quando um `fetch` comum é cancelado.
+ */
+export function reportInProd(metric: Metric): void {
+  const body = JSON.stringify({
+    name: metric.name,
+    value: metric.value,
+    id: metric.id,
+    navigationType: metric.navigationType,
+    timestamp: Date.now(),
+  });
+  try {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon('/v1/telemetry/web-vitals', body);
+      return;
+    }
+    if (typeof fetch !== 'undefined') {
+      void fetch('/v1/telemetry/web-vitals', { method: 'POST', body, keepalive: true }).catch(
+        () => undefined,
+      );
+    }
+  } catch {
+    // Telemetria nunca derruba a página que ela mede.
+  }
 }
 
 export function initWebVitals(): void {

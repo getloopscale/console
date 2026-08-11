@@ -28,14 +28,12 @@ validate_url() {
 }
 
 validate_url VITE_API_URL "${VITE_API_URL:-}"
-validate_url VITE_ENGINE_URL "${VITE_ENGINE_URL:-}"
 validate_url VITE_AUTH_URL "${VITE_AUTH_URL:-}"
 validate_url VITE_ACCOUNTS_URL "${VITE_ACCOUNTS_URL:-}"
 
 cat > /usr/share/nginx/html/__config.js << JSEOF
 window.__THEO_CONFIG__ = {
   API_URL: "${VITE_API_URL:-}",
-  ENGINE_URL: "${VITE_ENGINE_URL:-}",
   AUTH_URL: "${VITE_AUTH_URL:-}",
   ACCOUNTS_URL: "${VITE_ACCOUNTS_URL:-}",
 };

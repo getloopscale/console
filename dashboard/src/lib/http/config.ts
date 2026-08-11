@@ -6,7 +6,6 @@
 
 interface TheoConfig {
   API_URL: string;
-  ENGINE_URL: string;
   AUTH_URL: string;
   ACCOUNTS_URL: string;
 }
@@ -20,7 +19,6 @@ declare global {
 function getConfig(): TheoConfig {
   return window.__THEO_CONFIG__ ?? {
     API_URL: "",
-    ENGINE_URL: "",
     AUTH_URL: "",
     ACCOUNTS_URL: "",
   };
