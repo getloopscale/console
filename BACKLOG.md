@@ -5708,7 +5708,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard--llms-llms-txt-at-the-dashboard-root`). Source: code-review finding #30, `code-review-output/code-review.db`.
 
-## B-162 — Blob+anchor download implemented 3 times; the canonical helper declares itself the ONE source and the third co   [ ]
+## B-230 — Blob+anchor download implemented 3 times; the canonical helper declares itself the ONE source and the third co   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5746,13 +5746,17 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/workspace/overview.tsx:193`.
 status: raw
+id_correction: |
+  Registered 2026-08-11 as B-162, an id already held by a live item registered
+  earlier (see B-162 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-230. The original B-162 keeps its number and history.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - 1) Widen triggerDownload to accept `BlobPart | Blob` (or add a sibling `triggerBlobDownload(filename, blob)`) so a binary presigned download can use it. 2) Make workspace/overview.tsx onDownload call it, and surface the !res.ok path as an A
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-blob-anchor-download-implemented-3-times`). Source: code-review finding #38, `code-review-output/code-review.db`.
 
-## B-163 — Concurrent 401s each null the access token, re-triggering the token exchange the #324 fix exists to prevent   [ ]
+## B-231 — Concurrent 401s each null the access token, re-triggering the token exchange the #324 fix exists to prevent   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5771,13 +5775,17 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:379`.
 status: raw
+id_correction: |
+  Registered 2026-08-11 as B-163, an id already held by a live item registered
+  earlier (see B-163 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-231. The original B-163 keeps its number and history.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Capture the token generation before the request (`const gen = tokenGeneration`) and only invalidate when it has not advanced: `if (gen === tokenGeneration) { accessToken = null; tokenGeneration++; }`. Alternatively drop the eager null and l
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-concurrent-401s-each-null-the-access`). Source: code-review finding #45, `code-review-output/code-review.db`.
 
-## B-164 — submitFlow discards the HTTP status entirely — a 5xx is indistinguishable from a validation response   [ ]
+## B-232 — submitFlow discards the HTTP status entirely — a 5xx is indistinguishable from a validation response   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5799,13 +5807,17 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:72`.
 status: raw
+id_correction: |
+  Registered 2026-08-11 as B-164, an id already held by a live item registered
+  earlier (see B-164 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-232. The original B-164 keeps its number and history.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Introduce a typed error (reuse `ApiError` from lib/http/api.ts) and throw it on non-2xx with the status attached, tolerating a non-JSON body: `if (!resp.ok && resp.status >= 500) throw new ApiError(resp.status, await resp.text().catch(() =>
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-submitflow-discards-the-http-status-entirely`). Source: code-review finding #46, `code-review-output/code-review.db`.
 
-## B-165 — Error classification computed then thrown away — identical if/else branches in three recovery handlers   [ ]
+## B-233 — Error classification computed then thrown away — identical if/else branches in three recovery handlers   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5826,13 +5838,17 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:240`.
 status: raw
+id_correction: |
+  Registered 2026-08-11 as B-165, an id already held by a live item registered
+  earlier (see B-165 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-233. The original B-165 keeps its number and history.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Either collapse to a single `setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE)` and delete `is5xxOrNetwork` (honest), or give the two branches genuinely different copy (transient 'try again in a minute' vs 'check your input'). Either way, report
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-recovery-error-classification-computed-then-thrown-away`). Source: code-review finding #47, `code-review-output/code-review.db`.
 
-## B-166 — BroadcastChannel message consumed without validating its shape   [ ]
+## B-234 — BroadcastChannel message consumed without validating its shape   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5849,13 +5865,17 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:93`.
 status: raw
+id_correction: |
+  Registered 2026-08-11 as B-166, an id already held by a live item registered
+  earlier (see B-166 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-234. The original B-166 keeps its number and history.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Validate before dereferencing: `const msg = event.data; if (typeof msg !== 'object' || msg === null || (msg as {type?:unknown}).type !== 'logged-out') return;`. Consider also ignoring messages when this tab has no token, so a spurious messa
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-broadcastchannel-message-consumed-without-validating-its`). Source: code-review finding #48, `code-review-output/code-review.db`.
 
-## B-167 — cloudFetch's `T | null` collapses at least four distinct outcomes into one value   [ ]
+## B-235 — cloudFetch's `T | null` collapses at least four distinct outcomes into one value   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5875,13 +5895,17 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
 status: raw
+id_correction: |
+  Registered 2026-08-11 as B-167, an id already held by a live item registered
+  earlier (see B-167 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-235. The original B-167 keeps its number and history.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-s-t-null-collapses-at`). Source: code-review finding #49, `code-review-output/code-review.db`.
 
-## B-168 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [ ]
+## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5899,6 +5923,10 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/dialogs/plan-limit-upgrade-modal.tsx:55`.
 status: raw
+id_correction: |
+  Registered 2026-08-11 as B-168, an id already held by a live item registered
+  earlier (see B-168 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-236. The original B-168 keeps its number and history.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Validate at the emitter (api.ts maybeEmitPaymentRequired) before dispatching, or narrow in the handler: accept the event only when `typeof detail === 'object' && detail !== null`, and coerce each field with `typeof x === 'string' ? x : unde
