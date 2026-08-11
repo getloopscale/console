@@ -56,7 +56,7 @@ export async function initFlow(flowType: string): Promise<Flow> {
 
 /** Get an existing flow by ID. */
 export async function getFlow(flowType: string, flowId: string): Promise<Flow> {
-  const resp = await fetch(`${ACCOUNTS_URL}/self-service/${flowType}/flows?id=${flowId}`, {
+  const resp = await fetch(flowUrl(ACCOUNTS_URL, flowType, flowId), {
     credentials: 'include',
   });
   if (!resp.ok) throw new Error(`Failed to get ${flowType} flow`);
@@ -64,6 +64,48 @@ export async function getFlow(flowType: string, flowId: string): Promise<Flow> {
 }
 
 /** Submit a flow (form action from flow.ui.action). */
+
+/**
+ * O endereço do fluxo Kratos, com o id CODIFICADO (B-213).
+ *
+ * O id vem de `searchParams.get('flow')` — uma entrada controlada por quem monta o link. Cru, um
+ * `&` ou um `#` nele deixa de ser dado e vira ESTRUTURA: `?id=a&redirect_to=…` acrescenta um
+ * parâmetro que ninguém escreveu, e o Kratos o lê como se fosse nosso.
+ *
+ * Uma função e não `encodeURIComponent` em cinco chamadas: eram cinco, e a sexta nasceria sem —
+ * foi assim que estas cinco existiram. Aqui o encoding não é algo de que alguém precise lembrar.
+ */
+export function flowUrl(base: string, flowType: string, flowId: string): string {
+  return `${base}/self-service/${flowType}/flows?id=${encodeURIComponent(flowId)}`;
+}
+
+/**
+ * Uma recusa do SERVIÇO de identidade, distinta de uma recusa de VALIDAÇÃO (B-232).
+ *
+ * As duas chegam por HTTP e pedem coisas opostas de quem lê a tela: a validação diz o que corrigir
+ * no formulário, a queda diz para tentar de novo mais tarde. Sem o status elas eram a mesma coisa.
+ */
+export class FlowSubmitError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(`identity service refused the flow with status ${String(status)}`);
+    this.name = 'FlowSubmitError';
+    this.status = status;
+  }
+}
+
+/**
+ * Envia um fluxo do Kratos.
+ *
+ * B-232 — `resp.status` era descartado (`return resp.json()`), então um 500 devolvendo
+ * `{"error": "..."}` saía daqui como se fosse um `Flow`. `getFlowMessages` tolera um `ui` ausente
+ * — por bons motivos —, e o resultado era que uma queda do serviço de identidade não produzia
+ * mensagem nenhuma na tela: indistinguível de "nada aconteceu".
+ *
+ * O `400` NÃO é erro aqui, e essa distinção é o cuidado que este conserto exige. O Kratos responde
+ * 400 com o fluxo INTEIRO quando um campo é inválido; é assim que a tela mostra "senha muito
+ * curta". Tratá-lo como falha quebraria o caminho normal de validação.
+ */
 export async function submitFlow(action: string, method: string, body: Record<string, string>): Promise<Flow> {
   const resp = await fetch(action, {
     method,
@@ -71,6 +113,9 @@ export async function submitFlow(action: string, method: string, body: Record<st
     credentials: 'include',
     body: JSON.stringify(body),
   });
+  // 4xx que não seja 400 (401/403/404/410 — fluxo expirado, CSRF recusado) e todo 5xx são recusas
+  // do serviço, não do formulário.
+  if (!resp.ok && resp.status !== 400) throw new FlowSubmitError(resp.status);
   return resp.json();
 }
 

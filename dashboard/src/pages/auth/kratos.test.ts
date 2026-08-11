@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { enrichKratosError } from './kratos';
+import { describe, it, expect , vi } from 'vitest';
+import { enrichKratosError, flowUrl, submitFlow, FlowSubmitError } from './kratos';
 
 describe('enrichKratosError (T0.1 EC-02)', () => {
   it('test_enrichKratosError_passes_through_specific_messages', () => {
@@ -46,5 +46,69 @@ describe('enrichKratosError (T0.1 EC-02)', () => {
     // Inline next-step CTAs.
     expect(out.toLowerCase()).toContain('sign in');
     expect(out.toLowerCase()).toContain('reset');
+  });
+});
+
+describe('B-213 — o id de fluxo vem da URL e atravessa uma URL', () => {
+  it('codifica o id em vez de interpolá-lo cru', () => {
+    // O id vem de `searchParams.get('flow')` — uma entrada controlada por quem monta o link. Cru,
+    // um `&` ou um `#` nele deixa de ser dado e vira estrutura: `?id=a&redirect_to=…` acrescenta
+    // um parâmetro que ninguém escreveu, e o Kratos o lê como se fosse nosso.
+    expect(flowUrl('https://auth.example', 'login', 'a&b')).toBe(
+      'https://auth.example/self-service/login/flows?id=a%26b',
+    );
+  });
+
+  it('codifica um # que encerraria a query', () => {
+    expect(flowUrl('https://auth.example', 'verification', 'x#y')).toBe(
+      'https://auth.example/self-service/verification/flows?id=x%23y',
+    );
+  });
+
+  it('um id comum atravessa intacto', () => {
+    // A codificação não pode custar legibilidade no caminho normal: um UUID não muda.
+    const uuid = '0e3f7a2c-2b1d-4a55-9f0e-7c1c2f9d6b31';
+    expect(flowUrl('https://auth.example', 'registration', uuid)).toBe(
+      `https://auth.example/self-service/registration/flows?id=${uuid}`,
+    );
+  });
+});
+
+describe('B-232 — submitFlow distingue uma recusa do serviço de uma recusa de validação', () => {
+  it('um 5xx vira erro tipado em vez de ser devolvido como se fosse um Flow', async () => {
+    // O status era descartado: `return resp.json()`. Um 500 devolvendo `{"error":"..."}` saía
+    // daqui como um `Flow`, e `getFlowMessages` tolera um `ui` ausente — então a tela não mostrava
+    // erro nenhum. Uma queda do serviço de identidade ficava indistinguível de "nada aconteceu".
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'internal' }), { status: 500 }),
+    );
+
+    await expect(submitFlow('https://auth.example/x', 'POST', {})).rejects.toThrow(FlowSubmitError);
+  });
+
+  it('o erro carrega o status observado', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'gateway' }), { status: 502 }),
+    );
+
+    const erro = await submitFlow('https://auth.example/x', 'POST', {}).catch((e: unknown) => e);
+    expect((erro as FlowSubmitError).status).toBe(502);
+  });
+
+  it('um 400 de VALIDAÇÃO continua devolvendo o Flow — é a resposta normal do Kratos', async () => {
+    // O Kratos responde 400 com o fluxo INTEIRO quando um campo é inválido; é assim que a tela
+    // mostra "senha muito curta". Transformar isso em exceção quebraria o caminho normal.
+    const fluxo = { id: 'f1', ui: { action: '/a', method: 'POST', nodes: [] } };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(fluxo), { status: 400 }),
+    );
+
+    await expect(submitFlow('https://auth.example/x', 'POST', {})).resolves.toMatchObject({ id: 'f1' });
+  });
+
+  it('um 200 atravessa como sempre', async () => {
+    const fluxo = { id: 'ok', ui: { action: '/a', method: 'POST', nodes: [] } };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(fluxo), { status: 200 }));
+    await expect(submitFlow('https://auth.example/x', 'POST', {})).resolves.toMatchObject({ id: 'ok' });
   });
 });

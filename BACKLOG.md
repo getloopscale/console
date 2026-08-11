@@ -5951,7 +5951,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-concurrent-401s-each-null-the-access`). Source: code-review finding #45, `code-review-output/code-review.db`.
 
-## B-232 — submitFlow discards the HTTP status entirely — a 5xx is indistinguishable from a validation response   [ ]
+## B-232 — submitFlow discards the HTTP status entirely — a 5xx is indistinguishable from a validation response   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5972,7 +5972,10 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:72`.
-status: triaged
+status: shipped
+shipped_note: |
+  `FlowSubmitError` carries the observed status; `submitFlow` throws on any non-2xx EXCEPT 400.
+  The 400 exclusion is the care this fix required — Kratos answers 400 with the whole flow on a validation failure, and that is how 'password too short' reaches the screen.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5987,7 +5990,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-submitflow-discards-the-http-status-entirely`). Source: code-review finding #46, `code-review-output/code-review.db`.
 
-## B-233 — Error classification computed then thrown away — identical if/else branches in three recovery handlers   [ ]
+## B-233 — Error classification computed then thrown away — identical if/else branches in three recovery handlers   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6007,7 +6010,12 @@ evidence: |
       } finally {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:240`.
-status: triaged
+status: shipped
+shipped_note: |
+  `recoveryErrorMessage` extracted with its own tests.
+  The `if` was NOT deleted — deleting it would have removed the symptom and the question together.
+  The question was what the second branch should say, and the answer is that the two causes ask opposite things of the reader: a 5xx says retry, an expired flow says start over.
+  The third handler's genuinely different copy is preserved through an override parameter, because it was the only one of the three whose branches already differed correctly.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7515,7 +7523,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-0002-orcamento-de-loc-por-arquivo-three-different-sizes-are-given-for`). Source: code-review finding #33, `code-review-output/code-review.db`.
 
-## B-213 — Flow id from the URL interpolated into a request URL without encodeURIComponent   [ ]
+## B-213 — Flow id from the URL interpolated into a request URL without encodeURIComponent   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7531,7 +7539,10 @@ evidence: |
     });
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:57`.
-status: triaged
+status: shipped
+shipped_note: |
+  `flowUrl(base, tipo, id)` encodes at all five call sites (kratos.ts, verification x2, login, register).
+  A helper rather than five `encodeURIComponent` calls: there were five, and the sixth would have been born without one — which is how these five existed.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

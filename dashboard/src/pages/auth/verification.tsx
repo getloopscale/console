@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flowUrl } from '@/pages/auth/kratos';
 import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react';
 import { Button, Card, PinInput } from '@usetheo/ui';
@@ -64,7 +65,7 @@ export function VerificationPage() {
       if (!email) return;
 
       const flowResp = await fetch(
-        `${KRATOS_URL}/self-service/verification/flows?id=${flow}`,
+        flowUrl(KRATOS_URL, 'verification', flow),
         { credentials: 'include', headers: { Accept: 'application/json' } },
       );
       if (!flowResp.ok) return;
@@ -98,7 +99,7 @@ export function VerificationPage() {
   const submitCode = async (flow: string, verificationCode: string) => {
     setStatus('loading');
     try {
-      const flowResp = await fetch(`${KRATOS_URL}/self-service/verification/flows?id=${flow}`, {
+      const flowResp = await fetch(flowUrl(KRATOS_URL, 'verification', flow), {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });

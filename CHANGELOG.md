@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** the identity-flow id taken from the URL is now encoded before it goes back into one. Raw, an `&` or a `#` in it stopped being data and became structure — appending a query parameter nobody wrote, which the identity service then read as ours. Five call sites; a helper now does the encoding so the sixth cannot forget (B-213).
+- **theo-cloud/dashboard:** a password-recovery attempt that fails because the identity SERVICE is down is no longer indistinguishable from one that fails because the form was wrong. The HTTP status was being discarded entirely, so a 500 came back looking like a normal flow and the screen showed no error at all. A validation 400 still returns the flow — that is how "password too short" reaches the user (B-232).
+- **theo-cloud/dashboard:** the recovery screen stopped telling you to "try again in a minute" when trying again is guaranteed to fail. Two of its three error handlers computed which kind of failure had happened and then showed the same sentence either way; an expired link now says to start over, and a service outage still says to retry (B-233).
 ## [1.0.1] - 2026-08-11
 
 ### Fixed

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { flowUrl } from '@/pages/auth/kratos';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2 } from 'lucide-react';
 import { Button, Card, CodeBlock, FormField, Input } from '@usetheo/ui';
@@ -105,7 +106,7 @@ export function LoginPage() {
     const hydrate = async () => {
       if (flowId) {
         const res = await fetch(
-          `${KRATOS_URL}/self-service/login/flows?id=${flowId}`,
+          flowUrl(KRATOS_URL, 'login', flowId),
           {
             credentials: 'include',
             headers: { Accept: 'application/json' },
