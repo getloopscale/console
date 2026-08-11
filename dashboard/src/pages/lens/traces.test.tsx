@@ -326,8 +326,16 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('does NOT send q= / status= on the initial unfiltered load (negative case)', async () => {
+    // B-197 — este caso usava o `render` compartilhado, que instala o `NuqsAdapter` de PRODUÇÃO:
+    // ele guarda o estado de URL num cache de MÓDULO, então um caso vizinho que digita na busca
+    // deixava `?q=canary` para cá. Em ordem fixa aqueles vinham depois; sob shuffle, o caso que
+    // afirma "a carga inicial NÃO envia filtro" recebia o filtro do vizinho.
+    //
+    // `renderWithParams(..., '')` usa o `NuqsTestingAdapter`, que mantém o estado por RENDER, e
+    // declara EXPLICITAMENTE que a URL começa sem parâmetro — que é justamente a premissa deste
+    // caso, e estava implícita.
     filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
-    render(<LensTracesPage />);
+    renderWithParams(<LensTracesPage />, '');
     await screen.findByText('tr_1');
     // the very first list read carries only the M81 page window (limit/offset) — no FILTER params leak in
     expect(listUrls()[0]).toMatch(/^\/v1\/dashboard\/lens\/traces\?limit=\d+&offset=0$/);

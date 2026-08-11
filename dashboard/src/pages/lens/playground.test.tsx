@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 
 import { render, screen, within } from '@/test/render';
+import { queryClient } from '@/lib/http/query-client';
 import { waitFor } from '@testing-library/react';
 import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 import { LensPlayground } from './playground';
@@ -43,6 +44,11 @@ const replayPosts = () => mockCloudFetch.mock.calls.filter((c) => String(c[0]).e
 
 describe('M62 LensPlayground (side-by-side)', () => {
   beforeEach(() => {
+    // B-197 — o `queryClient` de `lib/http/query-client.ts` é um SINGLETON de módulo, e a folha de
+    // detalhe do trace lê por ele. Um caso anterior deixava `tr-1` cacheado, então este montava a
+    // folha, recebia um acerto de cache, e a leitura que ele afirma observar NUNCA acontecia — a
+    // única chamada registrada era `/tags`. Em ordem fixa este vinha primeiro e ninguém via.
+    queryClient.clear();
     vi.clearAllMocks();
     routed();
   });
@@ -101,7 +107,13 @@ describe('M62 LensPlayground (side-by-side)', () => {
     render(<LensPlayground span={span} />);
     await userEvent.click(screen.getByRole('button', { name: /view trace/i }));
     expect(await screen.findByText(/trace detail/i)).toBeInTheDocument(); // Sheet opened
-    expect(mockCloudFetch.mock.calls.some((c) => c[0] === '/v1/dashboard/lens/traces/tr-1')).toBe(true);
+    // B-197 — a asserção era SÍNCRONA sobre uma leitura assíncrona. O caso irmão logo acima
+    // (`test_view_trace_opens_span_detail_sheet`) já a envolvia em `waitFor`; este não, e passava
+    // porque em ordem fixa o fetch já tinha acontecido quando a linha rodava. Sob shuffle o
+    // escalonamento muda e a única chamada registrada era `/tags`.
+    await waitFor(() =>
+      expect(mockCloudFetch.mock.calls.some((c) => c[0] === '/v1/dashboard/lens/traces/tr-1')).toBe(true),
+    );
     expect(screen.getByTestId('playground')).toBeInTheDocument(); // playground survives the failed detail load
   });
 

@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the test suite no longer depends on the order it runs in. Seven checks were passing because of where they happened to sit in the sequence — including the one guaranteeing the session token never travels between browser tabs, and one that was reading a form left behind by a different test entirely. Verified against two independent random orderings, not one (B-197).
+
+### Fixed
+
 - **theo-cloud/dashboard:** the check that guarantees the session token never travels between browser tabs now holds regardless of the order tests run in. It was passing only because of where it happened to sit in the sequence — a security guarantee that depends on execution order is not a guarantee (B-197, first of seven).
 
 ### Fixed

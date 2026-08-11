@@ -117,12 +117,17 @@ describe('LoginPage', () => {
     const formCalls = createElementSpy.mock.calls.filter((c) => c[0] === 'form');
     expect(formCalls.length).toBeGreaterThanOrEqual(1);
 
-    // Inspect the form structure that was submitted by walking document children
-    // before the cleanup. Form is in document.body since submitPassword appended it.
-    const forms = Array.from(document.querySelectorAll('form'));
-    const passwordForm = forms.find((f) =>
-      f.action.includes('self-service/login') && f.method.toLowerCase() === 'post',
-    );
+    // B-197 — isto varria `document.querySelectorAll('form')` e pegava a PRIMEIRA que casasse.
+    // O `cleanup()` do RTL remove só o container que ele criou; uma form que o código de produção
+    // anexa direto no `body` sobrevive ao teste. Em ordem fixa o caso de OIDC vinha depois; sob
+    // shuffle vinha antes, e este caso inspecionava a form DELE — `bag.method` era `'oidc'`.
+    //
+    // A form submetida é a que o stub recebeu como `this`. Ler dali é independente de ordem e é
+    // também a afirmação mais forte: fala da form que foi ENVIADA, e não de uma que estava por
+    // perto e casava com o seletor.
+    const passwordForm = submitStub.mock.instances[submitStub.mock.instances.length - 1] as
+      | HTMLFormElement
+      | undefined;
     expect(passwordForm).toBeTruthy();
     if (passwordForm) {
       const inputs = Array.from(passwordForm.querySelectorAll('input[type=hidden]')) as HTMLInputElement[];

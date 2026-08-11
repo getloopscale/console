@@ -7144,7 +7144,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-manual-chunks-phase-1-inventory-gap-the-whole`). Source: code-review finding #109, `code-review-output/code-review.db`.
 
-## B-197 — 37 test files hold mutable module-level state, the precondition for order dependence   [ ]
+## B-197 — 37 test files hold mutable module-level state, the precondition for order dependence   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7158,7 +7158,7 @@ evidence: |
   Mechanical scan: 37 of 376 test files match ^\s*let\s+\w+ at module scope.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/test/arvore-estavel.ts:1`. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
 measured: |
   MEDIDO 2026-08-11. O item estava UNKNOWN: a varredura contou 43 de 353 arquivos com estado
   mutável de módulo (a PRECONDIÇÃO) e nunca executou a corrida embaralhada que o próprio DoD
@@ -7212,8 +7212,27 @@ measured: |
 
   Sob o mesmo seed: 5 -> 3.
 
-  As TRÊS restantes seguem abertas, cada uma reproduzível com o seed acima:
-    lens/traces.test.tsx, lens/playground.test.tsx, auth/login.test.tsx
+  QUINTA, SEXTA E SÉTIMA CORRIGIDAS (2026-08-11) — o item está FECHADO.
+
+    - `lens/traces.test.tsx`: o caso "a carga inicial NÃO envia filtro" usava o `render`
+      compartilhado, que instala o `NuqsAdapter` de PRODUÇÃO (cache de módulo). Um vizinho que
+      digita na busca deixava `?q=canary` para ele. Passou a usar `renderWithParams(..., '')`, que
+      declara explicitamente a premissa que estava implícita.
+    - `auth/login.test.tsx`: varria `document.querySelectorAll('form')` e pegava a primeira que
+      casasse. O `cleanup()` do RTL remove só o container dele; uma form que produção anexa ao
+      `body` sobrevive — e o caso lia a form do teste de OIDC (`bag.method === 'oidc'`). Passou a
+      ler a form que o stub de `submit` recebeu como `this`: independente de ordem, e afirmação
+      mais forte (fala da form ENVIADA).
+    - `lens/playground.test.tsx`: asserção SÍNCRONA sobre uma leitura assíncrona. O caso irmão
+      logo acima já a envolvia em `waitFor`; este não, e passava porque em ordem fixa o fetch já
+      tinha ocorrido. Também ganhou `queryClient.clear()` no `beforeEach` — o singleton retinha
+      `tr-1` entre casos.
+
+  VERIFICAÇÃO: `--sequence.shuffle` com DOIS seeds independentes (20260811 e 99991111) e a ordem
+  fixa: 3098/3098 nos três. Um seed só não distingue "consertado" de "sorte diferente".
+
+  Sobrevive dos 43 arquivos com estado mutável de módulo que o item contava: eles continuam lá. A
+  contagem nunca foi o defeito — a dependência de ordem era, e ela está medida em zero.
 
   TENTATIVA REGISTRADA — `deployments.test.tsx`, NÃO resolvida. Duas hipóteses foram testadas e as
   DUAS estavam erradas quanto à causa, embora ambas descrevessem vazamentos reais que foram
