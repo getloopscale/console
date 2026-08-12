@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { render, screen } from '@/test/render';
+import { render, screen, cleanup } from '@/test/render';
 import { ApiError } from '@/lib/http/api';
 
 vi.mock('@/hooks/use-auth', () => ({
@@ -336,12 +336,27 @@ describe('PromptDetailPage', () => {
     expect(mockPromote).toHaveBeenCalledWith('saudacao', 'prod', 3);
   });
 
+  // B-242 — o par que faltava. A asserção de ausência abaixo procura a frase do estado VAZIO;
+  // sem um caso que a assere PRESENTE, reescrever ou remover essa frase deixava as duas verdes
+  // e a distinção que este par existe para proteger — "não há revisões" versus "não consegui
+  // ler" — sumia sem nenhum teste ficar vermelho.
+  it('um prompt genuinamente SEM revisões diz que não há revisões publicadas', async () => {
+    mockRevisions.mockResolvedValue([]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/has no published revisions yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Could not load the revisions/i)).not.toBeInTheDocument();
+  });
+
   it('falha ao ler as revisões NÃO é renderizada como "este prompt não tem revisões"', async () => {
     mockRevisions.mockRejectedValue(new Error('upstream down'));
 
     render(<PromptDetailPage />);
 
     expect(await screen.findByText(/Could not load the revisions/i)).toBeInTheDocument();
+    // Ancorada pelo caso acima (B-242): a frase existe, e este caso prova que ela não aparece
+    // sobre uma leitura que falhou.
     expect(screen.queryByText(/has no published revisions yet/i)).not.toBeInTheDocument();
   });
 
@@ -751,9 +766,34 @@ describe('M21 — as quatro abas', () => {
     }
   });
 
+  // B-242 — as três asserções de ausência abaixo só provam algo se os headings que elas
+  // procuram EXISTIREM em algum lugar. Sem este caso, renomear "Usage by revision" para
+  // qualquer outra coisa deixava as duas verdes: o seletor não casaria nada em aba nenhuma, e
+  // a detecção de vazamento entre abas sumiria sem um teste ficar vermelho.
+  //
+  // Este é o par exigido pela catraca `absence-assertion-ratchet`: o mesmo seletor, asserido
+  // PRESENTE na aba que o possui.
+  it('cada heading que a aba de conteúdo não deve mostrar existe na aba que o possui', async () => {
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumption'] });
+    expect(await screen.findByRole('heading', { name: 'How to consume' })).toBeInTheDocument();
+
+    cleanup();
+
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/production'] });
+    expect(await screen.findByRole('heading', { name: 'Usage by revision' })).toBeInTheDocument();
+
+    cleanup();
+
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/config'] });
+    expect(await screen.findByRole('heading', { name: /Tuning/ })).toBeInTheDocument();
+  });
+
   it('a aba de conteúdo NÃO mostra o que pertence às outras', async () => {
     // Sem esta asserção, um recorte que renderizasse tudo em toda aba passaria nos testes acima —
     // e a tela continuaria sendo o scroll único, só que com uma barra decorativa em cima.
+    //
+    // As três ausências são ancoradas pelo caso acima, que assere os MESMOS seletores presentes
+    // nas abas donas (B-242).
     render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao'] });
     await screen.findByRole('heading', { name: 'Revisions' });
 

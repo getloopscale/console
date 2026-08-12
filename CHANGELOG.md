@@ -2,6 +2,7 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** the check that watches for tests which cannot fail now counts the assertions that are actually weak, not the files that use a particular spelling. It had been freezing 98 files; measured, 211 of the 327 assertions inside them were already sound, and 116 are not. The old count stays as a second gate so a new file cannot slip in unnoticed (B-242).
 - **theo-cloud/dashboard:** 48 internal type definitions stopped being published from their modules. They were exported and imported by nobody, which cost reading rather than runtime: the file describing API payloads is 861 lines and most of it described shapes nothing consumed, so anyone looking for an endpoint's contract read twice what they needed and could not tell which half was live (B-245).
 - **theo-cloud/dashboard:** the check that guards how architecture decisions are cited now says what it actually delivers. It promised the 234 stale citations would "shrink on their own as files get rewritten"; measured, that produced one in five days — about three years for the rest. Its real value is stopping new ones from appearing, which it does, and it now says so (B-246).
 
