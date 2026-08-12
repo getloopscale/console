@@ -9126,7 +9126,7 @@ evidence: |
       # stdlib package — proxy doesn't index it. Treat as True (exists) to avoid FP.
 
   The guard is right in intent and wrong in one line: it treats "has no slash" as "is stdlib".
-  Measured 2026-08-12 with `go list std`: 362 stdlib packages, of which **238 contain a slash**
+  Measured 2026-08-12 with `go list std`: 362 stdlib packages, of which **322 contain a slash**
   (`net/http`, `encoding/json`, `log/slog`, `database/sql`, `os/signal`, `go/ast`,
   `path/filepath`, `net/http/httptest`, …). Every one of them is looked up on
   proxy.golang.org, 404s, and is reported HARD as `Fabricated Go module`.
