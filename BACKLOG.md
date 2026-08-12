@@ -10564,3 +10564,45 @@ dod:
 status: triaged
 
 > Registrado 2026-08-12 ao desbloquear o `images` do publish.
+
+## B-273 — O gate Go depende de um download em runtime e falha com `socket hang up`   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: low
+category: test
+evidence: |
+  job 94258930430, 2026-08-12 (passo `Lint` de `quality.yml`):
+
+    Installing golangci-lint binary v2.12.2...
+    Downloading binary https://github.com/golangci/golangci-lint/releases/download/v2.12.2/...
+    socket hang up
+    Waiting 18 seconds before trying again
+    socket hang up
+    Waiting 10 seconds before trying again
+    ##[error]Failed to run: Error: socket hang up, Error: socket hang up
+
+  Não é achado de lint: `golangci-lint run ./...` local sai com `0 issues`. É o BINÁRIO que não
+  desceu. A action tenta 3 vezes e desiste.
+por_que_isso_engana: |
+  O job aparece como `failure` no passo chamado "Lint", e o primeiro palpite de qualquer pessoa —
+  o meu inclusive — é que o código tem um problema de lint. Foram necessárias quatro consultas e a
+  leitura do log bruto para descobrir que nenhuma análise chegou a rodar.
+
+  É a mesma forma dos outros três defeitos desta sessão: uma verificação que NÃO ACONTECEU
+  reportada como se tivesse acontecido e falhado. O B-270 (workflow recusado no startup), o B-272
+  (trivy saindo em 17ms sem escanear) e este são o mesmo padrão em três camadas diferentes.
+why_now: |
+  Descoberto ao desbloquear o `publish` em 2026-08-12. Custou um re-run e ~10 minutos, o que é
+  barato — mas o custo real é de diagnóstico: um vermelho que não distingue "seu código está errado"
+  de "a internet caiu" gasta o tempo de quem investiga, toda vez.
+dod:
+  - a falha de DOWNLOAD é distinguível da falha de ANÁLISE no output do job, sem ler log bruto
+  - avaliar cachear o binário (a action já restaura um cache de `golangci-lint` — o cache é do
+    resultado, não do binário) ou fixá-lo numa imagem
+  - NÃO resolver com `continue-on-error`: um gate que ignora a própria falha é pior que o flake
+status: triaged
+
+> Registrado 2026-08-12 ao desbloquear o publish.
