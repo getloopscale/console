@@ -484,11 +484,51 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
   });
 
   it('lists saved views and applies one (pushes its query string → server re-fetches)', async () => {
+    // B-240 — this case passed in file order and failed alone, because what made it pass was a
+    // PRECEDING case having written to `window.location` through a nuqs setter. It exercises
+    // the react-router-writes / nuqs-reads path, which needs the history bridge; MemoryRouter
+    // switches that off. See the case above for the full mechanism.
+    window.history.replaceState({}, '', '/observability/traces');
     m52Mock({ views: [{ id: 'lsv-1', name: 'errored opus', query_string: '?status=error&model=claude-opus-4-8' }] });
-    render(<LensTracesPage />);
+    render(<LensTracesPage />, { historyRouter: true });
     await screen.findByText('tr_1');
     await userEvent.click(await screen.findByRole('button', { name: /apply view errored opus/i }));
     await waitFor(() => expect(listUrls().some((u) => u.includes('status=error') && u.includes('model=claude-opus-4-8'))).toBe(true));
+  });
+
+  it('applying a saved view re-runs the search — with no prior filter interaction', async () => {
+    // B-240 — the case below ("lists saved views and applies one") passed in file order, failed
+    // ALONE, and failed under shuffle. The cause is the HARNESS, and the production path is
+    // sound: measured under BrowserRouter, applying a view as the first action DOES re-fetch.
+    //
+    // nuqs's react-router adapter reads `window.location.search` — the global one — at mount
+    // (`nuqs/dist/react-router-*.js`: `useState(() => new URLSearchParams(location.search))`),
+    // and afterwards updates only on `popstate` or on nuqs's own emitter. In a browser,
+    // react-router's `setSearchParams` calls `history.pushState`, which nuqs PATCHES to emit —
+    // that is the bridge. MemoryRouter never touches `window.history`, so under it the bridge
+    // cannot fire, and what made this case pass was a PRECEDING case having written to
+    // `window.location` through a nuqs setter.
+    //
+    // Seeding `window.location` is what the browser does before the page mounts, so it is the
+    // honest fix. The item recorded two other exits and measured both wrong: `initialEntries`
+    // (nuqs does not read it) and `NuqsTestingAdapter` (does not propagate the push this case
+    // exercises). This is the third, and it needs no change to the page.
+    window.history.replaceState({}, '', '/observability/traces?session=sess-old');
+
+    m52Mock({ views: [{ id: 'lsv-1', name: 'errored opus', query_string: '?status=error&model=claude-opus-4-8' }] });
+    render(<LensTracesPage />, { historyRouter: true });
+    await screen.findByText('tr_1');
+
+    // The premise, asserted rather than assumed: the page really IS filtered before the click.
+    // Without it the "session is gone" check below is vacuously true — the trap this item's own
+    // block records, and the one a review caught me falling into.
+    await waitFor(() => expect(listUrls().some((u) => u.includes('session_id=sess-old'))).toBe(true));
+
+    await userEvent.click(await screen.findByRole('button', { name: /apply view errored opus/i }));
+
+    await waitFor(() =>
+      expect(listUrls().some((u) => u.includes('status=error') && u.includes('model=claude-opus-4-8'))).toBe(true),
+    );
   });
 
   it('saves the current filter combination as a named view (POST name + query_string)', async () => {

@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** a test that could only pass when another test ran before it now passes on its own. Nothing was wrong with the screen it covers — the test harness had a mechanism switched off that the browser has on, so it reported a defect the product does not have (B-240).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the Domains screen no longer builds its own request. It chose the address, the row limit, the error policy and the cache key inside the screen, which is how the same endpoint came to be read differently on different screens. Nothing changes on screen; what changes is that the next fix to how domains are read lands in one place (B-244).
