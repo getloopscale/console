@@ -10205,7 +10205,7 @@ status: shipped
 shipped_in: v1.0.1 (2026-08-12) — o número anunciado e nunca cortado agora existe de verdade
 > Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
 
-## B-269 — Os detectores de catraca leem TypeScript com regex; o compilador já está instalado   [ ]
+## B-269 — Os detectores de catraca leem TypeScript com regex; o compilador já está instalado   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -10235,16 +10235,32 @@ evidence: |
 
   `typescript` já é devDependency (`dashboard/package.json:119`). Rung 4 da parsimony-ladder
   ("existe dependência já instalada?") responde SIM, e eu escrevi um parser mesmo assim.
-limite_conhecido: |
-  MEDIDO, e é latente e não vivo: `balancedArgs` não conhece literal de regex, então um `(` ou `)`
-  desbalanceado dentro de `/…/` contaria errado. Varri os testes atrás disso:
+limite_conhecido_CORRIGIDO: |
+  ERA VIVO, NÃO LATENTE, e a correção do meu próprio diagnóstico é a parte que importa deste bloco.
 
-    seletores com regex contendo parêntese:        1  (`environments.test.tsx:193`, `/\(legacy\)/i`)
-    seletores com regex DESBALANCEADO:             0
+  Registrei assim: "MEDIDO, e é latente e não vivo — varri os testes e há 1 seletor com parêntese
+  em regex, balanceado, e 0 desbalanceados". A varredura estava certa e a CONCLUSÃO estava errada.
+  Verifiquei se uma MANIFESTAÇÃO específica ocorria (parêntese desbalanceado), não achei, e
+  generalizei para a CLASSE inteira.
 
-  O único caso real é balanceado, então a contagem de hoje está certa. Não é defeito ativo — é a
-  classe de defeito que estes próprios detectores existem para impedir ("um guarda que adivinha
-  onde a chamada termina está adivinhando"), presente no guarda.
+  Ao reescrever sobre a árvore, a contagem subiu de 111 para 113. As duas diferenças são assertivas
+  que o detector de texto NÃO ENXERGAVA, e estavam no corpus o tempo todo:
+
+    pages/memory/memories.test.tsx:75
+      expect(screen.queryByText(/hasn't stored any memories/i)).not.toBeInTheDocument()
+
+      O APÓSTROFO. `balancedArgs` trata `'` como abertura de string, entra em estado de aspas
+      dentro do literal de regex, e passa a pular os parênteses que precisava balancear.
+
+    pages/lens/monitors.test.tsx:389
+      expect(query, 'a mensagem de falha').not.toBeInTheDocument()
+
+      `expect()` de DOIS argumentos: o matcher não vem depois do `)` da consulta.
+
+  Provado com os dois detectores lado a lado (texto: 0 nos dois casos; árvore: 1 nos dois).
+
+  A lição é a do próprio ciclo, um nível acima: medi se uma FORMA ocorria em vez de medir se a
+  CLASSE de defeito podia ocorrer, e reportei a resposta tranquilizadora.
 why_now: |
   Apontado por revisão adversarial de arquitetura em 2026-08-12, sobre o diff que criou os dois
   detectores. Registrado em vez de corrigido na hora por uma razão de processo, não de preguiça:

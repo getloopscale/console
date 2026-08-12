@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-import { withoutComments, balancedArgs, lineOf } from '@/test/source-scan';
+import ts from 'typescript';
+import { parse, callSites } from '@/test/source-scan';
 
 /**
  * The B-242 detector, separated from the test that freezes its count.
@@ -13,15 +14,37 @@ import { withoutComments, balancedArgs, lineOf } from '@/test/source-scan';
  * this module measures.
  *
  * It lives outside the test file because the previous version's self-test held a hardcoded COPY of
- * the anchor rule and checked the copy. A reviewer proved the consequence with a mutation:
- * widening `(?:get|find)` to also accept `query` took the count from 116 to 15 with 6/6 tests
- * green. A detector that can be gutted without a test falling is not a detector — the same defect
- * B-237 recorded, and the same one the B-235 ratchet shipped.
+ * the anchor rule and checked the copy. A reviewer proved the consequence with a mutation: widening
+ * `(?:get|find)` to also accept `query` took the count from 116 to 15 with 6/6 tests green. A
+ * detector that can be gutted without a test falling is not a detector — the same defect B-237
+ * recorded, and the same one the B-235 ratchet shipped.
  *
- * HEURISTIC, and wrong in both directions: it compares the literal core of a selector within one
- * file. A selector built from a variable counts as unanchored without being; two selectors sharing
- * a prefix count as anchored without being. It sizes the work and shows progress — it does NOT
- * rewrite anything, and each finding has to be read.
+ * ## Read from the syntax tree (B-269)
+ *
+ * An assertion is a SHAPE, and the shape is what the parser hands over:
+ *
+ *     expect( queryByText(/x/) ) . not . toBeInTheDocument ()
+ *     ───┬──   ──────┬────────     ─────────────┬─────────
+ *     root      subject                      matcher path
+ *
+ * Reading it as text needed three separate repairs, each found by a reviewer after the fact: strip
+ * comments (an assertion inside an `it.skip` was being counted), balance parentheses (a selector
+ * with a nested call was truncated), and allow a trailing comma (the multi-line form was dropped
+ * entirely, and only a second independent count caught it). None of the three exist here — the
+ * grammar answers all of them.
+ *
+ * It also removes a guard that could not be exercised. The text version checked for a literal
+ * `expect(` in the 40 characters before the query; no fixture could discriminate it, because a
+ * matcher already implies the wrapper. Here the wrapper is not implied, it is required: the walk
+ * starts at the matcher and must ARRIVE at an `expect(…)` call, or the query is not an assertion.
+ *
+ * ## Honest limit
+ *
+ * Still HEURISTIC where it matters most: anchoring compares the literal core of a selector inside
+ * one file. A selector built from a variable counts as unanchored without being; two selectors
+ * sharing a prefix count as anchored without being. The AST fixed how assertions are FOUND, not
+ * how selectors are COMPARED — that would need type information the ratchets do not use. It sizes
+ * the work and shows progress; each finding still has to be read.
  */
 
 export interface AbsenceAssertion {
@@ -34,29 +57,13 @@ export interface AbsenceAssertion {
   readonly anchored: boolean;
 }
 
-/** `queryBy…(` / `queryAllBy…(`, optionally through `screen.` or `within(x).`. */
-const QUERY_CALL = /(?<![\w.])(?:screen\.|within\([^;]{0,120}?\)\.)?query(?:All)?By([A-Za-z]+)\s*\(/g;
+const QUERY = /^query(?:All)?By([A-Za-z]+)$/;
+const PRESENT = /^(?:get|find)(?:All)?By([A-Za-z]+)$/;
 
-/**
- * The matcher that makes a query an ABSENCE assertion.
- *
- * Without this the detector counted every `queryBy…` occurrence — including
- * `const el = screen.queryByRole('table');`, which asserts nothing and is the normal way to grab a
- * node before doing something else with it. 27 of the 336 occurrences were reads like that, and 6
- * of them were being reported as unanchored assertions that did not exist.
- */
-const ABSENCE_TAIL = /^\s*\)\s*,?\s*\)?\s*\.(?:not\s*\.\s*toBeInTheDocument|toBeNull|toBeFalsy|not\s*\.\s*toBeTruthy)/;
-
-/**
- * A `queryBy…` used to assert PRESENCE is a legitimate anchor.
- *
- * `expect(screen.queryByText(x)).toBeInTheDocument()` states the element is there, which is exactly
- * what an anchor is. Accepting `query` UNCONDITIONALLY is the mutation that gutted this detector
- * (116 -> 15); accepting it only in a presence assertion is the principled version. Measured on the
- * current corpus it changes nothing — no file anchors this way today — and it is here so that a
- * file which does is not miscounted.
- */
-const PRESENCE_TAIL = /^\s*\)\s*,?\s*\)?\s*\.(?:toBeInTheDocument|toBeTruthy|toBeVisible|not\s*\.\s*toBeNull)/;
+/** Matchers that assert the subject is ABSENT, keyed by the path walked back from the call. */
+const ABSENCE = new Set(['toBeNull', 'toBeFalsy', 'not.toBeInTheDocument', 'not.toBeTruthy']);
+/** …and the ones that assert it is PRESENT. A `queryBy` used this way is a legitimate anchor. */
+const PRESENCE = new Set(['toBeInTheDocument', 'toBeTruthy', 'toBeVisible', 'not.toBeNull']);
 
 /** The literal core of a selector: the first quoted run of at least 4 characters. */
 export function selectorCore(selector: string): string | null {
@@ -64,64 +71,82 @@ export function selectorCore(selector: string): string | null {
   return m ? m[1].slice(0, 18) : null;
 }
 
-interface RawQuery {
-  kind: string;
-  selector: string;
-  index: number;
-  isAbsence: boolean;
-  isPresence: boolean;
+interface Assertion {
+  subject: ts.Expression;
+  path: string;
 }
 
-function rawQueries(code: string): RawQuery[] {
-  const out: RawQuery[] = [];
-  for (const m of code.matchAll(QUERY_CALL)) {
-    const open = m.index + m[0].length - 1;
-    const args = balancedArgs(code, open);
-    if (args === null) continue;
-    const after = code.slice(open + 1 + args.length);
-    // The MATCHER is what turns a read into an assertion, and it is sufficient on its own.
-    //
-    // An earlier version also required a literal `expect(` in the 40 characters before the query.
-    // A reviewer proved that check was inert: deleting it left all 16 cases green, and no fixture
-    // could be written that discriminates — because `.toBeNull()` / `.not.toBeInTheDocument()`
-    // exist only on the result of `expect()`, so in valid test code the tail already implies the
-    // wrapper. Verified on the corpus: with the check and without it, 317 assertions and 111
-    // unanchored, identically.
-    //
-    // Keeping an unexercised guard would be keeping something indistinguishable from a broken
-    // one — the exact criticism this file's own docblock makes of decorative self-tests. It is
-    // deleted rather than shipped with a test that cannot fail (parsimony ladder, rung 1).
-    out.push({
-      kind: m[1],
-      selector: args.trim(),
-      index: m.index,
-      isAbsence: ABSENCE_TAIL.test(after),
-      isPresence: PRESENCE_TAIL.test(after),
-    });
+/**
+ * Walk back from a matcher call to the `expect(…)` it belongs to.
+ *
+ * `expect(x).not.toBeInTheDocument()` parses as a call whose expression is a property access chain
+ * rooted at the `expect(x)` call. Returns the subject and the dotted matcher path, or `null` when
+ * the chain does not reach an `expect`.
+ */
+function assertionOf(call: ts.CallExpression): Assertion | null {
+  const path: string[] = [];
+  let node: ts.Expression = call.expression;
+
+  while (ts.isPropertyAccessExpression(node)) {
+    path.unshift(node.name.text);
+    node = node.expression;
   }
-  return out;
-}
+  if (path.length === 0) return null;
 
-const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!ts.isCallExpression(node)) return null;
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== 'expect') return null;
+  if (node.arguments.length === 0) return null;
+
+  let subject = node.arguments[0];
+  while (ts.isAwaitExpression(subject) || ts.isParenthesizedExpression(subject)) {
+    subject = subject.expression;
+  }
+  return { subject, path: path.join('.') };
+}
 
 /** Every absence assertion in a file, each marked anchored or not. */
 export function absenceAssertionsIn(file: string, source: string): AbsenceAssertion[] {
-  const code = withoutComments(source);
-  const queries = rawQueries(code);
-  return queries
-    .filter((q) => q.isAbsence && q.selector !== '')
-    .map((q) => {
-      const core = selectorCore(q.selector);
-      let anchored = false;
-      if (core !== null) {
-        // `getBy…`/`findBy…` throw when absent, so using one at all asserts presence.
-        anchored = new RegExp(`(?:get|find)(?:All)?By${q.kind}\\s*\\([^)]{0,200}${escape(core)}`).test(code);
-        if (!anchored) {
-          anchored = queries.some((o) => o.isPresence && o.kind === q.kind && o.selector.includes(core));
-        }
-      }
-      return { file, line: lineOf(code, q.index), kind: q.kind, selector: q.selector, anchored };
-    });
+  const sf = parse(file, source);
+  const calls = callSites(sf);
+
+  // Selectors asserted PRESENT, by query kind. `getBy…`/`findBy…` throw when absent, so using one
+  // at all asserts presence; a `queryBy…` counts only inside a presence matcher.
+  const present = new Map<string, string[]>();
+  const add = (kind: string, text: string) => {
+    const list = present.get(kind) ?? [];
+    list.push(text);
+    present.set(kind, list);
+  };
+
+  const absences: { kind: string; selector: string; line: number }[] = [];
+
+  for (const c of calls) {
+    const asPresent = PRESENT.exec(c.name);
+    if (asPresent) add(asPresent[1], c.argsText);
+
+    if (!ts.isCallExpression(c.node)) continue;
+    const assertion = assertionOf(c.node);
+    if (assertion === null) continue;
+
+    // The subject must be the query call itself, not something derived from it.
+    if (!ts.isCallExpression(assertion.subject)) continue;
+    const subjectName = calls.find((x) => x.node === assertion.subject);
+    if (subjectName === undefined) continue;
+    const asQuery = QUERY.exec(subjectName.name);
+    if (asQuery === null || subjectName.argsText === '') continue;
+
+    if (PRESENCE.has(assertion.path)) add(asQuery[1], subjectName.argsText);
+    else if (ABSENCE.has(assertion.path)) {
+      absences.push({ kind: asQuery[1], selector: subjectName.argsText, line: subjectName.line });
+    }
+  }
+
+  return absences.map((a) => {
+    const core = selectorCore(a.selector);
+    const anchored =
+      core !== null && (present.get(a.kind) ?? []).some((text) => text.includes(core));
+    return { file, line: a.line, kind: a.kind, selector: a.selector, anchored };
+  });
 }
 
 /** The assertions that cannot fail — the number that matters. */
