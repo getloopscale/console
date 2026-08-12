@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- **theo-cloud/internal tooling:** the file that says which languages the quality gate audits now documents the format it actually accepts. Following its own instructions produced an error, so the first step of enabling a language failed for whoever tried it; a note had been added describing the trap instead of removing it (B-251).
 - **theo-cloud/release process:** cutting a release now starts from the version that was actually released. It had been reading the last tag on the branch the work is written on, where release tags never land — so it saw v0.29.0, some fifty-six releases behind v0.85.0, and every version it proposed was computed from that. It also no longer confuses "the tag nearest in history" with "the highest version", so a hotfix numbered below a shipped release can no longer make the next release reuse a version number that already exists (B-228).
 - **theo-cloud/internal tooling:** citing a file inside a dot-directory as evidence no longer marks that evidence as invented. `.claude/rules/x.md:28` was being read as `claude/rules/x.md:28`, a path that resolves nowhere, so the harshest failure in the review system fired against pointers that were correct — and any finding about the project's own tooling was unreviewable (B-247).
 - **theo-cloud/internal tooling:** the reference example of a well-formed finding now passes its own check. It pointed at files using a layout this repository does not use, so the check that proves the system accepts good work had never once passed here (B-248).
