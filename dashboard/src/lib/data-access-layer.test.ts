@@ -133,7 +133,17 @@ exatamente a classe "grep casa prosa".
 // a de `PontoDaSerie`, em vez de ler as reais. É a armadilha que o `DomainRow` já havia registrado
 // — adotar uma forma adivinhada apaga em silêncio campos que a UI renderiza — e o compilador foi a
 // única razão de custar minutos em vez de dados sumindo do gráfico.
-const TETO_PAGINAS_COM_TRANSPORTE = 42;
+// 41 desde 2026-08-12, com `lens/traces/metadata-card.tsx` lendo por
+// `hooks/lens/use-trace-metadata.ts`. Três das quatro chamadas não passavam `throwOnError`, e as
+// três falhavam do mesmo jeito — a escrita é recusada, o `onSuccess` dispara, o campo limpa e nada
+// é dito. Não são igualmente graves:
+//
+//   addTag         o campo limpa e a etiqueta some na leitura seguinte
+//   removeTag      a confirmação fecha e a etiqueta VOLTA, o que se lê como o produto desfazendo
+//                  a ação do usuário
+//   addAnnotation  o usuário ESCREVEU. O textarea limpa, a nota some, e não há erro nem rascunho
+//                  a recuperar — esta destrói trabalho, não apenas reporta estado errado.
+const TETO_PAGINAS_COM_TRANSPORTE = 41;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

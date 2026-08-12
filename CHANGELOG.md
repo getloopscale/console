@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** a note you write on a trace is no longer lost in silence. If the server refused it, the box cleared anyway and the note was gone — no error, no draft to recover, nothing to retry. Adding and removing tags had the same gap: the tag simply did not appear, or reappeared on the next read, which looks like the product undoing what you just did (B-244, B-235).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the per-user usage report can no longer answer a question about one period with the numbers from another. The window, the page and whether daily detail was requested all decide which cached answer is reused, and that agreement was maintained by hand in two separate places — it held only while one person edited both. Nothing changes on screen today; what changes is that adding a filter can no longer silently leave the cache out of step with what the page says it is showing (B-244).
