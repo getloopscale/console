@@ -9262,3 +9262,53 @@ dod:
 
 > Registered 2026-08-12 during B-228's code-quality phase, which it blocks.
 
+## B-256 — 21 unreachable Go symbols, visible for the first time   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: discover-review
+severity: medium
+category: code
+evidence: |
+  internal/metrics/metrics.go:211
+  Measured 2026-08-12 with the D1 parser fixed by B-255. Before that fix these were reported
+  as five findings named `<unknown>`, so nobody could see them. Twenty-one, in four packages:
+
+    internal/config/config.go:19-22    Secret.String, GoString, MarshalJSON, MarshalText
+    internal/metrics/metrics.go        13 symbols — StorageBytesWrittenValue,
+                                       ObjectsDeletedValue, ServiceVersionInfoValue,
+                                       ServiceVersionProbeValue, IncTokenExchange,
+                                       IncDeviceFlow, ObserveTenantProvisioning,
+                                       IncAuthRejection, IncWebhook, IncCheckout,
+                                       IncUsageDrift, IncSubscriptionFallback,
+                                       ObserveHTTPRequest
+    internal/billing/cost_aggregator.go:74   CostAggregator.WithClock
+    internal/routes/                   GitHubIntegrationsHandler.WithInsecureCookieForTests,
+                                       MemoryExportsHandler.WaitForWorkers,
+                                       RagConnectorsOAuthHandler.WithInsecureCookieForTests
+
+  THEY ARE NOT ONE POPULATION, and the item must not treat them as one:
+
+  1. The four `Secret` methods are called by the LANGUAGE RUNTIME (fmt, encoding/json), never
+     by our code. `CHANGELOG.md` § [0.83.1] Security already reasoned about exactly this:
+     deleting any of them makes a credential serialize in clear text again, with no test
+     going red. `deadcode` cannot see a call it does not make.
+  2. `WithClock`, `WaitForWorkers`, `WithInsecureCookieForTests` are test seams. `deadcode`
+     analyses reachability from `main` and does not consider test binaries.
+  3. The 13 metrics helpers are the only ones that might be genuinely dead — and a metric
+     helper nobody calls means a signal nobody emits, which is worth knowing either way.
+why_now: |
+  The population became visible today for the first time, as a side effect of B-255. It is not
+  new debt; it is debt that was being reported in a form nobody could read. Filed with the three
+  classes separated because the obvious action — delete what the tool says is dead — would
+  reintroduce a security defect in class 1 and break the tests in class 2.
+status: triaged
+dod:
+  - each of the 21 is classified: runtime-called, test-seam, or genuinely dead
+  - genuinely-dead symbols are removed, or given a caller
+  - runtime-called and test-seam symbols are allowlisted with the reason, not deleted
+  - the allowlist entries that this item's investigation replaces are removed on the way
+
+> Registered 2026-08-12, surfaced by the B-255 fix during B-228's code-quality phase.
+
