@@ -159,3 +159,62 @@ def test_vendored_trees_are_not_audited_for_dead_code() -> None:
     findings = det._parse_deadcode_json(_DEADCODE_REAL_SHAPE)
 
     assert not any("node_modules" in f.file_path for f in findings)
+
+
+def test_dead_code_findings_are_HARD_and_auditor_unavailable_is_SOFT_CAP() -> None:
+    """Severity is the load-bearing property here, and nothing pinned it (review H3).
+
+    `run_code_quality.py` maps severity straight to verdict and exit code, so changing
+    `HARD` to `SOFT_FLOOR` in one token converts `dead_code_unallowlisted_go` from a
+    FAIL_HARD that blocks /review into an advisory note — and that mutation survived all
+    193 tests. B-256 allowlisted 21 findings on the strength of this severity, which makes
+    it exactly the thing an unpinned token should not be.
+
+    The auditor-unavailable case is asserted alongside because it is the CONTRAST: a
+    missing toolchain is SOFT_CAP, never HARD. A gate must not report "I could not check"
+    with the severity of "I found a defect".
+    """
+    det = GoDetector()
+
+    dead = det._parse_deadcode_json(_DEADCODE_REAL_SHAPE)
+    assert dead, "fixture must produce findings for this assertion to mean anything"
+    assert {f.severity for f in dead} == {"HARD"}
+
+    with patch("subprocess.run", side_effect=FileNotFoundError("deadcode binary missing")):
+        unavailable = det.detect_dead_code(Path("."))
+    assert [f.severity for f in unavailable] == ["SOFT_CAP"]
+
+
+def test_a_shape_change_in_deadcode_is_reported_not_swallowed() -> None:
+    """The B-255 guard has its own test now (review M4).
+
+    `if not file_part or not name` exists so a future `deadcode` output shape is reported
+    loudly instead of producing `<unknown>` findings. Mutating `or` to `and` survived —
+    the guard that prevents the original defect from recurring was itself unguarded.
+    """
+    det = GoDetector()
+
+    findings = det._parse_deadcode_json(
+        [{"Name": "pkg", "Funcs": [{"Position": {"File": "a.go", "Line": 1, "Col": 1}}]}]
+    )
+
+    assert len(findings) == 1
+    assert findings[0].severity == "SOFT_CAP"
+    assert "shape changed" in findings[0].message
+    assert "<unknown>" not in findings[0].message
+
+
+def test_every_vendored_marker_is_excluded() -> None:
+    """The tuple says "trees", plural — assert all four (review L3)."""
+    det = GoDetector()
+    packages = [
+        {
+            "Name": "x",
+            "Funcs": [
+                {"Name": f"f{i}", "Position": {"File": f"{marker}pkg/x.go", "Line": 1, "Col": 1}}
+                for i, marker in enumerate(GoDetector._VENDORED_MARKERS)
+            ],
+        }
+    ]
+
+    assert det._parse_deadcode_json(packages) == []

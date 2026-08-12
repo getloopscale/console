@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from detect_current_version import (  # noqa: E402
+    SEMVER_TAG_RE,
     DetectedVersion,
     FloorVersion,
     GitCommandError,
@@ -22,6 +23,7 @@ from detect_current_version import (  # noqa: E402
     VersionDetector,
     default_detector,
     git_runner,
+    main,
 )
 
 
@@ -283,3 +285,110 @@ def test_the_skill_halts_when_detection_fails() -> None:
     assert 'LAST_TAG=$(python3' not in skill, (
         "assigning the detector's output directly reintroduces the empty-on-failure path"
     )
+
+
+def test_a_tag_on_an_unmerged_branch_is_excluded(tmp_path: Path) -> None:
+    """The `--merged` half of the contract, guarded by a real repository (review H1).
+
+    Deleting `--merged <ref>` — which collapses ReleaseBranchTag into HighestSemverTag —
+    survived both integration tests. It died only in a FakeGit test whose response table
+    keys on the literal substring "--merged", so it detected a changed COMMAND STRING, not
+    a changed OUTCOME. This file's own header claims the fakes are "deliberately not the
+    evidence"; for this half of the contract that was not true.
+
+    The shape is ordinary, not exotic: a release-candidate tag cut on a work branch, or a
+    tag left on a branch that was abandoned. RELEASED means reachable from the release
+    branch, and v9.9.9 below is not.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _commit(repo, "base")
+    _git(repo, "tag", "-a", "v1.0.0", "-m", "released")
+
+    _git(repo, "switch", "-q", "-c", "abandoned")
+    _commit(repo, "never-promoted")
+    _git(repo, "tag", "-a", "v9.9.9", "-m", "rc on a branch nobody merged")
+    _git(repo, "switch", "-q", "main")
+
+    result = VersionDetector(
+        [ReleaseBranchTag(ref="main"), HighestSemverTag(), FloorVersion()]
+    ).detect(git_runner(repo))
+
+    assert result == DetectedVersion(version="v1.0.0", source="release-branch-tag")
+
+
+def test_fallback_does_see_the_unmerged_tag(tmp_path: Path) -> None:
+    """The contrast that proves the exclusion above is `--merged` and not luck.
+
+    Without the filter the same repository answers v9.9.9 — which is exactly what the
+    fallback source is for, and exactly what must NOT happen on the primary.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _commit(repo, "base")
+    _git(repo, "tag", "-a", "v1.0.0", "-m", "released")
+    _git(repo, "switch", "-q", "-c", "abandoned")
+    _commit(repo, "never-promoted")
+    _git(repo, "tag", "-a", "v9.9.9", "-m", "rc")
+    _git(repo, "switch", "-q", "main")
+
+    result = VersionDetector([HighestSemverTag(), FloorVersion()]).detect(git_runner(repo))
+
+    assert result == DetectedVersion(version="v9.9.9", source="highest-semver-tag")
+
+
+# --- The CLI contract the release chain actually consumes (review H2) ---
+
+
+def test_quiet_prints_the_bare_version_for_piping(capsys: pytest.CaptureFixture[str]) -> None:
+    """`SKILL.md` pipes `--quiet` straight into `compute_next_version.py --current`.
+
+    Inverting the flag survived every test: `--quiet` would print
+    `v0.85.0 (release-branch-tag)` and the version computer would receive a string that is
+    not a version.
+    """
+    assert main(["--quiet", "--repo", "."]) == 0
+
+    printed = capsys.readouterr().out.strip()
+    assert SEMVER_TAG_RE.match(printed), f"not a bare version: {printed!r}"
+
+
+def test_default_output_carries_the_source_in_parentheses(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`SKILL.md` extracts the source with `sed 's/.*(\\(.*\\))/\\1/'`.
+
+    Changing `__str__` to `"{source}: {version}"` survived, silently breaking that sed. The
+    human-readable format is a load-bearing contract, so it is pinned like one.
+    """
+    assert main(["--repo", "."]) == 0
+
+    printed = capsys.readouterr().out.strip()
+    assert printed.endswith(")")
+    version, _, source = printed.partition(" (")
+    assert SEMVER_TAG_RE.match(version)
+    assert source.rstrip(")") in {"release-branch-tag", "highest-semver-tag", "floor"}
+
+
+def test_main_returns_2_when_git_is_missing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Exit 2 exists so a release cannot proceed pretending it read a version.
+
+    `return 2` -> `return 0` survived. The unit test above proves FileNotFoundError leaves
+    `detect()`; nothing proved `main()` converts it to a non-zero exit, which is the part
+    the shell actually checks.
+    """
+
+    def no_git(_repo: Path | str = ".") -> object:
+        def _run(_args: Sequence[str]) -> str:
+            raise FileNotFoundError("git")
+
+        return _run
+
+    monkeypatch.setattr("detect_current_version.git_runner", no_git)
+
+    assert main([]) == 2
+    assert "git is not installed" in capsys.readouterr().err

@@ -149,3 +149,49 @@ def test_no_evidence_at_all(rooted: Path) -> None:
     assert report["total"] == 0
     assert report["fabricated"] == 0
     assert report["evidence_total"] == 0
+
+
+def test_a_blocked_marker_does_not_blanket_the_whole_document(rooted: Path) -> None:
+    """The BLOCKED escape hatch is scoped to its own pointer (review H4).
+
+    The marker is honoured only within a short window after the pointer it excuses.
+    Widening that window to the whole document survived every test — and would let ONE
+    `<!-- BLOCKED: ... -->` anywhere mark EVERY pointer as an honest gap, disarming
+    `fabricated_evidence`, which `discover-opportunity-golden-rule.md § 1` declares
+    unbreakable. Real opportunities do carry BLOCKED markers, so this is a live bypass,
+    not a theoretical one.
+    """
+    body = (
+        "A genuine gap: `src/absent.py:1` <!-- BLOCKED: the service is not deployed yet -->\n\n"
+        + "filler prose. " * 40
+        + "\n\nAnd a claim that must still be checked: `src/also-absent.py:9`.\n"
+    )
+
+    report = check_evidence_pointers(_opportunity(rooted, body))
+
+    assert report["explicitly_blocked"] == 1
+    assert report["fabricated"] == 1, "the far pointer must NOT inherit the marker"
+    assert "src/also-absent.py:9" in report["fabricated_pointers"]
+
+
+def test_an_unreadable_file_is_reported_with_its_own_reason(rooted: Path) -> None:
+    """A negative case that asserts the specific reason, not merely "it failed" (review M5).
+
+    `testing.md` § 4.1: a negative-case test asserts the typed error and message. Mutating
+    the unreadable branch to `return True, ""` survived — an unreadable file would have
+    counted as verified evidence.
+    """
+    target = rooted / "src" / "locked.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"\n".join(b"line" for _ in range(10)))
+    target.chmod(0o000)
+    try:
+        report = check_evidence_pointers(_opportunity(rooted, "See `src/locked.py:3`."))
+    finally:
+        target.chmod(0o644)
+
+    assert report["fabricated"] == 1
+    reason = report["fabricated_pointers"]["src/locked.py:3"]
+    assert reason.startswith("unreadable:")
+    # The reason names the CAUSE, so "unreadable" is not confusable with "missing".
+    assert reason != "unreadable:" and len(reason) > len("unreadable:")
