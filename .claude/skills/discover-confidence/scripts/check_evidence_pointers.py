@@ -27,8 +27,13 @@ from typing import Any
 
 # `dir/file.ext:LINE` (optionally `:COL`). Requires a slash and an extension so that
 # prose like "step 3:12" or "Ratio 4:1" is not mistaken for a pointer.
+#
+# The left guard says "do not start in the MIDDLE of a path token" — which is what the
+# original `\b` was reaching for, but could not express: `\b` falls between the dot and
+# the first letter of a dotfile directory, so `.claude/rules/x.md:1` was captured as
+# `claude/rules/x.md` and reported fabricated against a file that exists (B-247).
 CODE_POINTER_RE = re.compile(
-    r"\b((?:[A-Za-z0-9_.\-]+/)+[A-Za-z0-9_.\-]+\.[A-Za-z0-9]{1,10}):(\d+)(?::\d+)?\b"
+    r"(?<![A-Za-z0-9_.\-/])((?:[A-Za-z0-9_.\-]+/)+[A-Za-z0-9_.\-]+\.[A-Za-z0-9]{1,10}):(\d+)(?::\d+)?\b"
 )
 # `GET https://host/path -> 200`
 RUNTIME_OBS_RE = re.compile(
