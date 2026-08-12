@@ -12,7 +12,7 @@
 // the receive contract). Same convention as error-reporter.test.ts.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { reportEvent, trackInteraction, viewportBucket } from './rum';
+import { reportEvent, trackInteraction, viewportBucket, reportInProd } from './rum';
 
 // Shared console spy. vi.restoreAllMocks() in afterEach prevents bleed
 // between tests AND describe blocks — `vi.spyOn(console, 'log')` returns
@@ -246,5 +246,43 @@ describe('viewportBucket — categorical viewport (T2.2 / D5)', () => {
   it('test_rum_viewport_bucket_desktop_at_boundary', () => {
     setViewport(1024);
     expect(viewportBucket()).toBe('desktop');
+  });
+});
+
+describe('B-217 — em produção as métricas vão para o servidor, não para o console', () => {
+  const metrica = {
+    name: 'LCP', value: 1234, id: 'v1-1', navigationType: 'navigate',
+  } as unknown as Parameters<typeof reportInProd>[0];
+
+  it('manda a métrica por sendBeacon', () => {
+    // O caminho de produção mandava tudo para o `console`, e o comentário dizia "por enquanto",
+    // apontando em prosa para um `sendBeacon` que já existia a doze linhas dali (`reportEvent`).
+    // Medir no console de produção não é medir: ninguém lê o console de outra pessoa.
+    const beacon = vi.fn().mockReturnValue(true);
+    vi.stubGlobal('navigator', { sendBeacon: beacon });
+
+    reportInProd(metrica);
+
+    expect(beacon).toHaveBeenCalledOnce();
+    expect(beacon.mock.calls[0][0]).toBe('/v1/telemetry/web-vitals');
+    expect(JSON.parse(String(beacon.mock.calls[0][1]))).toMatchObject({ name: 'LCP', value: 1234 });
+  });
+
+  it('cai para fetch com keepalive quando não há sendBeacon', () => {
+    // `keepalive` importa: LCP e CLS são reportados no descarregamento da página, quando um
+    // `fetch` comum é cancelado antes de sair.
+    const f = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('fetch', f);
+
+    reportInProd(metrica);
+
+    expect(f).toHaveBeenCalledOnce();
+    expect(f.mock.calls[0][1]).toMatchObject({ method: 'POST', keepalive: true });
+  });
+
+  it('uma telemetria que falha não derruba a página que ela mede', () => {
+    vi.stubGlobal('navigator', { sendBeacon: () => { throw new Error('blocked'); } });
+    expect(() => { reportInProd(metrica); }).not.toThrow();
   });
 });

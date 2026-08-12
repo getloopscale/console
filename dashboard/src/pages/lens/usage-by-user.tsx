@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { parseAsInteger, useQueryState } from 'nuqs';
-import { Button, Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
+import { Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
 import { TrendChart, type TrendSeries } from '@usetheo/ui';
 import { densificar, janelaDaSerie, type CampoPlotavel, type PontoDaSerie } from '@/pages/lens/usage-series';
@@ -12,6 +12,8 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { ApiError, cloudFetch } from '@/lib/http/api';
+import { usePaginacao } from '@/lib/pagination';
+import { Pager } from '@/components/pager';
 import { formatCost, formatNumber, shortId } from '@/lib/formatting/format';
 
 /**
@@ -161,9 +163,15 @@ export function LensUsageByUserPage() {
   const users = query.data?.users ?? [];
   const total = query.data?.totalUsers ?? 0;
   const unpriced = query.data?.unpricedSpans ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const lastShown = Math.min(page * PAGE_SIZE, total);
+  // B-184 — a aritmética vinha copiada, e esta cópia já tinha divergido: o resumo abaixo estava
+  // em português enquanto as outras quatro telas diziam "Showing … of …".
+  const paginacao = usePaginacao({
+    total,
+    pageSize: PAGE_SIZE,
+    page,
+    setPage,
+    naoAssentado: query.isFetching || !query.data,
+  });
 
   // M143 — a agregação vive fora do componente, pura e testável por mutação. O que quebrou no M142
   // não foi a renderização, foi a aritmética sem oráculo.
@@ -459,7 +467,7 @@ export function LensUsageByUserPage() {
 
             {total > 0 ? (
               <p data-testid="usage-count" className="mb-1 text-xs text-muted-foreground">
-                {`Mostrando ${firstShown}–${lastShown} de ${total}`}
+                {paginacao.resumo}
               </p>
             ) : null}
 
@@ -467,17 +475,9 @@ export function LensUsageByUserPage() {
               <DataTable columns={columns} data={users} rowKey={(row) => row.userId} />
             </Card>
 
-            {pageCount > 1 ? (
-              <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
-                <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                  Previous
-                </Button>
-                <span className="tabular-nums" data-testid="usage-pager">{`Page ${page} / ${pageCount}`}</span>
-                <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
-                  Next
-                </Button>
-              </div>
-            ) : null}
+            <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
+              <Pager paginacao={paginacao} ocupado={query.isFetching} testId="usage-pager" />
+            </div>
           </>
         )}
       </div>

@@ -33,7 +33,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * working unchanged.
  */
 
-export type MutationKind = 'rollback' | 'promote' | 'redeploy';
+type MutationKind = 'rollback' | 'promote' | 'redeploy';
 
 export interface MutationInFlight {
   kind: MutationKind;

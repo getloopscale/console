@@ -23,7 +23,7 @@ const SESSION_PICKER_LIMIT = 100;
  * picks the session INSTANCE on surfaces whose tab already fixed the tier.
  */
 
-export interface SessionRow {
+interface SessionRow {
   session_id: string;
   memory_count: number;
   last_activity_at?: string;
@@ -135,13 +135,29 @@ export function ScopeSelect(props: SessionSelectProps) {
  */
 export function SessionPicker(props: SessionSelectProps) {
   const sessions = useSessionsQuery();
-  const empty = (sessions.data?.sessions ?? []).length === 0;
+  // B-243 — FOUR states, where the code had two. `data === undefined` collapsed into the
+  // empty list via `?? []`, so the picker announced "no sessions recorded yet" both while
+  // the request was still in flight and after it failed — a claim about the user's data,
+  // made twice over on the strength of a read that had not answered.
+  //
+  // The four ask different things of whoever is looking: wait, retry or check the service,
+  // create your first session, or pick one. Only the third is a statement about their data.
+  //
+  // The loading case was found by the test for the error case: `findByRole` resolved on the
+  // first render, which is the pending one, and it still said "no sessions recorded yet".
+  const label = sessions.isPending
+    ? 'Loading sessions…'
+    : sessions.isError
+      ? 'Could not read sessions'
+      : (sessions.data?.sessions ?? []).length === 0
+        ? 'No sessions recorded yet'
+        : 'Select a session…';
   return (
     <SessionSelectBase
       {...props}
       id={props.id ?? 'session-picker'}
       ariaLabel="Select session"
-      emptyLabel={empty ? 'No sessions recorded yet' : 'Select a session…'}
+      emptyLabel={label}
       optionPrefix=""
       className={`${SELECT_CLASS} w-64`}
     />

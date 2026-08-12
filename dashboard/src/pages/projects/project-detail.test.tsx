@@ -262,3 +262,130 @@ describe('ProjectDetailPage', () => {
     });
   });
 });
+
+describe('B-243 — "no deployments" is a claim about the project, not about a failed read', () => {
+  // This block is a SIBLING of `describe('ProjectDetailPage')`, so it does not inherit that
+  // block's beforeEach. Without this one the three cases below ran on whatever mock state the
+  // previous block's last test happened to leave behind: green in file order, red under
+  // `-t "B-243"` and red on 1 of 3 shuffled runs. A test that passes because of the test
+  // before it is not independent (`.claude/rules/testing.md` § 3), and file-order CI being
+  // green is exactly what makes that dangerous.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseProjectStatus.mockReturnValue({ status: null, loading: false });
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false, isSuccess: true });
+    mockUseEngineApi.mockReturnValue({ data: null, loading: false, error: false, isSuccess: true });
+    mockUseProject.mockReturnValue({
+      project: {
+        name: 'my-project',
+        apps: [{ name: 'web' }],
+        created_at: '2026-06-01T00:00:00Z',
+      },
+      loading: false,
+    });
+  });
+
+  it('says there are no deployments when the read SUCCEEDED and returned none', () => {
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: false,
+      error: false,
+    });
+
+    render(<ProjectDetailPage />);
+
+    expect(screen.getByText(/no deployments yet/i)).toBeInTheDocument();
+  });
+
+  it('does NOT say there are no deployments when the read FAILED', () => {
+    // `useDeployments` returns `{ builds, total, loading, error, refetch }`
+    // (hooks/projects/use-deployments.ts). The page destructured `builds` alone, so a failed
+    // read arrived as `[]` and the screen invited the user to deploy their first project —
+    // over a list nobody managed to read. "You have none" and "I could not tell" ask for
+    // opposite next steps.
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: false,
+      error: true,
+    });
+
+    render(<ProjectDetailPage />);
+
+    // Asserted on the title that IS rendered. Exactly one empty-state title occupies this
+    // slot, so a regression rewrites it rather than removing it — which is precisely what an
+    // absence assertion cannot detect (src/lib/absence-assertion-ratchet.test.ts).
+    expect(screen.getByText(/could not read deployments/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/deployments|deploy/i).map((n) => n.textContent).join(' ')).not.toMatch(
+      /no deployments yet/i,
+    );
+  });
+
+  it('does NOT say there are no deployments while the read is still in flight', () => {
+    // The sibling of the defect this item fixed in scope-switcher, left standing here: an
+    // empty `builds` array means the same thing while LOADING as it does after a successful
+    // empty read, so every load of a project that HAS deployments flashed
+    // "No deployments yet — trigger a deploy with `theo deploy`" before the list arrived.
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: true,
+      error: false,
+    });
+
+    render(<ProjectDetailPage />);
+
+    expect(screen.queryByRole('heading', { name: /no deployments yet/i })).toBeNull();
+  });
+
+  it('keeps showing the deployments it DID read when a refetch fails', () => {
+    // Found by review of this very fix. `useDeployments` returns `builds` from react-query,
+    // which KEEPS `data` and sets `isError` when a REFETCH fails over already-loaded rows —
+    // so `error === true` with a non-empty list is reachable. Putting the error card first in
+    // the chain made a background refresh blank out rows the user was reading.
+    //
+    // The contract is stated in this slice's own guard (`lib/list-state.test.ts`): "um erro de
+    // refetch sobre dados velhos pede uma tarja, não um estado vazio". Absence is the only
+    // thing the error state may replace.
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [
+        {
+          build_id: 'b-stale',
+          status: 'SUCCEEDED',
+          environment: 'production',
+          commit_sha: 'abcdef1234567890',
+          created_at: '2026-06-02T00:00:00Z',
+        },
+      ],
+      loading: false,
+      error: true,
+    });
+
+    render(<ProjectDetailPage />);
+
+    expect(screen.queryByText(/could not read deployments/i)).toBeNull();
+    expect(screen.getByText(/abcdef1/)).toBeInTheDocument();
+  });
+
+  it('says the deployments could not be read, and offers a retry that actually refetches', () => {
+    const refetch = vi.fn();
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: false,
+      error: true,
+      refetch,
+    });
+
+    render(<ProjectDetailPage />);
+
+    // The DESCRIPTION is the sentence users actually read. Asserting only the title let the
+    // body revert to an absence claim — title "Could not read deployments" over "You have not
+    // deployed this project yet" re-commits the exact defect under a correct heading.
+    expect(screen.getByText(/could not read deployments/i)).toBeInTheDocument();
+    expect(screen.getByText(/may well have deployments/i)).toBeInTheDocument();
+
+    // The retry is the only way out of this state. The test was named for it and never
+    // asserted it: deleting the button, and no-oping its onClick, both survived.
+    const retry = screen.getByRole('button', { name: /try again/i });
+    fireEvent.click(retry);
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+});

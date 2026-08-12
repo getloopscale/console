@@ -8,7 +8,7 @@ import { CategoryBars } from '@/components/charts/category-bars';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { CATALOG_PAGE_LIMIT } from '@/hooks/promptly/promptly-api';
-import { catalogRows, resumoCatalogo, promptsPorAmbiente } from '@/pages/promptly/components/projections';
+import { catalogRows, resumoCatalogo, promptsPorAmbiente, SEM_AMBIENTE } from '@/pages/promptly/components/projections';
 import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
 
 /**
@@ -158,12 +158,19 @@ export function PromptlyOverviewPage() {
           <Card>
             <Card.Body>
               <h2 className="mb-3 text-base font-semibold">By environment</h2>
-              {/* `not promoted` fica cinza: ele é resíduo, não destino, e sem a diferença de tom
-                  uma barra longa no fim lê como lista fora de ordem em vez de outra categoria. */}
+              {/* `No environment` fica cinza: ele é resíduo, não destino, e sem a diferença de tom
+                  uma barra longa no fim lê como lista fora de ordem em vez de outra categoria.
+
+                  B-146 — o balde chamava-se `not promoted`, colidindo com o card de KPI de mesmo
+                  nome logo acima, que conta OUTRO predicado. B-187 — o cinza era o único portador
+                  dessa distinção, e ele vivia dentro do elemento `aria-hidden`; `toneLabel` diz em
+                  palavras o que a cor dizia só para quem enxerga. */}
               <CategoryBars
                 title="By environment"
                 bars={porAmbiente.map((b) =>
-                  b.label === 'not promoted' ? { ...b, tone: 'muted' as const } : b,
+                  b.label === SEM_AMBIENTE
+                    ? { ...b, tone: 'muted' as const, toneLabel: 'serving nobody' }
+                    : b,
                 )}
               />
             </Card.Body>

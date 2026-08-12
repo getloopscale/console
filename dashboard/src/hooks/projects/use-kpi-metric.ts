@@ -17,11 +17,10 @@ import { useMetricsRange } from './use-metrics-range';
  */
 export function useKpiMetric(
   projectName: string | undefined,
-  env: string | undefined,
   signal: string,
   multiplier = 1,
 ): number | null {
-  const { data } = useMetricsRange(projectName, env, { signal, range: '1h' });
+  const { data } = useMetricsRange(projectName, { signal, range: '1h' });
   if (!data || data.length === 0) return null;
   const last = data[data.length - 1];
   if (typeof last?.v !== 'number' || Number.isNaN(last.v)) return null;

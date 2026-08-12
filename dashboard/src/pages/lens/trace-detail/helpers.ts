@@ -22,7 +22,7 @@ export {
 import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 
 /** One OpenAI-shaped tool call attached to an assistant message. */
-export interface ToolCall {
+interface ToolCall {
   id: string;
   function?: { name?: string; arguments?: string };
 }

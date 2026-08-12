@@ -39,8 +39,6 @@ interface AppSidebarProps {
  * SPA navigation per D-1 v1.2 EC-1: NEVER use as="a" href={path} — produces
  * full page reload that loses JWT in memory. Use `as="button" + navigate()`.
  *
- * Plan tier currently hard-coded to "hobby" (EC-14 v1.1 acknowledged TODO —
- * resolves when BillingPage wires /v1/billing tier).
  */
 export function AppSidebar({ session }: AppSidebarProps) {
   const location = useLocation();

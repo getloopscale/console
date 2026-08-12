@@ -291,3 +291,84 @@ describe('useLogStream (J-19 T1.3 — R3 droppedCount field)', () => {
     expect(result.current.lines[1].msg).toBe('second from named');
   });
 });
+
+describe('B-224/B-237 — uma linha SEM horário do servidor recebe o horário de chegada, e ele não se move', () => {
+  beforeEach(() => {
+    TestEventSource.instances = [];
+    __setTransporte((url, opcoes) => new TestEventSource(url, opcoes) as unknown as EventSource);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * O defeito do B-224: o carimbo era `new Date().toISOString()` DENTRO do memo, então uma linha
+   * sem horário do servidor ganhava um horário novo a cada RECOMPUTAÇÃO da lista — a coluna andava
+   * sozinha enquanto ninguém tocava em nada.
+   *
+   * Nenhum teste pegava porque toda fixture deste arquivo traz `ts`. E a primeira versão destes
+   * casos também não pegava: `rerender()` não recomputa um `useMemo` cujas dependências não
+   * mudaram. O que RECOMPUTA é uma linha nova chegando — e é por isso que cada caso abaixo emite
+   * uma segunda linha, com o relógio adiantado, antes de reler o carimbo da primeira.
+   */
+  async function montar() {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-08-11T10:00:00.000Z'));
+    const r = renderHook(() => useLogStream('/x', { maxLines: 100 }));
+    await waitFor(() => { expect(TestEventSource.instances.length).toBe(1); });
+    return { ...r, es: TestEventSource.instances[0] };
+  }
+
+  it('uma linha de TEXTO CRU mantém o carimbo quando outra linha chega depois', async () => {
+    const { result, es } = await montar();
+
+    act(() => {
+      es.onmessage?.(new MessageEvent('message', { data: 'nao sou json' }));
+    });
+    await waitFor(() => { expect(result.current.lines.length).toBe(1); });
+    const primeiro = result.current.lines[0].ts;
+    expect(primeiro, 'a linha crua precisa receber um carimbo').toBeTruthy();
+    expect(result.current.lines[0].msg).toBe('nao sou json');
+
+    // Um minuto depois, outra linha. É esta chegada que recomputa a lista inteira — e era aqui que
+    // o carimbo da PRIMEIRA linha era refeito.
+    vi.setSystemTime(new Date('2026-08-11T10:01:00.000Z'));
+    act(() => {
+      es.onmessage?.(new MessageEvent('message', { data: 'segunda linha' }));
+    });
+    await waitFor(() => { expect(result.current.lines.length).toBe(2); });
+
+    expect(result.current.lines[0].ts).toBe(primeiro);
+    expect(result.current.lines[1].ts).not.toBe(primeiro);
+  });
+
+  it('um payload sem `timestamp` também mantém o horário de chegada', async () => {
+    const { result, es } = await montar();
+
+    act(() => { es.emitNamed('log', { line: 'sem horario', step: 'build' }); });
+    await waitFor(() => { expect(result.current.lines.length).toBe(1); });
+    const primeiro = result.current.lines[0].ts;
+    expect(primeiro).toBeTruthy();
+
+    vi.setSystemTime(new Date('2026-08-11T10:02:00.000Z'));
+    act(() => { es.emitNamed('log', { line: 'outra', step: 'build' }); });
+    await waitFor(() => { expect(result.current.lines.length).toBe(2); });
+
+    expect(result.current.lines[0].ts).toBe(primeiro);
+  });
+
+  it('mas um horário do SERVIDOR vence o de chegada', async () => {
+    // O contraponto: a correção não pode virar "carimba tudo na chegada" — quando o servidor diz
+    // quando a linha aconteceu, é isso que a coluna tem de mostrar.
+    const { result, es } = await montar();
+
+    act(() => {
+      es.emitNamed('log', { timestamp: '2020-01-01T00:00:00.000Z', line: 'com horario' });
+    });
+
+    await waitFor(() => { expect(result.current.lines.length).toBe(1); });
+    expect(result.current.lines[0].ts).toBe('2020-01-01T00:00:00.000Z');
+  });
+});

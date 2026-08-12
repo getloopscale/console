@@ -216,9 +216,15 @@ describe('the chart under the counts (B-129)', () => {
 
     const chart = await screen.findByRole('table', { name: /by environment/i });
     expect(within(chart).getByRole('row', { name: /prod\s*2/i })).toBeInTheDocument();
-    // The prompt serving nobody is a state, not an absence — `Not promoted` is already a KPI on
-    // this same screen, and hiding it here would make the bars disagree with a number above them.
-    expect(within(chart).getByRole('row', { name: /not promoted\s*1/i })).toBeInTheDocument();
+    // The prompt serving nobody is a state, not an absence — hiding it here would make the bars
+    // disagree with a number above them.
+    //
+    // B-146 — this bucket used to be labelled `not promoted`, which is ALSO the name of a KPI card
+    // on this same screen counting a DIFFERENT predicate (latest version above the highest served
+    // version). One word, two quantities, one screen. It reads `No environment` now, agreeing with
+    // `catalogo.tsx`, and the KPI keeps its own name.
+    expect(within(chart).getByRole('row', { name: /No environment\s*1/i })).toBeInTheDocument();
+    expect(within(chart).queryByRole('row', { name: /not promoted/i })).toBeNull();
   });
 
   it('a read that FAILED draws no chart', async () => {

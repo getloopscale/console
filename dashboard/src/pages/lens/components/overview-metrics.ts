@@ -9,7 +9,7 @@ import type { LatencyBucket, ModelBucket, TrafficBucket } from './lens-series';
  * Pure + total; no React, no `cloudFetch`.
  */
 
-export type DeltaTrend = 'up' | 'down' | 'neutral';
+type DeltaTrend = 'up' | 'down' | 'neutral';
 export interface Delta {
   pct: number;
   trend: DeltaTrend;

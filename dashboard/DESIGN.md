@@ -93,8 +93,8 @@ The dashboard uses **two** npm packages, with disjoint surfaces (measured
 
 | Package | Version installed | Owns | Reach |
 |---|---|---|---|
-| `@usetheo/ui` | `0.35.1` | components | 183 files import it |
-| `@theokit/ui` | `1.3.2` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 3 files, 4 symbols |
+| `@usetheo/ui` | `0.35.1` | components | 201 files import it |
+| `@theokit/ui` | `1.3.2` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 7 files |
 
 There is nothing to consolidate: `@usetheo/ui` exports 116 symbols and **none**
 match `Theme*`, `Usage*` or `violet*`. What the split does cost is bundle weight,
@@ -126,8 +126,8 @@ never shows (B-007).
 | Settings page | `PageShell` + `Card[stacked-forms]` + `DangerZone` + `ConfirmDialog` |
 | Auth page | `Card` + `Input` + `Button` + `Alert` + `PinInput` (for OTP) |
 | Logs/stream | `LogViewer` (composite, not raw `<pre>`) |
-| Deploy progress | `DeployTimeline` + `BuildStepList` |
-| Canary | `CanaryProgress` |
+| Deploy progress | `DeployTimeline` (`BuildStepList` was prescribed and NEVER BUILT — 0 files, measured 2026-08-11, B-204) |
+| Canary | `CanaryProgress` was prescribed and NEVER BUILT — 0 files, measured 2026-08-11 (B-204). No canary surface exists. |
 
 Any new recurring need becomes an upstream contribution (per ADR D3 of remediation plan).
 
@@ -326,6 +326,10 @@ If backend provides an error code (e.g., `BUILD_LOCK_TIMEOUT`), surface it in a 
 ## 8. First experience obsessively simple
 
 Onboarding flow (remediation plan T2.10) MUST follow this sequence:
+
+> **NEVER BUILT (B-204, measured 2026-08-11).** No `/onboarding/*` route exists in `src/app.tsx`
+> or in any file under `src/routes/`; `src/components/onboarding/` holds only `onboarding-panel.tsx`.
+> The sequence below is kept as the design that was agreed, not as a description of the product.
 
 ```
 1. /onboarding/welcome      — "Let's deploy your first app. ~4 minutes."
@@ -699,6 +703,11 @@ Required sequence:
 Instrumentation lives in `src/lib/telemetry/rum.ts` (Web Vitals wired at `src/main.tsx:67`). `lib/ux-metrics.ts` was planned as T4.7 and does not exist.
 
 ### 17.1 Time-based metrics
+
+> **The `Captured via` column below is a PLAN, not a description (B-205, measured 2026-08-11).**
+> `src/lib/telemetry/rum.ts` reports Web Vitals; none of the custom events named below is emitted
+> by any code in `src/`. Read the column as "where this would come from", not as a wiring that
+> exists.
 
 | Metric | Target | Captured via |
 |---|---|---|

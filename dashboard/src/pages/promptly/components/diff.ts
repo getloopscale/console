@@ -9,7 +9,7 @@
  * cenário, e é a que erra em silêncio.
  */
 
-export type DiffKind = 'same' | 'added' | 'removed' | 'too-large';
+type DiffKind = 'same' | 'added' | 'removed' | 'too-large';
 
 export interface DiffBlock {
   readonly kind: DiffKind;
@@ -118,7 +118,7 @@ export interface ConfigDeRevisao {
   readonly model?: string;
 }
 
-export interface LinhaDeConfig {
+interface LinhaDeConfig {
   readonly campo: string;
   readonly antes: string;
   readonly depois: string;

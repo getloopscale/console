@@ -5,17 +5,19 @@ import {
   Badge,
   Button,
   Card,
-  Checkbox,
   DataTable,
   type DataTableColumn,
   EmptyState,
-  Input,
   PageShell,
   Sheet,
   Timestamp,
   useToast,
 } from '@usetheo/ui';
-import { AppModal } from '@/components/ui/app-modal';
+import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
+import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
+import type { Delivery } from '@/lib/webhooks/delivery';
+import { deliveryStatusVariant, canReplay } from '@/lib/webhooks/delivery';
+import { colunasDeWebhook } from '@/lib/webhooks/columns';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -43,17 +45,6 @@ interface ListResult {
   webhooks: Webhook[];
 }
 
-interface Delivery {
-  id: string;
-  event_type: string;
-  status: 'pending' | 'delivering' | 'delivered' | 'failed' | 'dead_letter';
-  attempt_count: number;
-  last_response_status?: number;
-  last_error_message?: string;
-  created_at: string;
-  completed_at?: string;
-}
-
 interface DeliveriesResult {
   deliveries: Delivery[];
 }
@@ -62,27 +53,6 @@ interface ReplayResult {
   id: string;
   status: 'pending' | 'delivering';
   noop: boolean;
-}
-
-function deliveryStatusVariant(s: Delivery['status']): 'default' | 'success' | 'warning' | 'destructive' {
-  switch (s) {
-    case 'pending':
-    case 'delivering':
-      return 'warning';
-    case 'delivered':
-      return 'success';
-    case 'failed':
-      return 'default';
-    case 'dead_letter':
-      return 'destructive';
-  }
-}
-
-// Replay button is visible ONLY for these statuses (D5 of the plan).
-// `delivered` would create a duplicate; `pending|delivering` would be a no-op
-// the customer doesn't need to trigger manually.
-function canReplay(s: Delivery['status']): boolean {
-  return s === 'failed' || s === 'dead_letter';
 }
 
 const AVAILABLE_EVENTS = [
@@ -132,6 +102,8 @@ export function WebhooksPage() {
 
   const webhooks = list.data?.webhooks ?? [];
 
+  // B-183 — as quatro colunas que descrevem o webhook vêm de `lib/webhooks/columns.tsx`; o selo de
+  // entregas recentes e a exclusão são desta tela.
   const columns: DataTableColumn<Webhook>[] = [
     {
       key: 'recent',
@@ -140,32 +112,7 @@ export function WebhooksPage() {
         <RecentDeliveriesBadge webhookId={row.id} onClick={() => setViewingFor(row)} />
       ),
     },
-    { key: 'label', label: 'Label', render: (row) => <span className="font-medium">{row.label}</span> },
-    {
-      key: 'url',
-      label: 'URL',
-      render: (row) => (
-        <code className="font-mono text-xs text-muted-foreground">{row.url}</code>
-      ),
-    },
-    {
-      key: 'events',
-      label: 'Events',
-      render: (row) => (
-        <div className="flex flex-wrap gap-1">
-          {row.events.map((e) => (
-            <Badge key={e} variant="outline">
-              {e}
-            </Badge>
-          ))}
-        </div>
-      ),
-    },
-    {
-      key: 'created_at',
-      label: 'Created',
-      render: (row) => (row.created_at ? <Timestamp value={row.created_at} /> : null),
-    },
+    ...colunasDeWebhook<Webhook>(),
     {
       key: 'actions',
       label: '',
@@ -219,6 +166,9 @@ export function WebhooksPage() {
         onClose={() => setCreateOpen(false)}
         submitting={create.isPending}
         onSubmit={(input) => create.mutate(input)}
+        description="Register a URL to be notified when memory events occur."
+        events={AVAILABLE_EVENTS}
+        exemploUrl="https://hook.example.com/memory"
       />
 
       {pendingDelete ? (
@@ -274,6 +224,10 @@ function RecentDeliveriesBadge({
   const deliveries = query.data?.deliveries ?? [];
   if (query.isLoading) {
     return <span className="text-xs text-muted-foreground">…</span>;
+  }
+  // B-167, nono local — achado pela revisão DEPOIS de o item ter sido marcado shipped.
+  if (query.isError) {
+    return <span className="text-xs text-muted-foreground" data-testid={`deliveries-error-${webhookId}`}>Could not read</span>;
   }
   if (deliveries.length === 0) {
     return (
@@ -365,6 +319,8 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
           <Sheet.Body className="space-y-3">
             {query.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading deliveries…</p>
+            ) : query.isError ? (
+              <EmptyState title="Could not read this webhook's deliveries" description={FALHA_AO_LER_ENTREGAS} />
             ) : deliveries.length === 0 ? (
               <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
             ) : (
@@ -460,96 +416,3 @@ function DeliveryCard({
   );
 }
 
-interface AddWebhookDialogProps {
-  open: boolean;
-  onClose: () => void;
-  submitting: boolean;
-  onSubmit: (input: { url: string; label: string; events: string[] }) => void;
-}
-
-function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDialogProps) {
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set([AVAILABLE_EVENTS[0].id]));
-
-  const reset = () => {
-    setUrl('');
-    setLabel('');
-    setSelected(new Set([AVAILABLE_EVENTS[0].id]));
-  };
-  const handleClose = () => {
-    if (!submitting) {
-      reset();
-      onClose();
-    }
-  };
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return;
-    onSubmit({ url, label: label.trim(), events: Array.from(selected) });
-  };
-
-  const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
-
-  return (
-    <AppModal
-      open={open}
-      onClose={handleClose}
-      title={<>Add webhook</>}
-      description={<>Register a URL to be notified when memory events occur.</>}
-      footer={<><Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button><Button type="submit" form="add-webhook-form" disabled={submitDisabled}>
-            {submitting ? 'Adding…' : 'Add webhook'}
-          </Button></>}
-    >
-      <form id="add-webhook-form" className="space-y-4" onSubmit={submit}>
-            <div>
-              <label htmlFor="wh-url" className="text-sm font-medium block mb-1">
-                URL
-              </label>
-              <Input
-                id="wh-url"
-                placeholder="https://hook.example.com/memory"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="wh-label" className="text-sm font-medium block mb-1">
-                Label
-              </label>
-              <Input
-                id="wh-label"
-                placeholder="prod-events"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                maxLength={64}
-              />
-            </div>
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">Events</legend>
-              <div className="space-y-2">
-                {AVAILABLE_EVENTS.map((evt) => (
-                  <label key={evt.id} className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox
-                      checked={selected.has(evt.id)}
-                      onCheckedChange={() => {
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(evt.id)) next.delete(evt.id);
-                          else next.add(evt.id);
-                          return next;
-                        });
-                      }}
-                      aria-label={evt.id}
-                    />
-                    <span className="font-mono text-sm">{evt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </form>
-    </AppModal>
-  );
-}

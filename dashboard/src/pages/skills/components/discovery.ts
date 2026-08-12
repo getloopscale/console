@@ -31,7 +31,7 @@ export interface MatchedLeg {
   readonly rank?: number;
 }
 
-export interface RetrievedSkill {
+interface RetrievedSkill {
   readonly skill_id: string;
   readonly name: string;
   readonly description: string;

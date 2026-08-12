@@ -6,6 +6,7 @@ import { UsageMeter, type UsageMetric as UsageMeterMetric } from '@theokit/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
 import { InvoicesCard } from '@/pages/settings/components/invoices-card';
+import { OFERTA_POR_PLANO } from '@/pages/settings/upgrade-offers';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -340,13 +341,8 @@ export function BillingPage() {
           </Card.Body>
         </Card>
 
-        {/* Right: Upgrade / Contact CTA — varies by current plan.
-            free (starter):       Upgrade to Pro via Stripe checkout
-            pro:                  Contact sales for Team / Enterprise (Team is
-                                  Early Access, no public signup; Enterprise is
-                                  Contact-only — see CLAUDE.md § Pricing)
-            team / enterprise:    no card (already on a top tier)
-        */}
+        {/* Right: Upgrade CTA — varies by current plan. Free offers Pro, Pro offers Team, and
+            the top tiers get no card. Enterprise is sales-led, with no public signup. */}
         {/* Sprint 3 Phase 7 (#27) v1.1 ADR D4 — replace the outer <Card
             onClick> with a real <button type="button"> wrapping <Card.Body>
             (which renders a <div> so no nested-interactive trap). Card root
@@ -354,54 +350,35 @@ export function BillingPage() {
             (probed during v1.1 EC-3 absorption). The button preserves the
             previous card visuals (border + padding + hover) AND surfaces a
             real accessible name + focus ring for keyboard users. */}
-        {planTier === 'free' && (
+        {OFERTA_POR_PLANO[planTier] && (
           <button
             type="button"
-            onClick={() => upgradePlan('pro')}
+            onClick={() => upgradePlan(OFERTA_POR_PLANO[planTier]!.alvo)}
             disabled={actionLoading}
-            // Red Team theo-cloud#72 closure: disable on the first
-            // click so a double-tap can't fire two POST /v1/billing/
-            // checkout requests in quick succession. This is the
-            // client-side guard; the Stripe Idempotency-Key bucket
-            // (internal/billing) is the server-side guard.
+            // Red Team theo-cloud#72 closure: disable on the first click so a double-tap can't
+            // fire two POST /v1/billing/checkout requests in quick succession. This is the
+            // client-side guard; the Stripe Idempotency-Key bucket (internal/billing) is the
+            // server-side guard.
             aria-busy={actionLoading || undefined}
-            aria-label="Upgrade to Pro — $29 per month"
+            aria-label={OFERTA_POR_PLANO[planTier]!.titulo}
             className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Card.Body className="p-6">
               <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />
               <p className="text-body-sm font-semibold text-foreground">
-                Upgrade to Pro — $29/mo
+                {OFERTA_POR_PLANO[planTier]!.titulo}
               </p>
               <p className="text-label text-muted-foreground mt-1">
-                10 projects, 3 environments, 1000 builds/month
-              </p>
-            </Card.Body>
-          </button>
-        )}
-        {planTier === 'pro' && (
-          <button
-            type="button"
-            onClick={() => upgradePlan('team')}
-            disabled={actionLoading}
-            aria-busy={actionLoading || undefined}
-            aria-label="Upgrade to Team — $99 per month"
-            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Card.Body className="p-6">
-              <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />
-              <p className="text-body-sm font-semibold text-foreground">
-                Upgrade to Team — $99/mo
-              </p>
-              <p className="text-label text-muted-foreground mt-1">
-                A whole team or department
+                {OFERTA_POR_PLANO[planTier]!.resumo}
               </p>
               <ul className="text-label text-muted-foreground mt-3 space-y-1.5">
-                <li>Unlimited projects · unlimited environments · metered builds/mo (no agent quota)</li>
-                <li>Per-role permissions: Admin · Deploy · View</li>
-                <li>Compliance report per build (SBOM)</li>
-                <li>Priority support</li>
+                {OFERTA_POR_PLANO[planTier]!.beneficios.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
               </ul>
+              <p className="text-label text-muted-foreground mt-3">
+                Price and limits are confirmed at checkout.
+              </p>
             </Card.Body>
           </button>
         )}

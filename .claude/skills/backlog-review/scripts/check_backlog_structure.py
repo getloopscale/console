@@ -76,6 +76,9 @@ class Finding:
 class Item:
     item_id: str
     title: str
+    #: `x` quando a caixa do cabeçalho está marcada, ` ` quando vazia, `None` quando ausente.
+    #: `title` NÃO a contém — `BLOCK_RE` a captura à parte.
+    checkbox: str | None = None
     fields: dict[str, str] = field(default_factory=dict)
     dod: list[str] = field(default_factory=list)
     registered_on: date | None = None
@@ -93,6 +96,7 @@ def _parse_items(content: str) -> list[Item]:
         item = Item(
             item_id=match.group(1),
             title=match.group(2).strip(),
+            checkbox=match.group(3),
             line=content[: match.start()].count("\n") + 1,
         )
         for fmatch in FIELD_RE.finditer(body):
@@ -212,6 +216,18 @@ def check_backlog(backlog_path: Path, today: date | None = None) -> dict[str, An
             findings.append(Finding("triaged_without_evidence", "deterministic", "blocker", iid,
                 "triaged but evidence is still `none-yet`. Triaged means measured; "
                 "without evidence the status is a claim nobody made."))
+        # A caixa do cabeçalho é uma SEGUNDA declaração do mesmo fato, e ela derivou 37 vezes
+        # antes de alguém olhar (medido 2026-08-12). As duas direções enganam, e a segunda engana
+        # perigosamente: dez itens `raw` com `evidence: none-yet` exibiam `[x]`, então quem
+        # percorresse os checkboxes — que é como um humano lê um backlog — via como entregue um
+        # programa inteiro que ninguém tinha medido.
+        marcada = item.checkbox == "x"
+        fechado = status in ("shipped", "killed")
+        if status and item.checkbox is not None and marcada != fechado:
+            findings.append(Finding("checkbox_contradicts_status", "deterministic", "major", iid,
+                f"a caixa diz `{'[x]' if marcada else '[ ]'}` e o status diz `{status}`. "
+                "A caixa é o que um humano lê primeiro; ela deriva do status, nunca o contrário."))
+
         if status == "raw" and evidence not in ("", "none-yet"):
             findings.append(Finding("raw_with_evidence", "deterministic", "major", iid,
                 f"raw but carries evidence (`{evidence}`) — measurement happened and the "

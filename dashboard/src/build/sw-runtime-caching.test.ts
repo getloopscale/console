@@ -119,3 +119,49 @@ describe('cache do service worker (B-055)', () => {
     expect(bff.some((r) => r.urlPattern.test('/api/v1/auth/whoami'))).toBe(true);
   });
 });
+
+describe('B-196 — quem atende cada caminho é a PRIMEIRA regra que casa', () => {
+  /**
+   * O Workbox consulta as rotas na ordem em que foram registradas e para na primeira cujo padrão
+   * casa. Os casos acima usam `.some(...)` — "alguma regra alcança isto" — e por construção não
+   * enxergam ordem: `/__config.js` era alcançado por ALGUMA regra que guarda, e passava, enquanto
+   * quem realmente o atendia era a de assets, em `CacheFirst` por 30 dias.
+   */
+  const quemAtende = (url: string) => SW_RUNTIME_CACHING.find((r) => r.urlPattern.test(url));
+
+  it('a config de runtime é atendida pela regra da config, não pela de assets', () => {
+    // O defeito: `/__config.js` termina em `.js`. Depois de uma rotação de `AUTH_URL`/`API_URL`,
+    // quem já tinha visitado ficava com a config antiga por até um mês — apontando para hosts que
+    // a política de CSP talvez já não permita.
+    const regra = quemAtende('https://app.usetheo.dev/__config.js');
+    expect(regra?.options?.cacheName).toBe('theo-config');
+    expect(regra?.handler).toBe('StaleWhileRevalidate');
+  });
+
+  it('um asset com hash continua em CacheFirst', () => {
+    // A correção não pode virar "nada é CacheFirst": o nome com hash é o que torna os 30 dias
+    // seguros, e é ele que tira o bundle do caminho crítico numa segunda visita.
+    const regra = quemAtende('https://app.usetheo.dev/assets/index-a1b2c3.js');
+    expect(regra?.options?.cacheName).toBe('theo-assets');
+    expect(regra?.handler).toBe('CacheFirst');
+  });
+
+  it('um caminho BFF é atendido por NetworkOnly antes de qualquer outra', () => {
+    expect(quemAtende('https://app.usetheo.dev/api/v1/auth/whoami')?.handler).toBe('NetworkOnly');
+  });
+
+  it('nenhuma regra é MORTA — cada uma atende ao menos um caminho representativo', () => {
+    // Uma regra que nenhuma URL alcança descreve uma política que não existe. Este caso é o que
+    // teria reprovado a ordenação anterior no dia em que ela foi escrita.
+    const representativos = [
+      'https://app.usetheo.dev/api/v1/auth/whoami',
+      'https://app.usetheo.dev/__config.js',
+      'https://app.usetheo.dev/assets/index-a1b2c3.js',
+    ];
+    const atendem = new Set(representativos.map((u) => quemAtende(u)));
+    expect(
+      SW_RUNTIME_CACHING.filter((r) => !atendem.has(r)),
+      'regra que a primeira-que-casa nunca alcança — alguma acima dela já cobre o caso',
+    ).toEqual([]);
+  });
+});

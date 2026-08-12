@@ -71,10 +71,12 @@ skills/cycle-goal/tests/test_compose_goal_condition.py
 skills/release/SKILL.md
 skills/release/scripts/changelog_section_nonempty.py
 skills/release/scripts/compute_next_version.py
+skills/release/scripts/detect_current_version.py
 skills/release/scripts/flip_milestone_checkbox.py
 skills/release/scripts/promote_unreleased.py
 skills/release/scripts/render_release_notes.py
 skills/release/tests/conftest.py
+skills/release/tests/test_detect_current_version.py
 skills/release/tests/test_flip_milestone_checkbox.py
 skills/backlog-item/SKILL.md
 skills/cap-theorem-specialist/SKILL.md

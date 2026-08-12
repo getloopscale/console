@@ -2,7 +2,7 @@ import { Card } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 /** A afinação declarada numa revisão (M17). */
-export interface ModelConfigLido {
+interface ModelConfigLido {
   readonly model?: string;
   readonly temperature?: number;
   readonly maxTokens?: number;

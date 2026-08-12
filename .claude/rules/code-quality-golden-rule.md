@@ -59,7 +59,7 @@ A finding flagged as hard cap MAY only be downgraded via:
 
 | Property | Rule |
 |---|---|
-| Entry format | `IDENTIFIER | FILE:LINE | SUNSET (YYYY-MM-DD) | RATIONALE` |
+| Entry format | `ECOSYSTEM \| FILE-PATH \| FINDING-TYPE \| SYMBOL-OR-LINE \| REASON \| SUNSET` — six fields; the first four are the `allowlist_key` the detectors build. Corrected 2026-08-12 (B-257): this row documented a four-field form the parser has never accepted. |
 | Sunset window | ≤ 90 days from entry creation date |
 | Downgrade | ONE severity level (HARD → SOFT_CAP, SOFT_CAP → SOFT_FLOOR) |
 | Expired entry | IGNORED — finding re-fires at full severity; entry listed under "Allowlist hits — expired" in the audit report |

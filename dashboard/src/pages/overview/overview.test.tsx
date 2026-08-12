@@ -215,3 +215,36 @@ describe('OverviewPage', () => {
     expect(ausentes, 'capacidade declarada no menu e ausente da tela inicial').toEqual([]);
   });
 });
+
+describe('B-134 — o cartão não afirma uma branch que não leu', () => {
+  // B-197 — este bloco vive FORA do `beforeEach` do describe anterior, e passava só porque herdava
+  // os valores que aquele `beforeEach` deixava nos mocks. Sob `--sequence.shuffle` ele rodava
+  // primeiro e `useBuildStats` devolvia `undefined`. Um teste que depende do que outro deixou não
+  // está testando o que diz testar.
+  beforeEach(() => {
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
+    mockUseBuildStats.mockReturnValue({ byDay: [], last7d: 0, total: 0, loading: false, error: false });
+  });
+
+  it('mostra um travessão em vez de um "main" plausível e possivelmente errado', async () => {
+    // O payload do resumo de projetos não expõe `deploy_branch`, e o cartão preenchia a lacuna com
+    // `main` fixo. Para um projeto que faz deploy de `develop`, isso não é um default sensato: é
+    // uma afirmação errada com a confiança de uma certa, e quem lê não tem como saber que aquele
+    // campo é um chute. O travessão é a convenção deste repositório para "não sabemos".
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'alpha', apps: [], last_deploy: '2026-05-23' }],
+      loading: false,
+    });
+    const { container } = render(<OverviewPage />);
+
+    expect(screen.getByText('alpha')).toBeInTheDocument();
+    expect(container.textContent ?? '').not.toMatch(/\bmain\b/);
+    // B-237 — a asserção acima só verificava a AUSÊNCIA de `main`, e um cartão que deixasse de
+    // renderizar a branch por completo — ou a página inteira falhando em montar — passaria igual.
+    // O travessão é a convenção deste repositório para "não sabemos", e é ELE que a correção do
+    // B-134 promete: dizer que não se sabe, e não calar.
+    // Mais de um travessão na página (outras métricas também dizem "não sabemos"); o que importa
+    // é que existe ao menos um — a branch parou de ser afirmada sem deixar de ser respondida.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+});

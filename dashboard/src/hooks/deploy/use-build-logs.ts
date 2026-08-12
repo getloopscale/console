@@ -43,7 +43,7 @@ interface BackendLogsResponse {
  * Convert backend LogEntry → frontend LogLine.
  *
  * Plan J-17 Layer 4 (2026-06-06): pipeline lines that go through the
- * theo marker wrapper come prefixed with
+ * the `::theo::` marker wrapper come prefixed with
  *   `::theo:: phase=X step=Y level=Z msg="..."`
  * Strip the marker and surface only the human message + structured
  * fields. The phase is used as source so the LogViewer can color-code
@@ -201,12 +201,26 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
   const stream = useLogStream(streamPath, { paused });
 
   const lines = useMemo<LogLine[]>(
-    () => [...historical, ...stream.lines],
+    // B-180 — o teto era aplicado nas duas ENTRADAS e em nenhuma SAÍDA. `historical` vem capado
+    // em MAX_LOG_LINES por `aplicarSnapshot`, `stream.lines` vem capado pelo `maxEvents` do
+    // `useLogStream`, e a concatenação das duas podia entregar 10 000 linhas ao consumidor — o
+    // dobro do teto que os dois lados acreditavam estar garantindo.
+    //
+    // O corte fica no FIM: as linhas mais novas são as que importam num visualizador de log, e
+    // descartar a cauda antiga é o mesmo critério que `capLogLines` já aplica de cada lado.
+    () => capLogLines([...historical, ...stream.lines]),
     [historical, stream.lines],
   );
 
   // Terminal: "conectado" significa que o historico carregou. Vivo: o SSE decide.
   const connected = isTerminal ? !historicalLoading && !historicalError : stream.connected;
+
+  // B-175 — vive num ref e não em estado: ler isto não pode causar render.
+  const montado = useRef(true);
+  useEffect(() => {
+    montado.current = true;
+    return () => { montado.current = false; };
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!buildId || refreshInFlight.current) return;
@@ -217,12 +231,18 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
       const data = await engineFetch<BackendLogsResponse>(
         `/api/v1/builds/${encodeURIComponent(buildId)}/logs?limit=${MAX_LOG_LINES}`,
       );
-      aplicarSnapshot(data);
+      // B-175 — nenhuma escrita depois da desmontagem. O efeito de carga inicial deste MESMO
+      // arquivo guarda cada `set*` com um `cancelled` e limpa no unmount; este caminho não
+      // guardava nada, e a assimetria era o defeito: quem sai da tela durante um refresh recebe
+      // um aviso do React e, pior, o estado de um componente que não existe mais.
+      if (montado.current) aplicarSnapshot(data);
     } catch (err: unknown) {
-      setHistoricalError(err instanceof Error ? err.message : 'Failed to refresh logs');
+      if (montado.current) {
+        setHistoricalError(err instanceof Error ? err.message : 'Failed to refresh logs');
+      }
     } finally {
       refreshInFlight.current = false;
-      setRefreshing(false);
+      if (montado.current) setRefreshing(false);
     }
   }, [buildId, aplicarSnapshot]);
 

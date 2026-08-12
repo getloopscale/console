@@ -43,13 +43,12 @@ import {
   secretsFixture,
   teamMembersFixture,
   buildLogLines,
-  runtimeLogLines,
 } from './fixtures';
 import { registerRoute } from './server';
 
-import { registerSSE } from './sse';
 import { registerTrustHandlers } from './trust-handlers';
 import { registerLensHandlers } from './lens-handlers';
+import { registerStreamHandlers } from './stream-handlers';
 import { registerOverviewHandlers } from './overview-handlers';
 import { registerSkillsDistributionHandlers, registerSkillsHandlers } from './skills-handlers';
 import { registerPromptlyHandlers } from './promptly-handlers';
@@ -339,134 +338,6 @@ function registerBuildHandlers() {
 // SSE log streams
 // ============================================================================
 
-function registerLogStreamHandlers() {
-  registerSSE('/api/v1/builds/{id}/logs/stream', (es) => {
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i >= buildLogLines.length) {
-        clearInterval(interval);
-        return;
-      }
-      es.dispatchEvent(
-        new MessageEvent('message', { data: JSON.stringify(buildLogLines[i++]) }),
-      );
-    }, 600);
-    return () => clearInterval(interval);
-  });
-
-  registerSSE('/api/v1/projects/{name}/logs/stream', (es) => {
-    let i = 0;
-    const interval = setInterval(() => {
-      const line = runtimeLogLines[i % runtimeLogLines.length];
-      i++;
-      es.dispatchEvent(
-        new MessageEvent('message', {
-          data: JSON.stringify({ ...line, ts: new Date().toISOString() }),
-        }),
-      );
-    }, 1000);
-    return () => clearInterval(interval);
-  });
-
-  registerSSE('/api/v1/builds/{id}/stream', (es) => {
-    // Canonical step-level seed mirroring the build pipeline phase_group
-    // taxonomy. Used by the step-expansion E2E tests + visual validation.
-    const steps: Array<{
-      step_name: string;
-      phase_group: 'clone' | 'install' | 'build' | 'sign' | 'deliver' | 'other';
-      duration_seconds: number;
-    }> = [
-      { step_name: 'clone-repo', phase_group: 'clone', duration_seconds: 9 },
-      { step_name: 'install-deps', phase_group: 'install', duration_seconds: 47 },
-      { step_name: 'build-image', phase_group: 'build', duration_seconds: 82 },
-      { step_name: 'cosign-sign', phase_group: 'sign', duration_seconds: 21 },
-      { step_name: 'syft-sbom', phase_group: 'sign', duration_seconds: 11 },
-      { step_name: 'generate-manifests', phase_group: 'deliver', duration_seconds: 2 },
-      { step_name: 'gitops-push', phase_group: 'deliver', duration_seconds: 2 },
-    ];
-    let i = 0;
-    let lastId = 0;
-    const baseTime = Date.now();
-    const interval = setInterval(() => {
-      if (i >= steps.length) {
-        clearInterval(interval);
-        return;
-      }
-      const step = steps[i++];
-      // Emit started + succeeded back-to-back so the test sees finished steps.
-      const started_at = new Date(baseTime + i * 1000).toISOString();
-      const ended_at = new Date(baseTime + i * 1000 + step.duration_seconds * 1000).toISOString();
-      lastId++;
-      es.dispatchEvent(
-        new MessageEvent('build.step.started', {
-          data: JSON.stringify({ step_name: step.step_name, started_at, phase_group: step.phase_group }),
-          lastEventId: String(lastId),
-        }),
-      );
-      lastId++;
-      es.dispatchEvent(
-        new MessageEvent('build.step.succeeded', {
-          data: JSON.stringify({
-            step_name: step.step_name,
-            started_at,
-            ended_at,
-            duration_seconds: step.duration_seconds,
-            phase_group: step.phase_group,
-          }),
-          lastEventId: String(lastId),
-        }),
-      );
-    }, 200);
-    return () => clearInterval(interval);
-  });
-
-  // Plan deploy-timeline-canonical-5-phases — canonical 5-phase mock
-  // mirrors the server's emit shape (deploy_timeline.<phase>.<status>).
-  // Used by browser-runtime E2E + visual-validation mode.
-  registerSSE('/api/v1/deploys/{id}/timeline', (es) => {
-    const seq: Array<{ phase: string; status: string; substate: string; source: string }> = [
-      { phase: 'build', status: 'in_progress', substate: 'clone · install · build image', source: 'release_db' },
-      { phase: 'build', status: 'completed', substate: 'clone · install · build image', source: 'release_db' },
-      { phase: 'sign', status: 'in_progress', substate: 'image signing · supply-chain manifest', source: 'release_db' },
-      { phase: 'sign', status: 'completed', substate: 'image signing · supply-chain manifest', source: 'release_db' },
-      { phase: 'release', status: 'in_progress', substate: 'manifest · the deployment system', source: 'release_db' },
-      { phase: 'release', status: 'completed', substate: 'manifest · the deployment system', source: 'release_db' },
-      { phase: 'deploy', status: 'in_progress', substate: 'the deployment system · pods up', source: 'argocd_app' },
-      { phase: 'deploy', status: 'completed', substate: 'the deployment system · pods up', source: 'argocd_app' },
-      { phase: 'live', status: 'in_progress', substate: 'live URL responds 200', source: 'status_url_probe' },
-      { phase: 'live', status: 'completed', substate: 'live URL responds 200', source: 'status_url_probe' },
-    ];
-    let i = 0;
-    let lastId = 0;
-    const interval = setInterval(() => {
-      if (i >= seq.length) {
-        clearInterval(interval);
-        return;
-      }
-      const item = seq[i++];
-      lastId++;
-      const payload = {
-        deploy_id: 'mock-deploy',
-        phase: item.phase,
-        status: item.status,
-        source: item.source,
-        substate_message: item.substate,
-        timestamp: new Date().toISOString(),
-      };
-      const ev = new MessageEvent(`deploy_timeline.${item.phase}.${item.status}`, {
-        data: JSON.stringify(payload),
-        lastEventId: String(lastId),
-      });
-      es.dispatchEvent(ev);
-    }, 250);
-    return () => clearInterval(interval);
-  });
-}
-
-// ============================================================================
-// Secrets
-// ============================================================================
-
 function registerSecretHandlers() {
   registerRoute('GET', '/api/v1/secrets', async () => {
     const body: SecretListResponse = { secrets: db.secrets, total: db.secrets.length };
@@ -737,7 +608,7 @@ export function registerAllMockHandlers(): void {
   registerAuthHandlers();
   registerProjectHandlers();
   registerBuildHandlers();
-  registerLogStreamHandlers();
+  registerStreamHandlers();
   registerSecretHandlers();
   registerTeamHandlers();
   registerEnvironmentHandlers();

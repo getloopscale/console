@@ -75,6 +75,105 @@ function arquivosComAusenciaSozinha(): string[] {
     .sort();
 }
 
+/**
+ * B-242 — a métrica AFIADA, ao lado da contagem por arquivo.
+ *
+ * A catraca por arquivo conta uma FORMA. O defeito que este arquivo descreve é uma propriedade
+ * de cada ASSERÇÃO: `queryBy…` só prova algo quando o elemento consultado EXISTE no caso que
+ * passa. Isso é mensurável — basta perguntar se o mesmo seletor é asserido PRESENTE em algum
+ * caso do arquivo.
+ *
+ * Medido 2026-08-12 sobre os 373 arquivos de teste:
+ *
+ *   327  asserções de ausência
+ *   211  ancoradas — o seletor é asserido presente em algum caso, logo a asserção PODE falhar
+ *   116  SEM ÂNCORA, em 58 arquivos  <- o número que importa
+ *
+ * A contagem por arquivo (98) é quase o dobro do defeito: mais da metade das asserções já era
+ * sólida pelo critério que o docstring acima enuncia.
+ *
+ * POR QUE AS DUAS COEXISTEM: a de arquivo impede que um arquivo NOVO entre despercebido; esta
+ * mede o que realmente falta corrigir, e faz o trabalho aparecer. Ancorar uma asserção não
+ * remove o arquivo da primeira contagem, então sem esta métrica um dia inteiro de correções
+ * legítimas se reporta como zero progresso.
+ *
+ * HEURÍSTICA, e erra nos dois sentidos: compara o núcleo literal do seletor dentro do MESMO
+ * arquivo. Um seletor montado a partir de variável conta como sem âncora sem ser; dois
+ * seletores que compartilham prefixo contam como ancorados sem ser. Serve para dimensionar e
+ * para mostrar progresso — NÃO para reescrever nada mecanicamente. Cada uma das 116 tem de ser
+ * lida, e a prova de que uma migração é real é apagar a guarda que ela protege e ver o teste
+ * ficar VERMELHO.
+ */
+const TETO_SEM_ANCORA = 116;
+
+const CONSULTA = /(?:screen\.|within\([^)]*\)\.)?queryBy([A-Za-z]+)\(\s*([^)]*?)\s*\)/g;
+
+/** O núcleo literal de um seletor: o primeiro trecho citado com pelo menos 4 caracteres. */
+function nucleo(seletor: string): string | null {
+  const m = /[/'"`]([^/'"`]{4,})/.exec(seletor);
+  return m ? m[1].slice(0, 18) : null;
+}
+
+function asserçõesSemAncora(): number {
+  const escapar = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let sem = 0;
+  for (const f of testFiles(SRC)) {
+    const fonte = readFileSync(f, 'utf-8');
+    if (!ABSENCE_ONLY.test(fonte)) continue;
+    for (const m of fonte.matchAll(CONSULTA)) {
+      const tipo = m[1];
+      const seletor = m[2].trim();
+      if (!seletor) continue;
+      const n = nucleo(seletor);
+      const ancorada =
+        n !== null &&
+        new RegExp(`(?:get|find)(?:All)?By${tipo}\\([^)]*${escapar(n)}`).test(fonte);
+      if (!ancorada) sem++;
+    }
+  }
+  return sem;
+}
+
+describe('catraca das asserções SEM ÂNCORA (B-242)', () => {
+  it('o número só desce — uma asserção nova nasce ancorada', () => {
+    expect(
+      asserçõesSemAncora(),
+      `\nAsserções de ausência cujo seletor NUNCA é asserido presente no arquivo: ` +
+        `${String(asserçõesSemAncora())} (teto ${String(TETO_SEM_ANCORA)}).\n\n` +
+        'Se SUBIU: uma asserção nova consulta algo que nenhum caso do arquivo mostra, então ela\n' +
+        'é satisfeita pelo comportamento certo e pelo defeito igualmente. Ancore-a: assere o\n' +
+        'MESMO seletor presente no caso que o renderiza.\n\n' +
+        'Se DESCEU: é progresso, e o teto acima deve acompanhar.\n',
+    ).toBeLessThanOrEqual(TETO_SEM_ANCORA);
+  });
+
+  it('o teto bate com o disco', () => {
+    expect(asserçõesSemAncora()).toBe(TETO_SEM_ANCORA);
+  });
+
+  it('DETECTA uma asserção sem âncora, e NÃO acusa uma ancorada', () => {
+    // O auto-teste que impede este guarda de virar enfeite: se `nucleo` ou a comparação
+    // pararem de discriminar, este caso fica vermelho.
+    const semAncora = "expect(screen.queryByText(/nada aqui/i)).toBeNull();";
+    const ancorada =
+      "expect(await screen.findByText(/nada aqui/i)).toBeInTheDocument();\n" + semAncora;
+    const escapar = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const testar = (fonte: string) => {
+      for (const m of fonte.matchAll(CONSULTA)) {
+        const n = nucleo(m[2].trim());
+        return (
+          n !== null &&
+          new RegExp(`(?:get|find)(?:All)?By${m[1]}\\([^)]*${escapar(n)}`).test(fonte)
+        );
+      }
+      return false;
+    };
+
+    expect(testar(semAncora)).toBe(false);
+    expect(testar(ancorada)).toBe(true);
+  });
+});
+
 describe('catraca das asserções de ausência (F4)', () => {
   it('a população não cresce — o número só desce', () => {
     const atuais = arquivosComAusenciaSozinha();

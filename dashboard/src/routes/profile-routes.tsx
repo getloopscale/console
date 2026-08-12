@@ -29,7 +29,6 @@ export const rotasDeProfile = (
     title="Security"
     description="Password, MFA, and recovery options."
     icon={Lock}
-    cliCommand="theo login --rotate-credentials"
     />
     </Boundaried>
     }
@@ -46,7 +45,6 @@ export const rotasDeProfile = (
     title="Active sessions"
     description="Devices and browsers currently signed in to your account."
     icon={Link2}
-    cliCommand="theo session list"
     />
     </Boundaried>
     }
@@ -63,7 +61,6 @@ export const rotasDeProfile = (
     title="Danger Zone"
     description="Destructive account actions: delete account."
     icon={ShieldAlert}
-    cliCommand="theo account delete --confirm"
     />
     </Boundaried>
     }

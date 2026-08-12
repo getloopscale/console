@@ -279,5 +279,3 @@ export function PlaygroundPage() {
     </PageShell>
   );
 }
-
-// Alias for the page-suffix naming convention used by other memory pages.

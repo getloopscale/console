@@ -147,9 +147,9 @@ to walk through the 6 critical journeys end-to-end. Capture findings in:
 .claude/knowledge-base/audits/{date}-dashboard-dogfood-{n}.md
 ```
 
-Use the audit template from the original FAANG audit
-(`.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md`)
-for structure.
+Use the audit template from the original FAANG audit for structure. Its file was NOT versioned
+and no longer exists on disk (checked 2026-08-11, B-207) — the pointer is recorded here as
+history rather than as an instruction someone can follow.
 
 ## 8. Backend integration smoke (requires Tilt)
 
@@ -173,7 +173,7 @@ VITE_USE_MOCKS=false npm run dev -- --port 5174
 Plan v1.0 Final Phase declared complete when:
 
 - [ ] All vitest tests green (200+ tests including handlers + journeys + a11y)
-- [ ] Production build green + bundle <180 KB brotli cap
+- [ ] Production build green + `npm run size` passing (the caps live in `package.json#size-limit`, which is what CI enforces — restating a number here is how this line came to assert 180 KB against an enforced 320 kB, B-158)
 - [ ] Lighthouse: perf ≥85, a11y ≥95, bp ≥95 on every page
 - [ ] axe-core: zero critical/serious violations
 - [ ] Playwright runtime journeys green in Chromium + Firefox + WebKit

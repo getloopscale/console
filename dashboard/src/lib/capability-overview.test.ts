@@ -72,8 +72,29 @@ const MARKERS = {
  */
 const CHART_PRIMITIVES = ['TrendChart', 'CategoryBars', 'Histogram'] as const;
 
-/** `<Name` or `<Name/>` — a component being RENDERED, not a name mentioned in prose. */
-const rendered = (src: string, name: string) => new RegExp(`<${name}[\\s/>]`).test(src);
+/**
+ * `<Name` ou `<Name/>` — um componente sendo RENDERIZADO, e não um nome citado em prosa.
+ *
+ * B-191 — o docblock anterior afirmava que casar a tag de abertura fechava o buraco. Não fechava:
+ * a regex corre sobre o FONTE CRU, então `<CategoryBars` dentro de um comentário `//`, de um bloco
+ * `/* … *\/` ou de uma string satisfazia o predicado. O caso exato que ele narrava como resolvido
+ * — um comentário mencionando um gráfico que foi REMOVIDO — continuava passando.
+ *
+ * A correção é remover comentários e literais de string ANTES de procurar. Não é um parser de
+ * TypeScript, e não pretende ser: o que ele precisa distinguir é markup de prosa, e prosa é
+ * exatamente o que vive em comentário e em string.
+ */
+function semComentariosNemStrings(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')   // blocos
+    .replace(/\/\/[^\n]*/g, ' ')          // linha
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+}
+
+const rendered = (src: string, name: string) =>
+  new RegExp(`<${name}[\\s/>]`).test(semComentariosNemStrings(src));
 
 function read(rel: string): string {
   const path = resolve(SRC, rel);
@@ -160,5 +181,27 @@ describe('every capability overview answers a question', () => {
       expect(() => read(rel), `${rel} disappeared from disk`).not.toThrow();
     }
     expect(CAPABILITY_OVERVIEWS.length).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('B-191 — o detector distingue markup de prosa', () => {
+  it('NÃO conta um componente citado num comentário de linha', () => {
+    // O buraco exato que o docblock anterior dizia estar fechado: um comentário mencionando um
+    // gráfico REMOVIDO mantinha a tela declarada como se ainda o renderizasse.
+    expect(rendered('// antes usávamos <CategoryBars /> aqui\nconst x = 1;', 'CategoryBars')).toBe(false);
+  });
+
+  it('NÃO conta um componente citado num bloco de comentário', () => {
+    expect(rendered('/* histórico: <CategoryBars> saiu no B-129 */', 'CategoryBars')).toBe(false);
+  });
+
+  it('NÃO conta um componente citado dentro de uma string', () => {
+    expect(rendered("const doc = 'use <CategoryBars /> for distributions';", 'CategoryBars')).toBe(false);
+  });
+
+  it('CONTA o componente de verdade', () => {
+    // O detector não pode overshoot: o que ele guarda tem de continuar sendo detectado.
+    expect(rendered('return <CategoryBars title="x" bars={b} />;', 'CategoryBars')).toBe(true);
+    expect(rendered('<CategoryBars\n  title="x"\n/>', 'CategoryBars')).toBe(true);
   });
 });

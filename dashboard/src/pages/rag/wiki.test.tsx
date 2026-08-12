@@ -147,3 +147,39 @@ describe('RagWikiPage (/rag/wiki) — action screens are modals, reading is the 
     await waitFor(() => expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/rag/wiki/pages/p2', expect.anything(), expect.objectContaining({ throwOnError: true })));
   });
 });
+
+describe('B-238 — a busca não afirma um acervo que a página não conseguiu ler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('com a leitura das páginas FALHA, a busca diz que não percorreu o acervo', async () => {
+    // Este é o teste do WIRE, e não do componente: `wiki-search.test.tsx` já prova que a frase
+    // muda quando o sinal chega. O que faltava — e o que uma mutação revelou — era alguém provar
+    // que o sinal É PASSADO. Com `leituraFalhou={false}` fixo, a suíte inteira seguia verde.
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/rag/collections') {
+        return Promise.resolve({ items: [{ id: 'col_1', name: 'docs' }] });
+      }
+      if (url.startsWith('/v1/dashboard/rag/wiki/pages?')) return Promise.reject(new Error('502'));
+      return Promise.resolve({ items: [] });
+    });
+
+    render(<RagWikiPage />);
+    await userEvent.click(screen.getByRole('combobox', { name: /collection/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /docs/i }));
+    await userEvent.click(await screen.findByTestId('kb-palette-trigger'));
+
+    expect(await screen.findByText(/could not be read/i)).toBeInTheDocument();
+  });
+
+  it('com a leitura OK e nenhuma correspondência, continua dizendo que nada casou', async () => {
+    routeCloudFetch();
+    render(<RagWikiPage />);
+    await selectCollection();
+    await userEvent.click(screen.getByTestId('kb-palette-trigger'));
+    await userEvent.type(screen.getByTestId('wiki-search-input'), 'zzz-nao-existe');
+
+    expect(await screen.findByText('No matching pages.')).toBeInTheDocument();
+  });
+});

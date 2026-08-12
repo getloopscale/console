@@ -46,7 +46,7 @@ export interface AttentionReading {
  * Discriminada no TIPO e nunca deduzida do texto — a lição do `B-111`, onde um código decidia
  * comportamento lendo a mensagem humana e quebrou em silêncio quando as frases mudaram.
  */
-export type AttentionSeverity = 'critical' | 'warning';
+type AttentionSeverity = 'critical' | 'warning';
 
 export interface AttentionItem {
   readonly id: string;

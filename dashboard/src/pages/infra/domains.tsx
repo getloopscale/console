@@ -16,8 +16,7 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/http/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useDomainStatusPolling } from '@/hooks/infra/use-domain-status-polling';
 import { useDeleteDomain, useVerifyDomain } from '@/hooks/mutations/use-domains';
@@ -26,30 +25,8 @@ import { NSInstructionsCard } from '@/pages/infra/components/ns-instructions-car
 import { ReverifyButton } from '@/pages/infra/components/reverify-button';
 import { DomainTroubleshootSheet } from '@/pages/infra/components/domain-troubleshoot-sheet';
 import type { DomainStatus } from '@/lib/api/types';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import { useDomains, type DomainRow as Domain } from '@/hooks/infra/use-domains';
 import { estadoDaLista } from '@/lib/list-state';
-
-interface Domain {
-  id: string;
-  domain: string;
-  project: string;
-  app: string;
-  environment: string;
-  status: string;
-  tls?: { status: string; expires_at?: string };
-  verification?: { txt_name: string; txt_value: string };
-  cname_target: string;
-  created_at: string;
-  verified_at?: string;
-  // J-11 v1.1 — backend already returns these (per ADR D6 EC-2 recon).
-  nameservers?: string[];
-  failure_mode?: string;
-}
-
-interface DomainsResponse {
-  domains: Domain[];
-  total: number;
-}
 
 function mapStatus(status: string): StatusKind {
   switch (status) {
@@ -194,10 +171,10 @@ export function DomainsPage() {
   // `!!suspense`, ou seja `false`. A query resolve com `isError: true`, o componente
   // renderiza normalmente, e o RouteBoundary nunca e alcancado. Por isso a pagina precisa
   // LER a flag, que e o que `estadoDaLista` obriga.
-  const domainsQuery = useQuery({
-    queryKey: queryKeys.domains.list(),
-    queryFn: () => engineFetch<DomainsResponse>(`/api/v1/domains?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
+  // B-244 — a leitura vive no hook do dominio (`hooks/infra/use-domains.ts`), nao aqui: a
+  // pagina nao escolhe URL, limite, politica de erro nem query key. A flag `isError` continua
+  // sendo LIDA aqui, que e o que `estadoDaLista` obriga e o que o comentario acima explica.
+  const domainsQuery = useDomains();
   const data = domainsQuery.data ?? null;
   const loading = domainsQuery.isLoading;
   const erroDeLeitura = domainsQuery.isError;

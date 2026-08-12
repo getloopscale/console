@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { colecaoDescrita } from '@/lib/collection-described';
 import { Link } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell } from '@usetheo/ui';
@@ -58,7 +59,10 @@ export function SkillsCatalogPage() {
     setPaginas((atual) => mesclarPaginas(atual, pagina, { primeira }));
   }, [pagina, tokenAtual]);
 
-  const acervo = paginas.length > 0 ? paginas : pagina;
+  // B-237 — este literal era a SEGUNDA cópia da decisão que `colecaoDescrita` nomeia. A extração
+  // foi feita para `skills/overview.tsx` e parou ali, deixando exatamente os dois lugares
+  // escolhendo que ela existe para impedir.
+  const acervo = colecaoDescrita(paginas, pagina);
   const chips = categoryChips(acervo as CatalogSkill[], TETO_CHIPS);
 
   const porTexto = filtrarAcervo(acervo, filtro);

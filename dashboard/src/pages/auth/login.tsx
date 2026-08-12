@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { flowUrl } from '@/pages/auth/kratos';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2 } from 'lucide-react';
 import { Button, Card, CodeBlock, FormField, Input } from '@usetheo/ui';
@@ -105,7 +106,7 @@ export function LoginPage() {
     const hydrate = async () => {
       if (flowId) {
         const res = await fetch(
-          `${KRATOS_URL}/self-service/login/flows?id=${flowId}`,
+          flowUrl(KRATOS_URL, 'login', flowId),
           {
             credentials: 'include',
             headers: { Accept: 'application/json' },
@@ -128,13 +129,21 @@ export function LoginPage() {
       if (fresh) setFlow(fresh);
     };
 
+    // B-141 — as DUAS falhas de hidratação eram engolidas, e a segunda por um `catch(() => {})`
+    // literalmente vazio. Sem fluxo não há `action` nem `csrf_token`, então o botão "Sign in" vira
+    // um no-op: a pessoa clica, nada acontece, e a tela não diz nada. Um botão que não responde é
+    // pior que um erro, porque ela tenta de novo — e conclui que a senha está errada.
+    //
+    // `setNetworkError` já existia neste arquivo (é usado no submit) e nunca era alcançado por
+    // este caminho. O estado existia; faltava chegar nele.
     hydrate().catch(() => {
       // Last-resort fallback: try once more without flow param.
       hydrateFresh()
         .then((fresh) => {
           if (fresh) setFlow(fresh);
+          else setNetworkError(true);
         })
-        .catch(() => {});
+        .catch(() => { setNetworkError(true); });
     });
   }, [searchParams, loading, setSearchParams]);
 
@@ -319,6 +328,18 @@ export function LoginPage() {
               intent="warning"
               description="Your session expired. Please sign in again."
               title="Session expired"
+            />
+          )}
+
+          {/* B-139 — o logout não conseguiu encerrar a sessão NO SERVIDOR. O token local já foi
+              apagado, então esta tela aparece de qualquer jeito; sem esta faixa ela seria
+              indistinguível de um logout que funcionou, e num terminal compartilhado essa é a
+              diferença entre sair e achar que saiu. */}
+          {searchParams.get('reason') === 'logout-incomplete' && allErrors.length === 0 && !networkError && (
+            <Alert
+              intent="warning"
+              title="Sign-out may not have completed"
+              description="This browser was signed out, but the identity service did not confirm it. If you are on a shared computer, close the browser or sign out again once you are back online."
             />
           )}
 

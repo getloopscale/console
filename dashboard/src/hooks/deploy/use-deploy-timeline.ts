@@ -1,13 +1,17 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
 import {
-  PHASE_ORDER,
   TIMELINE_EVENT_TYPES,
-  type DeployTimelineEventPayload,
   type Phase,
   type PhaseStatus,
 } from '@/hooks/deploy/deploy-timeline-events';
 import type { BuildStep } from '@/hooks/deploy/sse-events';
+import {
+  aplicarEvento,
+  estadoInicial,
+  faseCorrente,
+  type TimelineState,
+} from '@/hooks/deploy/deploy-timeline-reducer';
 
 /**
  * Step-level detail rendered inside an expandable PhaseCell.
@@ -105,18 +109,6 @@ export interface UseDeployTimelineOptions {
   paused?: boolean;
 }
 
-function initialPhases(): PhaseState[] {
-  return PHASE_ORDER.map((phase) => ({
-    phase,
-    status: 'pending' as const,
-    startedAt: null,
-    endedAt: null,
-    substateMessage: null,
-    degradedReason: null,
-    steps: [],
-  }));
-}
-
 export function useDeployTimeline(
   deployID: string | null | undefined,
   options: UseDeployTimelineOptions = {},
@@ -135,82 +127,34 @@ export function useDeployTimeline(
     maxEvents: 60,
   });
 
+  // B-181 — o estado ACUMULADO atravessa os renders. `stream.events` é um FIFO com teto de 60
+  // (logo abaixo): quando o 61º evento chega, o primeiro é descartado. Derivar o estado varrendo
+  // esse buffer a partir do zero — como este hook fazia — significa que um
+  // `deploy_timeline.build.completed` despejado devolve a fase de build a `pending` numa tela que
+  // já a mostrou concluída. Guardar o acumulado num ref é o que torna o estado durável: o buffer
+  // passa a dizer só o que MUDOU, e nunca mais o que É.
+  //
+  // Reaplicar um evento que continua no buffer é inofensivo — `aplicarEvento` é idempotente por
+  // evento (o `startedAt ??` preserva o primeiro instante, e reafirmar um status dá o mesmo
+  // status), e é essa idempotência que também absorve o replay de uma reconexão e o duplo render
+  // do StrictMode. Por isso o acumulado é seguro apesar de a mutação do ref acontecer dentro do
+  // useMemo.
+  const acumulado = useRef<TimelineState>(estadoInicial());
+
   return useMemo(() => {
-    const phases = initialPhases();
-    const byPhase = new Map<Phase, PhaseState>();
-    for (const p of phases) byPhase.set(p.phase, p);
-
-    let aggregatorDegradedReason: string | null = null;
-
-    for (const ev of stream.events) {
-      if (ev.type === 'deploy_timeline.aggregator.degraded') {
-        const payload = ev.data as { degraded_reason?: string };
-        aggregatorDegradedReason = payload.degraded_reason ?? 'Timeline temporarily unavailable.';
-        continue;
-      }
-      // Expect "deploy_timeline.<phase>.<status>"
-      const parts = ev.type.split('.');
-      if (parts.length !== 3 || parts[0] !== 'deploy_timeline') continue;
-      const phase = parts[1] as Phase;
-      const status = parts[2] as PhaseStatus;
-      const cell = byPhase.get(phase);
-      if (!cell) continue;
-
-      const payload = ev.data as DeployTimelineEventPayload;
-      cell.status = status;
-      if (!cell.startedAt && payload.timestamp) cell.startedAt = payload.timestamp;
-      if (
-        status === 'completed' ||
-        status === 'failed' ||
-        status === 'canceled'
-      ) {
-        cell.endedAt = payload.timestamp ?? cell.endedAt;
-      }
-      if (payload.substate_message) cell.substateMessage = payload.substate_message;
-      if (payload.degraded_reason) cell.degradedReason = payload.degraded_reason;
-    }
-
-    // Cascade: phases ordered AFTER the current active one stay 'pending'.
-    // Phases BEFORE a completed one inherit completed too (defensive vs
-    // out-of-order arrival on reconnect).
-    let foundActive = false;
-    for (const cell of phases) {
-      if (foundActive && cell.status === 'pending') {
-        // Already pending — no-op (keeps initial state).
-      }
-      if (
-        cell.status === 'in_progress' ||
-        cell.status === 'degraded' ||
-        cell.status === 'failed' ||
-        cell.status === 'canceled'
-      ) {
-        foundActive = true;
-      }
-    }
-
-    // currentPhase = first non-pending non-completed; fallback to last
-    // terminal; fallback to first pending (initial pre-event state).
-    let currentPhase: PhaseState | null = null;
-    for (const cell of phases) {
-      if (cell.status === 'in_progress' || cell.status === 'degraded') {
-        currentPhase = cell;
-        break;
-      }
-    }
-    if (!currentPhase) {
-      // No live in-progress phase — pick last non-pending; otherwise first pending.
-      const reversed = [...phases].reverse();
-      currentPhase =
-        reversed.find((c) => c.status !== 'pending') ?? phases[0];
-    }
-
-    const overall = deriveOverall(phases, aggregatorDegradedReason);
+    // B-182 — o corpo deste useMemo media CCN 31, a maior do repositório: aplicar evento, herdar
+    // conclusão para trás, escolher a fase corrente e derivar o estado geral, tudo num bloco só.
+    // As três primeiras agora moram em `deploy-timeline-reducer.ts`, puras e testáveis sem montar
+    // componente.
+    const estado = stream.events.reduce(aplicarEvento, acumulado.current);
+    acumulado.current = estado;
+    const phases = estado.phases as PhaseState[];
 
     return {
       phases,
-      currentPhase,
-      aggregatorDegradedReason,
-      overall,
+      currentPhase: faseCorrente(phases),
+      aggregatorDegradedReason: estado.aggregatorDegradedReason,
+      overall: deriveOverall(phases, estado.aggregatorDegradedReason),
       connected: stream.connected,
       lastEventID: stream.lastEventID,
     };

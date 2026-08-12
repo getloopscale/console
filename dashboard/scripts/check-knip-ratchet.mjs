@@ -24,8 +24,32 @@
  */
 import { execFileSync } from 'node:child_process';
 
-/** Congelado em 2026-08-11, medido com `npx knip --no-progress`. */
-const TETO_TIPOS = 85;
+/**
+ * Congelado em 2026-08-11, medido com `npx knip --no-progress`.
+ *
+ * 85 -> 84 em 2026-08-11 (fatia charts-primitive-honesty). Uma catraca que nunca aperta não é
+ * catraca: o próprio erro abaixo instrui a baixar o teto quando o número desce, e este é o
+ * primeiro registro disso acontecendo.
+ *
+ * 79 -> 31 em 2026-08-12 (B-245). Os 79 foram classificados um a um, e a maioria não era
+ * dívida de desenho — era a palavra `export` sobrando:
+ *
+ *   54  tipos usados DENTRO do próprio módulo e exportados sem que ninguém agisse nisso.
+ *       Tirar o `export` não muda comportamento, e o `tsc` é prova total sobre a afirmação:
+ *       se algum tivesse importador, a compilação quebrava na hora. Três quebraram — e por
+ *       isso o `tsc` roda antes de qualquer commit desta classe.
+ *   2   `VerifiableAddress` e `AuthenticationMethod` estavam sendo contados DUAS VEZES: a
+ *       declaração em `lib/api/types.ts` e o re-export em `lib/auth/session.ts:31`. São o
+ *       mesmo tipo, e tirar o `export` da declaração quebra o re-export. O número 79 nunca
+ *       foi de 79 tipos distintos.
+ *
+ * O QUE SOBRA NÃO É DA MESMA NATUREZA, e é por isso que o teto para em 31 e não em 0: vinte
+ * dos 31 são `*Input`/`*Response` — o contrato de REQUISIÇÃO das escritas que o dashboard faz
+ * de fato, com o corpo montado inline e sem tipo no call site. Apagá-los remove a única
+ * descrição daqueles payloads; deixá-los exportados mantém uma descrição que nada confere.
+ * A saída é usá-los, e isso é uma fatia própria (B-260), não uma linha nesta catraca.
+ */
+const TETO_TIPOS = 31;
 
 /** Estas classes foram zeradas e não voltam: uma dependência não declarada quebra o build de
  *  quem clona; um export duplicado é uma segunda porta para a mesma coisa. */

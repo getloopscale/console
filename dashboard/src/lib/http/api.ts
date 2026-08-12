@@ -11,7 +11,8 @@
 // MEET-040: Single origin. Dashboard served at cloud.{domain} — all API calls are relative.
 // Runtime config via /__config.js (empty in prod = same-origin, set per-env in container).
 import { API_URL, mocksEnabled } from './config';
-import { safeNavigator } from '@/lib/navigation';
+import { isLoggedOutMessage, readPlanLimitDetail } from './event-payloads';
+import { redirectToLogin } from './session-redirect';
 
 const API_BASE = API_URL;
 
@@ -63,14 +64,21 @@ let accessToken: string | null = null;
 let tokenExpiresAt = 0;
 let refreshPromise: Promise<boolean> | null = null; // Dedup concurrent refreshes
 
+/**
+ * Quantas vezes a credencial DESTA aba mudou (B-231). `refreshPromise` deduplica a TROCA, nao o
+ * `accessToken = null` que a antecede, entao um 401 emitido contra o token VELHO mas processado
+ * DEPOIS da renovacao apagava o token novo e disparava uma segunda troca. Compare-and-swap, nao
+ * lock: a corrida e entre continuacoes de uma thread ao redor de um `await`. Cenario completo em
+ * `api.test.ts § B-231`.
+ */
+let tokenGeneration = 0;
+
 // §3.3: BroadcastChannel for cross-tab coordination.
 // SECURITY: the JWT is NEVER broadcast. The token lives only in this tab's
 // memory; broadcasting it would let any same-origin XSS subscribe to the channel
 // and exfiltrate tokens from every open tab. Each tab mints its own token from
 // its own Kratos session cookie via exchangeSessionToken(). Only logout (which
 // carries no secret) is coordinated across tabs.
-type AuthMessage = { type: 'logged-out' };
-
 let authChannel: BroadcastChannel | null = null;
 
 /**
@@ -90,14 +98,16 @@ export function installAuthChannel(): () => void {
   if (authChannel) return () => {};
   try {
     const ch = new BroadcastChannel('theo-auth');
-    ch.onmessage = (event: MessageEvent<AuthMessage>) => {
-      const msg = event.data;
-      if (msg.type === 'logged-out') {
-        // Another tab logged out — clear this tab's token and redirect.
-        accessToken = null;
-        tokenExpiresAt = 0;
-        redirectToLogin('expired');
-      }
+    ch.onmessage = (event: MessageEvent<unknown>) => {
+      // B-234 — `MessageEvent<AuthMessage>` era uma afirmacao de compilacao sobre um dado que
+      // chega de outra aba em execucao: `null` fazia `msg.type` lancar dentro deste handler, e
+      // qualquer objeto com `type:'logged-out'` disparava a acao destrutiva abaixo.
+      if (!isLoggedOutMessage(event.data)) return;
+      // Another tab logged out — clear this tab's token and redirect.
+      accessToken = null;
+      tokenExpiresAt = 0;
+      tokenGeneration += 1;
+      redirectToLogin('expired');
     };
     authChannel = ch;
     return () => {
@@ -159,6 +169,22 @@ export function sessionDefinitivelyExpired(): boolean {
   return lastExchangeStatus === 401;
 }
 
+/**
+ * B-142 — aqui se lancava `ApiError(429)` para QUALQUER falha da troca (429, 500, 502, rede).
+ * Nao era cosmetico: `retryGuard` decide pelo status e recusa repetir 4xx, entao a classe que mais
+ * merece nova tentativa era a unica com repeticao desligada. Ver `api.test.ts § B-142`.
+ */
+function transientAuthError(): ApiError {
+  const status = lastExchangeStatus ?? 0;
+  return new ApiError(
+    status,
+    undefined,
+    status === 0
+      ? 'could not reach the authentication service — no response'
+      : `authentication service returned ${String(status)} — try again in a moment`,
+  );
+}
+
 /** Exchange Kratos session cookie for a JWT. Called after login. */
 export async function exchangeSessionToken(): Promise<boolean> {
   // Visual-validation mock layer (dev-only, gated by VITE_USE_MOCKS).
@@ -167,6 +193,7 @@ export async function exchangeSessionToken(): Promise<boolean> {
   if (mocksEnabled()) {
     accessToken = 'mock-jwt-for-visual-validation';
     tokenExpiresAt = Date.now() + 3600 * 1000;
+    tokenGeneration += 1;
     return true;
   }
 
@@ -200,6 +227,7 @@ export async function exchangeSessionToken(): Promise<boolean> {
       accessToken = data.access_token;
       tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000; // 60s buffer
       lastIdentity = data.identity ?? null;
+      tokenGeneration += 1; // B-231 — a credencial mudou; 401s emitidos contra a anterior ficam obsoletos.
 
       // SECURITY: do NOT broadcast the token. Each tab exchanges its own token
       // from its Kratos session cookie on demand (see ensureToken).
@@ -230,41 +258,28 @@ async function ensureToken(): Promise<string | null> {
 }
 
 /**
- * Exposed for SSE consumers (use-log-stream) that need the JWT inline in
- * the URL query string because EventSource cannot set headers.
- * T6.0 of plan 2026-05-27-backend-frontend-integration v1.1 (EC-04).
+ * O JWT para os consumidores de SSE.
+ *
+ * B-219/B-237 — este docblock dizia que o token vai "inline na query string porque o EventSource
+ * não aceita headers". Não vai mais: o transporte é `fetch-event-source.ts`, que envia
+ * `Authorization: Bearer` como qualquer outra chamada (`fetch-event-source.ts:130`). A frase
+ * sobreviveu à mudança e descrevia um vazamento de credencial em URL — registrado em log de
+ * servidor, em histórico de navegador — que já não acontece.
+ *
+ * A função continua existindo porque `ensureToken` é privada e os consumidores de stream precisam
+ * do token ANTES de abrir a conexão, e não a cada requisição.
  */
 export async function ensureSSEToken(): Promise<string | null> {
   return ensureToken();
 }
 
-let redirecting = false;
-
-/** §3.6: Show notification before redirect, with reason in query param. */
-function redirectToLogin(reason?: string): void {
-  if (redirecting) return;
-  redirecting = true;
-
-  const params = reason ? `?reason=${reason}` : '';
-
-  // §3.6: Brief delay so user sees the notification
-  if (reason === 'expired') {
-    // Show a visible indicator before redirect
-    const toast = document.createElement('div');
-    toast.style.cssText = 'position:fixed;top:16px;right:16px;background:#1a1a1a;color:white;padding:12px 20px;border-radius:8px;z-index:9999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-    toast.textContent = 'Session expired. Redirecting to login...';
-    document.body.appendChild(toast);
-    setTimeout(() => { safeNavigator.goTo(`/login${params}`); }, 2000);
-  } else {
-    safeNavigator.goTo(`/login${params}`);
-  }
-}
 
 /** Clear token (on logout or login page visit). */
 export function clearToken(): void {
   accessToken = null;
   tokenExpiresAt = 0;
   lastIdentity = null;
+  tokenGeneration += 1; // B-231 — um logout tambem obsoleta os 401 ainda em voo.
 }
 
 /**
@@ -283,12 +298,19 @@ export function clearToken(): void {
 export function clearTokenAcrossTabs(): void {
   clearToken();
   // §3.3: Broadcast logout to all tabs
-  authChannel?.postMessage({ type: 'logged-out' } satisfies AuthMessage);
+  authChannel?.postMessage({ type: 'logged-out' });
 }
 
 // MEET-040: Unified API fetch. All paths relative to same origin.
 // /v1/billing, /v1/auth/* → cloud service (direct, same origin)
 // /engine/api/v1/* → cloud service proxy → engine API (BFF pattern)
+/**
+ * B-235 — no contrato PADRAO, `null` colapsa cinco desfechos: falha transitoria de auth, sessao
+ * encerrada, nao-2xx, rejeicao de rede e um `204`/`205` **bem-sucedido**. O quinto virou defeito
+ * visivel em `useCloudApi` (B-171), corrigido la com o erro tipado. O default segue ambiguo e
+ * **nao e item fechado** — discriminar quebra 151 importadores; ver
+ * `plans/http-error-contract-plan.md § Unresolved Questions`. Codigo novo passa `throwOnError`.
+ */
 export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {
   // Plan v1.0 (2026-05-26): mock mode no longer short-circuits via FIXTURES
   // map. Instead, lib/mocks/server.ts wraps window.fetch and intercepts all
@@ -300,9 +322,7 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg
     // #324: so redireciona quando a sessao de fato acabou (401). Qualquer outra
     // falha e transitoria — ver `sessionDefinitivelyExpired()`.
     if (!sessionDefinitivelyExpired()) {
-      if (cfg.throwOnError === true) {
-        throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
-      }
+      if (cfg.throwOnError === true) throw transientAuthError();
       return null;
     }
     redirectToLogin('expired');
@@ -356,6 +376,8 @@ async function toApiError(resp: Response): Promise<ApiError> {
 }
 
 async function fetchWithAuth<T>(base: string, path: string, token: string, options: RequestInit = {}, redirectOnAuthFailure = true, throwOnError = false, onResponse?: (resp: Response) => void): Promise<T | null> {
+  // B-231 — a geracao com que ESTE pedido saiu; um 401 so fala da credencial de entao.
+  const geracaoUsada = tokenGeneration;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,
@@ -376,17 +398,19 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
     const resp = await fetch(`${base}${path}`, { ...options, headers });
     if (resp.status === 401) {
       if (!redirectOnAuthFailure) return null;
-      // Token expired — try refresh once
-      accessToken = null;
+      // Token expired — try refresh once.
+      // B-231: so invalida se ninguem renovou entre o envio deste pedido e esta resposta.
+      if (geracaoUsada === tokenGeneration) {
+        accessToken = null;
+        tokenExpiresAt = 0;
+      }
       const newToken = await ensureToken();
       if (!newToken) {
         // #324: um 401 na chamada de DADOS dispara o refresh; se o refresh
         // falhar por algo transitorio (cota, 5xx, rede), o redirect recarrega a
         // pagina e realimenta o problema. So o 401 NA TROCA encerra a sessao.
         if (!sessionDefinitivelyExpired()) {
-          if (throwOnError) {
-            throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
-          }
+          if (throwOnError) throw transientAuthError();
           return null;
         }
         redirectToLogin('expired');
@@ -445,9 +469,11 @@ async function maybeEmitPaymentRequired(resp: Response): Promise<void> {
   if (resp.status !== 402) return;
   if (typeof window === 'undefined') return; // SSR / test envs without window
   try {
-    const body = await resp.clone().json();
+    const body: unknown = await resp.clone().json();
+    // B-236 — o corpo seguia sem exame ate `String.replace` no modal, onde um `current_plan`
+    // numerico lancava dentro de um handler do React. A fronteira e aqui.
     window.dispatchEvent(
-      new CustomEvent('theo:plan-limit', { detail: body }),
+      new CustomEvent('theo:plan-limit', { detail: readPlanLimitDetail(body) }),
     );
   } catch {
     // Body not JSON — still emit the event so modal opens with generic copy.

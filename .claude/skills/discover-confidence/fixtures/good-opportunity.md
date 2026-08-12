@@ -21,13 +21,13 @@ without running anything.
 
 ## Corner 1 — Evidence
 
-The registration obligation is stated at `rules/cycle-discover.md:20` and repeated as an
+The registration obligation is stated at `.claude/rules/cycle-discover.md:20` and repeated as an
 anti-pattern near the end of the same rule. The output contract naming
-`source: discover-{mode}` is at `rules/cycle-discover.md:150`.
+`source: discover-{mode}` is at `.claude/rules/cycle-discover.md:150`.
 
 The checker that scores a finished opportunity is
-`skills/discover-confidence/scripts/check_corner_coverage.py:78` — it reads the
-opportunity file and nothing else. `skills/discover-confidence/scripts/check_evidence_pointers.py:95`
+`.claude/skills/discover-confidence/scripts/check_corner_coverage.py:78` — it reads the
+opportunity file and nothing else. `.claude/skills/discover-confidence/scripts/check_evidence_pointers.py:95`
 resolves pointers against the project root, again touching only the document.
 
 Neither checker opens `BACKLOG.md`, so a sweep that produces four well-formed

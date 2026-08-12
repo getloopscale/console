@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flowUrl } from '@/pages/auth/kratos';
 import type { Flow } from './kratos';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2, Zap } from 'lucide-react';
@@ -102,7 +103,7 @@ export function RegisterPage() {
   useEffect(() => {
     const flowId = searchParams.get('flow');
     if (flowId) {
-      fetch(`${KRATOS_URL}/self-service/registration/flows?id=${flowId}`, {
+      fetch(flowUrl(KRATOS_URL, 'registration', flowId), {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       })

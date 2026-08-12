@@ -1,4 +1,5 @@
 import { Card } from '@usetheo/ui';
+import { SLO, sloTone } from '@/pages/projects/components/slo-tones';
 import { Activity, AlertTriangle, Cpu, Clock, TrendingUp } from 'lucide-react';
 
 /**
@@ -71,26 +72,11 @@ function formatNullable(value: number | null | undefined, suffix = ''): string {
   return `${value}${suffix}`;
 }
 
-function uptimeTone(uptime: number | null | undefined): Tone {
-  if (typeof uptime !== 'number' || !Number.isFinite(uptime)) return 'muted';
-  if (uptime >= 99.9) return 'success';
-  if (uptime >= 99.0) return 'warning';
-  return 'destructive';
-}
-
-function errorRateTone(rate: number | null | undefined): Tone {
-  if (typeof rate !== 'number' || !Number.isFinite(rate)) return 'muted';
-  if (rate >= 5) return 'destructive';
-  if (rate >= 1) return 'warning';
-  return 'success';
-}
-
-function p95Tone(latencyMs: number | null | undefined): Tone {
-  if (typeof latencyMs !== 'number' || !Number.isFinite(latencyMs)) return 'muted';
-  if (latencyMs >= 1000) return 'destructive';
-  if (latencyMs >= 500) return 'warning';
-  return 'success';
-}
+// B-194 — os três limiares moravam aqui E em `signal-grid.tsx`, byte a byte. Números duplicados
+// não divergem no dia da cópia; divergem no dia em que alguém muda um.
+const uptimeTone = (v: number | null | undefined): Tone => sloTone(v, SLO.uptime);
+const errorRateTone = (v: number | null | undefined): Tone => sloTone(v, SLO.errorRatePct);
+const p95Tone = (v: number | null | undefined): Tone => sloTone(v, SLO.p95LatencyMs);
 
 export function KPIStripStatus(props: KPIStripStatusProps) {
   const { replicas, uptime24h, p95LatencyMs, errorRate, rps } = props;

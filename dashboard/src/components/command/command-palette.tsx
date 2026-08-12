@@ -18,7 +18,7 @@ import { reportError } from '@/lib/telemetry/error-reporter';
  * exceptions DON'T cascade to RouteBoundary. Palette closes either way.
  */
 
-export type CommandCategory = 'navigate' | 'action' | 'project' | 'deploy';
+type CommandCategory = 'navigate' | 'action' | 'project' | 'deploy';
 
 export interface CommandItem {
   id: string;

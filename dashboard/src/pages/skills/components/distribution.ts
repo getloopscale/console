@@ -8,7 +8,7 @@
 
 // ---- Tokens ---------------------------------------------------------------------------------
 
-export interface TokenEntry {
+interface TokenEntry {
   readonly token_id: string;
   readonly label: string | null;
   readonly quota_per_window: number | null;
@@ -29,7 +29,7 @@ export interface TokensPayload {
  * ler) ou de expirado (cortando na tela um token que o serviço ainda aceita). Ambas afirmam mais
  * do que o dado sustenta.
  */
-export type TokenStatus = 'active' | 'expired' | 'revoked' | 'unknown';
+type TokenStatus = 'active' | 'expired' | 'revoked' | 'unknown';
 
 export interface TokenRow {
   readonly tokenId: string;
@@ -72,7 +72,7 @@ export function tokenRows(payload: TokensPayload | null | undefined, agora: Date
 
 // ---- Adoção ---------------------------------------------------------------------------------
 
-export interface AdoptionEntry {
+interface AdoptionEntry {
   readonly skill_id: string;
   readonly version: string;
   readonly installs: number;

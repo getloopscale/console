@@ -13,7 +13,7 @@ indistinguível de folclore.
 ## Estado atual, medido (2026-08-06)
 
 Nada aqui é estimativa. Os números vêm da auditoria `/loop-system-design`, cujo relatório
-está em `system-design-output/final_report.md`.
+vinha de `system-design-output/final_report.md`, um caminho que NAO existe mais em lugar nenhum do umbrella (conferido 2026-08-11, B-201) — a referencia foi removida em vez de reapontada porque nao ha artefato para reapontar. Os numeros nesta pagina sao re-medidos por `src/lib/docs-claims.test.ts`, que reprova quando o disco discorda deles.
 
 | Métrica | Valor |
 |---|---|
@@ -22,7 +22,7 @@ está em `system-design-output/final_report.md`.
 | Arquivos de produção | 375 (mediana 113 LOC, p90 401, máx 955) |
 | Arestas de import internas | 1.084 |
 | Arestas cross-feature | **90** — 70 delas para `use-auth` |
-| Arestas ascendentes (`components`/`hooks`/`lib` → `pages`) | **0** — número REFUTADO pela própria promoção: ao virar regra executável (B-070), o lint achou `components/lens/ask-thread.tsx` importando de `pages/`. A auditoria media zero; a medição estava errada. É a lição do documento inteiro em uma linha — uma fronteira sem verificação é uma preferência, e uma métrica sem verificação é um palpite. |
+| Arestas ascendentes (`components`/`hooks`/`lib` → `pages`) | **0** — número REFUTADO pela própria promoção: ao virar regra executável (B-070), o lint achou o `ask-thread` importando de `pages/` (hoje em `pages/lens/components/ask-thread.tsx`; o caminho de então não existe mais — B-209). A auditoria media zero; a medição estava errada. É a lição do documento inteiro em uma linha — uma fronteira sem verificação é uma preferência, e uma métrica sem verificação é um palpite. |
 | Ciclos de import | **1** (eram 8 antes de B-001/B-037/B-038/B-039) |
 
 **A leitura que importa:** o acoplamento é baixo e a direção das camadas está correta. O
@@ -50,7 +50,7 @@ A regra é contável, e é isso que a torna verificável em vez de opinativa. El
 três perguntas que hoje não têm resposta escrita:
 
 - **Quando um domínio vira pasta?** Sempre.
-- **O que é API pública de uma feature?** O `index.ts`. Hoje existe **um** (`components/layout/index.ts`, anterior a esta promoção) nas **28** subpastas de `src/components/`.
+- **O que é API pública de uma feature?** O `index.ts`. Hoje existe **um** (`components/layout/index.ts`, anterior a esta promoção) nas **9** subpastas de `src/components/`.
 - **O que pode morar em `lib/`?** Só o que 2+ features consomem. Hoje são 7 de 39 módulos.
 
 ## Fronteiras que hoje NÃO são verificadas
@@ -64,7 +64,7 @@ verificação é uma preferência, não uma fronteira.**
 | `dependency-cruiser` | Idem. A auditoria tentou usá-lo e obteve `modules: 0`. |
 | `import/no-restricted-paths` | **Não configurado.** Continua assim — `eslint-plugin-import` não está instalado. |
 | `no-restricted-imports` | **Três** blocos desde B-070: o ban do `Alert` (símbolo de terceiro, bug upstream #175) e dois de direção de camada — `hooks`/`components` não importam de `pages/`, e `lib` não importa de nenhum dos dois. |
-| `max-lines` (B-033) | 500 LOC por arquivo, com allowlist de 18 arquivos que carrega o LOC de cada um. |
+| `max-lines` (B-033) | 500 LOC por arquivo, com allowlist de 15 arquivos que carrega o LOC de cada um. |
 
 **Correção de 2026-08-07:** as duas linhas acima diziam que `no-restricted-imports` era a
 única regra de fronteira e banía um símbolo. Isso valia quando este documento foi escrito
@@ -109,7 +109,7 @@ O padrão de correção já foi validado pelo próprio time em `pages/lens/trace
 
 ## Onde as decisões vivem
 
-`docs/adr/`. Oito ADRs em `status: proposed`, aguardando aceite do time — promovidos ao
+`docs/adr/`. Sao 14 ADRs; 6 ADRs em `status: proposed`, aguardando aceite do time (os outros 8 ja aceitos) — promovidos ao
 repositório em 2026-08-06 (B-078) precisamente para que uma referência `per ADR X` num
 docblock volte a ser verificável.
 
@@ -120,5 +120,5 @@ do time, não de quem escreveu o rascunho.
 
 Auditoria `/loop-system-design`, 2026-08-06 — 6 fases, 91 achados com evidência `file:line`,
 gate de qualidade adversarial (score 0.90) que verificou 106 ponteiros contra o disco.
-Relatório completo em `system-design-output/final_report.md`; itens rastreados em
+O relatorio que originou estes itens nao esta versionado (B-201); os itens rastreados estao em
 `BACKLOG.md` (`B-001`..`B-087`).

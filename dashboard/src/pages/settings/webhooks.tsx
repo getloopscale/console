@@ -5,16 +5,19 @@ import {
   Badge,
   Button,
   Card,
-  Checkbox,
   DataTable,
   type DataTableColumn,
   EmptyState,
-  Input,
   PageShell,
   Sheet,
   Timestamp,
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
+import type { Delivery } from '@/lib/webhooks/delivery';
+import { deliveryStatusVariant } from '@/lib/webhooks/delivery';
+import { colunasDeWebhook } from '@/lib/webhooks/columns';
+import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -147,31 +150,9 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
 
   const webhooks = list.data?.webhooks ?? [];
 
+  // B-183 — colunas compartilhadas; as ações são desta tela.
   const columns: DataTableColumn<Webhook>[] = [
-    { key: 'label', label: 'Label', render: (row) => <span className="font-medium">{row.label}</span> },
-    {
-      key: 'url',
-      label: 'URL',
-      render: (row) => <code className="font-mono text-xs text-muted-foreground">{row.url}</code>,
-    },
-    {
-      key: 'events',
-      label: 'Events',
-      render: (row) => (
-        <div className="flex flex-wrap gap-1">
-          {row.events.map((e) => (
-            <Badge key={e} variant="outline">
-              {e}
-            </Badge>
-          ))}
-        </div>
-      ),
-    },
-    {
-      key: 'created_at',
-      label: 'Created',
-      render: (row) => (row.created_at ? <Timestamp value={row.created_at} /> : null),
-    },
+    ...colunasDeWebhook<Webhook>(),
     {
       key: 'actions',
       label: '',
@@ -243,6 +224,8 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
         onSubmit={(input) => create.mutate(input)}
         description={copy.dialogDescription}
         events={copy.events}
+        exemploUrl="https://hook.example.com/deploys"
+        exemploLabel="prod-deploys"
       />
 
       {createdSecret ? (
@@ -286,31 +269,6 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
   );
 }
 
-interface Delivery {
-  id: string;
-  event_type: string;
-  status: 'pending' | 'delivering' | 'delivered' | 'failed' | 'dead_letter';
-  attempt_count: number;
-  last_response_status?: number;
-  last_error_message?: string;
-  created_at: string;
-  completed_at?: string;
-}
-
-function deliveryStatusVariant(s: Delivery['status']): 'default' | 'success' | 'warning' | 'destructive' {
-  switch (s) {
-    case 'delivered':
-      return 'success';
-    case 'pending':
-    case 'delivering':
-      return 'warning';
-    case 'dead_letter':
-      return 'destructive';
-    default:
-      return 'default';
-  }
-}
-
 /**
  * Read-only delivery history for one webhook (last 10). Backed by
  * GET /v1/settings/webhooks/{id}/deliveries. Populates once the delivery
@@ -342,12 +300,13 @@ function DeliveriesSheet({
           </Sheet.Description>
         </Sheet.Header>
         <Sheet.Body className="space-y-3">
+          {/* B-167 — único local fora de `empty=`; `query.isError` existia e não era lido. */}
           {query.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading deliveries…</p>
+          ) : query.isError ? (
+            <p className="text-sm text-muted-foreground" data-testid="deliveries-error">{FALHA_AO_LER_ENTREGAS}</p>
           ) : deliveries.length === 0 ? (
-            <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">
-              No deliveries yet.
-            </p>
+            <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">No deliveries yet.</p>
           ) : (
             deliveries.map((d) => (
               <Card key={d.id} data-testid={`delivery-${d.id}`}>
@@ -424,98 +383,3 @@ function SecretShownOnceDialog({
   );
 }
 
-interface AddWebhookDialogProps {
-  open: boolean;
-  onClose: () => void;
-  submitting: boolean;
-  onSubmit: (input: { url: string; label: string; events: string[] }) => void;
-  description: string;
-  events: readonly { id: string; label: string }[];
-}
-
-function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, events }: AddWebhookDialogProps) {
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set([events[0]?.id ?? '']));
-
-  const reset = () => {
-    setUrl('');
-    setLabel('');
-    setSelected(new Set([events[0]?.id ?? '']));
-  };
-  const handleClose = () => {
-    if (!submitting) {
-      reset();
-      onClose();
-    }
-  };
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return;
-    onSubmit({ url, label: label.trim(), events: Array.from(selected) });
-  };
-
-  const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
-
-  return (
-    <AppModal
-      open={open}
-      onClose={handleClose}
-      title={<>Add webhook</>}
-      description={<>{description}</>}
-      footer={<><Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button><Button type="submit" form="add-workspace-webhook-form" disabled={submitDisabled}>
-            {submitting ? 'Adding…' : 'Add webhook'}
-          </Button></>}
-    >
-      <form id="add-workspace-webhook-form" className="space-y-4" onSubmit={submit}>
-            <div>
-              <label htmlFor="wwh-url" className="text-sm font-medium block mb-1">
-                URL
-              </label>
-              <Input
-                id="wwh-url"
-                placeholder="https://hook.example.com/deploys"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="wwh-label" className="text-sm font-medium block mb-1">
-                Label
-              </label>
-              <Input
-                id="wwh-label"
-                placeholder="prod-deploys"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                maxLength={64}
-              />
-            </div>
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">Events</legend>
-              <div className="space-y-2">
-                {events.map((evt) => (
-                  <label key={evt.id} className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox
-                      checked={selected.has(evt.id)}
-                      onCheckedChange={() => {
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(evt.id)) next.delete(evt.id);
-                          else next.add(evt.id);
-                          return next;
-                        });
-                      }}
-                      aria-label={evt.id}
-                    />
-                    <span className="font-mono text-sm">{evt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </form>
-    </AppModal>
-  );
-}

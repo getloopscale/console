@@ -8,8 +8,23 @@
 
 /** Trigger a browser download of `content` as `filename` with the given MIME type. No-op outside a DOM. */
 export function triggerDownload(filename: string, content: string, mimeType: string): void {
+  triggerBlobDownload(filename, new Blob([content], { type: mimeType }));
+}
+
+/**
+ * O mesmo download, para bytes que já são um `Blob` (B-230).
+ *
+ * Existia uma terceira cópia deste padrão em `pages/workspace/overview.tsx`, para um download
+ * binário vindo de uma URL pré-assinada — e ela tinha perdido as DUAS proteções que o docblock
+ * acima explica: sem `appendChild`, e revogando a URL do objeto imediatamente após o `click()`,
+ * que aborta o download antes de o Safari terminar de transmitir.
+ *
+ * A cópia existia porque `triggerDownload` só aceitava `string`. O helper que se declarava a ÚNICA
+ * fonte não servia o caso binário, então o caso binário se serviu sozinho — e perdeu o que a fonte
+ * única sabia. Widening the signature is what makes the claim true.
+ */
+export function triggerBlobDownload(filename: string, blob: Blob): void {
   if (typeof document === 'undefined') return;
-  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

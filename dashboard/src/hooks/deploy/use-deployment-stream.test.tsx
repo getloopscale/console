@@ -188,3 +188,28 @@ describe('useDeploymentStream', () => {
     expect(MockEventSource.instances[0].opcoes?.lastEventId).toBe('99');
   });
 });
+
+describe('B-222 — duração total de um build que não terminou não existe', () => {
+  it('reporta null enquanto o build está correndo, e não um cronômetro parado', async () => {
+    // Havia aqui `Date.now() - started_at` DENTRO de um `useMemo`. Um memo existe para não
+    // recomputar, então o número congelava no instante do último evento — e era devolvido como se
+    // fosse tempo decorrido ao vivo.
+    //
+    // Não foi trocado por um timer: nenhum consumidor de produção lê este campo (medido), então
+    // consertar o relógio seria consertar uma exibição que não existe. `null` é a resposta
+    // verdadeira — duração TOTAL e tempo DECORRIDO são grandezas diferentes.
+    const { result } = renderHook(() => useDeploymentStream('build-abc'));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    act(() => {
+      MockEventSource.instances[0].emit(
+        'build.step.started',
+        startedPayload('clone-repo', '2026-06-06T00:00:00Z'),
+        '1',
+      );
+    });
+
+    await waitFor(() => { expect(result.current.status).toBe('running'); });
+    expect(result.current.totalDurationSeconds).toBeNull();
+  });
+});

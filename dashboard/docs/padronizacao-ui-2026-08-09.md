@@ -5,6 +5,13 @@
 > Onde a medição **não** encontrou problema, o documento diz isso — um relatório que só
 > lista defeitos não permite saber o que já está certo.
 
+> **STATUS (2026-08-11, B-211): P1 e P2 ESTÃO FEITOS.** `components/ui/dialog.tsx` foi deletado —
+> que era o próprio critério de pronto do P2 — e os 14 call sites migraram. Os números medidos
+> abaixo são de 2026-08-09 e JÁ DERIVARAM: `app-modal.tsx` tem 148 linhas (o texto diz 104) e a
+> árvore tem 437 arquivos `.tsx` (o texto diz 423). Eles ficam como estavam, porque são o registro
+> de uma medição datada; o que muda é este cabeçalho, que diz para não os ler como estado atual.
+
+
 ## Sumário executivo
 
 O dashboard tem **423 arquivos `.tsx`**, dos quais 123 são páginas, 70 são componentes

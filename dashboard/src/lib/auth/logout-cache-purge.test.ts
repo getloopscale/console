@@ -95,7 +95,11 @@ describe('purga de cache no logout (B-055/B-074)', () => {
     // `caches` não existe em contexto inseguro, em alguns navegadores, e no
     // jsdom. Uma exceção aqui impediria a pessoa de SAIR, o que é pior do que o
     // defeito que a função conserta.
-    await expect(purgarCachesDeDados()).resolves.toBeUndefined();
+    // B-170 — este caso afirmava `toBeUndefined()`, fixando o retorno `void` que ERA o defeito:
+    // sem valor de retorno, o chamador não tinha nada para inspecionar e um cache sobrevivente
+    // saía indistinguível de um logout limpo. O contrato que importa continua valendo — não
+    // lança, não rejeita, o logout nunca é bloqueado — e agora ele também RELATA.
+    await expect(purgarCachesDeDados()).resolves.toBeDefined();
   });
 
   it('uma falha ao apagar não impede as outras nem propaga', async () => {
@@ -109,7 +113,11 @@ describe('purga de cache no logout (B-055/B-074)', () => {
       },
     });
 
-    await expect(purgarCachesDeDados()).resolves.toBeUndefined();
+    // B-170 — este caso afirmava `toBeUndefined()`, fixando o retorno `void` que ERA o defeito:
+    // sem valor de retorno, o chamador não tinha nada para inspecionar e um cache sobrevivente
+    // saía indistinguível de um logout limpo. O contrato que importa continua valendo — não
+    // lança, não rejeita, o logout nunca é bloqueado — e agora ele também RELATA.
+    await expect(purgarCachesDeDados()).resolves.toBeDefined();
     // Uma falha parcial ainda é melhor que nenhuma limpeza, e travar o logout
     // por causa dela seria trocar um risco por um pior.
     expect(deletadas).toContain('theo-api-v3');
@@ -119,5 +127,40 @@ describe('purga de cache no logout (B-055/B-074)', () => {
     // Se alguém acrescentar um `runtimeCaching` de dado sem incluí-lo aqui, o
     // cache novo sobrevive ao logout — e a única pista seria este teste.
     expect(CACHES_DE_DADOS).toContain('theo-api');
+  });
+});
+
+describe('B-170 — a purga relata o que sobreviveu', () => {
+  it('devolve o nome do cache que NÃO foi apagado', async () => {
+    // O `.catch(() => false)` de cada delete tinha o retorno descartado pelo `Promise.all`, e o
+    // catch externo era vazio: um cache de dados de tenant sobrevivendo ao logout produzia zero
+    // sinal. Numa aplicação multi-tenant essa é a falha que mais custa.
+    vi.stubGlobal('caches', {
+      keys: () => Promise.resolve(['theo-api-v1', 'theo-static-v1']),
+      delete: (n: string) => Promise.resolve(n !== 'theo-api-v1'),
+    });
+
+    const r = await purgarCachesDeDados();
+
+    expect(r.sobreviventes).toEqual(['theo-api-v1']);
+    expect(r.indisponivel).toBe(false);
+  });
+
+  it('não relata sobreviventes quando tudo foi apagado', async () => {
+    vi.stubGlobal('caches', {
+      keys: () => Promise.resolve(['theo-api-v1']),
+      delete: () => Promise.resolve(true),
+    });
+
+    const r = await purgarCachesDeDados();
+    expect(r.sobreviventes).toEqual([]);
+    expect(r.tentados).toBe(1);
+  });
+
+  it('um ambiente sem `caches` é declarado indisponível, e não um sucesso', async () => {
+    // Silêncio de "não havia o que apagar" e silêncio de "não consegui apagar" eram o mesmo valor.
+    vi.stubGlobal('caches', undefined);
+    const r = await purgarCachesDeDados();
+    expect(r.indisponivel).toBe(true);
   });
 });

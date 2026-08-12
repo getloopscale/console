@@ -213,5 +213,3 @@ export function ExportsPage() {
     </PageShell>
   );
 }
-
-// Re-exported (alias) for callers that prefer the page-suffix naming.

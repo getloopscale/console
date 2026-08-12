@@ -211,8 +211,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for language in enabled_languages:
         manifest_marker = cfg[language]["manifest"]
-        manifest_path = repo_root / manifest_marker
-        manifest_present = manifest_path.exists()
+        manifest_present = (repo_root / manifest_marker).exists()
         detector = _build_detector(language)
         if detector is None:
             languages_skipped[language] = "no detector implementation"
@@ -222,24 +221,21 @@ def main(argv: list[str] | None = None) -> int:
             continue
         languages_audited.append(language)
 
-        # A raiz de ANALISE e o diretorio do manifesto, nao a raiz do repo. A coluna
-        # `manifest` do languages.txt aceita um caminho (`dashboard/package.json`), e
-        # so faz sentido se o detector rodar onde a ferramenta encontra o projeto:
-        # `knip` invocado na raiz de um repo cujo package.json esta em dashboard/ sai
-        # com erro, e o gate reportava `auditor_unavailable_knip` — um FAIL_SOFT que
-        # parece indisponibilidade de ferramenta e na verdade era invocacao errada.
-        lang_root = manifest_path.parent
-
         # D1 — dead code
+        # The dead-code CLIs resolve their project from the cwd, and the manifest marker is a
+        # repo-relative path — so a crate at `theodb_rs/Cargo.toml` or a package under `web/` must
+        # send the detector to the manifest's directory. Passing repo_root made cargo-udeps exit
+        # with "could not find `Cargo.toml`", which the detector honestly reported as
+        # `auditor_unavailable_cargo-udeps` — a soft cap blocking the cycle over a path assumption
+        # rather than over the code (measured on theo-db 2026-07-23, usetheoai/theo-db#175).
+        # Collapses to repo_root when the manifest sits at the root, which is the common case.
+        manifest_dir = (repo_root / manifest_marker).parent
         d1_findings, d1_crash = _safe_call(
-            "d1", detector.detect_dead_code, lang_root, language=language
+            "d1", detector.detect_dead_code, manifest_dir, language=language
         )
         if d1_crash:
             findings.append(d1_crash)
-        # Os findings voltam relativos a `lang_root`; o contrato de Finding exige
-        # repo-relativo (e o relatorio e lido da raiz), entao reancoramos aqui em vez
-        # de propagar duas raizes por toda a API dos detectores.
-        findings.extend(_reroot(d1_findings, lang_root, repo_root))
+        findings.extend(d1_findings)
 
         # D2 — symbol fabrication (skip when --no-network per EC-25)
         if args.no_network:
@@ -263,35 +259,22 @@ def main(argv: list[str] | None = None) -> int:
                 findings.append(d2_crash)
             findings.extend(d2_findings)
 
+        # D5 — architecture rules the REPO declared, plus the meta-gate that they can still fire.
+        # Runs against the manifest's directory for the same reason D1 does: the linters resolve
+        # their project from the cwd.
+        d5_findings, d5_crash = _safe_call(
+            "d5", detector.detect_architecture_violations, manifest_dir, language=language
+        )
+        if d5_crash:
+            findings.append(d5_crash)
+        findings.extend(d5_findings)
+
     # Apply allowlist (downgrade severities by 1 level when ACTIVE entry matches)
     findings = _apply_allowlist(findings, allowlist, repo_root)
 
     return _emit_and_exit(findings, args, repo_root, plan_path,
                           languages_audited=languages_audited,
                           languages_skipped=languages_skipped)
-
-
-def _reroot(findings: list[Finding], lang_root: Path, repo_root: Path) -> list[Finding]:
-    """Reancora file_path (e a chave de allowlist) de lang-relativo para repo-relativo.
-
-    No-op quando o manifesto esta na raiz (caso Go: `go.mod`). A chave de allowlist
-    carrega o file_path embutido, entao ela e reconstruida junto — caso contrario uma
-    entrada de allowlist escrita a partir do relatorio nunca casaria com o finding.
-    """
-    try:
-        prefix = lang_root.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return findings
-    if not prefix or prefix == ".":
-        return findings
-    for f in findings:
-        antigo = f.file_path
-        f.file_path = f"{prefix}/{antigo}" if not antigo.startswith(prefix + "/") else antigo
-        partes = f.allowlist_key.split("|")
-        if len(partes) == 4 and partes[1] == antigo:
-            partes[1] = f.file_path
-            f.allowlist_key = "|".join(partes)
-    return findings
 
 
 def _apply_allowlist(findings: list[Finding], allowlist: list, repo_root: Path) -> list[Finding]:
@@ -382,7 +365,7 @@ def _write_markdown_report(findings: list[Finding], summary: dict, audit_path: P
             rows.append(f"| `{f.file_path}` | `{f.symbol_or_line}` | {f.severity} | {msg} |")
         return "\n".join(rows)
 
-    by_detector: dict[str, list[Finding]] = {"d1_dead_code": [], "d2_symbol_fab": [], "d3_orphan_export": [], "d4_mutation": []}
+    by_detector: dict[str, list[Finding]] = {"d1_dead_code": [], "d2_symbol_fab": [], "d3_orphan_export": [], "d4_mutation": [], "d5_architecture": []}
     for f in findings:
         by_detector.setdefault(f.detector, []).append(f)
 
@@ -413,6 +396,10 @@ def _write_markdown_report(findings: list[Finding], summary: dict, audit_path: P
 
 ### D4 — Mutation testing
 {_table(by_detector['d4_mutation'])}
+
+### D5 — architecture
+
+{_table(by_detector['d5_architecture'])}
 
 ## Related
 

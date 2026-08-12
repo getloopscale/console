@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
@@ -466,5 +468,43 @@ describe('BillingPage', () => {
     for (const call of memoryCalls) {
       expect(call[1]?.enabled).toBe(false);
     }
+  });
+});
+
+describe('B-136 — a tela não afirma preço que não consegue verificar', () => {
+  // A tela dizia "Upgrade to Pro — $29/mo" e "10 projects, 3 environments, 1000 builds/month"
+  // como literais. Nem a API nem o servidor conhecem esses números: `/v1/billing` descreve só o
+  // plano ATUAL, e `internal/billing/plans.go` guarda apenas os Price IDs do Stripe — o valor vive
+  // no Stripe. Mudar o preço lá deixava a tela cobrando $29 na frase e outro valor no cartão.
+  //
+  // Este guarda é de FONTE, e não de renderização, de propósito: o defeito é alguém digitar um
+  // preço no arquivo, e um teste de tela só o pegaria no ramo de plano que aquele teste montou.
+  const semComentarios = (src: string) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  const fontes = [
+    'src/pages/settings/billing.tsx',
+    'src/pages/settings/upgrade-offers.ts',
+  ];
+
+  it.each(fontes)('%s não traz nenhum valor monetário literal', (rel) => {
+    const src = readFileSync(resolve(__dirname, '../../..', rel), 'utf-8');
+    const literais = semComentarios(src).match(/\$\s?\d[\d.,]*/g) ?? [];
+    expect(
+      literais,
+      `preço fixo no código: ${literais.join(', ')}. O valor autoritativo está no Stripe e ` +
+        `aparece no checkout; quando existir um endpoint de catálogo, use formatPlanPrice.`,
+    ).toEqual([]);
+  });
+
+  it('as cotas numéricas do plano-alvo também saíram', () => {
+    // Sem comentários, pela mesma razão do guarda acima: o docblock CITA o texto antigo para
+    // explicar por que ele saiu, e citar não é afirmar.
+    const src = semComentarios(
+      readFileSync(resolve(__dirname, '../../..', 'src/pages/settings/upgrade-offers.ts'), 'utf-8'),
+    );
+    // `plan_cap` da API descreve o plano ATUAL; a cota do plano-alvo não vem de lugar nenhum, e
+    // "1000 builds/month" era tão inverificável quanto o preço.
+    expect(src).not.toMatch(/\d+\s*(projects|environments|builds)/i);
   });
 });

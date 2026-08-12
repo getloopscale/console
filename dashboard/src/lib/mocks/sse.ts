@@ -152,27 +152,23 @@ export class MockEventSource implements EventTarget {
   }
 }
 
-let originalEventSource: typeof EventSource | null = null;
-
+/**
+ * B-223 — `installSSEMocks`/`uninstallSSEMocks` trocavam `window.EventSource` pelo
+ * `MockEventSource`. Isso cobria todo consumidor de SSE do dashboard até o **B-088** trocar o
+ * transporte por `FetchEventSource` — feito para tirar o JWT da query string, e correto por si.
+ *
+ * Desde então, `grep -rn "new EventSource"` fora de `mocks/` acerta três arquivos de teste e um
+ * comentário histórico: NENHUM caminho de produção usa o global. A troca não estava quebrada, e
+ * era pior que isso — ela dava a impressão de que a camada de mock cobria o transporte, que é
+ * exatamente a leitura errada que fez `/projects/{name}/builds/stream` passar sem registro
+ * (B-178). O próprio bloco em `index.ts` já documentava que ela não cobria mais nada.
+ *
+ * Removida (parsimony ladder, rung 1). O que cobre o transporte é
+ * `installSharedEventSourceTransport()`, em `index.ts`.
+ */
 export function isSSEMockingEnabled(): boolean {
   if (typeof window === 'undefined') return false;
   if (typeof import.meta === 'undefined') return false;
   return import.meta.env?.VITE_USE_MOCKS === 'true';
 }
 
-export function installSSEMocks(): void {
-  if (!isSSEMockingEnabled()) return;
-  if (typeof window === 'undefined') return;
-  if (originalEventSource !== null) return; // already installed
-  originalEventSource = (window as unknown as { EventSource: typeof EventSource })
-    .EventSource;
-  (window as unknown as { EventSource: unknown }).EventSource = MockEventSource;
-}
-
-export function uninstallSSEMocks(): void {
-  if (typeof window === 'undefined') return;
-  if (originalEventSource === null) return;
-  (window as unknown as { EventSource: typeof EventSource }).EventSource =
-    originalEventSource;
-  originalEventSource = null;
-}

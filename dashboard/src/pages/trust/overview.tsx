@@ -219,12 +219,19 @@ export function TrustOverviewPage() {
         <Card className="mb-4">
           <Card.Body>
             <h2 className="mb-3 text-base font-semibold">Violations by policy</h2>
+            {/* B-187 — o âmbar era o ÚNICO portador de "esta política não está sendo aplicada",
+                e ele vivia dentro do elemento `aria-hidden` da barra. Numa tela de compliance,
+                uma leitura que só existe em cor é uma leitura que não existe para quem usa leitor
+                de tela ou não distingue as duas cores (WCAG 2.2 SC 1.4.1). `toneLabel` diz em
+                palavras o que o tom diz em cor — e diz o que ele significa AQUI, que é algo que o
+                primitivo não tem como saber. */}
             <CategoryBars
               title="Violations by policy"
               bars={coverage.map((c) => ({
                 label: c.policy,
                 value: c.observed,
                 tone: c.enforced ? ('muted' as const) : ('warning' as const),
+                toneLabel: c.enforced ? 'enforced' : 'not enforced',
               }))}
             />
           </Card.Body>
