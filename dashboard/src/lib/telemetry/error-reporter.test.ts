@@ -24,15 +24,47 @@ describe('reportError', () => {
     }
   });
 
-  it('test_rate_limits_after_10_errors_per_session', () => {
-    // First 10 calls accepted; 11th silently dropped (no throw, no extra side
-    // effect). Prevents error storm flooding telemetry endpoint.
+  it('para de despachar depois de 10 erros na sessão', () => {
+    // B-215 — este teste terminava em `expect(true).toBe(true)`, justificado por "nenhum contador
+    // público exposto". O limite SEMPRE foi observável: cada relato aceito produz um despacho, e
+    // em desenvolvimento o despacho é um `console.error`. Contar 15 chamadas e afirmar 10
+    // despachos é a asserção que o teste dizia não ser possível — e ela reprova tanto um limite
+    // trocado quanto um limite removido.
+    const espiao = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     for (let i = 0; i < 15; i++) {
       reportError(new Error(`err ${i}`), { routePath: '/x' });
     }
-    // No public counter exposed — we test by side-effect absence: 15 calls
-    // never throws and resetErrorReporter() clears counter for next test.
-    expect(true).toBe(true);
+
+    expect(espiao).toHaveBeenCalledTimes(10);
+    espiao.mockRestore();
+  });
+
+  it('o contador reinicia com resetErrorReporter', () => {
+    const espiao = vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (let i = 0; i < 12; i++) reportError(new Error('x'), {});
+    resetErrorReporter();
+    reportError(new Error('depois do reset'), {});
+
+    // 10 antes do teto + 1 depois do reinício. Sem o reinício, o 13º relato seria descartado e a
+    // contagem pararia em 10.
+    expect(espiao).toHaveBeenCalledTimes(11);
+    espiao.mockRestore();
+  });
+
+  it('uma falha DENTRO do reporter é dita em desenvolvimento, não engolida', () => {
+    // A camada externa era um `catch` vazio: um bug do próprio reporter — payload malformado,
+    // `JSON.stringify` circular — desaparecia sem rastro, no único componente do sistema cujo
+    // trabalho é justamente não deixar erro desaparecer.
+    const espiao = vi.spyOn(console, 'error').mockImplementationOnce(() => {
+      throw new Error('o despacho explodiu');
+    }).mockImplementation(() => {});
+
+    expect(() => reportError(new Error('gatilho'), {})).not.toThrow();
+
+    const ditas = espiao.mock.calls.map((c) => String(c[0]));
+    expect(ditas).toContain('[error-reporter] failed to report');
+    espiao.mockRestore();
   });
 
   // T3.3: verify the dev-mode dispatch goes through console.error (prod path

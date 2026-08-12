@@ -7292,7 +7292,7 @@ evidence: |
   Phase-1 inventory reported src/build/ files=0 loc=0 while ls src/build shows 8 files (csp.test.ts, manual-chunks.ts + test, nginx-cache-policy.test.ts, sw-bff-paths.ts + test, sw-runtime-caching.ts + test). Root cause: SKIP_DIRS = {node_modules, .git, dist, build, ...} matched the path segment src/build.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/build/manual-chunks.ts:1`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7302,6 +7302,7 @@ dod:
   - Anchor artefact exclusions to the repo root (./dist, ./build) rather than matching any path segment
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-manual-chunks-self-defect-this-audit-own-phase`). Source: code-review finding #113, `code-review-output/code-review.db`.
+shipped_note: a lista de exclusao passou a ter DUAS classes, porque os nomes significam coisas diferentes: `node_modules`/`__pycache__` valem em qualquer profundidade; `dist`/`build`/`out`/`target` so ao lado de um manifesto de pacote — senao sao diretorio de FONTE com nome de saida de build. Enumeracao typescript de `dashboard/`: 839 -> 847 arquivos, os oito de `src/build/` (inclusive o guarda de CSP do B-131) que a auditoria descartava em silencio; nenhum de node_modules/dist entrou junto. `is_skipped_path` substitui o casamento por segmento nos dois consumidores (run_code_quality + detector go), `repo_root` passou a ser propagado ate `_make_dead_finding` em vez de um hasattr. 5 testes novos, mutacao verificada, 112 testes do skill verdes.
 
 ## B-199 — Stale TODO in app-sidebar doc comment describes a hard-coded plan tier the file no longer renders   [x]
 
@@ -7763,7 +7764,7 @@ evidence: |
     }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/safe-redirect.ts:57`. It is one instance of F1 · a security guard exists, is tested, and is not called — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7773,6 +7774,7 @@ dod:
   - Hoist the environment check once (`const origin = typeof window === 'undefined' ? null : window.location.origin;`) and express the rule as a flat sequence of guard clauses over `origin` — same behaviour, roughly half the branches, and every
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-safe-redirect-issaferedirecturl-has-measured-cc-14-for`). Source: code-review finding #55, `code-review-output/code-review.db`.
+shipped_note: CCN 17 (o item registrou 14 — subira desde a medicao) -> 6. Uma regra de RECUSA ordenada (nunca descer de https para http) seguida de tres permissoes independentes. A caracterizacao dos ramos sem teste achou um defeito real: o ramo que aceita origem configurada em `http:` era INALCANCAVEL — o antigo primeiro `if` recusava todo nao-https fora da mesma origem, entao um ramo escrito de proposito (o `docker-entrypoint.sh` valida e aceita `http://`) e comentado como raiz de confianca nunca rodou. Agora roda exatamente onde e seguro: pagina http. As verificacoes de protocolo nas permissoes eram REDUNDANTES (a string de origem ja carrega o esquema) — provado por mutacao equivalente e removidas; o invariante que aparentavam proteger e da LISTA e passou a ser afirmado la. 13 -> 55 testes; varredura de mutacao em 7 pontos, duas sobreviventes viraram teste.
 
 ## B-215 — reportError has measured CC 16 from three nested swallow layers   [ ]
 
@@ -7791,7 +7793,7 @@ evidence: |
       errorsThisSession++;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/telemetry/error-reporter.ts:21`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7801,6 +7803,7 @@ dod:
   - Extract `buildPayload(error, info)` and `dispatch(body)` so each has one reason to fail, keep the single outer try/catch on the composed call, and increment an in-memory `reporterFailures` counter in the outer catch so a systematically brok
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-error-reporter-reporterror-has-measured-cc-16-from`). Source: code-review finding #56, `code-review-output/code-review.db`.
+shipped_note: CCN 16 -> sem limiar excedido. Tres camadas de engolimento aninhadas viraram uma, e em desenvolvimento ela FALA: o `catch` externo vazio apagava tambem os erros de PROGRAMACAO do proprio reporter — um reporter de erros que engole os proprios erros e o unico componente que ninguem consegue depurar. O `.catch` da promise ficou, documentado: a rejeicao e assincrona e o try ja terminou quando ela chega. No caminho, `test_rate_limits_after_10_errors_per_session` terminava em `expect(true).toBe(true)`, justificado por "nenhum contador publico exposto" — o limite SEMPRE foi observavel pelo numero de despachos; 15 chamadas, 10 despachos. 4 -> 6 testes, quatro mutacoes mortas.
 
 ## B-216 — mapKratosError console.errors on every call, including from a render path   [~]
 

@@ -78,60 +78,81 @@ export const SAFE_REDIRECT_ORIGINS: readonly string[] = [
  * certo e um segundo predicado com allowlist propria, nao afrouxar este.
  */
 export function isSafeRedirectUrl(raw: string | null | undefined): boolean {
-  if (raw == null || raw === '') {
-    return false;
-  }
-  let url: URL;
-  try {
-    // BASE OBRIGATORIA. Sem ela, `new URL('/device-success')` LANCA — um caminho
-    // relativo nao tem origem — e o guard rejeitava o destino mais seguro que
-    // existe: mesma origem, sem host. O e2e pegou (`device-verify.spec.ts:57`);
-    // os testes unitarios nao, porque so exercitavam URLs absolutas.
-    //
-    // Com a base, a checagem de origem abaixo continua fazendo todo o trabalho:
-    // `/device-success` resolve para a propria origem e passa; `//evil.com`
-    // resolve para `https://evil.com` e e recusado como qualquer outro host de
-    // fora. Um caminho relativo NAO ganha excecao — ele so passa a ser resolvido
-    // antes de ser julgado.
-    // A base so entra quando a entrada COMECA com `/`. Aplicar base a qualquer
-    // string tornaria `'not a url'` valido — ele resolveria para
-    // `<origem>/not%20a%20url`, que e mesma origem e portanto "seguro", mas
-    // navegar para lixo nao e o comportamento certo: entrada malformada deve
-    // virar erro visivel, nao uma navegacao silenciosa para um 404.
-    //
-    // `//evil.com` tambem comeca com `/` e recebe a base — de proposito: ele
-    // resolve para `https://evil.com` e e recusado pela checagem de origem, que
-    // e onde essa decisao pertence. Nao existe atalho "comeca com / logo e
-    // seguro"; a resolucao acontece antes do julgamento, nunca no lugar dele.
-    const base =
-      raw.startsWith('/') && typeof window !== 'undefined' ? window.location.origin : undefined;
-    url = base ? new URL(raw, base) : new URL(raw);
-  } catch {
-    return false;
-  }
-  // Reject any non-https scheme against the allowlist; same-origin can
-  // also be http during local dev — handled by the origin compare below.
-  if (url.protocol !== 'https:' && typeof window !== 'undefined') {
-    // Same-origin http (local dev) is honored ONLY when the page itself
-    // is on http (mirrors the location origin). On https pages, http
-    // redirects are not safe.
-    if (window.location.origin !== url.origin) {
-      return false;
-    }
-  }
-  if (typeof window !== 'undefined' && url.origin === window.location.origin) {
-    return true;
-  }
-  // The configured hosts count too — see `configuredOrigins`. Operator-supplied config is a
-  // trust root; a Kratos response is not.
-  if (
-    (url.protocol === 'https:' || url.protocol === 'http:') &&
-    configuredOrigins().includes(url.origin)
-  ) {
-    return true;
-  }
-  if (url.protocol === 'https:' && SAFE_REDIRECT_ORIGINS.includes(url.origin)) {
-    return true;
-  }
-  return false;
+  if (raw == null || raw === '') return false;
+
+  const url = analisar(raw);
+  if (!url) return false;
+
+  // B-214 — REGRA 1, e ela vem antes de qualquer permissão: nunca rebaixar o esquema. Uma página
+  // servida em https que redireciona para http joga a navegação em texto claro, e o destino ser
+  // confiável não muda isso.
+  //
+  // Este era o primeiro `if` do guarda, e ele tornava INALCANÇÁVEL o ramo logo abaixo que aceita
+  // uma origem configurada em `http:` — escrito de propósito (`docker-entrypoint.sh` valida e
+  // aceita `http://`), comentado como raiz de confiança, e morto em toda execução: numa página
+  // https o `if` recusava antes, e numa página http a origem não batia por ser outro host. Um
+  // ramo de segurança que nunca roda é pior que ausente: ele descreve uma proteção que não existe.
+  //
+  // A regra agora diz o que pretendia dizer — proibido DESCER de https para http — em vez de
+  // "proibido http", que é o que ela fazia. Numa página http (dev local com o Kratos noutra
+  // porta), um destino http configurado pelo operador passa. Numa página https, não passa nunca.
+  if (url.protocol === 'http:' && paginaHttps()) return false;
+
+  return PERMISSOES.some((permitir) => permitir(url));
 }
+
+/**
+ * `new URL` com base só quando a entrada COMEÇA com `/`.
+ *
+ * Sem base, `new URL('/device-success')` lança — um caminho relativo não tem origem — e o guarda
+ * recusava o destino mais seguro que existe. Aplicar base a QUALQUER string seria o oposto:
+ * `'not a url'` viraria `<origem>/not%20a%20url`, mesma origem e portanto "seguro", trocando uma
+ * entrada malformada por uma navegação silenciosa para um 404.
+ *
+ * `//evil.com` também começa com `/` e recebe a base, de propósito: resolve para
+ * `https://evil.com` e é recusado pela checagem de origem, que é onde essa decisão pertence. Não
+ * existe atalho "começa com / logo é seguro" — a resolução acontece antes do julgamento, nunca no
+ * lugar dele. (O e2e pegou o caso relativo em `device-verify.spec.ts:57`; os testes unitários não,
+ * porque só exercitavam URLs absolutas.)
+ */
+function analisar(raw: string): URL | null {
+  try {
+    const base = raw.startsWith('/') && typeof window !== 'undefined' ? window.location.origin : undefined;
+    return base ? new URL(raw, base) : new URL(raw);
+  } catch {
+    return null;
+  }
+}
+
+function paginaHttps(): boolean {
+  // Sem `window` não há esquema de página para comparar, e um destino http não é julgável. Tratar
+  // como https é a leitura conservadora: recusa.
+  return typeof window === 'undefined' || window.location.origin.startsWith('https:');
+}
+
+/**
+ * As três razões pelas quais um destino é aceito. Basta uma; a ordem entre elas não altera o
+ * resultado, o que é justamente o que se quer de uma lista de permissões (a regra de recusa acima
+ * é que é ordenada, e por isso mora fora daqui).
+ */
+const PERMISSOES: readonly ((url: URL) => boolean)[] = [
+  // A própria origem, em qualquer esquema que a página já esteja usando.
+  (url) => typeof window !== 'undefined' && url.origin === window.location.origin,
+
+  // As origens que o OPERADOR configurou. `docker-entrypoint.sh` as valida e elas não vêm da
+  // resposta do servidor, então são raiz de confiança de um jeito que `flow.ui.action` nunca é.
+  // Sem elas o guarda bricava login, verificação e recuperação em qualquer deployment cujo host de
+  // auth não fosse um dos seis literais de `SAFE_REDIRECT_ORIGINS` — incluindo
+  // `https://accounts.usetheo.dev`, a topologia que `kratos.ts` documenta no próprio comentário.
+  //
+  // Sem verificação de protocolo aqui, e nem na regra seguinte: uma string de origem JÁ carrega o
+  // esquema (`https://auth-dev.usetheo.dev`), então comparar origens rejeita `http://` pelo mesmo
+  // ato. `javascript:` e `data:` produzem origem `'null'`, que não está em lista nenhuma. As
+  // verificações que existiam aqui eram redundantes — provado por mutação: removê-las não mudava
+  // nenhum resultado. O invariante que elas aparentavam proteger é da LISTA, e é lá que ele está
+  // afirmado (`safe-redirect.test.ts`).
+  (url) => configuredOrigins().includes(url.origin),
+
+  // Os hosts canônicos.
+  (url) => SAFE_REDIRECT_ORIGINS.includes(url.origin),
+];

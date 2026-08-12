@@ -2,6 +2,15 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** sign-in can now complete on deployments whose identity service runs over plain HTTP on a local network. The redirect guard carried a branch that allowed operator-configured hosts on HTTP — written deliberately, and unreachable in every execution, because an earlier check rejected the request first. Redirects from an HTTPS page to HTTP stay blocked, which is what that check was for (B-214).
+- **theo-cloud/dashboard:** a bug inside the error reporter no longer disappears without trace. Its outermost handler discarded everything, including its own programming errors — in the one component whose job is to make sure errors are not lost. Failures are now surfaced during development and stay silent in production, where a telemetry gap is not the user's problem (B-215).
+
+### Changed
+
+- **theo-cloud/internal tooling:** the code-quality audit stopped silently skipping source directories whose name resembles a build output. Any folder called `build`, `dist`, `out` or `target` was dropped at any depth, so eight files of the dashboard — including the check that keeps the two security policies in agreement — were never audited, with no warning that they had been left out (B-198).
+
+### Fixed
+
 - **theo-cloud/dashboard:** web fonts, file previews and provider logos no longer fail to load in production. Two content-security policies ship with the dashboard — one in the page, one as a response header — and browsers apply both, so the narrower one silently revoked six things the page declared it needed. Nothing reported an error; the assets simply never arrived (B-131).
 
 ### Changed

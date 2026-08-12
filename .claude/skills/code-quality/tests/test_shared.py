@@ -17,6 +17,7 @@ import pytest
 
 from scripts._shared import (
     DEFAULT_SKIP_DIRS,
+    is_skipped_path,
     AllowlistEntry,
     AllowlistMatch,
     Finding,
@@ -329,3 +330,42 @@ def test_emit_json_summary_score_caps_per_golden_rule() -> None:
     assert emit_json_summary([], "FAIL_SOFT", [])["score_cap"] == 70
     assert emit_json_summary([], "FAIL_HARD", [])["score_cap"] == 49
     assert emit_json_summary([], "INVALID", [])["score_cap"] == 0
+
+
+# --- B-198: skip-list matching by meaning, not by segment name ---
+
+
+def test_source_dir_named_like_build_output_is_not_skipped(tmp_path):
+    """`src/build/` is source. The audit dropped all eight of its files silently."""
+    (tmp_path / "src" / "build").mkdir(parents=True)
+    assert not is_skipped_path(Path("src/build/csp.test.ts"), tmp_path)
+
+
+def test_build_output_next_to_a_manifest_is_skipped(tmp_path):
+    """`dist/` beside a package.json is that package's output, at any depth."""
+    (tmp_path / "app" / "dist").mkdir(parents=True)
+    (tmp_path / "app" / "package.json").write_text("{}")
+    assert is_skipped_path(Path("app/dist/bundle.js"), tmp_path)
+
+
+def test_node_modules_is_skipped_at_any_depth(tmp_path):
+    """A name that means the same everywhere keeps matching everywhere."""
+    assert is_skipped_path(Path("a/b/node_modules/pkg/index.ts"), tmp_path)
+    assert is_skipped_path(Path("node_modules/pkg/index.ts"), tmp_path)
+
+
+def test_a_fragment_off_disk_is_skipped_rather_than_guessed(tmp_path):
+    """A tool's stdout may name a path that does not resolve here.
+
+    Skipping is the safe reading: the name is build output far more often than
+    not, and a false skip costs coverage while a false keep audits a dependency.
+    """
+    assert is_skipped_path(Path("nowhere/dist/x.go"), tmp_path)
+
+
+def test_the_two_classes_together_are_the_legacy_set():
+    """`DEFAULT_SKIP_DIRS` stays the union, so callers reading names still work."""
+    from scripts._shared import SKIP_ANY_DEPTH, SKIP_WHEN_BUILD_OUTPUT
+
+    assert SKIP_ANY_DEPTH | SKIP_WHEN_BUILD_OUTPUT == DEFAULT_SKIP_DIRS
+    assert not (SKIP_ANY_DEPTH & SKIP_WHEN_BUILD_OUTPUT)

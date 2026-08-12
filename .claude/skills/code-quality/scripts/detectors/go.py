@@ -96,7 +96,7 @@ class GoDetector(BaseDetector):
                     allowlist_key="go|.|dead_code|auditor_output_malformed_deadcode",
                 )
             ]
-        return self._parse_deadcode_json(data)
+        return self._parse_deadcode_json(data, repo_root)
 
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
         """T2.5 — Validate Go imports against Go proxy. Skip self-module + vendored (EC-17 analog, EC-18).
@@ -244,7 +244,7 @@ class GoDetector(BaseDetector):
 
     # ------------------------------------------------------------------
 
-    def _parse_deadcode_json(self, data) -> list[Finding]:
+    def _parse_deadcode_json(self, data, repo_root: Path | None = None) -> list[Finding]:
         """Parse a saida `-json` do deadcode em Findings por FUNCAO.
 
         Corrigido em 2026-08-06. A versao anterior lia `entry["position"]` e
@@ -273,28 +273,32 @@ class GoDetector(BaseDetector):
             if isinstance(funcs, list):
                 for fn in funcs:
                     if isinstance(fn, dict):
-                        f = self._finding_from_func(fn)
+                        f = self._finding_from_func(fn, repo_root)
                         if f is not None:
                             findings.append(f)
                 continue
             position, name = entry.get("position"), entry.get("name")
             if position is None and name is None:
                 continue
-            f = self._make_dead_finding(str(name or "<unknown>"), str(position or "<unknown>:0:0"))
+            f = self._make_dead_finding(
+                str(name or "<unknown>"), str(position or "<unknown>:0:0"), repo_root
+            )
             if f is not None:
                 findings.append(f)
         return findings
 
-    def _finding_from_func(self, fn: dict) -> Finding | None:
+    def _finding_from_func(self, fn: dict, repo_root: Path | None = None) -> Finding | None:
         name = str(fn.get("Name", "<unknown>"))
         pos = fn.get("Position")
         if isinstance(pos, dict):
             position = f"{pos.get('File', '<unknown>')}:{pos.get('Line', 0)}:{pos.get('Col', 0)}"
         else:
             position = str(pos or "<unknown>:0:0")
-        return self._make_dead_finding(name, position)
+        return self._make_dead_finding(name, position, repo_root)
 
-    def _make_dead_finding(self, name: str, position: str) -> Finding | None:
+    def _make_dead_finding(
+        self, name: str, position: str, repo_root: Path | None = None
+    ) -> Finding | None:
         file_part = position.split(":", 1)[0] if ":" in position else position
 
         # DEFAULT_SKIP_DIRS existia e este detector nao o aplicava: `deadcode ./...`

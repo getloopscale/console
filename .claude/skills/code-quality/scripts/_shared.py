@@ -24,8 +24,24 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # EC-10 — file enumeration skip list
 # ---------------------------------------------------------------------------
+#
+# B-198 — two classes, because they mean different things.
+#
+# A name like `node_modules` or `__pycache__` denotes the same thing wherever it
+# appears, so matching it at any depth is correct. A name like `build`, `dist`,
+# `out` or `target` denotes BUILD OUTPUT, and only when it sits next to the
+# manifest of the package that produced it. `src/build/` is source code that
+# happens to be named after the phase it configures — and this repository has
+# exactly that: eight files, including the guard that keeps the two content
+# security policies in agreement, all silently absent from the audit inventory
+# because one path segment matched.
+#
+# Silence is the whole problem. A directory dropped from enumeration produces no
+# error and no zero-file warning; it produces a clean report over a smaller
+# codebase than the one that shipped.
 
-DEFAULT_SKIP_DIRS: frozenset[str] = frozenset(
+#: Skipped wherever they appear — the name means the same at any depth.
+SKIP_ANY_DEPTH: frozenset[str] = frozenset(
     {
         ".git",
         ".claude",  # meta-tooling — /code-quality audits the PRODUCT, not its own skills
@@ -33,10 +49,6 @@ DEFAULT_SKIP_DIRS: frozenset[str] = frozenset(
         ".venv",
         "venv",
         "__pycache__",
-        "target",  # Rust + Java
-        "dist",
-        "build",
-        "out",
         "references",  # read-only zone (third-party study material) per cycle-discover.md
         ".mypy_cache",
         ".pytest_cache",
@@ -46,6 +58,60 @@ DEFAULT_SKIP_DIRS: frozenset[str] = frozenset(
         ".cache",
     }
 )
+
+#: Skipped ONLY next to a package manifest — otherwise they are ordinary source
+#: directories that happen to carry a build-ish name.
+SKIP_WHEN_BUILD_OUTPUT: frozenset[str] = frozenset(
+    {
+        "target",  # Rust + Java
+        "dist",
+        "build",
+        "out",
+    }
+)
+
+#: A directory holding one of these is a package root, so a `dist`/`build`/`out`/
+#: `target` sitting beside it is that package's output rather than its source.
+PACKAGE_MANIFESTS: frozenset[str] = frozenset(
+    {
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+        "pyproject.toml",
+        "setup.py",
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts",
+    }
+)
+
+#: Kept for callers that only need the any-depth names.
+DEFAULT_SKIP_DIRS: frozenset[str] = SKIP_ANY_DEPTH | SKIP_WHEN_BUILD_OUTPUT
+
+
+def is_skipped_path(path: Path, repo_root: Path | None = None) -> bool:
+    """Whether ``path`` lies inside a directory the audit must not enumerate.
+
+    ``repo_root`` anchors the manifest lookup; without it, the check falls back to
+    the path's own ancestors, which is what a caller holding only a relative
+    fragment (a tool's stdout, say) can offer.
+    """
+    parts = path.parts
+    if any(part in SKIP_ANY_DEPTH for part in parts):
+        return True
+
+    for indice, part in enumerate(parts):
+        if part not in SKIP_WHEN_BUILD_OUTPUT:
+            continue
+        pai = Path(*parts[:indice]) if indice else Path(".")
+        if repo_root is not None and not pai.is_absolute():
+            pai = repo_root / pai
+        # A relative fragment whose parent is not on disk cannot be judged. Skipping
+        # it is the safe reading: the name is build output far more often than not,
+        # and a false skip loses coverage while a false keep audits a dependency.
+        if not pai.is_dir() or any((pai / m).exists() for m in PACKAGE_MANIFESTS):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -455,6 +521,10 @@ def _finding_to_stable_identifier(f: Finding) -> str:
 
 __all__ = [
     "DEFAULT_SKIP_DIRS",
+    "SKIP_ANY_DEPTH",
+    "SKIP_WHEN_BUILD_OUTPUT",
+    "PACKAGE_MANIFESTS",
+    "is_skipped_path",
     "AllowlistEntry",
     "AllowlistMatch",
     "Finding",

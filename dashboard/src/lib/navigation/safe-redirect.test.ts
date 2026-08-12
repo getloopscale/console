@@ -100,3 +100,23 @@ describe('safe-redirect — caminhos relativos e as armadilhas ao lado deles', (
     expect(isSafeRedirectUrl('data:text/html,<script>alert(1)</script>')).toBe(false);
   });
 });
+
+describe('B-214 — o invariante da lista canônica', () => {
+  it('toda origem canônica é https', () => {
+    // É este invariante que faz a comparação de origens rejeitar `http://auth-dev.usetheo.dev`
+    // sem nenhuma verificação de protocolo no predicado: a origem carrega o esquema. Uma entrada
+    // http na lista abriria um destino em texto claro sem que nada no guarda reclamasse — então a
+    // afirmação mora aqui, junto da lista, e não espalhada em `if`s redundantes.
+    for (const origem of SAFE_REDIRECT_ORIGINS) {
+      expect(origem, `${origem} deveria ser https`).toMatch(/^https:\/\//);
+    }
+  });
+
+  it('nenhuma entrada traz caminho, query ou barra final — origem é só esquema://host:porta', () => {
+    // `url.origin` nunca inclui caminho. Uma entrada como `https://auth.usetheo.dev/` jamais
+    // casaria, e o host ficaria silenciosamente fora do allowlist.
+    for (const origem of SAFE_REDIRECT_ORIGINS) {
+      expect(new URL(origem).origin, `${origem} não está na forma de origem`).toBe(origem);
+    }
+  });
+});

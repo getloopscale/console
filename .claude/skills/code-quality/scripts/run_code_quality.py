@@ -123,7 +123,7 @@ def _safe_call(label: str, func, *args, language: str = "") -> tuple[list[Findin
 
 
 def _enumerate_source_files(repo_root: Path, language: str) -> list[Path]:
-    from scripts._shared import DEFAULT_SKIP_DIRS
+    from scripts._shared import is_skipped_path
 
     exts = {
         "python": (".py",),
@@ -135,7 +135,7 @@ def _enumerate_source_files(repo_root: Path, language: str) -> list[Path]:
         return []
     out: list[Path] = []
     for path in repo_root.rglob("*"):
-        if any(part in DEFAULT_SKIP_DIRS for part in path.parts):
+        if is_skipped_path(path.relative_to(repo_root), repo_root):
             continue
         if path.is_file() and path.suffix in exts:
             out.append(path)
