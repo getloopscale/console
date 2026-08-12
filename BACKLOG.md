@@ -4828,7 +4828,7 @@ open_question: |
   Translating the strings does not answer what locale the product should format dates in. Hardcoding
   `en-US` is as much a decision as hardcoding `pt-BR` was, and following the browser is a third. That
   is a product call, and picking one silently while doing a translation sweep would bury it.
-status: raw
+status: killed
 dod:
   - no user-visible string in the dashboard is in Portuguese
   - a test fails when a UI label matches a Portuguese-only marker set
@@ -4869,6 +4869,8 @@ with a Portuguese one, in a file whose other added lines are English, in a commi
 translated 'Tentar novamente' to 'Try again' in the same diff — so the rule was known.
 
 This needs a DECISION before it needs a sweep.
+superseded_by: B-241
+kill_reason: escopo e decisao passaram para B-241, com a medicao corrigida (179 identificadores, nao 9 nem 278).
 
 ## B-129 — Four capability overviews have counts and no chart   [x]
 
@@ -8638,9 +8640,11 @@ remeasured: |
   grande, e mistura-lo aos commits deste ciclo tornaria ilegivel tanto o rename quanto as
   correcoes. E a decisao de ESCOPO (so o novo? o repo inteiro? o guard passa a reprovar?) e do
   dono, como o proprio DoD deste item diz.
-status: triaged
+status: killed
 dod:
   - a decisão sobre tradução está tomada e registrada, ou o item é morto com o motivo
+superseded_by: B-241
+kill_reason: escopo e decisao passaram para B-241, com a medicao corrigida (179 identificadores, nao 9 nem 278).
 
 ## B-229 — Governance exception: the promotion merge was made by the assistant   [x]
 
@@ -8714,4 +8718,65 @@ dod:
   - a saida escolhida nao desliga a navegacao real que o caso exercita
 
 > Registrado 2026-08-11 durante o B-237.
+
+## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+severity: medium
+category: code
+supersedes: B-128
+evidence: |
+  src/lib/i18n-guard.test.ts
+  MEDIDO 2026-08-12 sobre `dashboard/src` (comentarios removidos antes de contar, porque a
+  convencao os permite em portugues):
+
+    179 identificadores distintos com forma portuguesa, em 202 arquivos
+      81 LOCAIS       — declarados e usados num arquivo so
+      98 CRUZAM ARQUIVO
+
+  A primeira medicao dizia 278 e estava inflada: `isError`, `ApiError` e `errorRate` casavam
+  "Erro" por acidente de caixa. O numero corrigido e 179.
+
+  ARMADILHA PRINCIPAL, medida e nao suposta: os de maior alcance NAO sao simbolos compartilhados.
+  `erro` aparece em 53 arquivos, `lista` em 44, `vazio` em 43 — sao variaveis LOCAIS homonimas.
+  Um `sed` de `\berro\b` -> `error` colide com o `error` que ja existe no escopo em boa parte
+  desses arquivos (`const { error } = useX()`), e o resultado compila em alguns e quebra em
+  outros. Isto exige rename ciente de tipos (ou arquivo a arquivo com `tsc` entre cada lote),
+  nunca substituicao textual global.
+why_now: |
+  O dono decidiu o escopo em 2026-08-12, respondendo ao B-239: repo inteiro, com o guard passando
+  a reprovar. O B-128 registrava a divida sem escopo nem decisao; este item o substitui com ambos.
+tentativa_1: |
+  TENTADO E REVERTIDO 2026-08-12, com o motivo medido — registrado para que ninguem repita.
+
+  Abordagem: mapa de 60 nomes -> ingles, aplicado por `re.sub(r'\bNOME\b')` nos modulos novos do
+  ciclo MAIS todo arquivo que citasse qualquer um deles (`grep -rlE`). Resultado: 270 arquivos
+  tocados, 249 modificados, `tsc` com erros de redeclaracao e de tipo, e — o pior — PROSA
+  CORROMPIDA: `sw-runtime-caching.ts` passou a dizer "uma input_ velha nao e servida" porque
+  `entrada` estava no mapa e a palavra aparece em COMENTARIO. `git restore` desfez tudo; suite de
+  volta a 3216 verdes.
+
+  As duas licoes, ambas medidas e nao supostas:
+    1. O rename NAO pode ver comentario. A convencao do repo permite portugues neles, entao metade
+       das palavras do mapa aparece em prosa. Qualquer ferramenta textual precisa remover
+       comentarios ANTES e reinseri-los depois — ou ser ciente da sintaxe.
+    2. Nomes genericos (`entrada`, `saida`, `estado`, `resumo`, `titulo`, `falha`) colidem com
+       simbolos ja existentes no escopo de destino. O `tsc` pega, mas so depois de 249 arquivos
+       terem sido escritos — cedo demais para ser util como rede.
+
+  CONCLUSAO: exige rename ciente de TIPOS (a language service do TypeScript, ja instalada, via um
+  harness proprio) ou arquivo a arquivo com `tsc` entre cada arquivo. Nao e trabalho de sessao de
+  fim de ciclo, e por isso este item nasce triaged em vez de ser feito as pressas.
+status: triaged
+dod:
+  - zero identificadores em forma portuguesa em `dashboard/src` pela medicao acima
+  - `i18n-guard.test.ts` reprova um identificador em portugues, com auto-teste que prova a reprovacao
+  - comentarios em portugues seguem permitidos (a convencao do repo nao muda)
+  - a suite verde em ordem fixa E sob shuffle apos cada lote
+  - o guard entra POR ULTIMO: ligado antes, ele reprova a propria migracao
+
+> Registrado 2026-08-12. Escopo decidido pelo dono; substitui o B-128.
 
