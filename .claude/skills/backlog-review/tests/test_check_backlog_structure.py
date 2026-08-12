@@ -224,3 +224,63 @@ def test_every_finding_declares_its_kind(tmp_path: Path) -> None:
     assert report["findings"]
     for f in report["findings"]:
         assert f["kind"] in ("deterministic", "heuristic"), f
+
+
+# --- checkbox_contradicts_status (2026-08-12) ---
+
+
+def test_checkbox_marcada_num_item_raw_e_acusada(tmp_path):
+    """A direção perigosa: a caixa diz feito, o status diz que ninguém mediu."""
+    backlog = write_backlog(tmp_path, """## B-001 — algo   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  porque sim
+status: raw
+dod:
+  - um criterio verificavel
+""")
+    ids = {f["check"] for f in check_backlog(backlog)["findings"]}
+    assert "checkbox_contradicts_status" in ids
+
+
+def test_checkbox_vazia_num_item_shipped_e_acusada(tmp_path):
+    """A outra direção: trabalho entregue que some de qualquer contagem por checkbox."""
+    backlog = write_backlog(tmp_path, """## B-002 — algo   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: src/a.ts:1
+why_now: |
+  porque sim
+status: shipped
+dod:
+  - um criterio verificavel
+""")
+    ids = {f["check"] for f in check_backlog(backlog)["findings"]}
+    assert "checkbox_contradicts_status" in ids
+
+
+def test_checkbox_coerente_nao_e_acusada(tmp_path):
+    """O contraponto: sem ele, um detector que acusasse tudo passaria nos dois casos acima."""
+    backlog = write_backlog(tmp_path, """## B-003 — algo   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: src/a.ts:1
+why_now: |
+  porque sim
+status: shipped
+dod:
+  - um criterio verificavel
+""")
+    ids = {f["check"] for f in check_backlog(backlog)["findings"]}
+    assert "checkbox_contradicts_status" not in ids

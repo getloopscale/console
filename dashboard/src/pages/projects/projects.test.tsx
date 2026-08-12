@@ -302,3 +302,41 @@ describe('ProjectsPage bulk select (J-07 D4)', () => {
     expect(screen.getByText('1 selected')).toBeInTheDocument();
   });
 });
+
+describe('B-237 — a tela com a leitura FALHA, e não só o helper', () => {
+  // `list-state.test.ts` prova a função pura. O que faltava era o WIRE: nenhum teste renderizava
+  // uma destas telas com `error: true` para ver o que a pessoa lê. É a distinção que este ciclo já
+  // pagou uma vez — o helper correto, ligado no lugar errado, e nada acusando.
+
+  it('uma busca sem resultado durante um erro diz que a leitura falhou, não que não há nada', async () => {
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'alpha', apps: [], last_deploy: '2026-05-23' }],
+      total: 1,
+      loading: false,
+      error: true,
+    });
+
+    render(<ProjectsPage />);
+    // A busca precisa não casar nada: é só aí que a tela AFIRMA ausência, e é a afirmação que
+    // muda de sentido quando a leitura falhou.
+    await userEvent.type(screen.getByRole('searchbox'), 'zzz-nao-existe');
+
+    expect(await screen.findByText(/Could not read/i)).toBeInTheDocument();
+    expect(screen.getByText(/it is showing nothing/i)).toBeInTheDocument();
+  });
+
+  it('sem erro, a mesma busca vazia continua dizendo que a busca não achou nada', async () => {
+    // O contraponto: a correção não pode virar "sempre avisa que falhou".
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'alpha', apps: [], last_deploy: '2026-05-23' }],
+      total: 1,
+      loading: false,
+      error: false,
+    });
+
+    render(<ProjectsPage />);
+    await userEvent.type(screen.getByRole('searchbox'), 'zzz-nao-existe');
+
+    expect(await screen.findByText(/No matching projects/i)).toBeInTheDocument();
+  });
+});

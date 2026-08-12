@@ -42,13 +42,33 @@ const ADR_DIR = resolve(__dirname, '../../docs/adr');
  */
 
 /**
- * Contagem congelada em 2026-08-07. **Só encolhe.**
+ * Contagem congelada em 2026-08-07 com 234. **Só encolhe.**
  *
- * Encolhe sozinha à medida que os arquivos que carregam essas citações sejam
- * reescritos por outros motivos. Se alguém baixar este número num commit, o
- * teste continua verde — é o sentido certo.
+ * B-246 mediu a promessa desta nota em 2026-08-12 e ela não se sustentava como
+ * estava escrita. "Encolhe sozinha à medida que os arquivos sejam reescritos por
+ * outros motivos" rendeu **1 citação em 5 dias**, sobre 134 arquivos: 234 -> 233.
+ * Nesse ritmo a classe leva cerca de três anos, o que é uma aposta e não um
+ * plano — que foi exatamente a crítica que abriu o item.
+ *
+ * A resposta não é acelerar. As duas saídas que restam foram medidas e nenhuma
+ * paga:
+ *
+ *   - reescrever para `ADR-000N` exigiria decidir, para cada citação, qual ADR
+ *     ela significa, e para a maioria a resposta é nenhum (B-098);
+ *   - renomear a classe para `plan decision D<n>` tocaria 234 sítios em 134
+ *     arquivos — incluindo NOMES DE TESTE, como
+ *     `reverify-button.test.tsx:25` — e trocaria uma referência enganosa por uma
+ *     honesta que continua não resolvendo, porque os planos citados usam o
+ *     formato `data-slug` e nenhum está no disco (re-verificado 2026-08-12
+ *     contra os 42 planos que existem, todos em formato de tópico).
+ *
+ * Então o valor desta catraca NÃO é encolher: é **impedir crescer**, e isso ela
+ * faz e prova. O segundo caso deste arquivo garante que a notação canônica
+ * `ADR-000N` sempre resolve, e o terceiro que o README que explica as duas
+ * existe e está atualizado. A classe está contida, documentada e fechada para
+ * novos membros — que é o resultado, não um consolo.
  */
-const TETO_CITACOES_DE_PLANO = 234;
+const TETO_CITACOES_DE_PLANO = 233;
 
 /**
  * O arquivo cuja MATÉRIA é a notação não conta como uso dela.

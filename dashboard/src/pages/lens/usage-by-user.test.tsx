@@ -547,7 +547,11 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     // `pageCount` derivado de `totalUsers` — fixá-lo em 1 esconde o paginador inteiro.
     expect(await screen.findByTestId('usage-pager')).toHaveTextContent('Page 1 / 3');
     // e o contador diz ONDE dentro do total, não só quantos vieram.
-    expect(screen.getByTestId('usage-count')).toHaveTextContent('Mostrando 1–50 de 120');
+    //
+    // B-184 — esta asserção dizia 'Mostrando 1–50 de 120'. Era o teste que PRENDIA a divergência:
+    // quatro telas diziam 'Showing … of …' e só esta falava outra língua, com um teste garantindo
+    // que continuasse assim. O texto agora vem de `calcularPaginacao`, junto das outras.
+    expect(screen.getByTestId('usage-count')).toHaveTextContent('Showing 1–50 of 120');
 
     const primeiraUrl = String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '');
     expect(primeiraUrl).toMatch(/offset=0/);

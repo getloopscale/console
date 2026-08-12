@@ -219,7 +219,7 @@ export default [
   // executavel e o pior dos tres estados — cara de cumprir, impossivel de
   // auditar, indistinguivel de folclore.
   //
-  // Esta regra NAO pede refactor: ela trava a divida onde esta. Os 18 arquivos
+  // Esta regra NAO pede refactor: ela trava a divida onde esta. Os 15 arquivos
   // que hoje excedem estao listados com o seu tamanho atual, entao a divida e
   // visivel no diff em vez de invisivel no disco. A lista NAO deve crescer; ela
   // encolhe conforme os arquivos sao decompostos (ADR-0002).
@@ -251,18 +251,20 @@ export default [
       // e tem de bater com o disco exatamente (sem folga onde crescer). Ao
       // decompor, baixe o numero — o progresso passa a ser medido.
       'src/lib/api/types.ts', // 861 LOC
-      'src/lib/mocks/handlers.ts', // 774 LOC
-      'src/pages/auth/recovery.tsx', // 711 LOC
-      'src/pages/deploy/deployments.tsx', // 703 LOC
+      'src/lib/mocks/handlers.ts', // 645 LOC
+      'src/pages/auth/recovery.tsx', // 692 LOC
+      'src/pages/deploy/deployments.tsx', // 694 LOC
       'src/pages/projects/project-connect.tsx', // 661 LOC
       'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
       'src/pages/memory/graph.tsx', // 690 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC
-      'src/pages/memory/webhooks.tsx', // 555 LOC
+      // 555 no inicio do ciclo; baixei para 545 cedo demais, antes de a revisao achar o nono
+      // local do B-167 neste arquivo. 552 e o valor apos a fatia inteira — ainda DESCIDA.
+      'src/pages/memory/webhooks.tsx', // 418 LOC
       'src/pages/skills/bundle-detail.tsx', // 539 LOC
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
-      'src/pages/settings/billing.tsx', // 525 LOC
-      'src/pages/settings/webhooks.tsx', // 521 LOC
+      'src/pages/settings/billing.tsx', // 502 LOC
+      'src/pages/settings/webhooks.tsx', // 354 LOC
       'src/pages/lens/alerts.tsx', // 523 LOC
       'src/pages/projects/projects.tsx', // 513 LOC
     ],

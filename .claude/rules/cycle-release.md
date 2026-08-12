@@ -25,7 +25,8 @@ Do NOT trigger when:
 
 ```
 /release {bump-level?}
-     ↓ detect last semver tag (git describe --tags --abbrev=0; fall back to v0.0.0)
+     ↓ detect the released version (highest semver tag REACHABLE FROM main; fall back to
+     ↓   highest semver tag anywhere, then to v0.0.0 — the source is recorded, not just the value)
      ↓ determine next version (bump-level OR auto-derive from CHANGELOG sections)
      ↓ rewrite CHANGELOG: move [Unreleased] body under [{next-version}] - {date}
      ↓ commit "chore(release): {next-version}" on workspace
@@ -41,7 +42,7 @@ Do NOT trigger when:
 
 | Phase | Input | Output | Hard gate |
 |---|---|---|---|
-| detect-version | last semver tag | parsed semver tuple | tag matches `v?\d+\.\d+\.\d+` OR fall back to v0.0.0 |
+| detect-version | git tag listing | `{version, source}` from `skills/release/scripts/detect_current_version.py` | tag matches `v?\d+\.\d+\.\d+` OR fall back to the next source; the source name is recorded |
 | bump | parsed version + bump-level | next version string | bump-level ∈ {patch, minor, major} OR derivable from CHANGELOG |
 | changelog-rewrite | CHANGELOG.md | CHANGELOG with [Unreleased] empty and a new versioned section | [Unreleased] had ≥ 1 entry before the rewrite |
 | pr-open | release branch state | PR URL | `gh pr create` exit 0; PR body = release notes |
@@ -82,6 +83,13 @@ If the rule cannot pick deterministically, the chain pauses and the human choose
 - **No direct commits to `main`** — even from this skill. Every change reaches `main` via the PR opened above.
 - **Tag must be annotated** (`git tag -a`) and pushed only after merge to `main` — never on `develop` or `workspace`.
 - **CHANGELOG must have content** — refuse if `[Unreleased]` is empty after stripping headers.
+- **Version detection never uses `git describe`** — it answers "the nearest tag in THIS history",
+  which is the wrong question twice over here. Release tags are cut on the `develop → main` merge
+  and `main` is never merged back, so no release tag is an ancestor of the authoring branch
+  (measured: `v0.29.0` returned while `v0.85.0` was released). And `describe` orders by ancestry,
+  so even against `origin/main` a hotfix numbered below a shipped release wins over the higher
+  version. Detection goes through `skills/release/scripts/detect_current_version.py`, which is
+  tested against both shapes. See B-228.
 - **Single-flip invariant** — at most ONE ROADMAP.md checkbox flipped per `RELEASED` verdict. Per `cycle-roadmap § Hard gates`.
 - **No silent flip** — the roadmap-runs file MUST be appended with the flip commit SHA. A flip without a run-file entry is forbidden.
 

@@ -1,43 +1,39 @@
 # Languages enabled for /code-quality and post-edit-check.sh.
 #
-# Format: one language identifier per line. Lines starting with '#' are comments.
-# Identifiers match the file extensions handled by hooks/post-edit-check.sh.
-#
-# Default policy: empty file = no language-specific quality checks run. Each
-# project enables the languages it actually uses. Adding a language here is a
-# signal to /code-quality and the post-edit hook that the toolchain should be
-# present and consulted.
-#
-# Supported identifiers (uncomment the ones your project uses):
-#
-# go
-# python
-# typescript
-# javascript
-# rust
-# java
-# kotlin
-# ruby
-# csharp
-
-# ---------------------------------------------------------------------------
-# ATENCAO AO FORMATO: o cabecalho acima diz "one language identifier per line".
-# Isso esta ERRADO — o parser que consome este arquivo
-# (skills/code-quality/scripts/_shared.py:110, `load_languages_config`) exige
-# quatro campos separados por `|`:
+# Format: one language per line, FOUR pipe-separated fields.
 #
 #     LANGUAGE | MANIFEST-MARKER | STATUS | NOTES
 #
-# com STATUS em {ENABLED, DISABLED, DEFER}. Uma linha com so o identificador
-# levanta `languages.txt malformed line`. Descobri isso em 2026-08-06 ao rodar o
-# gate: escrevi no formato que o cabecalho descreve e o skill recusou. O
-# cabecalho ficou como estava (nao e meu para reescrever), mas a contradicao
-# precisa estar visivel para quem editar depois.
+#   LANGUAGE         identifier matching the extensions hooks/post-edit-check.sh handles
+#   MANIFEST-MARKER  the file on disk that proves the language is really used here
+#   STATUS           one of ENABLED, DISABLED, DEFER
+#   NOTES            free text — why this language is (or is not) audited
 #
-# Habilitadas em 2026-08-06, antes da promocao workspace -> develop. Ate aqui o
-# arquivo estava inteiramente comentado, entao /code-quality saia com INFO "no
-# auditable languages" — um gate configurado para nao auditar nada. As duas nao
-# sao escolha: sao o que o repo COMPROVADAMENTE usa, com manifesto no disco.
-# ---------------------------------------------------------------------------
-go         | go.mod               | ENABLED  | Control plane na raiz do repo.
+# Lines starting with '#' are comments. A line carrying only the identifier raises
+# `malformed line` in skills/code-quality/scripts/_shared.py (load_languages_config).
+# The header used to say "one language identifier per line" and list the examples below
+# in that form, so uncommenting one — the first thing anyone does — failed. Fixed
+# 2026-08-12 (B-251); the format above is the one the parser actually accepts.
+#
+# Default policy: empty file = no language-specific quality checks run. Each project
+# enables the languages it actually uses. Adding a language here tells /code-quality and
+# the post-edit hook that the toolchain should be present and consulted.
+#
+# Supported identifiers (uncomment the ones your project uses and fill in the marker):
+#
+# go         | go.mod            | ENABLED  | why this project audits Go
+# python     | pyproject.toml    | ENABLED  | why this project audits Python
+# typescript | package.json      | ENABLED  | why this project audits TypeScript
+# javascript | package.json      | ENABLED  | why this project audits JavaScript
+# rust       | Cargo.toml        | ENABLED  | why this project audits Rust
+# java       | pom.xml           | ENABLED  | why this project audits Java
+# kotlin     | build.gradle.kts  | ENABLED  | why this project audits Kotlin
+# ruby       | Gemfile           | ENABLED  | why this project audits Ruby
+# csharp     | *.csproj          | ENABLED  | why this project audits C#
+
+# Enabled 2026-08-06, before the workspace -> develop promotion. Until then the file was
+# entirely commented out, so /code-quality exited with INFO "no auditable languages" — a
+# gate configured to audit nothing. Neither entry is a choice: both are what the repo
+# demonstrably uses, with the manifest present on disk.
+go         | go.mod               | ENABLED  | Control plane at the repository root.
 typescript | dashboard/package.json | ENABLED  | Dashboard SPA (React/Vite).

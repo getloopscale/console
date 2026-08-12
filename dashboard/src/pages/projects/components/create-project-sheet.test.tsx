@@ -53,3 +53,53 @@ describe('CreateProjectSheet — Red Team theo-cloud#59/#82 closure', () => {
     expect(describedBy).toMatch(/project-name-error/);
   });
 });
+
+describe('CreateProjectSheet — the create request (B-244 / B-260)', () => {
+  it('sends the name and hands the created project back', async () => {
+    const engineFetch = vi.mocked((await import('@/lib/http/api')).engineFetch);
+    engineFetch.mockResolvedValue({ name: 'my-app' } as never);
+    const onCreated = vi.fn();
+
+    render(<CreateProjectSheet open onOpenChange={() => {}} onCreated={onCreated} />);
+    await userEvent.type(screen.getByLabelText(/name/i), 'my-app');
+    await userEvent.click(screen.getByRole('button', { name: /create/i }));
+
+    expect(engineFetch).toHaveBeenCalledWith(
+      '/api/v1/projects',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'my-app' }) }),
+      expect.objectContaining({ throwOnError: true }),
+    );
+    expect(onCreated).toHaveBeenCalledWith({ name: 'my-app' });
+  });
+
+  it('names the failure instead of guessing at it', async () => {
+    // B-235 — before `throwOnError`, a non-2xx RESOLVED `null` and the form had to invent a
+    // message for a failure it could not describe ("Couldn't create project. Try again in a
+    // moment."). Now the reason arrives.
+    const engineFetch = vi.mocked((await import('@/lib/http/api')).engineFetch);
+    engineFetch.mockRejectedValue(new Error('name already taken'));
+
+    render(<CreateProjectSheet open onOpenChange={() => {}} />);
+    await userEvent.type(screen.getByLabelText(/name/i), 'my-app');
+    await userEvent.click(screen.getByRole('button', { name: /create/i }));
+
+    expect(await screen.findByText(/name already taken/i)).toBeInTheDocument();
+    expect(screen.getByText(/no project was created/i)).toBeInTheDocument();
+  });
+
+  it('refuses a 2xx with no body rather than reporting a project it cannot describe', async () => {
+    // The one `null` that `throwOnError` leaves: the server said "created" and did not say
+    // what. Handing that to the caller as `Project | null` is how every caller ends up
+    // inventing its own meaning for null, which is the defect B-235 records.
+    const engineFetch = vi.mocked((await import('@/lib/http/api')).engineFetch);
+    engineFetch.mockResolvedValue(null as never);
+    const onCreated = vi.fn();
+
+    render(<CreateProjectSheet open onOpenChange={() => {}} onCreated={onCreated} />);
+    await userEvent.type(screen.getByLabelText(/name/i), 'my-app');
+    await userEvent.click(screen.getByRole('button', { name: /create/i }));
+
+    expect(await screen.findByText(/returned no body/i)).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+});

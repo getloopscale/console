@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Badge, Card, EmptyState } from '@usetheo/ui';
-import { engineFetch } from '@/lib/http/api';
+import { useBuildAttestation } from '@/hooks/deploy/use-build-artifacts';
 import { formatDate } from '@/lib/formatting/format';
-import type { BuildAttestation } from '@/lib/api/types';
 
 /**
  * AttestationTab — Plan J-17 T5.6.
@@ -20,31 +18,12 @@ import type { BuildAttestation } from '@/lib/api/types';
  */
 export function AttestationTab() {
   const { id = '' } = useParams<{ name: string; id: string }>();
-  const [att, setAtt] = useState<BuildAttestation | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    engineFetch<BuildAttestation>(`/api/v1/builds/${encodeURIComponent(id)}/attestation`)
-      .then((data) => {
-        if (cancelled) return;
-        setAtt(data);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load attestation');
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  // B-244 — the read lives in the domain hook; this used to be a hand-rolled effect with its
+  // own `cancelled` flag, `loading` and `error` state.
+  const attQuery = useBuildAttestation(id);
+  const att = attQuery.data ?? null;
+  const loading = attQuery.isLoading;
+  const naoConsegiuLer = attQuery.isError;
 
   if (loading) {
     return (
@@ -57,16 +36,24 @@ export function AttestationTab() {
     );
   }
 
-  if (error || !att) {
+  // B-244 — "this build was never signed" and "I could not read whether it was signed" are
+  // opposite conclusions about supply-chain provenance, and they used to share a title.
+  if (naoConsegiuLer) {
+    return (
+      <EmptyState
+        icon={ShieldOff}
+        title="Could not read the attestation"
+        description="This build may well be signed — the request failed, so the absence on screen is not evidence of anything. Try again in a moment."
+      />
+    );
+  }
+
+  if (!att) {
     return (
       <EmptyState
         icon={ShieldCheck}
         title="No attestation for this build"
-        description={
-          error
-            ? `Could not load attestation: ${error}`
-            : "Cosign signs succeeded builds. Failed or cancelled builds don't have an attestation."
-        }
+        description="Cosign signs succeeded builds. Failed or cancelled builds don't have an attestation."
       />
     );
   }

@@ -9,7 +9,6 @@
 // All gated by VITE_USE_MOCKS=true. Production builds tree-shake everything.
 
 import { installMocks } from './server';
-import { installSSEMocks } from './sse';
 import { registerAllMockHandlers } from './handlers';
 
 export {
@@ -23,8 +22,6 @@ export {
 } from './server';
 
 export {
-  installSSEMocks,
-  uninstallSSEMocks,
   MockEventSource,
   registerSSE,
   resetSSERegistrations,
@@ -48,7 +45,6 @@ export { MOCKS_BUNDLE_SENTINEL } from './fixtures';
 export function installAllMocks(): void {
   registerAllMockHandlers();
   installMocks();
-  installSSEMocks();
   installSharedEventSourceTransport();
 }
 

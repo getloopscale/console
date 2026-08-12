@@ -55,7 +55,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
     mockedEngineFetch.mockResolvedValue(fixture);
 
     const { result } = renderHook(
-      () => useMetricsRange('teste', 'production', { signal: 'uptime_24h', range: '7d' }),
+      () => useMetricsRange('teste', { signal: 'uptime_24h', range: '7d' }),
       { wrapper: wrapper() },
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -77,7 +77,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
     mockedEngineFetch.mockResolvedValue(fixture);
 
     const { result } = renderHook(
-      () => useMetricsRange('newproj', 'production', { signal: 'uptime_24h' }),
+      () => useMetricsRange('newproj', { signal: 'uptime_24h' }),
       { wrapper: wrapper() },
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -92,7 +92,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
     mockedEngineFetch.mockResolvedValue(null);
 
     const { result } = renderHook(
-      () => useMetricsRange('teste', 'production', { signal: 'uptime_24h' }),
+      () => useMetricsRange('teste', { signal: 'uptime_24h' }),
       { wrapper: wrapper() },
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -113,7 +113,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
     } as MetricsRangeResponse);
 
     const { result } = renderHook(
-      () => useMetricsRange('proj/with/slashes', 'prod', { signal: 'p95_latency', range: '24h' }),
+      () => useMetricsRange('proj/with/slashes', { signal: 'p95_latency', range: '24h' }),
       { wrapper: wrapper() },
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -136,7 +136,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
     } as MetricsRangeResponse);
 
     renderHook(
-      () => useMetricsRange('teste', 'production', { signal: 'uptime_24h' }),
+      () => useMetricsRange('teste', { signal: 'uptime_24h' }),
       { wrapper: wrapper() },
     );
 
@@ -147,7 +147,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
 
   it('disabled when projectName is undefined — no fetch', async () => {
     renderHook(
-      () => useMetricsRange(undefined, 'production', { signal: 'uptime_24h' }),
+      () => useMetricsRange(undefined, { signal: 'uptime_24h' }),
       { wrapper: wrapper() },
     );
 
@@ -158,7 +158,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
 
   it('disabled when signal is empty string — no fetch', async () => {
     renderHook(
-      () => useMetricsRange('teste', 'production', { signal: '' }),
+      () => useMetricsRange('teste', { signal: '' }),
       { wrapper: wrapper() },
     );
 
@@ -175,14 +175,14 @@ describe('useMetricsRange — T2.2 J-18', () => {
     } as MetricsRangeResponse);
 
     renderHook(
-      () => useMetricsRange('teste', undefined, { signal: 'uptime_24h' }),
+      () => useMetricsRange('teste', { signal: 'uptime_24h' }),
       { wrapper: wrapper() },
     );
 
     await waitFor(() => {
       expect(mockedEngineFetch).toHaveBeenCalled();
     });
-    // env doesn't appear in URL today (matches use-project-status pattern),
+    // B-176 — este caso DOCUMENTAVA o defeito: env na chave e ausente da URL (matches use-project-status pattern),
     // but is part of queryKey for cache distinction
   });
 });

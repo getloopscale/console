@@ -2,6 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
+vi.mock('@/hooks/settings/use-whoami', () => ({
+  useWhoami: () => ({
+    whoami: { team_id: 'team-1', email: 'paulo@example.com' },
+    loading: false,
+    error: false,
+  }),
+}));
+
+vi.mock('@/lib/http/api', async (io) => {
+  const actual = await io<typeof import('@/lib/http/api')>();
+  return { ...actual, engineFetch: vi.fn() };
+});
+
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({
     active: true,
@@ -42,5 +55,30 @@ describe('SettingsPage', () => {
     await user.click(deleteTeamButtons[0]);
     // Dialog opens — assert description + confirmation phrase prompt visible
     expect(screen.getByText(/This will permanently delete your team/i)).toBeInTheDocument();
+  });
+});
+
+describe('SettingsPage — deleting the workspace (B-264)', () => {
+  it('does not navigate away when the delete is REFUSED', async () => {
+    // The same defect the profile screen had, in the second hand-rolled copy: without
+    // `throwOnError` a refused DELETE resolved `null`, nothing inspected it, and this closed
+    // the dialog and navigated to `/` — the user reads that as "my workspace is gone".
+    //
+    // `ConfirmDialog` keeps itself open and states the reason when `onConfirm` rejects
+    // (B-105); what was missing was that the request could not fail.
+    const { engineFetch } = await import('@/lib/http/api');
+    vi.mocked(engineFetch).mockRejectedValue(new Error('workspace has active deployments'));
+
+    render(<SettingsPage />);
+    // The DangerZone action and the dialog's confirm share the label "Delete Team", so the
+    // confirm is taken as the LAST match — the one the dialog just mounted.
+    await userEvent.click(screen.getAllByRole('button', { name: /delete team/i })[0]);
+    await userEvent.type(await screen.findByRole('textbox'), 'delete my team');
+    const botoes = screen.getAllByRole('button', { name: /delete team/i });
+    await userEvent.click(botoes[botoes.length - 1]);
+
+    await vi.waitFor(() =>
+      expect(document.body.textContent ?? '').toMatch(/workspace has active deployments/i),
+    );
   });
 });

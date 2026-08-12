@@ -46,9 +46,18 @@ export function SubPagePlaceholder({
           <EmptyState
             icon={icon}
             title={`${title} is coming soon`}
-            description="This screen is part of the navigation but the full UI is still being built. Use the CLI below to do this today."
+            /* B-132/B-133 — a frase dizia "Use the CLI below to do this today", e a revisão
+               apontou que ela sobreviveu à remoção dos comandos: os seis anunciados não existiam,
+               saíram, e cinco telas ficaram mandando usar um bloco que não é mais renderizado.
+               Consertar metade do defeito e deixar a outra metade apontando para o vazio é pior
+               que o defeito original, porque agora a instrução não tem sequer para onde apontar. */
+            description={
+              cliCommand === undefined
+                ? 'This screen is part of the navigation but the full UI is still being built.'
+                : 'This screen is part of the navigation but the full UI is still being built. Use the CLI below to do this today.'
+            }
           />
-          {cliCommand && (
+          {cliCommand !== undefined && (
             <div className="mt-6 max-w-xl mx-auto">
               <CodeBlock code={cliCommand} terminal copyable />
             </div>

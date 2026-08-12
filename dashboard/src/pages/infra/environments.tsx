@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Box, Lock, Plus, Rocket, Trash2 } from 'lucide-react';
 import { Button, Card, PageShell, StatusDot, Table } from '@usetheo/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
+import { estadoDaLista } from '@/lib/list-state';
 import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { CreateEnvironmentSheet } from '@/pages/infra/components/create-environment-sheet';
@@ -101,7 +102,9 @@ function statusLabel(s?: string): string {
 export function EnvironmentsPage() {
   useRequireAuth();
   const { setPageTitle } = usePageMeta();
-  const { data, loading } = useEngineApi<EnvsResponse>('/api/v1/environments');
+  // B-167 — `error` já vinha de `useEngineApi` e não era desestruturado, então uma leitura que
+  // falhou produzia zero ambientes e a tela afirmava "No environments yet".
+  const { data, loading, error: erroDeLeitura } = useEngineApi<EnvsResponse>('/api/v1/environments');
   const [searchQuery, setSearchQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   // O alvo da exclusão carrega o projeto no TIPO: só linhas já recortadas pelo projeto da rota
@@ -189,21 +192,26 @@ export function EnvironmentsPage() {
         onClick: () => setCreateOpen(true),
       }}
       loading={loading}
-      empty={
-        // 2026-06-07: page is empty only when BOTH permanent envs +
-        // every preview row are absent.
-        !loading && filtered.length === 0 && !showPreviewRows
-          ? {
-              icon: Box,
-              title: searchQuery
-                ? 'No matching environments'
-                : 'No environments yet',
-              description: searchQuery
-                ? 'Try a different search term.'
-                : 'Environments are created automatically per project on first deploy.',
-            }
-          : undefined
-      }
+      empty={estadoDaLista(
+        {
+          erro: erroDeLeitura,
+          // 2026-06-07: page is empty only when BOTH permanent envs +
+          // every preview row are absent.
+          vazio:
+            !loading && filtered.length === 0 && !showPreviewRows
+              ? {
+                  icon: Box,
+                  title: searchQuery
+                    ? 'No matching environments'
+                    : 'No environments yet',
+                  description: searchQuery
+                    ? 'Try a different search term.'
+                    : 'Environments are created automatically per project on first deploy.',
+                }
+              : undefined,
+        },
+        'environments',
+      )}
     >
       {/* Plan 2026-06-08-dashboard-screens-review-fixes T1.1 + ADR D1 —
           previous J-10 T2.5 "View Previews" cross-link dropped because

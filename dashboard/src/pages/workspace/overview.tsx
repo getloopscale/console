@@ -14,6 +14,7 @@ import {
   Checkbox,
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { triggerBlobDownload } from '@/lib/export/download';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -193,13 +194,15 @@ export function WorkspacePage() {
   const onDownload = async (file: StorageFile) => {
     const url = await presignedDownloadURL(presignDeps, file.path);
     const res = await window.fetch(url);
-    if (!res.ok) return;
-    const blobURL = URL.createObjectURL(await res.blob());
-    const a = document.createElement('a');
-    a.href = blobURL;
-    a.download = file.path.split('/').pop() ?? file.path;
-    a.click();
-    URL.revokeObjectURL(blobURL);
+    // B-230 — o `return` silencioso continuava aqui: um download que falhava não dizia nada, e a
+    // pessoa ficava esperando um arquivo que nunca vinha.
+    if (!res.ok) {
+      setUploadError(`Could not download ${file.path}. The storage service refused the request.`);
+      return;
+    }
+    // B-230 — era a TERCEIRA cópia do padrão Blob+âncora, e a que tinha perdido as duas
+    // proteções que a fonte canônica documenta (appendChild e revoke adiado).
+    triggerBlobDownload(file.path.split('/').pop() ?? file.path, await res.blob());
   };
 
   const onUploadFiles = async (files: FileList | null) => {

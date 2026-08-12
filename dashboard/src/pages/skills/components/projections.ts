@@ -11,7 +11,7 @@
  */
 
 /** `GET /v1/skills/:id/versions` → `{versions:[{version, revision_id}]}` */
-export interface VersionEntry {
+interface VersionEntry {
   readonly version: string;
   readonly revision_id: string;
 }

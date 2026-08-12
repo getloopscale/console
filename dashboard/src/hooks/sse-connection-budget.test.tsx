@@ -10,7 +10,7 @@ vi.mock('@/lib/http/api', () => ({
   cloudFetch: vi.fn(async () => null),
 }));
 
-vi.mock('@/lib/http/config', () => ({ API_URL: '', AUTH_URL: '', ENGINE_URL: '', ACCOUNTS_URL: '' }));
+vi.mock('@/lib/http/config', () => ({ API_URL: '', AUTH_URL: '', ACCOUNTS_URL: '' }));
 
 import { useDeploymentStream } from '@/hooks/deploy/use-deployment-stream';
 import { __setTransporte } from '@/hooks/deploy/shared-event-source';

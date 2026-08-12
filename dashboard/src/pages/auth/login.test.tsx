@@ -5,7 +5,6 @@ import { render, screen, waitFor } from '@/test/render';
 vi.mock('@/lib/http/config', () => ({
   API_URL: 'https://auth-dev.usetheo.dev',
   AUTH_URL: '',
-  ENGINE_URL: '',
   ACCOUNTS_URL: '',
 }));
 
@@ -118,12 +117,17 @@ describe('LoginPage', () => {
     const formCalls = createElementSpy.mock.calls.filter((c) => c[0] === 'form');
     expect(formCalls.length).toBeGreaterThanOrEqual(1);
 
-    // Inspect the form structure that was submitted by walking document children
-    // before the cleanup. Form is in document.body since submitPassword appended it.
-    const forms = Array.from(document.querySelectorAll('form'));
-    const passwordForm = forms.find((f) =>
-      f.action.includes('self-service/login') && f.method.toLowerCase() === 'post',
-    );
+    // B-197 — isto varria `document.querySelectorAll('form')` e pegava a PRIMEIRA que casasse.
+    // O `cleanup()` do RTL remove só o container que ele criou; uma form que o código de produção
+    // anexa direto no `body` sobrevive ao teste. Em ordem fixa o caso de OIDC vinha depois; sob
+    // shuffle vinha antes, e este caso inspecionava a form DELE — `bag.method` era `'oidc'`.
+    //
+    // A form submetida é a que o stub recebeu como `this`. Ler dali é independente de ordem e é
+    // também a afirmação mais forte: fala da form que foi ENVIADA, e não de uma que estava por
+    // perto e casava com o seletor.
+    const passwordForm = submitStub.mock.instances[submitStub.mock.instances.length - 1] as
+      | HTMLFormElement
+      | undefined;
     expect(passwordForm).toBeTruthy();
     if (passwordForm) {
       const inputs = Array.from(passwordForm.querySelectorAll('input[type=hidden]')) as HTMLInputElement[];
@@ -643,5 +647,31 @@ describe('LoginPage', () => {
     // QA's DOM probe asserts ("min-h-[44px]" OR "h-11" OR "py-3"/"py-4").
     expect(createAccount.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
     expect(forgotPassword.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
+  });
+});
+
+describe('B-141 — uma hidratação que falhou não deixa o botão mudo', () => {
+  it('diz que não conseguiu preparar o formulário quando as DUAS tentativas falham', async () => {
+    // Sem fluxo não há `action` nem `csrf_token`: o botão "Sign in" vira um no-op. A pessoa
+    // clica, nada acontece, e a tela não diz nada — então ela tenta de novo e conclui que a senha
+    // está errada. As duas falhas eram engolidas, a segunda por um `catch(() => {})` vazio.
+    mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    render(<LoginPage />);
+
+    expect(await screen.findByText(/network error/i)).toBeInTheDocument();
+  });
+
+  it('uma hidratação que FUNCIONA não mostra erro nenhum', async () => {
+    // A correção não pode virar "sempre avisa": um aviso que aparece no caminho feliz ensina a
+    // ignorá-lo.
+    mockFetch.mockResolvedValue({ ok: true, json: async () => flowFixture() });
+
+    render(<LoginPage />);
+
+    await waitFor(() => { expect(screen.getByLabelText('Email')).toBeInTheDocument(); });
+    // Lido sobre o TEXTO renderizado: a catraca de asserções de ausência (B-162) congela a forma
+    // `queryBy…toBeNull()`, e ler o corpo é a afirmação mais forte de qualquer modo.
+    expect(document.body.textContent ?? '').not.toMatch(/network error/i);
   });
 });

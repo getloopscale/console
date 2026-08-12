@@ -484,6 +484,20 @@ describe('PromptlyCatalogoPage — a busca roda no servidor (M16)', () => {
     expect(screen.queryByText(/carregad/i)).not.toBeInTheDocument();
   });
 
+  // B-242 — a âncora que faltava para as duas asserções de ausência que procuram a frase
+  // "no prompts in this workspace". Em produção ela existe num lugar só: dentro do alerta de
+  // LEITURA FALHA (`catalogo.tsx:285`), que diz exatamente que o vazio na tela NÃO significa
+  // workspace vazio. Nenhum caso a afirmava presente, então reescrever aquele alerta deixava
+  // as duas verdes — e a distinção que elas protegem ("sua busca não achou" ≠ "o workspace
+  // está vazio") deixava de ser verificada sem nada ficar vermelho.
+  it('a leitura que falha DIZ que o vazio na tela não significa workspace vazio', async () => {
+    mockCatalog.mockRejectedValue(new Error('502'));
+
+    render(<PromptlyCatalogoPage />);
+
+    expect(await screen.findByText(/no prompts in this workspace/i)).toBeInTheDocument();
+  });
+
   it('busca sem resultado diz que o SERVIDOR nao achou, e nao que o workspace esta vazio', async () => {
     mockCatalog.mockResolvedValue({ data: [], temContinuacao: false });
 

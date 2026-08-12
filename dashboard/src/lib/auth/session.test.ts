@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { isEmailVerified } from './session';
+import { isEmailVerified, logout } from './session';
+import { safeNavigator } from '@/lib/navigation';
 import type { Session } from './session';
 
 // Helper to build a minimal session object for testing.
@@ -155,5 +156,41 @@ describe('logout — B-055: o cache do service worker sai junto', () => {
     expect(deletadas).toContain('theo-api');
     expect(deletadas).not.toContain('theo-assets');
     vi.unstubAllGlobals();
+  });
+});
+
+describe('B-139 — um logout que o servidor não confirmou não se parece com um que funcionou', () => {
+  it('leva para /login DIZENDO que o encerramento não foi confirmado', async () => {
+    // Antes: um Kratos que recusa, um `logout_url` ausente e um destino recusado caíam TODOS no
+    // mesmo `/login`, indistinguíveis de sucesso. A pessoa via a tela de login e concluía que
+    // tinha saído — com a sessão viva no servidor.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 503 }));
+    const ir = vi.spyOn(safeNavigator, 'goTo').mockReturnValue(true);
+
+    await logout();
+
+    expect(ir).toHaveBeenCalledWith('/login?reason=logout-incomplete');
+  });
+
+  it('uma queda de rede é tratada com a mesma cautela', async () => {
+    // "Não sabemos se encerrou" e "não encerrou" pedem a mesma leitura de quem está no terminal.
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('offline'));
+    const ir = vi.spyOn(safeNavigator, 'goTo').mockReturnValue(true);
+
+    await logout();
+
+    expect(ir).toHaveBeenCalledWith('/login?reason=logout-incomplete');
+  });
+
+  it('um logout CONFIRMADO segue para o destino do serviço, sem faixa', async () => {
+    // A correção não pode virar "sempre avisa": isso ensinaria a ignorar o aviso.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ logout_url: 'https://auth.example/logout' }), { status: 200 }),
+    );
+    const ir = vi.spyOn(safeNavigator, 'goTo').mockReturnValue(true);
+
+    await logout();
+
+    expect(ir).toHaveBeenCalledWith('https://auth.example/logout');
   });
 });

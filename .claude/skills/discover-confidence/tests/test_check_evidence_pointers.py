@@ -112,8 +112,86 @@ def test_prose_ratios_are_not_mistaken_for_pointers(rooted: Path) -> None:
     assert report["fabricated"] == 0
 
 
+def test_dotfile_directory_pointer_resolves(rooted: Path) -> None:
+    """A pointer into `.claude/…` keeps its leading dot and resolves.
+
+    Regression for B-247. The pattern anchored on `\\b`, which falls BETWEEN the dot and
+    the first letter of a dotfile directory, so a pointer into `.claude/` lost its leading
+    dot and became a path that never resolves from the project root. Every opportunity
+    about this ecosystem's own tooling was therefore capped INVALID by
+    `fabricated_evidence` against pointers that exist on disk.
+    """
+    target = rooted / ".claude" / "rules" / "cycle-release.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("\n".join(f"line {i}" for i in range(1, 51)), encoding="utf-8")
+
+    report = check_evidence_pointers(
+        _opportunity(rooted, "The contract lives at `.claude/rules/cycle-release.md:28`.")
+    )
+    assert report["verified"] == 1
+    assert report["fabricated"] == 0
+
+
+def test_dotfile_directory_pointer_that_is_missing_is_still_fabricated(rooted: Path) -> None:
+    """Keeping the dot must not make dotfile paths unfalsifiable.
+
+    The fix widens what the pattern CAPTURES; it must not widen what counts as verified.
+    """
+    report = check_evidence_pointers(
+        _opportunity(rooted, "See `.github/workflows/ci.yml:12`.")
+    )
+    assert report["fabricated"] == 1
+    assert ".github/workflows/ci.yml:12" in report["fabricated_pointers"]
+
+
 def test_no_evidence_at_all(rooted: Path) -> None:
     report = check_evidence_pointers(_opportunity(rooted, "Purely narrative, no pointers."))
     assert report["total"] == 0
     assert report["fabricated"] == 0
     assert report["evidence_total"] == 0
+
+
+def test_a_blocked_marker_does_not_blanket_the_whole_document(rooted: Path) -> None:
+    """The BLOCKED escape hatch is scoped to its own pointer (review H4).
+
+    The marker is honoured only within a short window after the pointer it excuses.
+    Widening that window to the whole document survived every test — and would let ONE
+    `<!-- BLOCKED: ... -->` anywhere mark EVERY pointer as an honest gap, disarming
+    `fabricated_evidence`, which `discover-opportunity-golden-rule.md § 1` declares
+    unbreakable. Real opportunities do carry BLOCKED markers, so this is a live bypass,
+    not a theoretical one.
+    """
+    body = (
+        "A genuine gap: `src/absent.py:1` <!-- BLOCKED: the service is not deployed yet -->\n\n"
+        + "filler prose. " * 40
+        + "\n\nAnd a claim that must still be checked: `src/also-absent.py:9`.\n"
+    )
+
+    report = check_evidence_pointers(_opportunity(rooted, body))
+
+    assert report["explicitly_blocked"] == 1
+    assert report["fabricated"] == 1, "the far pointer must NOT inherit the marker"
+    assert "src/also-absent.py:9" in report["fabricated_pointers"]
+
+
+def test_an_unreadable_file_is_reported_with_its_own_reason(rooted: Path) -> None:
+    """A negative case that asserts the specific reason, not merely "it failed" (review M5).
+
+    `testing.md` § 4.1: a negative-case test asserts the typed error and message. Mutating
+    the unreadable branch to `return True, ""` survived — an unreadable file would have
+    counted as verified evidence.
+    """
+    target = rooted / "src" / "locked.py"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"\n".join(b"line" for _ in range(10)))
+    target.chmod(0o000)
+    try:
+        report = check_evidence_pointers(_opportunity(rooted, "See `src/locked.py:3`."))
+    finally:
+        target.chmod(0o644)
+
+    assert report["fabricated"] == 1
+    reason = report["fabricated_pointers"]["src/locked.py:3"]
+    assert reason.startswith("unreadable:")
+    # The reason names the CAUSE, so "unreadable" is not confusable with "missing".
+    assert reason != "unreadable:" and len(reason) > len("unreadable:")

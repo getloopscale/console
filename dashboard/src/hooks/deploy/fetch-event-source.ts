@@ -121,7 +121,7 @@ export class FetchEventSource {
     if (!this.opcoes.token) {
       // Chamar sem credencial produz um 401 garantido e um ciclo de backoff
       // inútil. Falhar aqui é mais barato e mais claro.
-      this.falhar('no-token');
+      this.falhar({ kind: 'no-token' });
       return;
     }
 
@@ -143,13 +143,17 @@ export class FetchEventSource {
     } catch {
       // Inclui o abort do próprio `close()`, que não é falha: `falhar()` já
       // ignora quando fechado.
-      this.falhar('network-error');
+      this.falhar({ kind: 'network-error' });
       return;
     }
 
     if (this.fechado) return;
     if (!resposta.ok || !resposta.body) {
-      this.falhar('http-error');
+      // B-172 — o status era conhecido aqui e descartado na linha seguinte, e sem ele o
+      // consumidor so conseguia escrever "qualquer nao-2xx e a credencial".
+      // Um corpo ausente num 2xx nao tem status util a reportar: `0` e o valor que `ApiError` ja
+      // usa para "sem resposta", e a mesma leitura vale aqui.
+      this.falhar({ kind: 'http-error', status: resposta.ok ? 0 : resposta.status });
       return;
     }
 
@@ -166,14 +170,14 @@ export class FetchEventSource {
         this.consumir(decoder.decode(value, { stream: true }));
       }
     } catch {
-      this.falhar('network-error');
+      this.falhar({ kind: 'network-error' });
       return;
     }
 
     // O servidor encerrou. O `EventSource` nativo reconectaria sozinho; aqui
     // quem reconecta é o `useSSEStream`, e ele só sabe fazê-lo quando vê
     // `onerror`. Sem isto, um stream encerrado ficaria morto em silêncio.
-    this.falhar('server-closed');
+    this.falhar({ kind: 'server-closed' });
   }
 
   /** Acumula o chunk e despacha cada frame completo. */

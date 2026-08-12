@@ -47,37 +47,8 @@ def _find_project_root(start: Path) -> Path:
     return start.resolve()
 
 
-def _npm_root(project_root: Path) -> Path | None:
-    """A pasta onde os gates npm devem rodar, ou None se o projeto não é JS.
-
-    ## Por que não basta olhar a raiz
-
-    Num monorepo o `package.json` mora num subdiretório — aqui, `dashboard/`. A
-    versão anterior só olhava a raiz e devolvia False, então `npm test`,
-    `typecheck`, `lint` e `coverage` saíam como SKIP com o motivo
-    *"package.json absent — pre-code phase"*.
-
-    O motivo era FALSO, e é isso que torna o defeito grave: um gate que pula com
-    uma explicação plausível não parece um gate quebrado — parece um projeto que
-    ainda não tem código. Todo plano do dashboard passou por aqui com os quatro
-    gates mais importantes desligados, e o relatório dizia que estava tudo bem.
-
-    Uma pasta só é aceita quando é a ÚNICA candidata. Com duas, a resposta certa
-    não é escolher — é dizer que não dá para escolher, e o chamador reporta
-    AMBIGUOUS em vez de fingir que mediu.
-    """
-    if (project_root / "package.json").exists():
-        return project_root
-    candidatas = [
-        d for d in sorted(project_root.iterdir())
-        if d.is_dir() and not d.name.startswith(".") and d.name != "node_modules"
-        and (d / "package.json").exists()
-    ]
-    return candidatas[0] if len(candidatas) == 1 else None
-
-
 def _has_package_json(project_root: Path) -> bool:
-    return _npm_root(project_root) is not None
+    return (project_root / "package.json").exists()
 
 
 def _has_npm_script(project_root: Path, script: str) -> bool:
@@ -113,10 +84,10 @@ def _run_command(cmd: list[str], cwd: Path, timeout: int = 300) -> dict[str, Any
 
 def check_npm_test(project_root: Path) -> dict[str, Any]:
     if not _has_package_json(project_root):
-        return {"name": "npm test", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
-    if not _has_npm_script(_npm_root(project_root) or project_root, "test"):
+        return {"name": "npm test", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
+    if not _has_npm_script(project_root, "test"):
         return {"name": "npm test", "status": "SKIP", "reason": "no 'test' script in package.json"}
-    result = _run_command(["npm", "test", "--silent"], _npm_root(project_root) or project_root, timeout=600)
+    result = _run_command(["npm", "test", "--silent"], project_root, timeout=600)
     if result.get("exit_code") == 0:
         return {"name": "npm test", "status": "PASS"}
     return {
@@ -129,8 +100,8 @@ def check_npm_test(project_root: Path) -> dict[str, Any]:
 
 def check_npm_typecheck(project_root: Path) -> dict[str, Any]:
     if not _has_package_json(project_root):
-        return {"name": "npm run typecheck", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
-    if not _has_npm_script(_npm_root(project_root) or project_root, "typecheck"):
+        return {"name": "npm run typecheck", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
+    if not _has_npm_script(project_root, "typecheck"):
         # Fallback: run tsc --noEmit
         if (project_root / "tsconfig.json").exists():
             result = _run_command(["npx", "--no", "tsc", "--noEmit"], project_root, timeout=300)
@@ -143,7 +114,7 @@ def check_npm_typecheck(project_root: Path) -> dict[str, Any]:
                 "stderr_tail": result.get("stderr_tail", "")[:500],
             }
         return {"name": "typecheck", "status": "SKIP", "reason": "no 'typecheck' script AND no tsconfig.json"}
-    result = _run_command(["npm", "run", "typecheck", "--silent"], _npm_root(project_root) or project_root, timeout=300)
+    result = _run_command(["npm", "run", "typecheck", "--silent"], project_root, timeout=300)
     if result.get("exit_code") == 0:
         return {"name": "npm run typecheck", "status": "PASS"}
     return {
@@ -156,10 +127,10 @@ def check_npm_typecheck(project_root: Path) -> dict[str, Any]:
 
 def check_npm_lint(project_root: Path) -> dict[str, Any]:
     if not _has_package_json(project_root):
-        return {"name": "npm run lint", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
-    if not _has_npm_script(_npm_root(project_root) or project_root, "lint"):
+        return {"name": "npm run lint", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
+    if not _has_npm_script(project_root, "lint"):
         return {"name": "npm run lint", "status": "SKIP", "reason": "no 'lint' script in package.json"}
-    result = _run_command(["npm", "run", "lint", "--silent"], _npm_root(project_root) or project_root, timeout=180)
+    result = _run_command(["npm", "run", "lint", "--silent"], project_root, timeout=180)
     if result.get("exit_code") == 0:
         return {"name": "npm run lint", "status": "PASS"}
     return {
@@ -186,10 +157,10 @@ def check_coverage(project_root: Path) -> dict[str, Any]:
     critical path" is currently advisory, not enforced here.
     """
     if not _has_package_json(project_root):
-        return {"name": "coverage", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
-    if not _has_npm_script(_npm_root(project_root) or project_root, "test:coverage"):
+        return {"name": "coverage", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
+    if not _has_npm_script(project_root, "test:coverage"):
         return {"name": "coverage", "status": "SKIP", "reason": "no 'test:coverage' script in package.json"}
-    result = _run_command(["npm", "run", "test:coverage", "--silent"], _npm_root(project_root) or project_root, timeout=600)
+    result = _run_command(["npm", "run", "test:coverage", "--silent"], project_root, timeout=600)
     if result.get("exit_code") == 0:
         return {
             "name": "npm run test:coverage",
@@ -205,8 +176,8 @@ def check_coverage(project_root: Path) -> dict[str, Any]:
 
 
 def _read_progress(project_root: Path, slug: str) -> dict[str, Any] | None:
-    path = project_root / ".claude" / "knowledge-base" / "implementations" / f".progress-{slug}.json"
-    if not path.exists():
+    path = _find_progress(project_root, slug)
+    if path is None:
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8-sig"))
@@ -382,6 +353,27 @@ def _find_plan(project_root: Path, slug: str) -> Path | None:
     return None
 
 
+def _find_progress(project_root: Path, slug: str) -> Path | None:
+    """The checkpoint, in either layout — the companion `_find_plan` always had and this did not.
+
+    Three call sites hardcoded `.claude/knowledge-base/implementations/` while `_find_plan`,
+    written directly above them, already handled both. `rules/knowledge-base-location.md` makes
+    the standalone layout (`<repo>/knowledge-base/`) canonical for the kit's own repository —
+    which is where the kit dogfoods itself. There, all three answered SKIP: `_read_progress`
+    returned None, and the schema and checkpoint-consistency gates reported
+    "no progress checkpoint — implement may not have run" for a checkpoint sitting on disk.
+
+    A gate that reports SKIP because it looked in the wrong directory is indistinguishable in
+    the report from one that legitimately had nothing to check, which is why this survived.
+    """
+    for base in (project_root / ".claude" / "knowledge-base" / "implementations",
+                 project_root / "knowledge-base" / "implementations"):
+        candidate = base / f".progress-{slug}.json"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 _PATTERNS_SKILL_RE = re.compile(r"\b([A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*-patterns)\b")
 
 
@@ -430,8 +422,11 @@ def check_progress_schema_gate(project_root: Path, slug: str) -> dict[str, Any]:
     A malformed `.progress-{slug}.json` (missing `tasks` envelope, `task_id` instead
     of `id`, missing `phase`) makes every phase-scoped gate degrade silently. This
     gate turns that into a loud, early failure (Unbreakable Rule 8)."""
-    path = (project_root / ".claude" / "knowledge-base" / "implementations"
-            / f".progress-{slug}.json")
+    # Falls back to the plugin path when neither layout holds a checkpoint, so the schema
+    # check still reports "missing" against a concrete path rather than crashing on None.
+    path = _find_progress(project_root, slug) or (
+        project_root / ".claude" / "knowledge-base" / "implementations" / f".progress-{slug}.json"
+    )
     from check_progress_schema import check_progress_schema
 
     report = check_progress_schema(path)
@@ -449,10 +444,9 @@ def check_checkpoint_consistency_gate(project_root: Path, slug: str) -> dict[str
     task points at a real commit, and every plan task referenced by a real commit is
     recorded as committed. Catches a checkpoint that drifted out of sync with reality
     (e.g. a task finished + committed but the .progress update was skipped)."""
-    path = (project_root / ".claude" / "knowledge-base" / "implementations"
-            / f".progress-{slug}.json")
+    path = _find_progress(project_root, slug)
     plan = _find_plan(project_root, slug)
-    if not path.exists():
+    if path is None:
         return {"name": "checkpoint_consistency", "status": "SKIP",
                 "reason": "no progress checkpoint — implement may not have run"}
     if plan is None:

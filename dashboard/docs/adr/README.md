@@ -5,7 +5,7 @@ quem lê. Este documento diz qual é qual e qual delas resolve.
 
 ## `ADR-000N` — os ADRs versionados. **Resolvem.**
 
-Arquivos neste diretório: `0001-…` a `0009-…`. São a forma canônica. Toda
+Arquivos neste diretório: `0001-…` a `0014-…` — a mesma faixa que o índice abaixo lista. São a forma canônica. Toda
 citação nova usa esta.
 
 | ADR | Assunto |
@@ -59,7 +59,7 @@ não resolve.
 
 ### O que NÃO fazer
 
-Acrescentar novas. `docs/adr/adr-nomenclature.test.ts` falha se a contagem de
+Acrescentar novas. `src/lib/adr-nomenclature.test.ts` falha se a contagem de
 `ADR D<n>` no código crescer. Ela só encolhe — naturalmente, à medida que os
 arquivos que as carregam sejam reescritos por outros motivos.
 

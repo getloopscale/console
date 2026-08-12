@@ -47,9 +47,13 @@ describe('mocks/handlers — full API coverage', () => {
   });
 
   it('test_registers_sse_streams', () => {
-    // builds logs, runtime logs, build stream, deploy timeline = 4 emitters
-    // (the deploy-timeline SSE was added with DeployTimelineHero, commit 416f6fd).
-    expect(getSSERegistrationCount()).toBe(4);
+    // builds logs, runtime logs, build stream, deploy timeline, project builds, project signals.
+    //
+    // B-178 — eram 4, e dois caminhos CONSUMIDOS nao tinham registro nenhum. Um numero fixo aqui
+    // nao pega isso: ele so diz que a contagem nao mudou, nunca que ela cobre o que a aplicacao
+    // pede. Quem responde essa pergunta e `lib/mocks/sse-registration.test.ts`, que compara os
+    // caminhos consumidos com os registrados. Este caso fica como catraca do numero.
+    expect(getSSERegistrationCount()).toBe(6);
   });
 
   // ==========================================================================

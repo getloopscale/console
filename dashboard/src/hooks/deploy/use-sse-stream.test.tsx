@@ -18,6 +18,7 @@ vi.mock('@/lib/http/config', () => ({
 import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
 import { clearToken } from '@/lib/http/api';
 import { __setTransporte } from '@/hooks/deploy/shared-event-source';
+import type { StreamEndReason } from '@/hooks/deploy/stream-end-reason';
 
 interface MockListenerMap {
   [event: string]: Array<(ev: unknown) => void>;
@@ -76,7 +77,7 @@ class MockEventSource {
    * modelava um `EventSource` que ja nao existe, e um teste que exercita um transporte
    * imaginario nao protege o de verdade.
    */
-  triggerError(reason = 'network-error') {
+  triggerError(reason: StreamEndReason = { kind: 'network-error' }) {
     this.onerror?.({ reason });
   }
 
@@ -89,11 +90,14 @@ class MockEventSource {
    * e e exatamente por isso que o defeito passou pela suite: o teste do limiar
    * de 3 simulava um cenario que, no 401, nunca acontece.
    */
-  triggerFatalError() {
+  /**
+   * B-172 — este helper NAO carregava status, e o teste que o usa dizia "Um 401" no comentario.
+   * Ele passava identico para um 404 ou um 503, entao a asserção de que o token e limpo nao
+   * provava nada sobre POR QUE ele seria limpo. O status agora e obrigatorio.
+   */
+  triggerFatalError(status: number) {
     this.readyState = 2;
-    // B-160 — o caso FATAL do B-014 e um nao-2xx, que o transporte reporta como
-    // `http-error`. `readyState` sozinho ja nao distingue isso de um fim limpo.
-    this.onerror?.({ reason: 'http-error' });
+    this.onerror?.({ reason: { kind: 'http-error', status } });
   }
 
   /** Fim limpo do corpo pelo servidor — nao e falha e nao deve tocar no token. */
@@ -192,6 +196,31 @@ describe('useSSEStream', () => {
     expect(result.current.events.length).toBe(0);
   });
 
+  it('test_despausar_mostra_o_que_chegou_durante_a_pausa_B179', async () => {
+    // `paused` congela as atualizações SEM desconectar — é o propósito declarado dele. Antes deste
+    // caso, o buffer só era sincronizado quando o PRÓXIMO evento chegava: quem despausava um
+    // stream silencioso ficava olhando dados velhos por tempo indeterminado, o que é uma pausa que
+    // não se consegue desfazer — pior do que não ter pausa.
+    const { result, rerender } = renderHook(
+      ({ paused }: { paused: boolean }) =>
+        useSSEStream('/api/v1/test', { eventTypes: ['x'], paused }),
+      { initialProps: { paused: false } },
+    );
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    rerender({ paused: true });
+    act(() => {
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 1 }), '1');
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 2 }), '2');
+    });
+    expect(result.current.events.length).toBe(0);
+
+    rerender({ paused: false });
+
+    await waitFor(() => { expect(result.current.events.length).toBe(2); });
+    expect(result.current.lastEventID).toBe('2');
+  });
+
   it('test_initial_lastEventID_vai_por_HEADER_e_nao_pela_url', async () => {
     renderHook(() =>
       useSSEStream('/api/v1/test', { initialLastEventID: '42' }),
@@ -205,24 +234,26 @@ describe('useSSEStream', () => {
     expect(MockEventSource.instances[0].opcoes?.lastEventId).toBe('42');
   });
 
-  it('test_token_refresh_on_three_consecutive_errors_EC3', async () => {
+  it('test_falhas_de_rede_repetidas_NAO_limpam_o_token_B173', async () => {
+    // Este caso era `test_token_refresh_on_three_consecutive_errors_EC3` e afirmava o contrario:
+    // tres erros seguidos de QUALQUER natureza limpavam o token. O limiar que ele testava era
+    // INALCANCAVEL em producao — `FetchEventSource` dispara `onerror` no maximo uma vez por
+    // instancia, e o contador zerava antes de cada reabertura. O teste passava porque o mock
+    // reusa a mesma instancia, que producao nunca faz.
+    //
+    // O limiar foi removido (B-173). Uma falha de rede nao diz nada sobre a credencial, quantas
+    // vezes aconteca — o que ela pede e reabrir, que e o que este caso agora afirma.
     renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
     await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
     const es = MockEventSource.instances[0];
 
-    act(() => {
-      es.triggerError();
-      es.triggerError();
-      es.triggerError();
-    });
+    act(() => { es.triggerError(); });
 
-    await waitFor(() => expect(clearToken).toHaveBeenCalledTimes(1));
-    // B-014 — a reabertura agora passa por backoff exponencial com jitter, entao
-    // a nova conexao nao e sincrona com o terceiro erro.
     await waitFor(
       () => expect(MockEventSource.instances.length).toBe(2),
       { timeout: 4000 },
     );
+    expect(clearToken).not.toHaveBeenCalled();
   });
 
   it('test_um_unico_erro_FATAL_dispara_recuperacao_de_token_B014', async () => {
@@ -230,11 +261,9 @@ describe('useSSEStream', () => {
     await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
     const es = MockEventSource.instances[0];
 
-    // Um 401: o browser fecha a conexao e nao retenta. Antes de B-014, o
-    // failureCount parava em 1, o limiar de 3 nunca era atingido, e o stream
-    // ficava morto em silencio ate a proxima navegacao.
+    // Um 401: a credencial e a causa provavel, entao trocar o token e o remedio certo.
     act(() => {
-      es.triggerFatalError();
+      es.triggerFatalError(401);
     });
 
     await waitFor(() => expect(clearToken).toHaveBeenCalledTimes(1));
@@ -244,21 +273,27 @@ describe('useSSEStream', () => {
     );
   });
 
-  it('test_erro_NAO_fatal_isolado_nao_reabre_deixa_o_browser_retentar_B014', async () => {
+  it('test_um_5xx_reabre_SEM_tocar_na_credencial_B172', async () => {
+    // Este caso era `test_erro_NAO_fatal_isolado_nao_reabre_deixa_o_browser_retentar_B014` e
+    // afirmava que um erro isolado NAO reabre, "deixando o browser retentar". Este transporte nao
+    // tem retentativa de browser — ele e `fetch` desde B-088 —, entao o que o caso descrevia como
+    // delegacao era, na verdade, um stream morto. Ele so passava porque esperava 50 ms e o
+    // backoff e maior que isso: uma asserção verde sobre a ausencia de algo que ainda ia
+    // acontecer.
+    //
+    // O que importa medir aqui e a outra metade do B-172: um 5xx reabre, e nao encosta no JWT da
+    // aplicacao inteira.
     renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
     await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
     const es = MockEventSource.instances[0];
 
-    // readyState segue CONNECTING: o browser ja esta retentando sozinho, e
-    // reabrir na primeira falha so brigaria com ele. O limiar de 3 existe para
-    // este caminho — e este teste e o que impede B-014 de virar "reabre sempre".
-    act(() => {
-      es.triggerError();
-    });
+    act(() => { es.triggerFatalError(503); });
 
-    await new Promise((r) => setTimeout(r, 50));
+    await waitFor(
+      () => expect(MockEventSource.instances.length).toBe(2),
+      { timeout: 4000 },
+    );
     expect(clearToken).not.toHaveBeenCalled();
-    expect(MockEventSource.instances.length).toBe(1);
   });
 
   it('test_lastEventID_propaga_na_RECONEXAO_por_header_EC9', async () => {
@@ -339,5 +374,57 @@ describe('B-160 — fim limpo de stream não é falha de credencial', () => {
     // Cinco encerramentos limpos e o token da aba segue intacto. Antes eram cinco
     // trocas de token.
     expect(clearToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('B-221/B-224 — identidade estável e carimbo que não se move', () => {
+  it('o handle devolvido é referencialmente estável entre renders', async () => {
+    // Um hook que devolve um objeto novo a cada render obriga todo consumidor a ou desestruturar
+    // com cuidado ou re-executar. É o contrato dele empurrando trabalho para quem o chama.
+    const { result, rerender } = renderHook(() =>
+      useSSEStream('/api/v1/test', { eventTypes: ['x'] }),
+    );
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    const antes = result.current;
+    rerender();
+    expect(result.current).toBe(antes);
+    expect(result.current.clear).toBe(antes.clear);
+  });
+
+  it('MAS muda quando um valor muda — estável não é parado', async () => {
+    // Sem este caso, `useMemo(() => ({...}), [])` passaria no anterior e devolveria dados velhos
+    // para sempre, que é um defeito pior do que o que se estava consertando.
+    const { result } = renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    const antes = result.current;
+
+    act(() => {
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 1 }), '1');
+    });
+
+    expect(result.current).not.toBe(antes);
+    expect(result.current.events.length).toBe(1);
+  });
+
+  it('carimba a chegada de cada evento UMA vez, na ingestão', async () => {
+    const { result, rerender } = renderHook(() =>
+      useSSEStream('/api/v1/test', { eventTypes: ['x'] }),
+    );
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    act(() => {
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 1 }), '1');
+    });
+    const primeiro = result.current.events[0].receivedAt;
+    expect(primeiro).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    act(() => {
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 2 }), '2');
+    });
+    rerender();
+
+    // O carimbo do PRIMEIRO evento não pode ter andado porque um segundo chegou.
+    expect(result.current.events[0].receivedAt).toBe(primeiro);
   });
 });

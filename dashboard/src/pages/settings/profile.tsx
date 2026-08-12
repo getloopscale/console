@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { logout } from '@/lib/auth/session';
-import { engineFetch } from '@/lib/http/api';
+import { useDeleteTenant } from '@/hooks/settings/use-delete-tenant';
 import { maskEmail } from '@/lib/formatting/format';
 
 export function ProfilePage() {
@@ -20,7 +20,6 @@ export function ProfilePage() {
   const { setPageTitle } = usePageMeta();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   if (!session) return null;
 
@@ -28,22 +27,26 @@ export function ProfilePage() {
   const name = session.identity.traits.name ?? '';
   const initials = (name || email).charAt(0).toUpperCase();
 
+  // SG-05 CLOSED (plan v1.0 T4.8, 2026-05-26): replaced setTimeout fake with
+  // real DELETE /api/v1/tenants/{id}. Backend soft-deletes with grace period;
+  // logout invalidates the local session so the user is redirected to /login.
+  //
+  // B-264 — the delete had NO error branch. Without `throwOnError` a failure resolved `null`,
+  // nothing looked at it, and this walked the whole success path: dialog closed, session
+  // ended. The user reads that as "my account is gone", over a request that failed.
+  const deleteTenant = useDeleteTenant();
+  const deleting = deleteTenant.isPending;
+
   const handleDeleteAccount = async () => {
-    // SG-05 CLOSED (plan v1.0 T4.8, 2026-05-26): replaced setTimeout fake with
-    // real DELETE /api/v1/tenants/{id}. Backend soft-deletes with grace period;
-    // logout invalidates the local session so the user is redirected to /login.
-    setDeleting(true);
-    try {
-      const tenantId = session.identity.id;
-      await engineFetch(`/api/v1/tenants/${encodeURIComponent(tenantId)}`, {
-        method: 'DELETE',
-      });
-      setConfirmOpen(false);
-      await logout();
-    } finally {
-      setDeleting(false);
-    }
+    await deleteTenant.mutateAsync(session.identity.id);
+    setConfirmOpen(false);
+    await logout();
   };
+  // NO try/catch here, deliberately. `ConfirmDialog` already catches a rejecting `onConfirm`,
+  // keeps itself open and renders the reason (B-105) — catching it here would swallow the
+  // error before the component that knows how to show it ever sees it. What was missing was
+  // never the handling; it was that the request could not FAIL: without `throwOnError` it
+  // resolved `null` and this function ran to the end (B-264).
 
   return (
     <PageShell title="Profile" onTitleChange={setPageTitle}>
@@ -106,9 +109,11 @@ export function ProfilePage() {
         <Card.Body>
           <CodeBlock
             caption="Common profile commands"
+            /* B-132/B-133 — `theo account delete` NAO e um comando registrado pela CLI (medido
+               2026-08-11). Um bloco copiavel torna a mentira acionavel: a pessoa cola e o
+               terminal responde que o comando nao existe. */
             code={`theo whoami
-theo logout
-theo account delete`}
+theo logout`}
             terminal
             copyable
           />

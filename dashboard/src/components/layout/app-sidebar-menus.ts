@@ -73,7 +73,7 @@ export interface MenuItem {
   comingSoon?: boolean;
 }
 
-export interface MenuGroup {
+interface MenuGroup {
   /** Optional uppercase section title rendered above the group's items
    * (e.g., "Billing", "Developer"). Omit for an untitled cluster — visually
    * still separated from the next group by Sidebar.Section spacing. */

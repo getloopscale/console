@@ -88,3 +88,38 @@ describe('DeleteSecretDialog — J-22 T3.4', () => {
     expect(onDeleted).toHaveBeenCalled();
   });
 });
+
+describe('B-195 — o que a migração para ConfirmDialog trouxe', () => {
+  it('uma exclusão que FALHA mantém o diálogo aberto e diz que o segredo continua lá', async () => {
+    // A cópia anterior tinha um `catch` próprio que exibia a mensagem; o que ela NÃO tinha era a
+    // correção do B-105, e o risco era o inverso do que parece: fechar o diálogo em cima de um
+    // erro faz quem clicou "Delete" acreditar que excluiu.
+    mockedEngineFetch.mockRejectedValue(new Error('403 forbidden'));
+    const aoFechar = vi.fn();
+    render(
+      <Wrapper>
+        <DeleteSecretDialog open onOpenChange={aoFechar} secret={SECRET} environment="production" />
+      </Wrapper>,
+    );
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'DATABASE_URL' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText(/The secret was NOT removed/)).toBeInTheDocument();
+    expect(aoFechar).not.toHaveBeenCalledWith(false);
+  });
+
+  it('o foco inicial é o CANCELAR, nunca a ação destrutiva', async () => {
+    // Deliberado: um Enter apressado não pode executar uma exclusão. A cópia anterior dava
+    // `autoFocus` ao campo de texto — mais cômodo, e uma tecla mais perto do irreversível.
+    render(
+      <Wrapper>
+        <DeleteSecretDialog open onOpenChange={vi.fn()} secret={SECRET} environment="production" />
+      </Wrapper>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    });
+  });
+});

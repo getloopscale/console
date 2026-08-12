@@ -25,7 +25,7 @@
  * um acervo em ordem.
  */
 
-export type VerdictKind = 'unknown' | 'empty' | 'healthy' | 'problem';
+type VerdictKind = 'unknown' | 'empty' | 'healthy' | 'problem';
 
 export interface CatalogVerdict {
   readonly kind: VerdictKind;

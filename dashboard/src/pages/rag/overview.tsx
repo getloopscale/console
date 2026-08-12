@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ExploreCard } from '@/components/explore-card';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Boxes, MessageSquare, RefreshCw, ScrollText, Search, Timer } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
@@ -108,9 +109,12 @@ export function RagOverviewPage() {
               <CategoryBars
                 title="Answer confidence"
                 bars={[
-                  { label: 'high', value: query.data.confidence.high, tone: 'positive' },
+                  // B-187 — os tons verde/âmbar eram a única distinção entre uma resposta em que
+                  // se pode confiar e uma que pede revisão, e viviam dentro do `aria-hidden`. Os
+                  // rótulos `high`/`low` já nomeiam a faixa; o tom acrescenta o que fazer com ela.
+                  { label: 'high', value: query.data.confidence.high, tone: 'positive', toneLabel: 'trustworthy' },
                   { label: 'medium', value: query.data.confidence.medium },
-                  { label: 'low', value: query.data.confidence.low, tone: 'warning' },
+                  { label: 'low', value: query.data.confidence.low, tone: 'warning', toneLabel: 'needs review' },
                 ]}
               />
             </Card.Body>
@@ -182,26 +186,3 @@ export function RagOverviewPage() {
   );
 }
 
-interface ExploreCardProps {
-  icon: typeof Boxes;
-  title: string;
-  description: string;
-  href: string;
-}
-
-/** Single Explore card — icon + title + 1-line description + a destination button.
- * Kept inline (mirrors `pages/memory.tsx`'s ExploreCard — Rule of 3 / YAGNI). */
-function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps) {
-  return (
-    <Card>
-      <Card.Body className="space-y-2">
-        <Icon className="size-5 text-primary" aria-hidden="true" />
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        <Button asChild variant="ghost" size="sm">
-          <Link to={href}>Open →</Link>
-        </Button>
-      </Card.Body>
-    </Card>
-  );
-}

@@ -53,8 +53,58 @@ exatamente a classe "grep casa prosa".
  */
 // 58 em 2026-08-07; 53 desde 2026-08-08, quando `settings/api-keys.tsx`,
 // `settings/components/api-key-lineage.tsx` e `lens/traces.tsx` ganharam hooks
-// de domínio (B-012 / B-053). SÓ DESCE.
-const TETO_PAGINAS_COM_TRANSPORTE = 53;
+// de domínio (B-012 / B-053).
+//
+// 52 desde 2026-08-12 (B-244): `infra/domains.tsx` passou a ler por
+// `hooks/infra/use-domains.ts`. A migração revelou algo que só aparece quando a
+// forma sai da tela: a página carregava um `Domain` LOCAL mais rico que o de
+// `@/lib/api/types` — com `nameservers` e `failure_mode`, que o backend devolve
+// e o tipo compartilhado não declara. O `tsc` acusou no instante em que o hook
+// tentou usar o compartilhado; adotá-lo teria apagado dois campos que a UI
+// renderiza. Reconciliar os dois é trabalho de quem possui o tipo compartilhado,
+// e está registrado (B-262) em vez de resolvido alargando um tipo global a
+// partir da evidência de um chamador só.
+//
+// Distribuição do que resta: lens 18, memory 12, rag 9, settings 6, projects 3,
+// deployment-tabs 2, workspace 2.
+//
+// SÓ DESCE.
+// 50 desde 2026-08-12, com as duas abas de cadeia de suprimentos
+// (`deployment-tabs/{sbom,attestation}-tab.tsx`) lendo por
+// `hooks/deploy/use-build-artifacts.ts`. Elas não faziam apenas transporte na
+// camada de interface: rodavam `useEffect` + `useState` + flag `cancelled` — um
+// SEGUNDO mecanismo de busca ao lado do react-query, sem cache e sem dedup, com
+// cancelamento reimplementado por aba.
+//
+// A migração também separou dois estados que dividiam título: uma leitura que
+// FALHA dizia "No SBOM for this build". Para artefato de cadeia de suprimentos as
+// duas conclusões são opostas — "este build subiu sem proveniência" é achado de
+// conformidade; "não consegui ler a proveniência" é retry. Nenhuma das duas abas
+// tinha teste; agora têm seis.
+// 49 desde 2026-08-12, com `projects/components/create-project-sheet.tsx` lendo
+// por `hooks/projects/use-create-project.ts`. A migração fechou parte do B-260 de
+// tabela: o corpo passou a ser tipado com `ProjectCreateInput`, um tipo que
+// existia em `lib/api/types.ts` e que ninguém importava — o dashboard criava
+// projetos enquanto a descrição do payload de criação ficava sem conferência.
+// O knip caiu 31 -> 30 pelo mesmo motivo.
+// 47 desde 2026-08-12, com `settings/{profile,overview}.tsx` lendo por
+// `hooks/settings/use-delete-tenant.ts`. As duas rodavam a MESMA operação
+// destrutiva — `DELETE /api/v1/tenants/{id}` — em cópias separadas, e nenhuma
+// tratava falha: sem `throwOnError` uma recusa resolvia `null`, ninguém olhava, e
+// a tela seguia fechando o diálogo e encerrando a sessão / navegando embora.
+// Apagar a conta podia falhar em silêncio e a tela dizia que deu certo (B-264).
+// 46 desde 2026-08-12, com `settings/webhooks.tsx` inteira lendo por
+// `hooks/settings/use-workspace-webhooks.ts` — lista, criação, revogação e histórico de entregas.
+// Duas das quatro chamadas não passavam `throwOnError`, e nas duas operações onde isso custa mais:
+// criar um webhook que o servidor RECUSOU fechava o diálogo e atualizava a lista, então o usuário
+// saía acreditando que eventos passariam a chegar numa URL nunca registrada; revogar um que o
+// servidor recusou fazia o mesmo, e um endpoint que o usuário acredita ter cortado continua
+// recebendo os payloads dele. Mesma classe do B-264, em mais dois lugares.
+//
+// O `ConfirmDialog` só vê a recusa se `onConfirm` devolver promessa que rejeita (ele dá `await`):
+// a tela passou de `revoke.mutate` para `mutateAsync`. E `AddWebhookDialog` ganhou `errorMessage`,
+// porque ele NÃO espera o `onSubmit` — sem isso o diálogo ficaria aberto e mudo.
+const TETO_PAGINAS_COM_TRANSPORTE = 46;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
@@ -178,6 +228,16 @@ describe('camada de acesso a dados (B-012/B-029/B-052/B-053)', () => {
         'Este teto SÓ DESCE. Se você precisa subi-lo, o plano\n' +
         '`dashboard-data-access-layer-plan.md` diz que não há razão.\n',
     ).toBeLessThanOrEqual(TETO_PAGINAS_COM_TRANSPORTE);
+  });
+
+  it('o teto bate com o disco — sem folga onde crescer', () => {
+    // Faltava, e a ausência tinha custo: com apenas `<=`, o teto podia ficar ACIMA do real e a
+    // catraca virava enfeite para tudo abaixo dele. Uma página migrada abria uma vaga silenciosa
+    // para outra nascer falando transporte direto, e nenhum teste dizia nada.
+    //
+    // É a mesma lacuna que as catracas do B-235 e do B-242 já fecharam com este par de casos:
+    // `<=` diz "não piorou", `toBe` diz "o número no arquivo é o número no disco".
+    expect(paginasComTransporte().length).toBe(TETO_PAGINAS_COM_TRANSPORTE);
   });
 
   it('importar apenas `ApiError` NÃO conta como acesso a dados', () => {

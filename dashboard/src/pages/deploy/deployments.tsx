@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Play,
   RefreshCw,
-  Rocket,
 } from 'lucide-react';
 import {
   Badge,
@@ -19,6 +18,8 @@ import {
   type StatusKind,
 } from '@usetheo/ui';
 import { humanizeAuthor } from '@/lib/formatting/format';
+import { estadoDaLista } from '@/lib/list-state';
+import { semDeploysAinda } from '@/pages/deploy/empty-states';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeploymentsListStream } from '@/hooks/deploy/use-deployments-list-stream';
@@ -29,7 +30,6 @@ import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { DeploymentRowVisitIcon } from '@/pages/deploy/components/deployment-row-visit-icon';
 import { formatDate } from '@/lib/formatting/format';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
-import { safeNavigator } from '@/lib/navigation';
 
 const STATUS_MAP: Record<BuildStatus, StatusKind> = {
   succeeded: 'live',
@@ -157,13 +157,23 @@ export function DeploymentsPage() {
   // build's commit + env, submit a fresh build) and avoids a parallel
   // deploy flow we'd have to test separately.
   const [deployDialogOpen, setDeployDialogOpen] = useState(false);
-  const { builds, total, loading, fetching, refetch } = useDeploymentsListStream(
-    name,
-    {
+  // B-167 — `error` já vinha do hook e era descartado aqui.
+  // B-177 — `filters` era um literal inline, logo um objeto NOVO a cada render, e o efeito de
+  // `useDeploymentsListStream` o tem nas dependências: ele re-executava a cada render. O custo
+  // medido é overhead de re-execução, não uma tempestade de refetch (`refetchedFor` suprime a
+  // invalidação) — mas um efeito que roda por identidade e não por valor é uma armadilha para
+  // quem acrescentar a próxima linha dentro dele.
+  const filtros = useMemo(
+    () => ({
       ...(statusFilter === 'all' ? {} : { status: statusFilter }),
       ...(envFilter === 'all' ? {} : { env: envFilter }),
       limit: pageLimit,
-    },
+    }),
+    [statusFilter, envFilter, pageLimit],
+  );
+  const { builds, total, loading, fetching, refetch, error: erroDeLeitura } = useDeploymentsListStream(
+    name,
+    filtros,
   );
 
   // Pull the production status so the table can mark which build is
@@ -268,32 +278,13 @@ export function DeploymentsPage() {
       title={name || 'Deployments'}
       description={`Build and release history for ${name}.`}
       loading={loading}
-      empty={
-        // T4.3 finding 3.5: cold project — surface "Connect a
-        // repository" as the explicit primary affordance instead of
-        // only telling the operator to run a CLI command they may not
-        // be ready for. The page-level Deploy button is already
-        // disabled in this state (activeBuild === undefined).
-        !loading && builds.length === 0
-          ? {
-              icon: Rocket,
-              title: 'No deployments yet',
-              // #121 (qa-dogfood-cleanup-2026-06-21 T3.3): deploy-centric
-              // primary CTA. The connection panel is the right surface
-              // when the user actually needs to connect — the empty
-              // deployments state should not assume disconnection.
-              // Runs `theo deploy` from the CLI; the connect link is
-              // still available via the secondary description.
-              description: `Trigger a deploy with \`theo deploy --project ${name}\` from your terminal, or push to a connected Git branch to auto-deploy. Not connected yet? Open the Repository tab to link a repo.`,
-              action: {
-                label: 'View deploy instructions',
-                onClick: () => {
-                  safeNavigator.goTo(`/projects/${encodeURIComponent(name)}/connect`);
-                },
-              },
-            }
-          : undefined
-      }
+      empty={estadoDaLista(
+        {
+          erro: erroDeLeitura,
+          vazio: loading || builds.length > 0 ? undefined : semDeploysAinda(name),
+        },
+        'deployments',
+      )}
     >
       <div className="flex items-center justify-between gap-4 mb-4">
         <Button asChild variant="ghost" size="sm">

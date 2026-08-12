@@ -13,7 +13,6 @@ import type { ReactNode } from 'react';
 vi.mock('@/lib/http/config', () => ({
   API_URL: '',
   AUTH_URL: '',
-  ENGINE_URL: '',
   ACCOUNTS_URL: '',
 }));
 

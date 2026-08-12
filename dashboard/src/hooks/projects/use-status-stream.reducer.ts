@@ -61,7 +61,7 @@ export interface SignalEvent {
 }
 
 /** Per-signal state in the reducer accumulator. */
-export interface SignalState {
+interface SignalState {
   value: unknown;
   /** Set to true once a terminal value is observed (TERMINAL_ABSORBING signals only). */
   terminal: boolean;

@@ -81,7 +81,7 @@ export function useLogStream(
       // the requested type. Detect and wrap so consumers always see a
       // canonical LogLine shape (mirrors the legacy inline fallback).
       if (typeof data === 'string') {
-        return { ts: new Date().toISOString(), level: 'info', msg: data };
+        return { ts: ev.receivedAt, level: 'info', msg: data };
       }
       // J-19: map the theo-api runtime shape {timestamp, line, step} onto the
       // canonical LogLine {ts, msg, source}; pass-through when already canonical.
@@ -92,7 +92,10 @@ export function useLogStream(
       };
       const source = raw.source ?? raw.step;
       return {
-        ts: raw.ts ?? raw.timestamp ?? new Date().toISOString(),
+        // B-224 — era `new Date().toISOString()` AQUI, dentro do memo: uma linha sem horário do
+        // servidor recebia um horário de chegada novo a cada recomputação da lista. O carimbo
+        // nasce na ingestão agora (`SSEStreamEvent.receivedAt`) e não se move mais.
+        ts: raw.ts ?? raw.timestamp ?? ev.receivedAt,
         level: raw.level ?? 'info',
         msg: raw.msg ?? raw.line ?? '',
         ...(source !== undefined ? { source } : {}),

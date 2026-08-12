@@ -54,7 +54,7 @@ export function SignalDetailSheet({
   env,
   grafanaBaseURL,
 }: SignalDetailSheetProps) {
-  const { data, status, collectingHint } = useMetricsRange(projectName, env, {
+  const { data, status, collectingHint } = useMetricsRange(projectName, {
     signal: signal ?? '',
     range: '7d',
   });

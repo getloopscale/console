@@ -1,6 +1,231 @@
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-12
+
+<!-- B-268 — some of the entries below spent a day inside a `## [1.0.1] - 2026-08-11` section
+     that announced a release which never happened: `chore(release): 1.0.1` reached develop, never
+     reached main, and no v1.0.1 tag ever existed. They were moved back to [Unreleased] on
+     2026-08-12 because unreleased work belongs there.
+
+     This release is the other half of that fix, and the owner's call: rather than letting 1.0.1
+     vanish from the record, the number ships for real, carrying what it always claimed plus
+     everything measured since. The date moves from 2026-08-11 (the day it was announced) to
+     2026-08-12 (the day it shipped), because the first date was the claim and the second is the
+     fact. -->
+
+### Fixed
+
+- **theo-cloud/dashboard:** four more screens stopped saying "there is nothing here" when what actually happened was "we could not read it". Projects, environments, deployments and both webhook delivery views all turned a failed read into an empty state — and the projects page went further, showing the first-time onboarding screen to someone who may already have thirty projects. A check now fails the build when a NEW screen does this; the screens that already did are frozen at today's count and can only go down (B-137, B-167).
+
+- **theo-cloud/dashboard:** six screens stopped telling you to run terminal commands that do not exist. `theo billing status`, `theo notify list`, `theo team delete`, `theo session list`, `theo account delete` and `theo login --rotate-credentials` were all advertised as "use the CLI to do this today"; none of them is a command the CLI registers. A missing feature that admits it is missing costs one disappointment; one that points at a path that is not there costs the disappointment plus the time to discover that, and some trust in everything else the screen says. A check now compares every command mentioned anywhere in the product against the commands this project knows exist — which caught two more, `theo account delete` and `theo skills publish`, in copyable code blocks that a narrower check had missed (B-132, B-133).
+- **theo-cloud/dashboard:** the overview's project cards stopped claiming every project deploys from `main`. The listing payload does not carry the deploy branch, and the card filled the gap with a plausible guess — which for a project deploying from anything else is simply wrong, with no way for the reader to tell it was a guess. It shows an em-dash until the real value is available (B-134).
+- **theo-cloud/dashboard:** two old bookmarks — `/settings/members` and `/settings/billing` — no longer show a "still being built" screen over features that shipped months ago. They redirect to the working screens, the same treatment `/api-keys` already had (B-206).
+
+- **theo-cloud/dashboard:** two views watching the same live stream from different points no longer share one connection and silently serve the second one the first one's position. Asking to resume from a different place is asking for different data, so they now get their own connection — while two views asking for the same thing still share one, which is why that mechanism exists (B-220).
+- **theo-cloud/dashboard:** a log line that arrives without a timestamp keeps the arrival time it was given, instead of being re-stamped with the current time every time the list is recomputed (B-221, B-224).
+- **theo-cloud/dashboard:** the deploy view stopped reporting a total duration for a build that has not finished. It was computing one from a clock read inside a cached calculation, so the number froze at the moment of the last event and was handed back as though it were live. A build that has not ended has no total duration, and that is what it reports now (B-222).
+
+- **theo-cloud/dashboard:** a live view that hits a network hiccup now reconnects instead of going quiet forever. The fix that stopped a finished deploy from wiping the session had, in the same edit, turned a transient failure into a dead end: the stream stopped and nothing restarted it until the page was navigated away from and back (B-173).
+- **theo-cloud/dashboard:** an overloaded or missing log service no longer signs you out of every open screen. The live-view transport reported only THAT an HTTP error happened, never which, so the dashboard treated a 503 exactly like an expired credential and discarded the session token. It now reads the status, and only a 401 or 403 touches the credential (B-172).
+- **theo-cloud/dashboard:** un-pausing a live view shows what arrived while it was paused, instead of staying on stale data until the next event happens to come in — which on a quiet stream could be indefinitely (B-179).
+- **theo-cloud/dashboard:** two live views — the deploy list and the project signals strip — had no answer at all in mock mode, so they sat empty in the environment where screens are validated. A guard now compares what the app consumes against what is registered, so the next one cannot be added silently (B-178).
+
+- **theo-cloud/dashboard:** cancelling a build no longer reports success when the server refused. The request did not opt into typed errors, so a refusal resolved as an ordinary result: the dialog closed, both lists were refreshed, and the operator was told a destructive action had happened that had not. Its three sibling operations — promote, rollback and environment changes — already had the flag, each with a comment naming this exact failure (B-145, B-168).
+
+- **theo-cloud/dashboard:** the documentation stopped stating measurements that the code had moved past. Fourteen places asserted a count, a size cap or a file path that no longer held — the architecture record claimed 28 component subfolders where there are 9, the UI contract claimed 183 files importing the design system where there are 198, and three documents pointed at files that do not exist anywhere. All corrected, and — more to the point — a guard now re-measures every one of them on each test run and fails when a document and the disk disagree (B-158, B-159, B-199, B-200, B-201, B-202, B-204, B-205, B-207, B-208, B-209, B-210, B-211, B-212).
+
+- **theo-cloud/dashboard:** a malformed message from another browser tab can no longer log you out or crash the tab that receives it. The channel that coordinates logout across tabs trusted whatever arrived on it — an empty message threw inside the handler, and any message merely shaped like a logout wiped the credential (B-234).
+- **theo-cloud/dashboard:** when the server refuses an action because of a plan limit, the dialog that explains why no longer crashes if the server's answer is shaped unexpectedly. It was reading the response body without checking it, at the exact moment the user most needs the explanation (B-236).
+
+- **theo-cloud/dashboard:** a read that succeeded and carried no content is no longer painted as a failed read. Thirteen screens ask for data through one pair of hooks, and those hooks judged failure by the returned VALUE — but an empty successful response and a server error produce the same value, so a working `204` looked like an outage (B-171).
+- **theo-cloud/dashboard:** when the login service is unreachable or answers with a server error, the dashboard now reports what actually happened instead of "too many requests". The invented status had a real cost: the retry policy decides by status and refuses to retry client errors, so the one failure that most deserved a second attempt — a gateway saying "try again" — was the only one guaranteed never to get one (B-142).
+- **theo-cloud/dashboard:** several requests failing at once no longer make the dashboard renew its credential twice. The second failure was arriving after the renewal had already succeeded and throwing away the fresh credential, which triggered another renewal against a service whose rate limit this project has already hit once in production (B-231).
+
+- **theo-cloud/dashboard:** the bar charts under every capability's counts stopped printing a number the bar had refused to draw. A broken value now reads as zero in both places instead of as `NaN` beside an empty bar, because one function decides what a value is rather than two (B-148).
+- **theo-cloud/dashboard:** a small real count is no longer invisible. Three items beside a category of nine thousand used to draw nothing at all, so a category that exists read as one that does not; and the previous attempt at fixing that had made a genuine zero draw a visible sliver, so an empty workspace looked like an almost-full one. Both readings hold now, and a test pins each end (B-185, B-188).
+- **theo-cloud/dashboard:** the /promptly overview no longer goes blank when the service sends a malformed label. One label entry missing its name took the whole screen down; the same unguarded data elsewhere on the screen was quietly counting an environment that does not exist and under-counting the prompts serving nobody (B-147).
+- **theo-cloud/dashboard:** the /skills chart, cards and verdict no longer say "nothing recorded" for an instant over a table that is already listing rows — all four readings on that screen now describe the same collection (B-149).
+
+### Changed
+
+- **theo-cloud/release process:** the changelog no longer announces a version that was never released. It carried a `1.0.1` section dated 2026-08-11 for which no tag exists anywhere — the release chain wrote the announcement, stopped before tagging, and left the claim behind while the work it described stayed unreleased. Those entries are back where they belong, and a check now fails the build when a version is announced without a release to match it. Seven older mismatches are frozen at today's count and can only go down (B-268).
+
+
+- **theo-cloud/dashboard (internal, no consumer surface):** the mock layer stopped replacing the browser's built-in event-stream object. Nothing in the product has used it since the transport was changed to put the credential in a header, and keeping the replacement suggested the mocks covered streams when they did not — which is how two live views ended up with no mock answer at all. Recorded under Changed rather than Removed because nothing a consumer can call was removed; classifying it as Removed would auto-derive a MAJOR bump and announce a breaking change that does not exist (B-223).
+- **theo-cloud/dashboard:** the live-view documentation stopped describing a credential in the URL. That was true of the browser's built-in transport and stopped being true when it was replaced precisely to get the token out of the query string, where it reached nginx access logs and browser history — the text outlived the reason it existed, describing a risk that had been closed a few lines below it (B-219).
+
+- **theo-cloud/dashboard:** the "session expired" notice moved out of the network client, which used to build and style the notice itself. It now says so plainly when the redirect it promises does not happen — a refused or deferred navigation used to leave the message claiming "Redirecting to login..." forever (B-218).
+
+- **theo-cloud/dashboard:** the bar charts are readable by screen reader for what the colours were saying. On /trust the amber bar was the only thing distinguishing a policy that is enforced from one that is not, and it lived inside an element assistive technology is told to skip — a compliance reading that existed only for people who see it. Each chart now says in words what its colour says, in the wording of its own screen: "not enforced" on /trust, "needs review" on the Knowledge Base confidence chart (B-187).
+- **theo-cloud/dashboard:** the bar charts declare their columns, and the bar sits inside the value cell instead of occupying a column of its own that carried nothing — a screen reader used to walk a three-column table with one permanently empty column (B-186).
+- **theo-cloud/dashboard:** on /promptly, the bucket of prompts that serve no environment is called `No environment`. It was called `not promoted`, which is also the name of a KPI card on the same screen counting something else entirely — a reader had no way to tell which of the two numbers they were looking at (B-146).
+
+
+### Fixed
+
+- **theo-cloud/dashboard:** registering a webhook that the server rejects no longer looks like it worked. The dialog used to close and the list to refresh over a refused request, so you left believing your endpoint would start receiving deploy events when it was never registered. The dialog now stays open and says why. Revoking one had the same problem, and the reading was worse: an endpoint you believe you just cut off kept receiving your payloads (B-244).
+- **theo-cloud/dashboard:** deleting your account or your workspace no longer reports success when it failed. Both screens closed the confirmation and signed you out — or sent you to the home page — over a request that had been refused, and the only reading available to you was that the account was gone. It may not have been. The refusal now stays on screen with its reason, and nothing is signed out (B-264).
+- **theo-cloud/dashboard:** a new request that cannot tell a failure from an empty answer now fails the build. 134 of the 171 requests already ask for the typed error; the 37 that do not are frozen, so the ambiguity stops spreading while they are migrated one at a time (B-235).
+- **theo-cloud/dashboard:** when creating a project fails, the screen now says why. It used to show "Couldn't create project. Try again in a moment." for every failure, because the request could not tell a rejection from an empty answer — so a name already taken and a service being down read the same. Creating a project also refreshes the project list, which it previously left to whoever opened the form (B-244).
+- **theo-cloud/dashboard:** a build whose SBOM or signature cannot be read no longer says the build has none. For a supply-chain artifact the two are opposite conclusions — "this build shipped without provenance" is something to act on, "I could not read the provenance" is something to retry — and they shared a heading. Both tabs also stop re-fetching every time you switch to them (B-244).
+- **theo-cloud/dashboard:** a test that could only pass when another test ran before it now passes on its own. Nothing was wrong with the screen it covers — the test harness had a mechanism switched off that the browser has on, so it reported a defect the product does not have (B-240).
+
+### Changed
+
+- **theo-cloud/dashboard:** the guarantee that a failed request cannot be mistaken for an empty answer is now enforced by tests that go through the real network layer. The first round of tests mocked that layer away, so deleting the guarantee from four screens' data access left every test passing — and the test written for the account-deletion fix simulated the failure as a rejection when the defect was that it succeeded quietly, so it passed against the broken code it was meant to catch. Eight ways of breaking the contract were applied one at a time; all eight are now caught (B-244, B-264).
+
+- Abrir um PR não dispara mais esteira: o gatilho `pull_request` foi removido dos 5 workflows que o declaravam (`actionlint.yml`, `ci.yml`, `e2e-ui.yml`, `quality.yml`, `security-sast.yml`). CI passa a rodar **somente no merge** — push em `develop`/`main` — por decisão do dono (2026-08-12). A cobertura no merge não se perde: estes workflows são invocados como gate pelo `publish.yml`, que dispara no push para `develop`. Se este repositório tiver *required status checks* configurados no GitHub para PRs, eles precisam ser removidos lá, senão o PR fica travado esperando um check que nunca reporta.
+- **theo-cloud/dashboard:** the Domains screen no longer builds its own request. It chose the address, the row limit, the error policy and the cache key inside the screen, which is how the same endpoint came to be read differently on different screens. Nothing changes on screen; what changes is that the next fix to how domains are read lands in one place (B-244).
+- **theo-cloud/dashboard:** the check that watches for tests which cannot fail now counts the assertions that are actually weak, not the files that use a particular spelling. It had been freezing 98 files; measured, 206 of the 317 assertions inside them were already sound, and 111 are not. The old count stays as a second gate — it is what caught the new count reading one file too few (B-242).
+- **theo-cloud/dashboard:** 48 internal type definitions stopped being published from their modules. They were exported and imported by nobody, which cost reading rather than runtime: the file describing API payloads is 861 lines and most of it described shapes nothing consumed, so anyone looking for an endpoint's contract read twice what they needed and could not tell which half was live (B-245).
+- **theo-cloud/dashboard:** the check that guards how architecture decisions are cited now says what it actually delivers. It promised the 234 stale citations would "shrink on their own as files get rewritten"; measured, that produced one in five days — about three years for the rest. Its real value is stopping new ones from appearing, which it does, and it now says so (B-246).
+
+### Fixed
+
+- **theo-cloud/dashboard:** the session picker no longer says you have recorded no sessions when the list could not be read, or when it is still loading. Three situations that ask for different things — wait, retry, or record your first session — had been showing one sentence (B-243).
+- **theo-cloud/dashboard:** a project whose deployment list fails to load no longer invites you to ship your first deploy. It says the deployments could not be read and offers to try again, instead of describing a project that may well have deployments as empty (B-243).
+- **theo-cloud/internal tooling:** the dead-code audit now names the function, file and line it found, instead of reporting `<unknown>`. It was reading the tool's per-package output as if each entry were a single symbol, so 28 unreachable functions arrived as 5 findings that named nothing, could not be located, and could not be exempted individually. Vendored third-party trees are no longer audited (B-255).
+- **theo-cloud/internal tooling:** the quality gate stopped reporting the Go standard library as invented code. It asked a public module registry whether `net/http`, `encoding/json` and 320 other standard packages existed; they are not modules, so the answer was always no, and the gate failed with 787 imaginary defects on a codebase that compiles. It now asks the Go toolchain, which also settles private dependencies the public registry can never answer for (B-252).
+- **theo-cloud/internal tooling:** fixing a lookup no longer leaves yesterday's wrong answers in place. Results were cached for a day with no record of which logic produced them, so a corrected check kept serving the broken check's conclusions and looked like it had changed nothing (B-254).
+- **theo-cloud/internal tooling:** the file that says which languages the quality gate audits now documents the format it actually accepts. Following its own instructions produced an error, so the first step of enabling a language failed for whoever tried it; a note had been added describing the trap instead of removing it (B-251).
+- **theo-cloud/release process:** a release now halts if it cannot read the current version, instead of numbering itself from nothing. The step that reads it was added without being added to the installer, so an updated install would have called a file that was not there — and the old fallback had been removed in the same change (B-228).
+- **theo-cloud/release process:** cutting a release now starts from the version that was actually released. It had been reading the last tag on the branch the work is written on, where release tags never land — so it saw v0.29.0, some fifty-six releases behind v0.85.0, and every version it proposed was computed from that. It also no longer confuses "the tag nearest in history" with "the highest version", so a hotfix numbered below a shipped release can no longer make the next release reuse a version number that already exists (B-228).
+- **theo-cloud/internal tooling:** citing a file inside a dot-directory as evidence no longer marks that evidence as invented. `.claude/rules/x.md:28` was being read as `claude/rules/x.md:28`, a path that resolves nowhere, so the harshest failure in the review system fired against pointers that were correct — and any finding about the project's own tooling was unreviewable (B-247).
+- **theo-cloud/internal tooling:** the reference example of a well-formed finding now passes its own check. It pointed at files using a layout this repository does not use, so the check that proves the system accepts good work had never once passed here (B-248).
+
+### Changed
+
+- **theo-cloud/internal tooling:** the exemption file now documents the format it is actually parsed with. It described four fields where six are required, and so did the rule that governs it — so an entry written from the documentation was rejected, and a rejected entry switches off every other exemption in the file rather than just itself (B-257).
+- **theo-cloud/internal tooling:** 21 Go symbols the dead-code audit reports as unreachable are exempted for 90 days, each with the reason and the line it fires on. Four are called by the language runtime and deleting them would put a credential back in the logs; four are seams the tests use; thirteen are metrics helpers still to be classified. The exemptions expire on 2026-11-10 and every one re-fires then (B-256).
+- **theo-cloud/internal tooling:** the backlog verifier now refuses an item whose checkbox contradicts its status. The two had drifted apart 41 times: work that shipped still showed an unticked box, and — the direction that misleads — ten items nobody had measured showed a ticked one, so a whole programme read as delivered to anyone skimming the list (B-242..B-246).
+
+### Fixed
+
+- **theo-cloud/dashboard:** searching the wiki while the page list fails to load now says the search did not cover the wiki, instead of reporting "no matching pages" over a list nobody managed to read (B-238).
+
+### Fixed
+
+- **theo-cloud/dashboard:** signing out in one browser tab is verified to sign out the others, and a malformed message from another tab is verified not to. The checks covering this were passing against a test setup that silently discarded every cross-tab message, so they would have held with the feature entirely removed (B-237).
+
+### Changed
+
+- **theo-cloud/dashboard:** the two webhook screens now share the parts that were genuinely the same — the delivery shape, the status colours, when a delivery can be replayed, the table columns and the add dialog. They remain separate screens because they list different resources and each does something the other does not (B-183).
+
+### Fixed
+
+- **theo-cloud/dashboard:** deleting a secret now keeps the dialog open and says what went wrong when the server refuses, instead of closing as though it had worked. The dialog also opens with Cancel focused, so a stray Enter cannot delete anything (B-195).
+
+### Changed
+
+- **theo-cloud/dashboard:** the Explore cards, the add-webhook dialog and the delete-secret confirmation each exist once instead of two or three times. No behaviour changed beyond the fixes noted above; what changed is that the next fix to any of them lands everywhere it should (B-192, B-193, B-195).
+
+### Fixed
+
+- **theo-cloud/dashboard:** paging back is no longer the only way out of an empty page. On four of the five paged screens, deleting or filtering records shrank the list while you were on a later page, leaving an empty table and nothing on screen explaining why. One screen already stepped back automatically; now all of them do (B-184).
+- **theo-cloud/dashboard:** the row counter on Lens usage-by-user is in English, like every other screen (B-184).
+
+### Fixed
+
+- **theo-cloud/dashboard:** rotating the dashboards runtime configuration now reaches returning visitors. The service worker matched the file against its static-asset rule first and kept it for thirty days, so a changed API or identity-service address stayed stale on every browser that had loaded the app before — pointing at hosts the security policy may no longer permit (B-196).
+
+### Fixed
+
+- **theo-cloud/dashboard:** sign-in can now complete on deployments whose identity service runs over plain HTTP on a local network. The redirect guard carried a branch that allowed operator-configured hosts on HTTP — written deliberately, and unreachable in every execution, because an earlier check rejected the request first. Redirects from an HTTPS page to HTTP stay blocked, which is what that check was for (B-214).
+- **theo-cloud/dashboard:** a bug inside the error reporter no longer disappears without trace. Its outermost handler discarded everything, including its own programming errors — in the one component whose job is to make sure errors are not lost. Failures are now surfaced during development and stay silent in production, where a telemetry gap is not the user's problem (B-215).
+
+### Changed
+
+- **theo-cloud/internal tooling:** the code-quality audit stopped silently skipping source directories whose name resembles a build output. Any folder called `build`, `dist`, `out` or `target` was dropped at any depth, so eight files of the dashboard — including the check that keeps the two security policies in agreement — were never audited, with no warning that they had been left out (B-198).
+
+### Fixed
+
+- **theo-cloud/dashboard:** web fonts, file previews and provider logos no longer fail to load in production. Two content-security policies ship with the dashboard — one in the page, one as a response header — and browsers apply both, so the narrower one silently revoked six things the page declared it needed. Nothing reported an error; the assets simply never arrived (B-131).
+
+### Changed
+
+- **theo-cloud/dashboard:** the upgrade buttons on Billing no longer state a price or a quota. Both were typed into the page and could not be checked against anything: the API describes only your current plan, and the authoritative amount lives in Stripe — so a price change there left the button promising one figure and the card charging another. The plan's benefits stay; the amount is confirmed at checkout, one click later (B-136).
+
+### Fixed
+
+- **theo-cloud/dashboard:** the deploy timeline no longer walks backwards on a long deploy. Phase state was rebuilt from a rolling buffer that keeps only the last 60 events, so once the event that completed a phase was pushed out, the phase reverted to "pending" on a screen that had already shown it finished (B-181).
+
+### Changed
+
+- **theo-cloud/dashboard:** the deploy timeline, the deploy error messages and the project readiness checklist were each split into rules that can be read and tested one at a time. No behaviour changed; the three most tangled pieces of logic in the dashboard are now the least. The readiness rule that grades error rates gained its own tests in the process — its three thresholds had never been exercised individually (B-182, B-225, B-226).
+
+### Fixed
+
+- **theo-cloud/dashboard:** a momentary failure reaching the login service no longer signs you out. Three different causes produced the same empty answer, and all three were read as "the session ended" — so a gateway hiccup bounced a signed-in person to the login screen, where the page reload re-attempted the same call that had just failed (B-140).
+- **theo-cloud/dashboard:** when the login form cannot be prepared, the page says so instead of leaving a button that does nothing. Both attempts to load it were swallowed — the second by an empty error handler — so the Sign in button became a no-op: people clicked, nothing happened, and they concluded their password was wrong (B-141).
+
+### Fixed
+
+- **theo-cloud/dashboard:** a sign-out the identity service did not confirm no longer looks exactly like one that worked. A refused logout, a missing redirect and a network drop all landed on the same login screen, so someone on a shared computer saw the login page and concluded they had signed out — while the session stayed alive on the server. The browser is still signed out in every case; what changed is that the failure is now said, on screen and in telemetry (B-139).
+
+### Fixed
+
+- **theo-cloud/dashboard:** the test suite no longer depends on the order it runs in. Seven checks were passing because of where they happened to sit in the sequence — including the one guaranteeing the session token never travels between browser tabs, and one that was reading a form left behind by a different test entirely. Verified against two independent random orderings, not one (B-197).
+
+### Fixed
+
+- **theo-cloud/dashboard:** the check that guarantees the session token never travels between browser tabs now holds regardless of the order tests run in. It was passing only because of where it happened to sit in the sequence — a security guarantee that depends on execution order is not a guarantee (B-197, first of seven).
+
+### Fixed
+
+- **theo-cloud/dashboard:** the team menu stopped offering "Create team" and opening a documentation page instead. No backend endpoint for creating a team exists yet, and the only production caller never supplied a handler, so the documentation branch was the only one that ever ran. The item now says what it does — and goes back to promising the action the moment a handler is passed (B-135).
+
+### Fixed
+
+- **theo-cloud/dashboard:** starting a sign-in or sign-up flow now follows the identity service's redirect instead of pretending to handle it. The code that claimed to do so could never run: the request was made in a mode where the browser hands back an opaque response with no status and no headers, so the branch reading them was unreachable. A reader looking for where the redirect is handled stopped there and concluded it was solved (B-169).
+
+### Fixed
+
+- **theo-cloud/dashboard:** signing out now reports when a cached copy of a tenant's data survived the purge. It was failing silently by construction — each delete's result was thrown away and the outer error handler was empty — so in a multi-tenant product the most expensive failure of that journey was the one thing the code guaranteed never to count (B-170).
+
+### Changed
+
+- **theo-cloud/dashboard:** five types were exported for nobody and are now module-private, and the check that freezes that count dropped from 84 to 79. A type exported with no importer costs reading, not bytes: whoever opens the file to find a contract reads past declarations that no other file consumes (B-203).
+
+### Fixed
+
+- **theo-cloud/dashboard:** four checks that were meant to prove a chart is hidden when its data could not be read were rewritten so they can actually fail. They asserted the absence of a table — but the chart draws no table when it has nothing to draw, so the assertion held whether the guard was there or not. They now assert the absence of the heading, which exists exactly when the chart block does (B-152, B-189).
+
+### Fixed
+
+- **theo-cloud/dashboard:** two internal checks that could not fail were repaired. One decided whether a screen renders a chart by searching its source text — and matched the chart's name inside a comment, so a screen that had REMOVED its chart still counted as having one; its own documentation claimed that hole was closed. The other tested the /trust coverage view against a fixture that enforced nothing, so the "policy is enforced" path had never been exercised by any screen test while a comment asserted it was (B-190, B-191).
+
+### Fixed
+
+- **theo-cloud/dashboard:** rollback's error messages are now covered by tests. Promote and rollback shared the same error-mapping ladder with different wording, and only promote's half was tested — the covered half was lending confidence to the uncovered one (B-226).
+
+### Changed
+
+- **theo-cloud/dashboard:** the service-level thresholds (uptime, latency, error rate) are declared once. They existed byte-for-byte in two components rendering the same reading on the same screen, and one of them described itself as using "the canonical thresholds" while being the second copy of them. Duplicated numbers do not diverge on the day they are copied; they diverge on the day someone changes one (B-194).
+
+### Fixed
+
+- **theo-cloud/dashboard:** the build-log viewer can no longer hold twice its own line limit. The cap was applied to each of the two sources feeding it and to neither of their outputs, so a full history plus a full live stream handed the viewer double what both sides believed they were guaranteeing (B-180).
+- **theo-cloud/dashboard:** the project metrics chart stopped implying it was showing you a specific environment. The environment was part of the cache key and was never sent to the server — and the server has no environment dimension at all, so switching environments cached a second copy of the same numbers and presented them as that environment's. The parameter is gone until the endpoint can honour it (B-176).
+- **theo-cloud/dashboard:** the deploy timeline's defence against events arriving out of order now exists. A comment said it did; the loop implementing it had an empty body, so on a reconnect a phase whose completion arrived before an earlier one's stayed marked pending indefinitely (B-174).
+- **theo-cloud/dashboard:** refreshing build logs and then leaving the page no longer writes to a screen that is gone. The initial-load path in the same file already guarded this; the refresh path did not, and the asymmetry was the defect (B-175).
+- **theo-cloud/dashboard:** page-performance measurements now reach the server in production instead of being written to the browser console, where nobody reads them. The metrics are sent with a transport that survives the page unloading, which is when two of the three are reported (B-217).
+
+### Removed
+
+- **theo-cloud/dashboard:** a configuration value (`ENGINE_URL`) that was validated at container start, written into the runtime config and read by no code at all. It was plumbed through four layers to nothing; a setting nobody reads is a setting an operator can set wrongly with no effect and no warning (B-153).
+
+### Fixed
+
+- **theo-cloud/dashboard:** downloading a file from the workspace no longer fails silently, and no longer breaks in Safari. The download was the third hand-written copy of the same browser pattern, and it had lost both safeguards the shared one documents — so the browser could abort the transfer partway. A refused download also just returned without saying anything; it now says so (B-230).
+- **theo-cloud/dashboard:** the identity-flow id taken from the URL is now encoded before it goes back into one. Raw, an `&` or a `#` in it stopped being data and became structure — appending a query parameter nobody wrote, which the identity service then read as ours. Five call sites; a helper now does the encoding so the sixth cannot forget (B-213).
+- **theo-cloud/dashboard:** a password-recovery attempt that fails because the identity SERVICE is down is no longer indistinguishable from one that fails because the form was wrong. The HTTP status was being discarded entirely, so a 500 came back looking like a normal flow and the screen showed no error at all. A validation 400 still returns the flow — that is how "password too short" reaches the user (B-232).
+- **theo-cloud/dashboard:** the recovery screen stopped telling you to "try again in a minute" when trying again is guaranteed to fail. Two of its three error handlers computed which kind of failure had happened and then showed the same sentence either way; an expired link now says to start over, and a service outage still says to retry (B-233).
 ## [1.0.0] - 2026-08-11
+
+> **Governance note.** The `workspace → develop` promotion for this release was merged by
+> the assistant under explicit maintainer authorization, overriding the human-approval gate
+> in `cycle-release § Hard gates`. One merge, authorized once, for this release; the gate
+> is unchanged. Recorded as B-229.
 
 ### Added
 
@@ -145,6 +370,43 @@
 
 - **A redação de segredos da configuração ganhou o teste que provava não existir.** O tipo que impede uma credencial de aparecer num log, num `%v` ou num corpo JSON tinha quatro métodos e **nenhum teste** — eles são chamados pelo próprio runtime da linguagem, nunca por código nosso, e por isso a auditoria de código morto os apontava como candidatos a remoção. A leitura correta do achado não era apagá-los: era que apagar qualquer um faria o segredo voltar a serializar em claro **sem nenhum teste ficando vermelho**. Agora há teste para as seis rotas de formatação, para JSON solto e dentro de struct, e para o caminho de texto; verificado quebrando a redação de propósito e confirmando que a suíte acusa o vazamento.
 - **O token de sessão deixou de viajar na URL do stream de sinais, e a mesma exposição foi registrada onde ainda existe.** O consumidor de status em tempo real havia sido unificado numa primitiva que autentica pondo o JWT na query string; a versão anterior usava cookie. Como o token em questão **é o mesmo bearer que autentica toda a API** — não um token efêmero e escopado —, pô-lo numa URL o entrega a quatro lugares onde uma credencial não deveria estar: log de acesso do servidor, log de proxy, histórico do navegador e cabeçalho `Referer`. A unificação foi revertida e o ponto do código passa a explicar por quê, para que ninguém a refaça sem ler. A mesma exposição **continua existindo em quatro outros streams** (logs de build, deploy, timeline e lista de deployments) e está registrada como `B-088` com as três saídas conhecidas e o custo de cada uma — a razão técnica original é legítima (o `EventSource` do navegador não aceita cabeçalhos), o que faltava era a decisão consciente sobre o preço dela.
+
+## [0.85.0] - 2026-08-05
+
+> Reconstructed on 2026-08-12 from the eight commits the `v0.85.0` tag carries
+> (`git log v0.84.0..v0.85.0`). No section was written when this version was cut: `CHANGELOG.md`
+> is byte-identical at `v0.83.1` and `v0.85.0`, so two releases shipped eighteen commits without
+> recording one line. The entries below describe what those commits changed, written now rather
+> than at the time — see B-228 for the detection defect that let a release be cut without its
+> section.
+
+### Added
+
+- **From a prompt revision you can now reach the calls that resolved it.** The revision tab offers a path into the trace explorer, already filtered to that revision, so answering "what actually happened on these calls?" no longer means rebuilding the filter by hand and hoping it matches. The link asserts on the destination rather than on its own address: a path that points somewhere empty is the failure this was built to avoid.
+
+### Fixed
+
+- **The MODEL column can be hidden, like every other column.** It was the one column the view encoder refused to toggle, so a saved view that hid it came back showing it. Views saved before this change are unaffected — an older saved view simply decodes with MODEL visible, exactly as it was saved.
+- **A missing prompt name no longer takes the whole screen down.** The helper that builds the path raised an exception for a known, ordinary state — a revision without a name — and the only caller invokes it inside the rendered output, so the detail screen was replaced by "This page crashed" with a Retry that crashed again. An absent name is now an absent link, and the rest of the screen stays.
+- **The invitation to inspect calls stopped appearing when there are no calls to inspect.** "Want to see what happened on these calls?" was rendered unconditionally — including directly under "no revisions to report" and under "usage could not be read" — so it pointed at a number that was not on screen.
+
+## [0.84.0] - 2026-08-05
+
+> Reconstructed on 2026-08-12 from the ten commits the `v0.84.0` tag carries
+> (`git log v0.83.1..v0.84.0`), for the same reason recorded above.
+
+### Added
+
+- **An alert can be created from the prompt itself, not just from the alerts screen.** The prompt tab offers the path, and the alert form opens already knowing which prompt and which metric it is about. Creating a monitor for "this prompt stopped being used" no longer means leaving the prompt, finding the alerts screen and re-selecting what you were already looking at. The backend for prompt-scoped rules shipped in `0.83.0`; this is the screen that reaches it.
+- **The alert form shows the current measured value for the metric you picked**, so a threshold can be set against what the prompt actually does rather than against a guess.
+
+### Fixed
+
+- **The alert form now says which field is missing.** Three of its four fields failed silently: the submit button disabled itself and named nothing, so the only way to find the empty field was to try each one.
+- **The measured value shown while setting a threshold now uses the rule's own window.** It was fixed at 24 hours regardless — so choosing "last 7 days" showed a 24-hour number, the threshold was sized against it, and the rule then measured roughly seven times as much and fired on its first evaluation. That is precisely the badly-calibrated alert this screen exists to prevent.
+- **A validation error from the service reaches the screen as itself.** A rejected field was announced as "check your access to this workspace" — a permissions problem — sending the operator to investigate the wrong thing entirely.
+- **A rule that has not been evaluated yet says so, instead of reporting "0 resolutions".** A response without the usage figures rendered "Today: undefined resolutions" in one place and an asserted zero in another; absent is not zero, and for a rule that watches for a drop to zero the difference is the whole point.
+- **The internal quality gate audits this repository again.** Neither Go nor TypeScript was enabled, so the gate ran, found nothing, and reported success over a codebase it had not examined.
 
 ## [0.83.1] - 2026-08-05
 
@@ -1736,3 +1998,18 @@
   caused by the extraction; the Go module + the dashboard BUILD are GREEN. Tracked for
   separate J-19 completion.
 
+
+---
+
+### Tags that predate this file's discipline
+
+Recorded once, explicitly, so the gap is a stated fact rather than something a reader has to
+notice. These tags exist in the repository and have no section here, and none can be honestly
+reconstructed now:
+
+`v0.10.0` · `v0.11.0` · `v0.12.0` · `v0.13.0` · `v0.69.5`
+
+The first four predate the adoption of Keep a Changelog in this repository. `v0.69.5` is a patch
+cut between two documented releases whose contents were folded into the sections around it.
+Writing entries for them today would mean inventing them, which is worse than the absence — so
+the absence is named instead. Every tag from `v0.82.0` onward has a section (see B-228).

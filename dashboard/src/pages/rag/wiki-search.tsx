@@ -28,11 +28,20 @@ export function WikiSearch({
   onClose,
   pages,
   onSelect,
+  leituraFalhou = false,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly pages: readonly WikiEntry[];
   readonly onSelect: (id: string) => void;
+  /**
+   * B-238 — a leitura das páginas falhou.
+   *
+   * Este componente recebe `pages` pronto, e quem o monta transformava um erro em lista vazia
+   * (`pagesQuery.data?.items ?? []`). O resultado é que uma busca durante uma falha de rede dizia
+   * "No matching pages" — a afirmação mais confiante possível sobre um acervo que ninguém leu.
+   */
+  readonly leituraFalhou?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -81,7 +90,11 @@ export function WikiSearch({
         />
         <div className="min-h-0 max-h-[50vh] overflow-y-auto" role="listbox" aria-label="Search results">
           {results.length === 0 ? (
-            <p className="px-2 py-8 text-center text-sm text-muted-foreground">No matching pages.</p>
+            <p className="px-2 py-8 text-center text-sm text-muted-foreground">
+              {leituraFalhou
+                ? 'The page list could not be read, so this is not a search over the wiki — it is a search over nothing. Close and retry.'
+                : 'No matching pages.'}
+            </p>
           ) : (
             results.map((p, i) => (
               <button

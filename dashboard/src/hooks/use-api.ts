@@ -17,6 +17,26 @@ import { cloudFetch, engineFetch } from '@/lib/http/api';
  * use-deployments, etc.) which need filter-aware structured keys.
  */
 
+/**
+ * B-171 — `error` vem de `query.isError`, e nao mais de uma inspecao do VALOR.
+ *
+ * O predicado anterior era `isError || (isFetched && data === null)`. Ele lia `null` como falha, e
+ * `null` e o que `cloudFetch` devolve para CINCO desfechos diferentes no contrato padrao (B-235) —
+ * um dos quais e um `204 No Content` BEM-SUCEDIDO, que `parseOkBody` mapeia para `null` de
+ * proposito para que um DELETE que funcionou nao exploda em `resp.json()`. Uma leitura que deu
+ * certo e nao trazia corpo pintava estado de erro.
+ *
+ * A correcao nao e um caso especial para o 204: e parar de julgar pelo valor quando existe um
+ * canal de erro. `{ throwOnError: true }` liga esse canal.
+ *
+ * `data` continua `T | null` para os 13 consumidores de producao — numa query que falhou,
+ * `query.data` e `undefined` e `?? null` devolve `null` como antes. O unico campo cujo valor muda
+ * e `error`, e muda so na direcao de estar certo.
+ *
+ * Efeito deliberado: com o erro tipado, `retryGuard` passa a repetir um 5xx uma vez antes de
+ * exibi-lo, coisa que o caminho `null` nunca permitiu. Por isso B-142 (o status fabricado) tinha
+ * de ser corrigido na MESMA fatia — repetir um 429 inventado nunca aconteceria.
+ */
 interface UseApiResult<T> {
   data: T | null;
   loading: boolean;
@@ -38,26 +58,28 @@ export function useCloudApi<T>(path: string, options: UseApiOptions = {}): UseAp
   const enabled = options.enabled ?? true;
   const query = useQuery({
     queryKey: ['cloud', path] as const,
-    // silent-null-ok: ESTE hook mapeia `null` resolvido para o campo `error` que ele devolve (`isError || (isFetched && data === null)`), entao a falha nao se perde AQUI. B-094: isso NAO garante que a tela leia esse `error` — medi e varias nao liam, e o onboarding chegava a afirmar 'faca login' a quem estava logado. Quem consome este hook e responsavel por ler `error`; o marcador cobre so a metade de cima. #274
-    queryFn: () => cloudFetch<T>(path),
+    // B-171 — `{ throwOnError: true }` e o que da a este hook um CANAL de erro para ler.
+    // Sem ele toda falha resolve `null`, `isError` nunca fica verdadeiro, e a unica coisa
+    // disponivel para julgar e o valor — que e ambiguo (B-235).
+    queryFn: () => cloudFetch<T>(path, {}, { throwOnError: true }),
     enabled,
   });
   return {
     data: query.data ?? null,
     loading: query.isLoading && enabled,
-    error: enabled && (query.isError || (query.isFetched && query.data === null)),
+    error: enabled && query.isError,
   };
 }
 
 export function useEngineApi<T>(path: string): UseApiResult<T> {
   const query = useQuery({
     queryKey: ['engine', path] as const,
-    // silent-null-ok: ESTE hook mapeia `null` resolvido para o campo `error` que ele devolve (`isError || (isFetched && data === null)`), entao a falha nao se perde AQUI. B-094: isso NAO garante que a tela leia esse `error` — medi e varias nao liam, e o onboarding chegava a afirmar 'faca login' a quem estava logado. Quem consome este hook e responsavel por ler `error`; o marcador cobre so a metade de cima. #274
-    queryFn: () => engineFetch<T>(path),
+    // B-171 — ver `useCloudApi` acima: o erro vem do canal de erro, nao do valor.
+    queryFn: () => engineFetch<T>(path, {}, { throwOnError: true }),
   });
   return {
     data: query.data ?? null,
     loading: query.isLoading,
-    error: query.isError || (query.isFetched && query.data === null),
+    error: query.isError,
   };
 }

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { catalogKpis, catalogByCategory } from './catalog-kpis';
+import { colecaoDescrita } from '@/lib/collection-described';
 
 /**
  * The registry's KPI dashboard (B-126, amendment D1-bis).
@@ -102,5 +103,24 @@ describe('the registry by category (B-129)', () => {
 
   it('an empty registry yields no bars', () => {
     expect(catalogByCategory([])).toEqual([]);
+  });
+});
+
+describe('colecaoDescrita (B-149)', () => {
+  it('describes the page in hand while the accumulated registry is still empty', () => {
+    // The first frame after a successful read: the merge effect has not run yet, so the
+    // accumulated array is empty while the page already has rows. Reading the accumulated one here
+    // is what made the chart say "Nothing recorded" over a populated table.
+    expect(colecaoDescrita([], ['a', 'b'])).toEqual(['a', 'b']);
+  });
+
+  it('describes the accumulated registry once it has anything', () => {
+    // After the merge, the accumulated array is the whole registry across pages; the page in hand
+    // is only the last slice, and describing THAT would undercount every screen past page one.
+    expect(colecaoDescrita(['a', 'b', 'c'], ['c'])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('an empty registry with an empty page describes nothing', () => {
+    expect(colecaoDescrita([], [])).toEqual([]);
   });
 });

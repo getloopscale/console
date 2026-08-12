@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired } from './api';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired, installAuthChannel, clearToken } from './api';
 
 // B-049 — `mocksEnabled` passou a morar em ./config (era ./dev-mocks), para que
 // api.ts — o modulo mais importado do repo — nao dependa do modulo de fixtures.
@@ -14,14 +14,49 @@ vi.mock('./http/config', () => ({ API_URL: 'http://test.local', mocksEnabled: ()
 // ---------------------------------------------------------------------------
 
 const posted: unknown[] = [];
-beforeAll(() => {
+// B-197 — este espião morava num `beforeAll`, e qualquer `restoreAllMocks` de outro arquivo o
+// derrubava para todos os casos seguintes. Em ordem fixa isso nunca acontecia; sob
+// `--sequence.shuffle` a asserção de SEGURANÇA abaixo passava a não capturar nada. Reinstalar a
+// cada caso custa nada e não depende de quem rodou antes.
+//
+// B-237 — e ele ENGOLIA a mensagem. A implementação anterior só empurrava para `posted` e não
+// chamava o original, então nenhum `postMessage` deste arquivo chegava a canal nenhum. O efeito
+// foi silencioso e caro: os três casos de "uma mensagem malformada não derruba a sessão"
+// afirmavam que nada acontecia num mundo onde nada era entregue — passariam com o manipulador de
+// mensagens INTEIRAMENTE removido. Espiar é observar; substituir o comportamento fez o espião
+// virar o próprio ambiente do teste.
+const postOriginal = BroadcastChannel.prototype.postMessage;
+beforeEach(() => {
+  // B-237 — o token vive no MÓDULO, e cada caso deste arquivo o deixava como estivesse. Em ordem
+  // fixa isso funcionava; sob `--sequence.shuffle`, um caso que espera "sem token" herdava o token
+  // válido de outro e passava a receber `{ ok: true }` no lugar do `ApiError` que ele afirma.
+  //
+  // A dependência já existia — ela só era invisível porque `postMessage` era engolido e nenhuma
+  // mensagem de logout chegava a limpar nada. Consertar o espião tornou o estado observável, e é
+  // esta linha que o torna irrelevante: todo caso começa sem token.
+  clearToken();
   vi.spyOn(BroadcastChannel.prototype, 'postMessage').mockImplementation(
-    (msg: unknown) => { posted.push(msg); },
+    function (this: BroadcastChannel, msg: unknown) {
+      posted.push(msg);
+      postOriginal.call(this, msg);
+    },
   );
 });
 
 describe('dashboard auth cross-tab coordination', () => {
   it('never broadcasts the JWT over BroadcastChannel (find_sec_004)', async () => {
+    // B-197 — este caso FALHAVA sob `--sequence.shuffle`, e é o achado mais caro daquela medição:
+    // uma asserção de SEGURANÇA que só passava quando rodava na posição certa. Um gate que depende
+    // da ordem de execução não é um gate.
+    //
+    // A causa é estado de MÓDULO. `installAuthChannel` é idempotente de propósito (B-042), e outro
+    // caso deste arquivo faz `vi.resetModules()` — então, dependendo da ordem, este `import`
+    // resolvia para uma instância cujo canal já estava aberto por outro teste, e a instalação daqui
+    // virava no-op sobre um canal que não era o dele.
+    //
+    // Ele passa a criar a própria instância. Um teste que afirma "nenhum segredo atravessa o canal"
+    // precisa ser verdadeiro sozinho, não em companhia.
+    vi.resetModules();
     const api = await import('./api');
     // B-042 — o canal deixou de ser aberto como efeito colateral de import e
     // passou a ter ciclo de vida explicito, entao o teste instala antes de
@@ -452,5 +487,269 @@ describe('rate limit no refresh apos 401 (#324, segunda rodada)', () => {
 
     expect(ok).toBe(false);
     expect(sessionDefinitivelyExpired()).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-142 — the client threw a status it never received.
+//
+// On the transient-auth path `cloudFetch` threw `ApiError(429, 'Too many requests')` for EVERY
+// failure of the token exchange: a 500, a 502 whose own message says "Try again", or a network
+// rejection with no response at all. `lastExchangeStatus` already held the truth and was read by
+// nothing but `sessionDefinitivelyExpired()`.
+//
+// It is not a cosmetic lie. `retryGuard` keys on the status and refuses to retry any 4xx, so the
+// one failure class that most deserves a retry was guaranteed never to get one.
+// ---------------------------------------------------------------------------
+
+describe('B-142 — the thrown error carries the status that actually happened', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('a 502 from the exchange is not reported as a rate limit', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        return new Response(JSON.stringify({ code: 'AUTH_SERVICE_UNAVAILABLE' }), { status: 502 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const erro = await cloudFetch('/foo', {}, { throwOnError: true }).catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(ApiError);
+    expect((erro as ApiError).status).toBe(502);
+    expect((erro as ApiError).message).not.toMatch(/too many requests/i);
+  });
+
+  it('a network rejection from the exchange surfaces as status 0, the value that means "no response"', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) throw new TypeError('network down');
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const erro = await cloudFetch('/foo', {}, { throwOnError: true }).catch((e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(ApiError);
+    expect((erro as ApiError).status).toBe(0);
+  });
+
+  it('a genuine 429 from the exchange still says 429', async () => {
+    // The fix must not overshoot: when the exchange really WAS rate limited, that is the status.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        return new Response(JSON.stringify({ code: 'RATE_LIMITED' }), { status: 429 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const erro = await cloudFetch('/foo', {}, { throwOnError: true }).catch((e: unknown) => e);
+
+    expect((erro as ApiError).status).toBe(429);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-231 — a 401 that arrives late destroys the token the refresh just minted.
+//
+// `refreshPromise` dedups the EXCHANGE, not the eager `accessToken = null` that precedes it. With
+// two requests in flight: A gets 401, nulls the token, starts the exchange; the exchange succeeds
+// and sets a fresh token; B then gets its own 401 and nulls THAT fresh token, so its `ensureToken`
+// finds nothing valid and starts a second exchange — against the endpoint whose quota #324
+// records as already blown once. The loop feeds itself with a perfectly valid Kratos session.
+//
+// The race is between continuations on one thread, across an await. That is why the fix is a
+// generation counter (compare-and-swap) and not a lock.
+// ---------------------------------------------------------------------------
+
+describe('B-231 — concurrent 401s do not each invalidate the token', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('a 401 that arrives AFTER the refresh does not throw away the fresh token', async () => {
+    // The interleaving is the defect, so the interleaving is controlled rather than hoped for.
+    // Request B's first attempt is held open until A has finished refreshing; B's 401 therefore
+    // lands on a token that is already fresh, which is exactly the case where nulling it is wrong.
+    let exchanges = 0;
+    // `!` (definite assignment): o executor do Promise roda sincronamente, entao a atribuicao
+    // aconteceu antes de qualquer uso — o que o fluxo de controle do TS nao consegue ver.
+    let soltarB!: () => void;
+    const bSegurado = new Promise<void>((r) => { soltarB = r; });
+    let bJaFalhou = false;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes('/v1/auth/session/token')) {
+        exchanges += 1;
+        return new Response(
+          JSON.stringify({ access_token: `tk-${String(exchanges)}`, expires_in: 3600 }),
+          { status: 200 },
+        );
+      }
+      if (u.includes('/b') && !bJaFalhou) {
+        bJaFalhou = true;
+        await bSegurado; // held until A's refresh has completed
+        return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+      }
+      if (u.includes('/a')) return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    await exchangeSessionToken();
+    const antes = exchanges;
+
+    const b = cloudFetch('/b');
+    await cloudFetch('/a'); // A: 401 -> refresh -> retry, all while B is held
+    const aposA = exchanges;
+    expect(aposA - antes).toBe(1); // A refreshed once, as it should
+
+    soltarB();
+    await b;
+
+    // B's late 401 must NOT null the token A just minted. If it does, B's ensureToken finds
+    // nothing valid and runs a SECOND exchange — the self-feeding loop #324 is about.
+    expect(exchanges - aposA).toBe(0);
+  });
+
+  it('a 401 on the CURRENT token still refreshes — the guard must not disable the mechanism', async () => {
+    let exchanges = 0;
+    let dataCalls = 0;
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes('/v1/auth/session/token')) {
+        exchanges += 1;
+        return new Response(
+          JSON.stringify({ access_token: `tk-${String(exchanges)}`, expires_in: 3600 }),
+          { status: 200 },
+        );
+      }
+      dataCalls += 1;
+      if (dataCalls === 1) return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    await exchangeSessionToken();
+    const antes = exchanges;
+
+    await expect(cloudFetch('/a')).resolves.toEqual({ ok: true });
+    expect(exchanges - antes).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-234 / B-218 — what crosses an event boundary, and what the transport is allowed to build.
+// ---------------------------------------------------------------------------
+
+describe('B-234 — a malformed cross-tab message is not a logout', () => {
+  /**
+   * B-237 — estes dois casos afirmavam que o token SOBREVIVE e provavam outra coisa.
+   *
+   * O mock respondia 200 para qualquer URL, inclusive a da troca. Então um token limpo pela
+   * mensagem malformada era simplesmente re-trocado no `cloudFetch` seguinte, que resolvia
+   * `{ ok: true }` do mesmo jeito — a asserção passava nos dois mundos. O que distingue os dois é
+   * a CONTAGEM DE TROCAS, e é ela que estes casos passam a afirmar.
+   */
+  const contarTrocas = () => {
+    const contagem = { trocas: 0 };
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        contagem.trocas += 1;
+        return new Response(
+          JSON.stringify({ access_token: `tk-${String(contagem.trocas)}`, expires_in: 3600 }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    return contagem;
+  };
+
+  it('a null broadcast neither throws nor clears the token', async () => {
+    // `MessageEvent<AuthMessage>` was a compile-time claim about a runtime payload from another
+    // tab. `msg.type` on null threw a TypeError INSIDE the handler, where nothing catches it.
+    const contagem = contarTrocas();
+
+    const dispose = installAuthChannel();
+    await exchangeSessionToken();
+    const antes = contagem.trocas;
+
+    const canal = new BroadcastChannel('theo-auth');
+    canal.postMessage(null);
+    await new Promise((r) => setTimeout(r, 20));
+
+    await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    // Zero trocas novas: o token que já existia foi usado. Uma troca aqui significaria que a
+    // mensagem malformada derrubou a sessão — que é exatamente o defeito.
+    expect(contagem.trocas - antes).toBe(0);
+    canal.close();
+    dispose();
+  });
+
+  it('a message with an unknown type does not force a logout', async () => {
+    const contagem = contarTrocas();
+
+    const dispose = installAuthChannel();
+    await exchangeSessionToken();
+    const antes = contagem.trocas;
+
+    const canal = new BroadcastChannel('theo-auth');
+    canal.postMessage({ type: 'hello' });
+    await new Promise((r) => setTimeout(r, 20));
+
+    await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    expect(contagem.trocas - antes).toBe(0);
+    canal.close();
+    dispose();
+  });
+
+  it('e a mensagem que É um logout continua derrubando o token', async () => {
+    // O contraponto, sem o qual os dois casos acima passariam com um manipulador que ignora TUDO.
+    const contagem = contarTrocas();
+
+    const dispose = installAuthChannel();
+    await exchangeSessionToken();
+    const antes = contagem.trocas;
+
+    const canal = new BroadcastChannel('theo-auth');
+    canal.postMessage({ type: 'logged-out' });
+    await new Promise((r) => setTimeout(r, 20));
+
+    await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    expect(contagem.trocas - antes).toBe(1);
+    canal.close();
+    dispose();
+  });
+});
+
+describe('B-218 — the client announces the expiry instead of building DOM', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('injects no node of its own and fires an event a component can render', async () => {
+    // `redirecting` is a module-level latch: once any test in this file has triggered a redirect,
+    // every later one returns early. That is a real property of the module (it stops a redirect
+    // loop) and it makes the behaviour untestable in place — so this case gets a FRESH module.
+    // The alternative was asserting nothing, which is how the toast went four years unasserted.
+    vi.resetModules();
+    const fresh = await import('./api');
+
+    const ouvidos: string[] = [];
+    const ouvinte = () => ouvidos.push('expired');
+    window.addEventListener('theo:session-expired', ouvinte);
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), { status: 401 }),
+    );
+
+    await fresh.cloudFetch('/foo').catch(() => undefined);
+
+    // The old implementation appended a styled <div> straight into document.body.
+    expect(document.body.querySelector('div[style]')).toBeNull();
+    expect(ouvidos).toContain('expired');
+
+    window.removeEventListener('theo:session-expired', ouvinte);
   });
 });

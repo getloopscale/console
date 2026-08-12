@@ -98,8 +98,6 @@
 name: e2e-ui
 
 on:
-  pull_request:
-    branches: [develop, main]
   push:
     branches: [develop]
 

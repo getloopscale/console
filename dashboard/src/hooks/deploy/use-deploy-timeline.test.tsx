@@ -176,3 +176,70 @@ describe('useDeployTimeline', () => {
     expect(result.current.phases[3].degradedReason).toBe('pods failed to come up');
   });
 });
+
+describe('B-174 — a defesa contra chegada fora de ordem passa a existir', () => {
+  it('uma fase anterior a uma CONCLUÍDA não fica pendente para sempre', async () => {
+    // O laço que dizia fazer isto tinha corpo VAZIO: `foundActive` era escrito e lido só dentro de
+    // um `if` sem instruções. Na reconexão, `deploy.completed` pode chegar antes de
+    // `build.completed` — e a fase de build ficava `pending` para sempre, com o comentário logo
+    // acima afirmando que esse caso estava tratado.
+    const { result } = renderHook(() => useDeployTimeline('dep-1'));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    act(() => {
+      MockEventSource.instances[0].emit(
+        'deploy_timeline.deploy.completed',
+        JSON.stringify({ phase: 'deploy', status: 'completed' }),
+        '1',
+      );
+    });
+
+    await waitFor(() => {
+      const build = result.current.phases.find((p) => p.phase === 'build');
+      expect(build?.status).not.toBe('pending');
+    });
+  });
+});
+
+describe('B-181 — o buffer diz o que MUDOU, nunca o que É', () => {
+  it('a fase de build continua concluída depois de o evento que a concluiu ser DESPEJADO do buffer', async () => {
+    // O buffer de `useSSEStream` tem teto de 60 (`maxEvents`). O estado das fases era re-derivado
+    // varrendo esse buffer do zero a cada render — então, num deploy com muitos eventos, o
+    // `build.completed` saía pela frente da fila e a tela devolvia a fase a `pending`, andando
+    // para trás sozinha diante de quem estava olhando.
+    //
+    // Este teste exercita o DESPEJO de verdade, e não o redutor isolado (esse é
+    // `deploy-timeline-reducer.test.ts`): emite o evento que conclui a fase e depois 70 eventos,
+    // ultrapassando o teto com folga.
+    const { result } = renderHook(() => useDeployTimeline('dep-181'));
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    const es = MockEventSource.instances[0];
+
+    act(() => {
+      es.emit('deploy_timeline.build.completed', {
+        deploy_id: 'dep-181',
+        phase: 'build',
+        status: 'completed',
+        timestamp: '2026-08-11T10:00:00Z',
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.phases.find((p) => p.phase === 'build')?.status).toBe('completed');
+    });
+
+    act(() => {
+      for (let i = 0; i < 70; i += 1) {
+        es.emit('deploy_timeline.sign.in_progress', {
+          deploy_id: 'dep-181',
+          phase: 'sign',
+          status: 'in_progress',
+          timestamp: `2026-08-11T10:0${String(i % 10)}:00Z`,
+        });
+      }
+    });
+
+    const build = result.current.phases.find((p) => p.phase === 'build');
+    expect(build?.status).toBe('completed');
+    expect(build?.endedAt).toBe('2026-08-11T10:00:00Z');
+  });
+});

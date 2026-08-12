@@ -16,6 +16,7 @@
  */
 
 import type { LogLine } from '@/lib/api/types';
+import { triggerDownload } from '@/lib/export/download';
 
 export function formatLineForExport(line: LogLine): string {
   const src = line.source ? `${line.source} ` : '';
@@ -23,18 +24,12 @@ export function formatLineForExport(line: LogLine): string {
 }
 
 export function triggerLogDownload(lines: LogLine[]): void {
-  if (typeof document === 'undefined') return;
-  const text = lines.map(formatLineForExport).join('\n');
-  const blob = new Blob([text], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `runtime-logs-${new Date().toISOString()}.log`;
-  document.body.appendChild(a);
-  a.click();
-  // EC-4 — defer revoke so Safari + Firefox can finish streaming
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-    a.remove();
-  }, 1000);
+  // B-230 — era a SEGUNDA cópia do padrão Blob+âncora, com o docblock do EC-4 duplicado junto.
+  // A duplicação do comentário é o sinal: quem copiou sabia que havia uma sutileza e a levou
+  // consigo, em vez de reusar quem já a conhecia.
+  triggerDownload(
+    `runtime-logs-${new Date().toISOString()}.log`,
+    lines.map(formatLineForExport).join('\n'),
+    'text/plain',
+  );
 }

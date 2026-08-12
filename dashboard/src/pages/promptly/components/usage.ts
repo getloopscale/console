@@ -18,7 +18,7 @@
  */
 
 /** Uma linha do agregado do `theo-lens`, como ele a devolve. */
-export interface LinhaDoAgregado {
+interface LinhaDoAgregado {
   readonly revision: number;
   readonly resolutions: number;
   readonly totalTokens: number;

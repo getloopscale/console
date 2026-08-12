@@ -141,17 +141,17 @@ export function OverviewPage() {
                     project={{
                       id: p.name,
                       name: p.name,
-                      // #120 (qa-dogfood-cleanup-2026-06-21 T4.1 / ADR-Q3):
-                      // hardcoded 'main' is the legacy placeholder until
-                      // the wire payload exposes `deploy_branch` for the
-                      // listing. Until then, render 'main' as a sensible
-                      // default WITH a follow-up note: the Repository
-                      // panel surfaces the canonical deploy branch with
-                      // an explicit "Deploy branch (Theo)" label per the
-                      // same ADR. Tracked by #120 follow-up — wire-side
-                      // exposure of connection.branch on the projects
-                      // summary is additive and non-breaking.
-                      branch: 'main',
+                      // B-134 — era `branch: 'main'` fixo, com um comentário explicando que era
+                      // um placeholder até o payload expor `deploy_branch`. O comentário estava
+                      // certo sobre o payload e errado sobre o remédio: um cartão que diz `main`
+                      // para um projeto que faz deploy de `develop` não é um default sensato, é
+                      // uma afirmação errada com a confiança de uma certa — e quem lê não tem como
+                      // saber que aquele campo é um chute.
+                      //
+                      // Um travessão é a convenção deste repositório para "não sabemos", e ela
+                      // custa menos que estar errado. Quando o resumo de projetos expuser
+                      // `deploy_branch` (aditivo e não-quebrante), o valor entra aqui.
+                      branch: '—',
                       commitSha: '',
                       // Release-aware status (#119, qa-dogfood-cleanup-2026-06-21
                       // T3.2 / ADR-Q2): backend already maps the aggregate

@@ -8,6 +8,8 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/formatting/format';
+import { usePaginacao } from '@/lib/pagination';
+import { Pager } from '@/components/pager';
 import { cloudFetch } from '@/lib/http/api';
 
 /**
@@ -55,9 +57,14 @@ export function LensSessionsPage() {
         `/v1/dashboard/lens/sessions?limit=${SESSIONS_PAGE_SIZE}&offset=${(page - 1) * SESSIONS_PAGE_SIZE}`, {}, { throwOnError: true }),
   });
   const total = query.data?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / SESSIONS_PAGE_SIZE));
-  const firstShown = total === 0 ? 0 : (page - 1) * SESSIONS_PAGE_SIZE + 1;
-  const lastShown = Math.min(page * SESSIONS_PAGE_SIZE, total);
+  // B-184 — a aritmética e a correção de página-além-do-fim vêm de `usePaginacao`.
+  const paginacao = usePaginacao({
+    total,
+    pageSize: SESSIONS_PAGE_SIZE,
+    page,
+    setPage,
+    naoAssentado: query.isFetching || !query.data,
+  });
 
   const columns: DataTableColumn<Session>[] = [
     {
@@ -206,23 +213,15 @@ export function LensSessionsPage() {
         ) : (
           <>
             {total > 0 ? (
-              <p data-testid="sessions-count" className="mb-1 text-xs text-muted-foreground">{`Showing ${firstShown}–${lastShown} of ${total}`}</p>
+              <p data-testid="sessions-count" className="mb-1 text-xs text-muted-foreground">{paginacao.resumo}</p>
             ) : null}
             <Card>
               <DataTable columns={columns} data={sessions} rowKey={(row) => row.sessionId} />
             </Card>
             {/* M81 — server-side pager (mirrors the M70 labeling-queue). */}
-            {pageCount > 1 ? (
-              <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
-                <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                  Previous
-                </Button>
-                <span className="tabular-nums" data-testid="sessions-pager">{`Page ${page} / ${pageCount}`}</span>
-                <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
-                  Next
-                </Button>
-              </div>
-            ) : null}
+            <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
+              <Pager paginacao={paginacao} ocupado={query.isFetching} testId="sessions-pager" />
+            </div>
           </>
         )}
       </div>

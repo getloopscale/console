@@ -26,31 +26,31 @@ describe('useKpiMetric', () => {
       { t: 1, v: 0.99 },
       { t: 2, v: 0.995 },
     ]);
-    const { result } = renderHook(() => useKpiMetric('p', 'production', 'uptime_24h', 100));
+    const { result } = renderHook(() => useKpiMetric('p', 'uptime_24h', 100));
     expect(result.current).toBe(99.5);
   });
 
   it('converts seconds → ms for p95 (×1000)', () => {
     withData([{ t: 1, v: 0.031 }]);
-    const { result } = renderHook(() => useKpiMetric('p', 'production', 'p95_latency', 1000));
+    const { result } = renderHook(() => useKpiMetric('p', 'p95_latency', 1000));
     expect(result.current).toBe(31);
   });
 
   it('passes rps through unchanged (×1 default)', () => {
     withData([{ t: 1, v: 42 }]);
-    const { result } = renderHook(() => useKpiMetric('p', 'production', 'rps'));
+    const { result } = renderHook(() => useKpiMetric('p', 'rps'));
     expect(result.current).toBe(42);
   });
 
   it('returns null when there is no data (collecting / unreachable)', () => {
     withData([]);
-    const { result } = renderHook(() => useKpiMetric('p', 'production', 'rps'));
+    const { result } = renderHook(() => useKpiMetric('p', 'rps'));
     expect(result.current).toBeNull();
   });
 
   it('returns null when the latest value is not a finite number', () => {
     withData([{ t: 1, v: NaN }]);
-    const { result } = renderHook(() => useKpiMetric('p', 'production', 'rps'));
+    const { result } = renderHook(() => useKpiMetric('p', 'rps'));
     expect(result.current).toBeNull();
   });
 });

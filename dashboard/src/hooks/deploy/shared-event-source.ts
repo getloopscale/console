@@ -62,6 +62,17 @@ const REPLAY_MAX = 1000;
 const registro = new Map<string, Entrada>();
 
 /**
+ * A identidade de uma assinatura: o endereço MAIS o ponto de retomada (B-220).
+ *
+ * O separador é um caractere que não aparece numa URL nem num id de evento, para que
+ * `('/a', 'b')` e `('/a\u0000b', null)` não colidam — uma colisão de chave aqui entrega a
+ * um assinante o stream de outro.
+ */
+function chaveDe(url: string, lastEventId: string | null | undefined): string {
+  return `${url}\u0000${lastEventId ?? ''}`;
+}
+
+/**
  * Fabrica do transporte. Existe como variavel — e nao como `new FetchEventSource`
  * inline — por um motivo de teste que vale declarar em voz alta.
  *
@@ -104,13 +115,27 @@ export class SharedEventSource {
 
   private ouvintes = new Map<string, Ouvinte[]>();
   private entrada: Entrada;
+  private readonly chave: string;
   private fechado = false;
 
   constructor(
     public readonly url: string,
     private readonly opcoes: { token: string | null; lastEventId?: string | null } = { token: null },
   ) {
-    const existente = registro.get(url);
+    // B-220 — a chave passou a incluir o CURSOR DE RETOMADA.
+    //
+    // No acerto do registro, `this.opcoes` era construído e nunca lido: um segundo assinante
+    // pedindo retomada de outro ponto recebia silenciosamente o ponto do primeiro. Dois cursores
+    // diferentes são dois pedidos de DADOS diferentes, e uma conexão só não serve os dois —
+    // `recuperarAtraso()` reproduz um buffer limitado, então um cursor mais antigo que ele não
+    // tem como ser atendido, e fingir que sim é o mesmo silêncio.
+    //
+    // O TOKEN continua fora da chave, de propósito e por assimetria real: ele é credencial para o
+    // MESMO dado, e duas abas que renovaram em instantes diferentes não devem abrir duas conexões
+    // para um build — ver `abrirNova` logo abaixo.
+    const chave = chaveDe(url, this.opcoes.lastEventId);
+    this.chave = chave;
+    const existente = registro.get(chave);
     if (existente) {
       this.entrada = existente;
       existente.handles.add(this);
@@ -120,10 +145,10 @@ export class SharedEventSource {
       queueMicrotask(() => this.recuperarAtraso());
       return;
     }
-    this.entrada = this.abrirNova(url);
+    this.entrada = this.abrirNova(url, chave);
   }
 
-  private abrirNova(url: string): Entrada {
+  private abrirNova(url: string, chave: string): Entrada {
     // B-088 — o transporte e `FetchEventSource`, nao `EventSource`: o token vai
     // em `Authorization` e some da URL. Efeito colateral util: a chave do
     // registro passa a ser a URL LIMPA, entao dois consumidores do mesmo stream
@@ -139,7 +164,7 @@ export class SharedEventSource {
       buffer: [],
       aberta: false,
     };
-    registro.set(url, entrada);
+    registro.set(chave, entrada);
 
     real.onopen = (event) => {
       entrada.aberta = true;
@@ -149,7 +174,7 @@ export class SharedEventSource {
     real.onerror = (event) => {
       // Despeja ANTES de avisar: o consumidor reage fechando e reabrindo, e o
       // reabrir precisa encontrar o registro limpo.
-      if (registro.get(url) === entrada) registro.delete(url);
+      if (registro.get(chave) === entrada) registro.delete(chave);
       entrada.aberta = false;
       for (const h of entrada.handles) h.onerror?.(event);
     };
@@ -208,7 +233,7 @@ export class SharedEventSource {
     this.entrada.handles.delete(this);
     if (this.entrada.handles.size === 0) {
       this.entrada.real.close();
-      if (registro.get(this.url) === this.entrada) registro.delete(this.url);
+      if (registro.get(this.chave) === this.entrada) registro.delete(this.chave);
     }
   }
 

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ExploreCard } from '@/components/explore-card';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
@@ -240,30 +241,3 @@ export function MemoryPage() {
    Duas implementações de "barra proporcional" no mesmo dashboard também eram conhecimento
    duplicado: a escala é a mesma regra escrita duas vezes, e só uma delas tinha teste. */
 
-interface ExploreCardProps {
-  icon: typeof Brain;
-  title: string;
-  description: string;
-  href: string;
-}
-
-/**
- * Single Explore card. Renders an icon + title + 1-line description + a
- * destination button. Kept inline here (NOT extracted to a shared component)
- * because no other dashboard surface currently shows Explore cards in this
- * exact shape — Rule of 3 / YAGNI.
- */
-function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps) {
-  return (
-    <Card>
-      <Card.Body className="space-y-2">
-        <Icon className="size-5 text-primary" aria-hidden="true" />
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        <Button asChild variant="ghost" size="sm">
-          <Link to={href}>Open →</Link>
-        </Button>
-      </Card.Body>
-    </Card>
-  );
-}

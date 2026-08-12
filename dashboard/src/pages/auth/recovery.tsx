@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, Github, KeyRound } from 'lucide-react';
 import { Button, Card, Input } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { recoveryErrorMessage, SERVICE_UNAVAILABLE_MESSAGE } from '@/pages/auth/recovery-errors';
 import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import {
@@ -44,9 +45,6 @@ import { safeNavigator } from '@/lib/navigation';
  * D1 (account_enumeration.mitigate=true): educational OIDC link always shown,
  * never detective. D6: 5xx → product-language without leaking Kratos JSON.
  */
-
-const SERVICE_UNAVAILABLE_MESSAGE =
-  'Recovery service temporarily unavailable. Try again in a minute, or contact support@usetheo.dev.';
 
 type Phase = 'email' | 'code' | 'password' | 'success';
 
@@ -203,14 +201,6 @@ export function RecoveryPage() {
     }
   }, [searchParams, authNotice]);
 
-  // Detect HTTP 5xx vs network error vs Kratos 4xx in catch blocks.
-  // Network/5xx → product-language D6. Kratos 4xx → enrichKratosError.
-  const is5xxOrNetwork = (err: unknown): boolean => {
-    if (err instanceof TypeError) return true; // network failure
-    const msg = err instanceof Error ? err.message : String(err);
-    return /\b5\d\d\b/.test(msg);
-  };
-
   // EC-4 + D7 currying: handlers are STABLE refs (useCallback deps=[]). They
   // read all state via *Ref.current at execution time. setLastSubmit stores
   // `() => handler()` — when Retry fires, the handler reads the CURRENT input
@@ -237,11 +227,7 @@ export function RecoveryPage() {
       setLastSubmit(null);
     } catch (err) {
       setLastSubmit(() => handleEmailSubmit);
-      if (is5xxOrNetwork(err)) {
-        setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
-      } else {
-        setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
-      }
+      setErrorMessage(recoveryErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -326,13 +312,12 @@ export function RecoveryPage() {
       }
     } catch (err) {
       setLastSubmit(() => handleCodeSubmit);
-      if (is5xxOrNetwork(err)) {
-        setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
-      } else {
-        setErrorMessage(
+      setErrorMessage(
+        recoveryErrorMessage(
+          err,
           'Invalid or expired code. Request a new recovery email from the sign-in page, or contact support if it persists.',
-        );
-      }
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -369,11 +354,7 @@ export function RecoveryPage() {
       }
     } catch (err) {
       setLastSubmit(() => handlePasswordSubmit);
-      if (is5xxOrNetwork(err)) {
-        setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
-      } else {
-        setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
-      }
+      setErrorMessage(recoveryErrorMessage(err));
     } finally {
       setLoading(false);
     }

@@ -14,7 +14,7 @@ const HPA_MEMORY_MAX = 90;
 
 export type HPAMode = 'manual' | 'auto';
 
-export interface HPATargets {
+interface HPATargets {
   cpu: number;
   memory: number;
 }

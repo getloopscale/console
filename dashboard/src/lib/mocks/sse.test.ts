@@ -111,3 +111,18 @@ describe('mocks/sse — EventSource shim', () => {
     expect(listener).toHaveBeenCalled();
   });
 });
+
+describe('B-223 — a camada de mock não troca mais um global que ninguém usa', () => {
+  it('não existe função que substitua window.EventSource', async () => {
+    // `installSSEMocks` trocava `window.EventSource` pelo `MockEventSource`. Isso cobria todo
+    // consumidor de SSE até o B-088 trocar o transporte por `FetchEventSource`, e desde então
+    // nenhum caminho de produção usa o global.
+    //
+    // Ela não estava quebrada — era pior: dava a impressão de que a camada de mock cobria o
+    // transporte, que é a leitura errada que deixou dois streams sem registro (B-178). O próprio
+    // bloco em `index.ts` já documentava que ela não cobria mais nada.
+    const modulo = await import('./sse');
+    expect(Object.keys(modulo)).not.toContain('installSSEMocks');
+    expect(Object.keys(modulo)).not.toContain('uninstallSSEMocks');
+  });
+});

@@ -97,11 +97,10 @@ export function ProjectStatusPage() {
   // (0..1) → % (×100); p95 histogram_quantile (seconds) → ms (×1000); error_rate
   // is already a % (theo#170 fix → ratio ×100) so ×1; rps passes through. These
   // render "—" honestly until a Prometheus backend is reachable.
-  const kpiEnv = status?.environment;
-  const uptime24hKpi = useKpiMetric(name, kpiEnv, 'uptime_24h', 100);
-  const p95LatencyKpi = useKpiMetric(name, kpiEnv, 'p95_latency', 1000);
-  const errorRateKpi = useKpiMetric(name, kpiEnv, 'error_rate', 1);
-  const rpsKpi = useKpiMetric(name, kpiEnv, 'rps', 1);
+  const uptime24hKpi = useKpiMetric(name, 'uptime_24h', 100);
+  const p95LatencyKpi = useKpiMetric(name, 'p95_latency', 1000);
+  const errorRateKpi = useKpiMetric(name, 'error_rate', 1);
+  const rpsKpi = useKpiMetric(name, 'rps', 1);
 
   const handleDrillDown = (signal: SignalName) => {
     setDrillDownSignal(signal);
