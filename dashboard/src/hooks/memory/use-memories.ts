@@ -94,3 +94,38 @@ export function useForgetMemory() {
     },
   });
 }
+
+/**
+ * One page of an ENTITY's memories, for the cascade forget (#252).
+ *
+ * Separate from `useMemories` on purpose: this is a loop's read, not a screen's, and it returns the
+ * provider's echoed `entity` because the cascade refuses to delete without it.
+ */
+export function fetchEntityMemories(params: URLSearchParams) {
+  return cloudFetch<{ memories: { id: string }[]; entity?: string }>(
+    `/v1/dashboard/memory/list?${params.toString()}`,
+    {},
+    { throwOnError: true },
+  );
+}
+
+/**
+ * Forget one memory, for the cascade.
+ *
+ * B-235 — the cascade counted a delete as SUCCESSFUL when this resolved, and without the contract a
+ * refused DELETE resolves `null`. Its `.catch(() => false)` only ever caught network rejections, so
+ * every 403 and every 500 was tallied as a memory forgotten.
+ *
+ * Two consequences, and the second is the one that matters. The reported total was wrong — "forgot
+ * 137 memories" when the server refused most of them. And the loop terminates on the filtered
+ * listing going empty, so with every delete refused it runs to its 50-round ceiling, attempts 5000
+ * deletes, and then reports thousands forgotten. A cascade that cannot delete looked identical to
+ * one that deleted everything.
+ */
+export function forgetMemoryOnce(id: string) {
+  return cloudFetch(
+    `/v1/dashboard/memory/forget/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    { throwOnError: true },
+  );
+}

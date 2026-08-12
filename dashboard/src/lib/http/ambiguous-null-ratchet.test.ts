@@ -78,12 +78,17 @@ const SRC = resolve(__dirname, '../..');
  * reading is worse than "the product undid my action": the user asked for the content to be gone,
  * was shown success, and it is still there.
  *
+ * 24 with `memory/entity-cascade.ts`, the worst of the series: it counted a delete as successful
+ * when the call RESOLVED, so every refusal was tallied as a memory forgotten — and because the
+ * loop ends when the filtered listing empties, a cascade that could delete NOTHING ran to its
+ * 50-round ceiling and reported thousands.
+ *
  * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
  * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 25;
+const CEILING_WITHOUT_CONTRACT = 24;
 
 /**
  * The corpus may not shrink silently.

@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** forgetting everything about an entity no longer reports memories as forgotten when the server refused to delete them. Every refusal was counted as a success, so the total shown was wrong — and because the operation repeats until nothing is left to delete, one that could delete nothing at all ran to its limit and then reported thousands (B-244, B-235).
+
+### Fixed
+
 - **theo-cloud/dashboard:** asking to permanently erase a memory no longer reports success when the server refused. The confirmation closed and the entry came back on the next read — and for a permanent erase that reads worse than an undone action: you asked for the content to be gone, were told it was, and it is still there (B-244, B-235).
 
 ### Changed

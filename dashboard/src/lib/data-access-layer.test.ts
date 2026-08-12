@@ -178,7 +178,17 @@ exatamente a classe "grep casa prosa".
 // E o `forget` não passava `throwOnError`. Numa exclusão comum isso já é ruim; num `hard=true` a
 // leitura é pior que "o produto desfez minha ação": o usuário pediu apagamento PERMANENTE, viu
 // sucesso, e o conteúdo continua lá.
-const TETO_PAGINAS_COM_TRANSPORTE = 36;
+// 35 desde 2026-08-12, com `memory/entity-cascade.ts`, e este é o achado mais sério da série.
+//
+// O cascade contava uma exclusão como BEM-SUCEDIDA quando a chamada RESOLVIA — e sem o contrato uma
+// recusa resolve `null`. O `.catch(() => false)` dele só pegava rejeição de rede, então todo 403 e
+// todo 500 entrava no total de "esquecidas".
+//
+// A segunda consequência é a que importa: o laço termina quando a listagem filtrada esvazia. Com
+// todas as exclusões recusadas ele roda até o teto de 50 rodadas, tenta 5000 exclusões, e reporta
+// milhares de memórias esquecidas. Um cascade que NÃO CONSEGUE apagar ficava idêntico a um que
+// apagou tudo.
+const TETO_PAGINAS_COM_TRANSPORTE = 35;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
