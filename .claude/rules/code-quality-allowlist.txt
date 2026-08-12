@@ -6,16 +6,26 @@
 # (HARD → SOFT_CAP, SOFT_CAP → SOFT_FLOOR). Expired entries (today > SUNSET)
 # are IGNORED — the underlying finding re-fires at full severity.
 #
-# Format (one entry per line):
-#   IDENTIFIER | FILE:LINE | SUNSET (YYYY-MM-DD) | RATIONALE
+# Format (one entry per line) — SIX pipe-separated fields:
+#   ECOSYSTEM | FILE-PATH | FINDING-TYPE | SYMBOL-OR-LINE | REASON | SUNSET
 #
 # Where:
-#   IDENTIFIER  — stable identifier from `code-quality-golden-rule.md § 2`
-#                 (e.g., dead_code_unallowlisted_python, symbol_fabrication_typescript)
-#   FILE:LINE   — absolute file path within the project + line number where the
-#                 finding fires (e.g., src/legacy/foo.py:42)
-#   SUNSET      — date in ISO format (YYYY-MM-DD). MUST be ≤ 90 days from entry.
-#   RATIONALE   — free-form justification (recommended; not enforced by parser).
+#   ECOSYSTEM     — one of: python, typescript, rust, go
+#   FILE-PATH     — repo-relative path where the finding fires (e.g. internal/config/config.go)
+#   FINDING-TYPE  — one of: dead_code, symbol_fab, orphan_export, mutation_low
+#   SYMBOL-OR-LINE— the symbol the finding names (e.g. Secret.MarshalJSON)
+#   REASON        — free-form justification. REQUIRED — an empty reason is rejected.
+#   SUNSET        — ISO date (YYYY-MM-DD). MUST be ≤ 90 days from entry.
+#
+# The first four fields are exactly the `allowlist_key` the detectors build
+# (`go|internal/config/config.go|dead_code|Secret.MarshalJSON`), which is how an entry is
+# matched to a finding.
+#
+# This header used to document a four-field form (`IDENTIFIER | FILE:LINE | SUNSET |
+# RATIONALE`) that the parser has never accepted, and so did
+# `code-quality-golden-rule.md § 4`. Writing entries from the documentation produced
+# `allowlist_malformed_entry` — which ABORTS allowlist processing, silently disabling every
+# other exemption in the file. Corrected 2026-08-12 (B-257).
 #
 # Lines starting with `#` and blank lines are skipped.
 # Whitespace around `|` is tolerated.
@@ -33,45 +43,43 @@
 # Example (commented):
 # dead_code_unallowlisted_python | src/legacy/migrator.py:128 | 2026-09-01 | Legacy migration helper retained for v0.9 rollback path; remove after v1.0 release.
 
-# ---------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
 # B-256 — 21 unreachable Go symbols, surfaced 2026-08-12 when B-255 fixed the D1
-# parser. They were being reported before, as five findings named `<unknown>`; the
-# fix did not create them, it made them legible.
+# parser. They were reported before, as five findings named `<unknown>`; the fix did
+# not create them, it made them legible.
 #
-# Exempted here rather than deleted because deleting is the WRONG action for at
-# least two of the three classes below, and deciding which is which is B-256's
-# job, not a side-quest inside a release-tooling fix (B-228, which touched zero
-# Go files). ADR: knowledge-base/adrs/0001-b256-preexisting-go-dead-code.md
-# Sunset 2026-11-10 (90 days). On expiry every line below re-fires at HARD.
+# Exempted rather than deleted because deleting is the WRONG action for two of the
+# three classes below. ADR: knowledge-base/adrs/ADR-b256-preexisting-go-dead-code.md
+# Sunset 2026-11-10 (90 days). On expiry every line re-fires at HARD.
 #
 # Class 1 — called by the LANGUAGE RUNTIME, never by our code. CHANGELOG § [0.83.1]
-# Security: deleting any of these makes a credential serialize in clear text again,
-# with no test going red. `deadcode` cannot see a call it does not make.
-dead_code_unallowlisted_go | internal/config/config.go:19 | 2026-11-10 | Secret.String — fmt calls it; deleting it un-redacts a credential in every %v (B-256)
-dead_code_unallowlisted_go | internal/config/config.go:20 | 2026-11-10 | Secret.GoString — fmt %#v path, same exposure (B-256)
-dead_code_unallowlisted_go | internal/config/config.go:21 | 2026-11-10 | Secret.MarshalJSON — encoding/json calls it; deleting it leaks the secret into any JSON body (B-256)
-dead_code_unallowlisted_go | internal/config/config.go:22 | 2026-11-10 | Secret.MarshalText — encoding.TextMarshaler path, same exposure (B-256)
+# Security: deleting any of these serializes a credential in clear text again, with
+# no test going red. `deadcode` cannot see a call it does not make.
+go | internal/config/config.go | dead_code | Secret.String | fmt calls it; deleting it un-redacts a credential in every %v (B-256) | 2026-11-10
+go | internal/config/config.go | dead_code | Secret.GoString | fmt %#v path, same exposure (B-256) | 2026-11-10
+go | internal/config/config.go | dead_code | Secret.MarshalJSON | encoding/json calls it; deleting it leaks the secret into any JSON body (B-256) | 2026-11-10
+go | internal/config/config.go | dead_code | Secret.MarshalText | encoding.TextMarshaler path, same exposure (B-256) | 2026-11-10
 #
-# Class 2 — test seams. `deadcode` analyses reachability from `main` and does not
-# consider test binaries, so a constructor option used only by tests reads as dead.
-dead_code_unallowlisted_go | internal/billing/cost_aggregator.go:74 | 2026-11-10 | CostAggregator.WithClock — injected clock, used by tests only (B-256)
-dead_code_unallowlisted_go | internal/routes/integrations_github.go:57 | 2026-11-10 | WithInsecureCookieForTests — name states the caller (B-256)
-dead_code_unallowlisted_go | internal/routes/rag_connectors_oauth.go:114 | 2026-11-10 | WithInsecureCookieForTests — name states the caller (B-256)
-dead_code_unallowlisted_go | internal/routes/memory_exports.go:254 | 2026-11-10 | MemoryExportsHandler.WaitForWorkers — test synchronisation seam (B-256)
+# Class 2 — test seams. `deadcode` measures reachability from `main` and does not
+# build the test binaries, so an option used only by tests reads as unreachable.
+go | internal/billing/cost_aggregator.go | dead_code | CostAggregator.WithClock | injected clock, used by tests only (B-256) | 2026-11-10
+go | internal/routes/integrations_github.go | dead_code | GitHubIntegrationsHandler.WithInsecureCookieForTests | the name states the caller (B-256) | 2026-11-10
+go | internal/routes/rag_connectors_oauth.go | dead_code | RagConnectorsOAuthHandler.WithInsecureCookieForTests | the name states the caller (B-256) | 2026-11-10
+go | internal/routes/memory_exports.go | dead_code | MemoryExportsHandler.WaitForWorkers | test synchronisation seam (B-256) | 2026-11-10
 #
-# Class 3 — metrics helpers, the only ones that may be genuinely dead. A metric
-# helper nobody calls is a signal nobody emits, which is worth knowing either way;
-# B-256 decides per symbol.
-dead_code_unallowlisted_go | internal/metrics/metrics.go:211 | 2026-11-10 | StorageBytesWrittenValue — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:227 | 2026-11-10 | ObjectsDeletedValue — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:270 | 2026-11-10 | ServiceVersionInfoValue — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:293 | 2026-11-10 | ServiceVersionProbeValue — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:306 | 2026-11-10 | IncTokenExchange — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:315 | 2026-11-10 | IncDeviceFlow — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:332 | 2026-11-10 | ObserveTenantProvisioning — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:342 | 2026-11-10 | IncAuthRejection — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:360 | 2026-11-10 | IncWebhook — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:369 | 2026-11-10 | IncCheckout — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:378 | 2026-11-10 | IncUsageDrift — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:383 | 2026-11-10 | IncSubscriptionFallback — pending B-256 classification
-dead_code_unallowlisted_go | internal/metrics/metrics.go:401 | 2026-11-10 | ObserveHTTPRequest — pending B-256 classification
+# Class 3 — metrics helpers, the only plausibly-dead ones. A metric helper nobody
+# calls is a signal nobody emits; B-256 decides per symbol.
+go | internal/metrics/metrics.go | dead_code | StorageBytesWrittenValue | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | ObjectsDeletedValue | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | ServiceVersionInfoValue | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | ServiceVersionProbeValue | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | IncTokenExchange | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | IncDeviceFlow | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | ObserveTenantProvisioning | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | IncAuthRejection | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | IncWebhook | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | IncCheckout | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | IncUsageDrift | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | IncSubscriptionFallback | metrics helper pending B-256 classification | 2026-11-10
+go | internal/metrics/metrics.go | dead_code | ObserveHTTPRequest | metrics helper pending B-256 classification | 2026-11-10
