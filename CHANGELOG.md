@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** creating an evaluator that the server refuses no longer wipes the form. Every field you had filled in — name, rule, prompt, model — was cleared and the dialog closed, for something that was never created, with no error and nothing to recover. Deleting one had the familiar opposite symptom: the confirmation closed and the evaluator came back on the next read (B-244, B-235).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the evaluators list is described in one place instead of two. The monitors screen carried its own narrower copy of the same payload — enough for the picker it renders, and silently out of date the moment the backend adds a field the other screen needs. Nothing changes on screen (B-244).

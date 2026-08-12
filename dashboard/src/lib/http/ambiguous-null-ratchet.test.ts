@@ -64,15 +64,19 @@ const SRC = resolve(__dirname, '../..');
  * reporting a success the server had refused.
  *
  * 30 with `lens/traces/metadata-card.tsx`. Three of its four calls were in the set, and one of the
- * three cleared a textarea the user had typed into — the only case so far where the missing
- * contract destroyed work rather than misreporting state.
+ * three cleared a textarea the user had typed into — the first case where the missing contract
+ * destroyed work rather than misreporting state.
+ *
+ * 28 with `lens/evaluators.tsx`, which raised that bar: its create cleared FIVE fields. Two of the
+ * ~11 closed so far destroy user input rather than misreport state, and both were found by
+ * migrating rather than by anyone reporting them.
  *
  * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
  * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 30;
+const CEILING_WITHOUT_CONTRACT = 28;
 
 /**
  * The corpus may not shrink silently.

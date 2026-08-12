@@ -143,7 +143,18 @@ exatamente a classe "grep casa prosa".
 //                  a ação do usuário
 //   addAnnotation  o usuário ESCREVEU. O textarea limpa, a nota some, e não há erro nem rascunho
 //                  a recuperar — esta destrói trabalho, não apenas reporta estado errado.
-const TETO_PAGINAS_COM_TRANSPORTE = 41;
+// 40 desde 2026-08-12, com `lens/evaluators.tsx` inteira lendo por hooks. Duas das sete chamadas
+// não passavam `throwOnError`, e a de CRIAR é a mais cara encontrada até aqui: uma recusa resolvia
+// `null`, o `onSuccess` disparava e o handler limpava CINCO campos — nome, predicado, prompt,
+// modelo e o estado do diálogo. O usuário perdia tudo o que tinha digitado, para um avaliador que
+// nunca foi criado, sem erro e sem nada a recuperar.
+//
+// A anotação de trace (corrigida horas antes) destruía um textarea. Esta destrói um formulário.
+//
+// `ScoreBucket` também mudou de casa: cinco módulos o leem, e a forma passou a morar com o endpoint
+// que a devolve — o hook não PODE importar de `pages/` (regra de camada do B-070), e um tipo de
+// resposta morando lá é exatamente a inversão que essa regra existe para pegar.
+const TETO_PAGINAS_COM_TRANSPORTE = 40;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

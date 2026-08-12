@@ -4,6 +4,7 @@
  * high-cardinality models into an "Others" series (opik convergence) so the line count stays legible.
  */
 import type {PercentileBucket, TrendSeries} from '@usetheo/ui';
+import type { ScoreBucket } from '@/hooks/lens/use-evaluator-scores';
 
 export interface TrafficBucket {
   periodStart: string;
@@ -131,14 +132,11 @@ export function tokensByModelSeries(rows: ModelBucket[], topN = 5): TrendSeries[
 }
 
 /** One `(period, evaluator)` cell of the M90 score time-series (mirrors theo-lens's `ScoreBucket`). */
-export interface ScoreBucket {
-  periodStart: string;
-  name: string;
-  sampleCount: number;
-  /** Mean of the numeric scores in this bucket — absent for a categorical-only evaluator. */
-  avgScore?: number;
-  labels: Record<string, number>;
-}
+// B-244 — a forma do bucket passou a morar com o ENDPOINT que a devolve
+// (`hooks/lens/use-evaluator-scores.ts`). Esta aritmética é consumidora dela, não dona: cinco
+// módulos leem `ScoreBucket`, e com a forma junto do endpoint o próximo campo do backend alcança
+// os cinco numa edição só.
+export type { ScoreBucket };
 
 /**
  * Score over time (M90): one line per evaluator that recorded a numeric mean, over the shared
