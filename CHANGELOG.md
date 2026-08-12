@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- **theo-cloud/internal tooling:** the dead-code audit now names the function, file and line it found, instead of reporting `<unknown>`. It was reading the tool's per-package output as if each entry were a single symbol, so 28 unreachable functions arrived as 5 findings that named nothing, could not be located, and could not be exempted individually. Vendored third-party trees are no longer audited (B-255).
 - **theo-cloud/internal tooling:** the quality gate stopped reporting the Go standard library as invented code. It asked a public module registry whether `net/http`, `encoding/json` and 320 other standard packages existed; they are not modules, so the answer was always no, and the gate failed with 787 imaginary defects on a codebase that compiles. It now asks the Go toolchain, which also settles private dependencies the public registry can never answer for (B-252).
 - **theo-cloud/internal tooling:** fixing a lookup no longer leaves yesterday's wrong answers in place. Results were cached for a day with no record of which logic produced them, so a corrected check kept serving the broken check's conclusions and looked like it had changed nothing (B-254).
 - **theo-cloud/internal tooling:** the file that says which languages the quality gate audits now documents the format it actually accepts. Following its own instructions produced an error, so the first step of enabling a language failed for whoever tried it; a note had been added describing the trap instead of removing it (B-251).

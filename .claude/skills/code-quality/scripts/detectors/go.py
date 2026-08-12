@@ -155,29 +155,71 @@ class GoDetector(BaseDetector):
 
     # ------------------------------------------------------------------
 
+    #: Trees we read but do not own. Dead code inside them is not ours to collect, and
+    #: reporting it is noise that dilutes the findings that are (B-255).
+    _VENDORED_MARKERS = ("node_modules/", "vendor/", "third_party/", "testdata/")
+
     def _parse_deadcode_json(self, data) -> list[Finding]:
+        """Turn `deadcode -json` output into one finding per dead FUNCTION.
+
+        The tool emits a list of PACKAGES: `{Name, Path, Funcs: [{Name, Position: {File,
+        Line, Col}}]}`. This used to read each entry as if it were a symbol, looking for
+        lowercase `name` / `position` keys that exist at no level, so every default fired
+        and 28 dead functions were reported as 5 findings reading
+        `Unreachable Go symbol '<unknown>' at <unknown>:0:0` — under-counted,
+        mis-attributed, unlocatable, and all sharing one allowlist key (B-255).
+        """
         findings: list[Finding] = []
         if not isinstance(data, list):
             return findings
-        for entry in data:
-            if not isinstance(entry, dict):
+        for package in data:
+            if not isinstance(package, dict):
                 continue
-            position = entry.get("position", "<unknown>:0:0")
-            name = entry.get("name", "<unknown>")
-            file_part = position.split(":", 1)[0] if ":" in position else position
-            sanitized = sanitize_symbol(name)
-            findings.append(
-                Finding(
-                    detector="d1_dead_code",
-                    language="go",
-                    severity="HARD",
-                    file_path=file_part,
-                    symbol_or_line=f"{name} @ {position}",
-                    message=f"Unreachable Go symbol '{name}' at {position}",
-                    allowlist_key=f"go|{file_part}|dead_code|{sanitized}",
-                )
-            )
+            for func in package.get("Funcs") or []:
+                if not isinstance(func, dict):
+                    continue
+                finding = self._deadcode_finding(func)
+                if finding is not None:
+                    findings.append(finding)
         return findings
+
+    def _deadcode_finding(self, func: dict) -> Finding | None:
+        """One dead function -> one finding, or None when it is not ours to report."""
+        position = func.get("Position") or {}
+        file_part = position.get("File")
+        name = func.get("Name")
+        if not file_part or not name:
+            # The tool changed shape under us. Say so rather than emitting `<unknown>`,
+            # which is what made this defect survive: a finding nobody could act on still
+            # counted as a finding.
+            return Finding(
+                detector="d1_dead_code",
+                language="go",
+                severity="SOFT_CAP",
+                file_path=".",
+                symbol_or_line="deadcode",
+                message=(
+                    "deadcode output did not carry Name/Position.File — output shape "
+                    "changed; the D1 parser needs updating"
+                ),
+                allowlist_key="go|.|dead_code|auditor_output_malformed_deadcode",
+            )
+        if any(marker in file_part for marker in self._VENDORED_MARKERS):
+            return None
+
+        line = position.get("Line", 0)
+        col = position.get("Col", 0)
+        where = f"{file_part}:{line}:{col}"
+        sanitized = sanitize_symbol(name)
+        return Finding(
+            detector="d1_dead_code",
+            language="go",
+            severity="HARD",
+            file_path=file_part,
+            symbol_or_line=f"{name} @ {where}",
+            message=f"Unreachable Go symbol '{name}' at {where}",
+            allowlist_key=f"go|{file_part}|dead_code|{sanitized}",
+        )
 
     def _auditor_unavailable(self, reason: str) -> Finding:
         return Finding(
