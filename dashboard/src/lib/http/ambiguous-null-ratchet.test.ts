@@ -60,12 +60,15 @@ const SRC = resolve(__dirname, '../..');
  * 35 later the same day, with `memory/exports.tsx` migrated (B-244). Both of its calls were in the
  * set, and one of them was swallowing a refused export in silence.
  *
+ * 33 with `lens/datasets.tsx` migrated — creating a dataset and removing an item from one, both
+ * reporting a success the server had refused.
+ *
  * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
  * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 35;
+const CEILING_WITHOUT_CONTRACT = 33;
 
 /**
  * The corpus may not shrink silently.

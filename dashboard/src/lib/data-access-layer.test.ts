@@ -111,7 +111,17 @@ exatamente a classe "grep casa prosa".
 //
 // A tela JÁ TINHA o `Alert` de "Could not start export", e ele era inalcançável: sem o contrato,
 // `isError` nunca ficava true. Código morto com aparência de tratamento de erro.
-const TETO_PAGINAS_COM_TRANSPORTE = 45;
+// 44 desde 2026-08-12, com `lens/datasets.tsx` lendo por `hooks/lens/use-datasets.ts` — que já
+// existia com a LISTA e ganhou o detalhe, criar, remover item, renomear e apagar.
+//
+// Duas das cinco não passavam `throwOnError`, com efeitos opostos e igualmente mudos: criar um
+// dataset que o servidor RECUSOU fechava o diálogo e limpava o campo, então o usuário saía achando
+// que criou e a lista simplesmente não o mostrava — o que se lê como "sumiu", não como "nunca
+// existiu". Remover um item recusado fazia a linha sumir da tela e voltar na leitura seguinte.
+//
+// A chave do detalhe passou a DERIVAR da chave da lista. Montada nos dois lugares, o acordo entre
+// elas era coincidência: invalidar a lista sem alcançar o detalhe aberto mostra item já removido.
+const TETO_PAGINAS_COM_TRANSPORTE = 44;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

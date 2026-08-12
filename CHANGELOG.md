@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** creating a dataset the server refuses no longer looks like it worked. The dialog closed and the field cleared either way, so you left believing you had created something that was never there — and the list, on reload, simply did not show it, which reads as "it disappeared" rather than "it was never created". Removing an item from a dataset had the same gap with the opposite symptom: the row vanished from the screen and came back on the next read (B-244, B-235).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the count of identifiers still written in Portuguese is now reproducible and frozen. It had been measured five times with five answers, because Portuguese and English share words like "total" and "item" and nothing recorded which of those count. The list that decides already existed in the repository for a neighbouring check; reusing it makes the number derivable instead of remembered, and a new declaration in Portuguese now fails the build (B-241).

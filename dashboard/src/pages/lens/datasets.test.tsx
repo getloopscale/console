@@ -22,6 +22,10 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/datasets',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'reports' }) }),
+      // B-244/B-235 — o terceiro argumento é o contrato de erro. Sem ele uma recusa RESOLVIA
+      // `null`, o `onSuccess` disparava, o diálogo fechava e o campo era limpo: o usuário saía
+      // acreditando ter criado um dataset que não existe.
+      { throwOnError: true },
     );
   });
 
@@ -151,6 +155,8 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/datasets/ds_1/items/tr_9',
       expect.objectContaining({ method: 'DELETE' }),
+      // Mesma falta, efeito oposto: a linha sumia da tela e voltava na leitura seguinte.
+      { throwOnError: true },
     );
   });
 });
