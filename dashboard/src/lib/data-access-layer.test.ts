@@ -188,7 +188,16 @@ exatamente a classe "grep casa prosa".
 // todas as exclusões recusadas ele roda até o teto de 50 rodadas, tenta 5000 exclusões, e reporta
 // milhares de memórias esquecidas. Um cascade que NÃO CONSEGUE apagar ficava idêntico a um que
 // apagou tudo.
-const TETO_PAGINAS_COM_TRANSPORTE = 35;
+// 34 desde 2026-08-12, com `memory/webhooks.tsx` — o IRMÃO do `settings/webhooks.tsx` migrado
+// horas antes, carregando os mesmos três defeitos pelo mesmo motivo: duas telas cresceram a mesma
+// feature em separado, então a correção de uma nunca alcançou a outra. A revisão de arquitetura
+// apontou este arquivo enquanto o outro estava sendo corrigido.
+//
+// O `replay` é o mais sutil dos três: a página JÁ raciocinava sobre o `null` — o comentário dela
+// dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
+// forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
+// diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
+const TETO_PAGINAS_COM_TRANSPORTE = 34;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

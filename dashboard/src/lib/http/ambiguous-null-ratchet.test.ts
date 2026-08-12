@@ -83,12 +83,16 @@ const SRC = resolve(__dirname, '../..');
  * loop ends when the filtered listing empties, a cascade that could delete NOTHING ran to its
  * 50-round ceiling and reported thousands.
  *
+ * 21 with `memory/webhooks.tsx` — three at once, and its replay is the subtlest instance yet: the
+ * page had already reasoned about the `null` and defended against the wrong cause. Its comment
+ * called it an empty body; it was a refusal.
+ *
  * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
  * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 24;
+const CEILING_WITHOUT_CONTRACT = 21;
 
 /**
  * The corpus may not shrink silently.
