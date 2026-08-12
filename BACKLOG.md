@@ -9002,6 +9002,50 @@ remeasured: |
   RESTA: 113 asserções sem âncora. Cada uma tem de ser lida — a heurística erra nos dois
   sentidos e serve para dimensionar, não para reescrever em massa. Um sweep mecânico aqui
   produziria exatamente o enfraquecimento silencioso que esta catraca existe para impedir.
+third_measurement: |
+  2026-08-12, depois de uma revisão adversarial — O AUTO-TESTE DA MÉTRICA AFIADA ERA DECORATIVO,
+  pelo mesmo motivo que o do B-235: guardava uma CÓPIA da regra de âncora e verificava a cópia.
+
+  A revisão provou por mutação: alargar `(?:get|find)` para aceitar `query` no detector real
+  levava a contagem de 116 para 15 — e os 6 casos seguiam VERDES. Um detector que pode ser
+  destruído sem que nenhum teste caia não é um detector. É o defeito que o B-237 registrou neste
+  repositório, embarcado aqui e no B-235 no mesmo dia.
+
+  Reconstruído em `src/test/absence-assertion.ts`, com cada correção medida sozinha
+  (total / sem âncora):
+
+    340 / 117  cru
+    337 / 116  sem comentários       — 3 asserções que só existem dentro de comentário ou it.skip
+    336 / 116  parênteses balanceados — 1 seletor cujos argumentos contêm chamada aninhada
+    309 / 110  só asserções          — 27 ocorrências eram `const el = queryBy…`, que não asserem
+                                       NADA; 6 delas eram reportadas como asserções sem âncora
+                                       que não existiam
+    309 / 110  queryBy como âncora   — zero mudança neste corpus; uma asserção de PRESENÇA escrita
+                                       com `queryBy` é âncora legítima e nenhum arquivo usa hoje
+    317 / 111  vírgula final         — SUBCONTAGEM MINHA, pega pelo teto por arquivo
+
+  NÚMERO ATUAL: **317 asserções de ausência, 111 sem âncora, em 98 arquivos.**
+
+  A última linha é a que vale ler. Exigir que o matcher venha logo após o `)` da consulta perdia
+  a forma multi-linha, onde há uma vírgula entre os dois:
+
+      expect(
+        screen.queryByText(/…/i),
+      ).not.toBeInTheDocument();
+
+  Nada nos números parecia errado — 110 é plausível, e era MENOR, o que se lê como progresso. O
+  que pegou foi a contagem por arquivo discordar da antiga por exatamente um arquivo
+  (`pages/infra/components/promote-dialog.test.tsx`). Duas contagens independentes da mesma
+  população é a razão de a catraca por arquivo ficar: foi a única coisa que tornou visível uma
+  subcontagem silenciosa, e subcontagem silenciosa é como uma catraca para de guardar sem parar
+  de passar. Corrigido, as duas concordam: 98 arquivos pelos dois caminhos.
+
+  O 111 vem do 116 antigo com correção nos DOIS sentidos, não com estreitamento. Sete mutações
+  aplicadas e todas mortas — inclusive o BLOCKER da revisão, que antes passava 6/6 verde.
+
+  Os detectores moram em `src/test/` e não em `src/lib/`: o `test-only-module-guard` os acusou
+  como módulos de produção sem consumidor no instante em que nasceram em `lib/`, e ele estava
+  certo. Allowlistar seria suprimir um achado verdadeiro.
 
 ## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [ ]
 
@@ -10016,3 +10060,47 @@ dod:
     on first would fail the codebase that motivated it
 
 > Registered 2026-08-12 by an adversarial review of the B-244 migrations.
+
+## B-267 — `pages.smoke.test.ts` times out under machine load, passes when idle   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: test
+evidence: |
+  dashboard/src/pages/pages.smoke.test.ts:21
+    it('exports OverviewPage', async () => {
+      const m = await import('./overview/overview');
+
+  MEASURED 2026-08-12, four full runs of `npx vitest run`, same tree, same commit:
+
+    machine loaded  -> Test Files 1 failed | 376 passed · 292s (import 1197s cumulative)
+                       "Error: Test timed out in 20000ms" on `exports OverviewPage`
+    machine loaded  -> same failure, same case · 263s (import 990s)
+    file alone      -> 23/23 pass · 4.8s (import 25ms)
+    machine idle    -> 3287/3287 pass · 166s (import 507s)
+
+  Nothing about the code under test changed between runs. What changed is contention: the two
+  failing runs had other work on the box, and cumulative import time doubled.
+why_now: |
+  Found while verifying an unrelated change on 2026-08-12. It matters because the failure mode is
+  invisible in the good case: a suite that is green when the machine is idle and red when it is
+  busy will be red in CI exactly when CI is busiest, and the failure names a page rather than a
+  timeout, so the first reading is always "the overview page broke".
+
+  `rules/testing.md` § 3 is unambiguous: a flaky test is a bug, fixed or deleted, not retried.
+honest_limit: |
+  I did not reproduce it under a controlled load, only observed the correlation across four runs.
+  The 20s ceiling is vitest's default `testTimeout`, and the case does a dynamic `import()` of a
+  page module that pulls a large transitive graph — so "the transform is slow under contention" is
+  the likely explanation, not a proven one.
+dod:
+  - the cause is measured, not assumed — instrument the import or reproduce under a load generator
+  - the fix removes the dependency on machine speed rather than raising the timeout, OR the raised
+    timeout is justified by a measurement of the worst observed case
+  - the case still fails if `OverviewPage` stops being exported (whatever the fix, the smoke test
+    must keep smoking)
+
+> Registered 2026-08-12 while verifying B-242.

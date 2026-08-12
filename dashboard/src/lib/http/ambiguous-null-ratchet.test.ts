@@ -4,7 +4,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import { callsIn, callsWithoutContractIn, withoutComments, hasContract } from './ambiguous-null';
+import { callsIn, callsWithoutContractIn, hasContract } from '@/test/ambiguous-null';
+import { withoutComments } from '@/test/source-scan';
 
 const SRC = resolve(__dirname, '../..');
 
@@ -59,7 +60,7 @@ const CEILING_WITHOUT_CONTRACT = 39;
 const FILE_FLOOR = 430;
 
 /** The module itself defines the contract; and the detector does not measure itself. */
-const NOT_CONSUMERS = new Set(['lib/http/api.ts', 'lib/http/ambiguous-null.ts']);
+const NOT_CONSUMERS = new Set(['lib/http/api.ts', 'test/ambiguous-null.ts']);
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const e of readdirSync(dir)) {

@@ -4,211 +4,260 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-
-/**
- * Catraca das asserções de AUSÊNCIA (B-162 · família F4).
- *
- * ## O defeito que isto trava
- *
- * `expect(queryBy…).toBeNull()` só prova alguma coisa quando o elemento consultado EXISTE no
- * caso que passa e SOME no que falha. Quando ele está ausente nos dois, a asserção é
- * satisfeita pelo comportamento correto e pelo defeito igualmente — e nenhuma mudança no
- * código pode torná-la vermelha.
- *
- * Não é hipótese. Medido em 2026-08-11, por execução, em quatro casos:
- *
- *   - o guard inteiro do gráfico de skills foi APAGADO e os 10 testes seguiram verdes,
- *     porque `CategoryBars` devolve um `<p>` e nenhuma tabela quando as barras estão vazias,
- *     e toda página deriva barras vazias numa leitura falha: `queryByRole('table')` é nulo
- *     nos dois mundos;
- *   - o piso do sliver de zero foi RESTAURADO e 18 testes seguiram verdes;
- *   - o `rendered()` de `capability-overview.test.ts` casa uma tag JSX dentro de um
- *     comentário — o buraco que o docblock dele diz ter fechado;
- *   - o gráfico de trust vinha verde com o catálogo QUEBRADO (B-227, já corrigido).
- *
- * ## Por que uma catraca e não uma proibição
- *
- * A forma não é errada em si: contra um elemento que existe no caso feliz ela é a asserção
- * certa. Proibi-la produziria 97 supressões e nenhuma leitura. O que é errado é a POPULAÇÃO
- * crescer sem ninguém olhar — então o número congela e só desce, como o orçamento de LoC
- * (B-009/B-033) já faz neste repositório.
- *
- * Ao corrigir um arquivo, baixe o teto. Ao adicionar um teste novo, prefira asserir a
- * ausência de um elemento que ESTÁ presente no caso que passa (um heading, um rótulo), e não
- * de um que some nos dois.
- */
+import { absenceAssertionsIn, unanchoredIn, selectorCore } from '@/test/absence-assertion';
 
 const SRC = resolve(__dirname, '..');
 
-/** `expect(queryBy…(…)).toBeNull()` / `.not.toBeInTheDocument()` e variantes. */
-const ABSENCE_ONLY =
-  /expect\(\s*(?:await\s+)?(?:screen\.|within\([^)]*\)\.)?queryBy[A-Za-z]+\(/;
+/**
+ * Absence-assertion ratchet (B-162 · family F4 · sharpened by B-242).
+ *
+ * ## The defect this freezes
+ *
+ * `expect(queryBy…).toBeNull()` only proves something when the queried element EXISTS in the case
+ * that passes and DISAPPEARS in the one that fails. When it is absent in both, the assertion is
+ * satisfied by correct behaviour and by the defect alike — and no change to the code can turn it
+ * red.
+ *
+ * Not a hypothesis. Measured on 2026-08-11, by execution, in four cases:
+ *
+ *   - the skills-chart guard was DELETED and its 10 tests stayed green, because `CategoryBars`
+ *     returns a `<p>` and no table when the bars are empty, and every page derives empty bars from
+ *     a failed read: `queryByRole('table')` is null in both worlds;
+ *   - the zero-sliver floor was RESTORED and 18 tests stayed green;
+ *   - `capability-overview.test.ts`'s `rendered()` matched a JSX tag inside a comment — the hole
+ *     its own docblock claimed to have closed;
+ *   - the trust chart came up green with the catalogue BROKEN (B-227, since fixed).
+ *
+ * ## Why a ratchet and not a ban
+ *
+ * The form is not wrong in itself: against an element that exists in the happy case it is the right
+ * assertion. Banning it would produce 97 suppressions and no reading. What is wrong is the
+ * POPULATION growing with nobody looking — so the number freezes and only goes down.
+ *
+ * When fixing a file, lower the ceiling. When adding a test, prefer asserting the absence of an
+ * element that IS present in the passing case (a heading, a label) over one that disappears in both.
+ *
+ * ## Third measurement (2026-08-12), after a review gutted the second
+ *
+ * The second measurement said 116 unanchored out of 327. A reviewer mutated the detector and
+ * proved the self-test was decorative — it held a hardcoded COPY of the anchor rule, so widening
+ * `(?:get|find)` to accept `query` took the count from 116 to 15 with 6/6 green.
+ *
+ * Rebuilt in `lib/absence-assertion.ts`, with each correction measured on its own:
+ *
+ *   340 / 117  raw
+ *   337 / 116  comments stripped     — 3 assertions that live only inside a comment or an it.skip
+ *   336 / 116  balanced parentheses  — 1 selector whose arguments contain a nested call
+ *   309 / 110  assertions only       — 27 occurrences were `const el = queryBy…`, which assert
+ *                                      NOTHING; 6 of them were reported as unanchored assertions
+ *                                      that did not exist
+ *   309 / 110  queryBy as an anchor  — no change on this corpus; a presence assertion written with
+ *                                      `queryBy` is a legitimate anchor and no file uses one today
+ *   317 / 111  trailing comma        — MY OWN undercount, caught by the file ceiling below
+ *
+ * **317 absence assertions, 111 unanchored, in 98 files.**
+ *
+ * That last line is the one worth reading. Requiring the matcher to follow the query's closing
+ * paren missed the multi-line form, where a comma sits between them:
+ *
+ *     expect(
+ *       screen.queryByText(/…/i),
+ *     ).not.toBeInTheDocument();
+ *
+ * Nothing about the numbers looked wrong — 110 is a plausible number, and it was LOWER, which
+ * reads as progress. What caught it was the per-file count disagreeing with the old detector by
+ * exactly one file (`pages/infra/components/promote-dialog.test.tsx`). Two independent counts of
+ * the same population is why the file ratchet stays; it is the only thing that made a silent
+ * undercount visible, and a silent undercount is how a ratchet stops guarding while still passing.
+ *
+ * With that fixed the two counts agree: 98 files, both ways. The unanchored figure went UP from
+ * the old 116 to 111 net of six false positives — a correction in both directions, not a
+ * narrowing. Lowering a ceiling by narrowing its detector is what B-238 recorded and what B-235
+ * repeated hours earlier.
+ */
+
+const SELF = 'absence-assertion-ratchet.test.ts';
+
+/** Unanchored assertions. Measured 2026-08-12 with the detector in `lib/absence-assertion.ts`. */
+const CEILING_UNANCHORED = 111;
+
+/** Files holding at least one absence assertion. Frozen 2026-08-11, remeasured 2026-08-12. */
+const CEILING_FILES = 98;
 
 /**
- * Congelado em 2026-08-11 com 98 arquivos, medido com este mesmo detector.
+ * The corpus may not shrink silently.
  *
- * O número só desce. Se subiu, um teste novo escolheu a forma que não falha — e a pergunta
- * a fazer não é "como faço o teto caber", é "existe um elemento presente no caso feliz que
- * eu possa asserir ausente?".
+ * The B-235 ratchet had no floor, and skipping one directory took its count from 37 to 4 with every
+ * case green — including the self-tests. A ratchet that cannot tell "fixed" from "stopped looking"
+ * is a number, not a guard. Set below today's 376 so adding tests is never blocked and deleting a
+ * swathe of them is.
  */
-const TETO = 98;
+const TEST_FILE_FLOOR = 360;
 
-function testFiles(dir: string): string[] {
-  const out: string[] = [];
+function testFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
-      if (entry === 'vendor') continue;
-      out.push(...testFiles(full));
-    } else if (/\.test\.tsx?$/.test(entry) && entry !== 'absence-assertion-ratchet.test.ts') {
-      // Este arquivo cita as formas como literais no auto-teste; contar-se seria ruído.
+      if (entry !== 'vendor') testFiles(full, out);
+    } else if (/\.test\.tsx?$/.test(entry) && entry !== SELF) {
+      // This file quotes the forms as literals in its self-tests; counting itself would be noise.
       out.push(full);
     }
   }
   return out;
 }
 
-function arquivosComAusenciaSozinha(): string[] {
-  return testFiles(SRC)
-    .filter((f) => ABSENCE_ONLY.test(readFileSync(f, 'utf-8')))
-    .map((f) => relative(SRC, f))
+function corpus(): { rel: string; source: string }[] {
+  return testFiles(SRC).map((f) => ({
+    rel: relative(SRC, f).replace(/\\/g, '/'),
+    source: readFileSync(f, 'utf-8'),
+  }));
+}
+
+function unanchored(): string[] {
+  return corpus()
+    .flatMap((a) => unanchoredIn(a.rel, a.source))
+    .map((a) => `${a.file}:${String(a.line)}`)
     .sort();
 }
 
-/**
- * B-242 — a métrica AFIADA, ao lado da contagem por arquivo.
- *
- * A catraca por arquivo conta uma FORMA. O defeito que este arquivo descreve é uma propriedade
- * de cada ASSERÇÃO: `queryBy…` só prova algo quando o elemento consultado EXISTE no caso que
- * passa. Isso é mensurável — basta perguntar se o mesmo seletor é asserido PRESENTE em algum
- * caso do arquivo.
- *
- * Medido 2026-08-12 sobre os 373 arquivos de teste:
- *
- *   327  asserções de ausência
- *   211  ancoradas — o seletor é asserido presente em algum caso, logo a asserção PODE falhar
- *   116  SEM ÂNCORA, em 58 arquivos  <- o número que importa
- *
- * A contagem por arquivo (98) é quase o dobro do defeito: mais da metade das asserções já era
- * sólida pelo critério que o docstring acima enuncia.
- *
- * POR QUE AS DUAS COEXISTEM: a de arquivo impede que um arquivo NOVO entre despercebido; esta
- * mede o que realmente falta corrigir, e faz o trabalho aparecer. Ancorar uma asserção não
- * remove o arquivo da primeira contagem, então sem esta métrica um dia inteiro de correções
- * legítimas se reporta como zero progresso.
- *
- * HEURÍSTICA, e erra nos dois sentidos: compara o núcleo literal do seletor dentro do MESMO
- * arquivo. Um seletor montado a partir de variável conta como sem âncora sem ser; dois
- * seletores que compartilham prefixo contam como ancorados sem ser. Serve para dimensionar e
- * para mostrar progresso — NÃO para reescrever nada mecanicamente. Cada uma das 116 tem de ser
- * lida, e a prova de que uma migração é real é apagar a guarda que ela protege e ver o teste
- * ficar VERMELHO.
- */
-const TETO_SEM_ANCORA = 116;
-
-const CONSULTA = /(?:screen\.|within\([^)]*\)\.)?queryBy([A-Za-z]+)\(\s*([^)]*?)\s*\)/g;
-
-/** O núcleo literal de um seletor: o primeiro trecho citado com pelo menos 4 caracteres. */
-function nucleo(seletor: string): string | null {
-  const m = /[/'"`]([^/'"`]{4,})/.exec(seletor);
-  return m ? m[1].slice(0, 18) : null;
+function filesWithAbsenceAssertions(): string[] {
+  return corpus()
+    .filter((a) => absenceAssertionsIn(a.rel, a.source).length > 0)
+    .map((a) => a.rel)
+    .sort();
 }
 
-function asserçõesSemAncora(): number {
-  const escapar = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let sem = 0;
-  for (const f of testFiles(SRC)) {
-    const fonte = readFileSync(f, 'utf-8');
-    if (!ABSENCE_ONLY.test(fonte)) continue;
-    for (const m of fonte.matchAll(CONSULTA)) {
-      const tipo = m[1];
-      const seletor = m[2].trim();
-      if (!seletor) continue;
-      const n = nucleo(seletor);
-      const ancorada =
-        n !== null &&
-        new RegExp(`(?:get|find)(?:All)?By${tipo}\\([^)]*${escapar(n)}`).test(fonte);
-      if (!ancorada) sem++;
-    }
-  }
-  return sem;
-}
+describe('ratchet on UNANCHORED absence assertions (B-242)', () => {
+  it('the number only goes down — a new assertion is born anchored', () => {
+    const loose = unanchored();
 
-describe('catraca das asserções SEM ÂNCORA (B-242)', () => {
-  it('o número só desce — uma asserção nova nasce ancorada', () => {
     expect(
-      asserçõesSemAncora(),
-      `\nAsserções de ausência cujo seletor NUNCA é asserido presente no arquivo: ` +
-        `${String(asserçõesSemAncora())} (teto ${String(TETO_SEM_ANCORA)}).\n\n` +
-        'Se SUBIU: uma asserção nova consulta algo que nenhum caso do arquivo mostra, então ela\n' +
-        'é satisfeita pelo comportamento certo e pelo defeito igualmente. Ancore-a: assere o\n' +
-        'MESMO seletor presente no caso que o renderiza.\n\n' +
-        'Se DESCEU: é progresso, e o teto acima deve acompanhar.\n',
-    ).toBeLessThanOrEqual(TETO_SEM_ANCORA);
+      loose.length,
+      `\nAbsence assertions whose selector is never asserted present in the file: ` +
+        `${String(loose.length)} (ceiling ${String(CEILING_UNANCHORED)}).\n\n` +
+        `${loose.slice(0, 10).join('\n')}\n\n` +
+        'If it WENT UP: a new assertion queries something no case in the file ever shows, so it is\n' +
+        'satisfied by the right behaviour and by the defect alike. Anchor it: assert the SAME\n' +
+        'selector present in the case that renders it.\n\n' +
+        'If it WENT DOWN: that is progress, and the ceiling above should follow.\n',
+    ).toBeLessThanOrEqual(CEILING_UNANCHORED);
   });
 
-  it('o teto bate com o disco', () => {
-    expect(asserçõesSemAncora()).toBe(TETO_SEM_ANCORA);
+  it('the ceiling matches disk', () => {
+    expect(unanchored().length).toBe(CEILING_UNANCHORED);
   });
 
-  it('DETECTA uma asserção sem âncora, e NÃO acusa uma ancorada', () => {
-    // O auto-teste que impede este guarda de virar enfeite: se `nucleo` ou a comparação
-    // pararem de discriminar, este caso fica vermelho.
-    const semAncora = "expect(screen.queryByText(/nada aqui/i)).toBeNull();";
-    const ancorada =
-      "expect(await screen.findByText(/nada aqui/i)).toBeInTheDocument();\n" + semAncora;
-    const escapar = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const testar = (fonte: string) => {
-      for (const m of fonte.matchAll(CONSULTA)) {
-        const n = nucleo(m[2].trim());
-        return (
-          n !== null &&
-          new RegExp(`(?:get|find)(?:All)?By${m[1]}\\([^)]*${escapar(n)}`).test(fonte)
-        );
-      }
-      return false;
-    };
-
-    expect(testar(semAncora)).toBe(false);
-    expect(testar(ancorada)).toBe(true);
+  it('the CORPUS does not shrink — the number cannot fall by looking away', () => {
+    expect(corpus().length).toBeGreaterThanOrEqual(TEST_FILE_FLOOR);
   });
 });
 
-describe('catraca das asserções de ausência (F4)', () => {
-  it('a população não cresce — o número só desce', () => {
-    const atuais = arquivosComAusenciaSozinha();
+describe('ratchet on FILES using the form (F4)', () => {
+  // Why both survive: the per-file count stops a NEW file slipping in unnoticed; the per-assertion
+  // count measures what is actually left to fix. Anchoring an assertion does not remove its file
+  // from the first count, so without the second a whole day of legitimate fixes reports as zero.
+
+  it('the population does not grow', () => {
+    const files = filesWithAbsenceAssertions();
     expect(
-      atuais.length,
-      `Arquivos usando \`expect(queryBy…)\` para afirmar ausência: ${atuais.length} (teto ${TETO}).\n\n` +
-        'Se SUBIU: um teste novo escolheu uma forma que pode não conseguir falhar. Ela só prova\n' +
-        'algo quando o elemento consultado existe no caso que PASSA. Prefira asserir a ausência\n' +
-        'de um heading ou rótulo que o caso feliz renderiza.\n\n' +
-        'Se DESCEU: é progresso, e o teto acima deve acompanhar.\n',
-    ).toBeLessThanOrEqual(TETO);
+      files.length,
+      `Files using \`expect(queryBy…)\` to assert absence: ${String(files.length)} ` +
+        `(ceiling ${String(CEILING_FILES)}).\n`,
+    ).toBeLessThanOrEqual(CEILING_FILES);
   });
 
-  it('o teto bate com o disco — sem folga onde crescer', () => {
-    // Sem este caso o teto poderia ficar acima do real e a catraca viraria enfeite.
-    expect(arquivosComAusenciaSozinha().length).toBe(TETO);
+  it('the ceiling matches disk — no slack to grow into', () => {
+    expect(filesWithAbsenceAssertions().length).toBe(CEILING_FILES);
+  });
+});
+
+describe('the detector, exercised — not a copy of it', () => {
+  // The previous self-test re-implemented the anchor rule on a string literal and checked its own
+  // copy. Widening `(?:get|find)` to `(?:get|find|query)` in the real detector took the corpus
+  // count from 116 to 15 and all six cases stayed green. These call the SAME functions the ratchet
+  // uses, so gutting the detector turns them red.
+
+  const absence = "expect(screen.queryByText(/nothing here/i)).toBeNull();";
+
+  it('flags an absence assertion with no anchor', () => {
+    expect(unanchoredIn('x.test.ts', absence)).toHaveLength(1);
   });
 
-  it('o detector consegue falhar', () => {
-    // Um guard que ninguém viu falhar é um guard que ninguém sabe se funciona — e este
-    // repositório embarcou quatro testes assim antes da revisão de 2026-08-11.
-    for (const forma of [
+  it('does NOT flag one anchored by a findBy on the same selector', () => {
+    const source = "expect(await screen.findByText(/nothing here/i)).toBeInTheDocument();\n" + absence;
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(1);
+    expect(unanchoredIn('x.test.ts', source)).toHaveLength(0);
+  });
+
+  it('does NOT accept a bare `queryBy` as an anchor — that is the mutation that gutted it', () => {
+    // Reading a node is not asserting it is there. Accepting this took 116 to 15.
+    const source = "const el = screen.queryByText(/nothing here/i);\n" + absence;
+    expect(unanchoredIn('x.test.ts', source)).toHaveLength(1);
+  });
+
+  it('DOES accept a `queryBy` used to assert PRESENCE', () => {
+    const source =
+      "expect(screen.queryByText(/nothing here/i)).toBeInTheDocument();\n" + absence;
+    expect(unanchoredIn('x.test.ts', source)).toHaveLength(0);
+  });
+
+  it('a bare read is not an assertion at all', () => {
+    // 27 of 336 occurrences were reads like this; the previous detector counted every one.
+    expect(absenceAssertionsIn('x.test.ts', "const el = screen.queryByRole('table');")).toHaveLength(0);
+  });
+
+  it('an assertion that exists only inside a COMMENT is not counted', () => {
+    const source = ['// ' + absence, '/* ' + absence + ' */'].join('\n');
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(0);
+  });
+
+  it('reads a selector whose arguments contain a nested call', () => {
+    // `[^)]*?` stopped at the first `)`, so this selector's core was never seen.
+    const source = "expect(screen.queryByRole('row', { name: new RegExp(label) })).toBeNull();";
+    const found = absenceAssertionsIn('x.test.ts', source);
+    expect(found).toHaveLength(1);
+    expect(found[0].selector).toContain('new RegExp(label)');
+  });
+
+  it('reads the multi-line form, where a comma sits before the closing `expect(`', () => {
+    // My own undercount. Requiring the matcher to follow the query's `)` missed this shape and
+    // silently dropped one file; only the per-file ceiling disagreeing by one made it visible.
+    const source = [
+      'expect(',
+      '  screen.queryByText(/nothing here/i),',
+      ').not.toBeInTheDocument();',
+    ].join('\n');
+
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(1);
+  });
+
+  it('an anchor on a DIFFERENT query kind does not count', () => {
+    // `getByTestId('nothing here')` does not prove `queryByText(/nothing here/)` can fail.
+    const source = "expect(screen.getByTestId('nothing here')).toBeInTheDocument();\n" + absence;
+    expect(unanchoredIn('x.test.ts', source)).toHaveLength(1);
+  });
+
+  it('`selectorCore` needs 4 characters, so short noise is not an anchor', () => {
+    expect(selectorCore("/nothing here/i")).toBe('nothing here');
+    expect(selectorCore("'ab'")).toBeNull();
+  });
+
+  it('recognises the absence matchers, and only those', () => {
+    for (const form of [
       `expect(screen.queryByRole('table')).toBeNull();`,
-      `expect(queryByText(/x/)).not.toBeInTheDocument();`,
-      `expect(within(card).queryByLabelText('y')).toBeNull();`,
-      `expect(await screen.queryByTestId('z')).toBeNull();`,
+      `expect(screen.queryByText(/xxxx/)).not.toBeInTheDocument();`,
+      `expect(within(card).queryByLabelText('yyyy')).toBeNull();`,
+      `expect(screen.queryByTestId('zzzz')).toBeFalsy();`,
     ]) {
-      expect(ABSENCE_ONLY.test(forma), `deveria ter marcado: ${forma}`).toBe(true);
+      expect(absenceAssertionsIn('x.test.ts', form), `should have flagged: ${form}`).toHaveLength(1);
     }
-    for (const benigno of [
+    for (const benign of [
       `expect(screen.getByRole('table')).toBeInTheDocument();`,
       `const el = screen.queryByRole('table');`,
-      `await screen.findByText(/x/);`,
+      `await screen.findByText(/xxxx/);`,
     ]) {
-      expect(ABSENCE_ONLY.test(benigno), `NÃO deveria ter marcado: ${benigno}`).toBe(false);
+      expect(absenceAssertionsIn('x.test.ts', benign), `should NOT have flagged: ${benign}`).toHaveLength(0);
     }
   });
 });
