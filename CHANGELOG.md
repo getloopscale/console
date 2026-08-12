@@ -10,6 +10,8 @@
 
 ### Changed
 
+- **theo-cloud/release process:** the container vulnerability scan runs again. It had been exiting in 17 milliseconds with "cannot find ignorefile" — so the scan never happened, and the pipeline reported a vulnerability failure for a check that had not been performed. A green and a red equally without substance. The exemption file it looks for now exists and is empty, and a test refuses to let anything be added to it without going through the guard (B-272, B-270).
+
 - **theo-cloud/CI:** two guards that had been contradicting the code since 2026-08-06 now match it. One asserted that opening a pull request must trigger the pipeline — a rule the owner deliberately reversed a week later — and the other asserted a setting that the build pipeline stopped accepting. Neither failure was visible, because the only thing that runs those guards is the pipeline that was itself refusing to start (B-270).
 
 - **theo-cloud/release process:** the check that catches a workflow passing a setting its callee does not accept now runs in CI. It was written when that defect cost six dead pipeline runs and two releases with no image, and then shipped wired to nothing — so the next such change would have reproduced the same failure with the detector sitting unused in the repository (B-270).

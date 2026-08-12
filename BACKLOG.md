@@ -10513,3 +10513,54 @@ dod:
 status: triaged
 
 > Registrado 2026-08-12 ao corrigir o B-270.
+
+## B-272 — O `trivyignores:` do reusable é incondicional, e o comentário dele promete o contrário   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  usetheoai/theo/.github/workflows/build-publish.yml:41
+    trivy: { ... }   # CRITICAL/HIGH Trivy gate before push (uses .trivyignore if present)
+
+  usetheoai/theo/.github/workflows/build-publish.yml:184
+    trivyignores: .trivyignore
+
+  O comentário do input promete "if present"; a linha 184 passa incondicionalmente. Sem o arquivo o
+  trivy sai 1 em 17ms:
+
+    job 94256732867, 2026-08-12 — ERROR: cannot find ignorefile '.trivyignore'
+
+  E o efeito é pior do que uma falha de build: o SCAN NÃO RODA, e o gate reporta falha de
+  vulnerabilidade para uma varredura que nunca houve. Um verde e um vermelho igualmente sem lastro.
+
+  Já estava MEDIDO neste repositório antes: a cópia vendorizada do build-publish deliberadamente NÃO
+  passava `trivyignores:`, citando o run 30570111324 com o mesmo sintoma. Essa decisão foi perdida
+  quando `03195817` adotou o reusable compartilhado — a mesma perda de contrato que o B-270 registra,
+  em outro input.
+why_now: |
+  Bloqueou o corte da v1.0.2 em 2026-08-12: com o B-270 corrigido, o `publish` finalmente executou os
+  jobs e o `images` morreu aqui, nas duas imagens.
+o_que_foi_feito_no_lugar: |
+  Criado `.trivyignore` VAZIO neste repo, com o raciocínio no cabeçalho, e `internal/ci` passou a
+  reprovar qualquer linha não-comentário nele.
+
+  Isto SOBREPÕE a decisão anterior de propósito, e a razão está registrada: o receio dela — "um
+  allowlist vazio é um convite para a primeira supressão" — continua certo, mas a alternativa que
+  ela escolhia (não passar o ponteiro) mora hoje noutro repositório. A escolha real deixou de ser
+  "arquivo vazio versus nada" e passou a ser "arquivo vazio versus scan que nunca roda". O convite
+  que ela temia está fechado por teste, com prova de reprovação.
+dod:
+  - `trivyignores:` no reusable passa a ser condicional à existência do arquivo, cumprindo o que o
+    comentário do input já promete
+  - o blast radius é avaliado: a mudança alcança TODO repo que chama o reusable (para quem tem o
+    arquivo nada muda; para quem não tem, o scan passa a rodar — estritamente melhor)
+  - `theo-cloud/.trivyignore` é removido junto, com o guard de `internal/ci`
+  - `TestTrivyIgnoreFileInputMatchesReality`, que hoje faz SKIP porque o reusable é upstream, volta
+    a ter o que verificar — ou é apagado por dizer que verifica algo que não verifica
+status: triaged
+
+> Registrado 2026-08-12 ao desbloquear o `images` do publish.
