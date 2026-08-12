@@ -7,10 +7,10 @@ FROM golang:1.26.5-alpine3.23 AS builder
 WORKDIR /workspace
 
 ENV GOWORK=off
-ENV GOPRIVATE=github.com/usetheodev/*
+ENV GOPRIVATE=github.com/usetheoai/*,github.com/usetheodev/*
 
 # theo-contracts is a PINNED published module (M5 version-pin cutover — go.mod requires
-# github.com/usetheodev/theo-contracts v0.1.0, NO replace). The private module is fetched via
+# github.com/usetheoai/theo-contracts v0.1.0, NO replace). The private module is fetched via
 # a short-lived token mounted as a buildx secret (id=gomod_token); the token is NEVER written
 # to an image layer. git is required for the module VCS fetch.
 RUN apk add --no-cache git
@@ -37,6 +37,7 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     # caindo no $HOME/.gitconfig vazio. Medido: `fatal: could not read Username`.
     sh -c 'export GIT_CONFIG_GLOBAL=/tmp/gitcfg/config; \
       if [ -s /run/secrets/gomod_token ]; then \
+        git config --global url."https://x-access-token:$(cat /run/secrets/gomod_token)@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"; \
         git config --global url."https://x-access-token:$(cat /run/secrets/gomod_token)@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"; \
       fi; \
       go mod download'
@@ -63,9 +64,9 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath \
       -ldflags="-s -w \
-        -X github.com/usetheodev/theo-cloud/internal/version.Version=${VERSION:-dev} \
-        -X github.com/usetheodev/theo-cloud/internal/version.GitSHA=${GIT_SHA:-unknown} \
-        -X github.com/usetheodev/theo-cloud/internal/version.BuiltAt=${BUILT_AT:-unknown}" \
+        -X github.com/usetheoai/theo-cloud/internal/version.Version=${VERSION:-dev} \
+        -X github.com/usetheoai/theo-cloud/internal/version.GitSHA=${GIT_SHA:-unknown} \
+        -X github.com/usetheoai/theo-cloud/internal/version.BuiltAt=${BUILT_AT:-unknown}" \
       -o /cloud-api ./cmd
 
 # Distroless static runtime (find_infra_009): no shell/apk/utilities to reduce
@@ -73,7 +74,7 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
 # built-in nonroot user (uid 65532). The binary is fully static (CGO_ENABLED=0).
 FROM gcr.io/distroless/static-debian12:nonroot
 
-LABEL org.opencontainers.image.source="https://github.com/usetheodev/theo-cloud"
+LABEL org.opencontainers.image.source="https://github.com/usetheoai/theo-cloud"
 LABEL org.opencontainers.image.title="theo-cloud"
 LABEL org.opencontainers.image.description="TheoCloud service"
 
