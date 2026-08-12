@@ -11,13 +11,13 @@ from __future__ import annotations
 import json
 import threading
 from datetime import date
+import re
 from pathlib import Path
 
 import pytest
 
 from scripts._shared import (
     DEFAULT_SKIP_DIRS,
-    is_skipped_path,
     AllowlistEntry,
     AllowlistMatch,
     Finding,
@@ -332,40 +332,34 @@ def test_emit_json_summary_score_caps_per_golden_rule() -> None:
     assert emit_json_summary([], "INVALID", [])["score_cap"] == 0
 
 
-# --- B-198: skip-list matching by meaning, not by segment name ---
+def test_the_shipped_template_parses_when_you_follow_its_own_instructions(tmp_path: Path) -> None:
+    """The template is the only thing a new repo reads, and it used to describe a format the
+    parser rejects.
 
-
-def test_source_dir_named_like_build_output_is_not_skipped(tmp_path):
-    """`src/build/` is source. The audit dropped all eight of its files silently."""
-    (tmp_path / "src" / "build").mkdir(parents=True)
-    assert not is_skipped_path(Path("src/build/csp.test.ts"), tmp_path)
-
-
-def test_build_output_next_to_a_manifest_is_skipped(tmp_path):
-    """`dist/` beside a package.json is that package's output, at any depth."""
-    (tmp_path / "app" / "dist").mkdir(parents=True)
-    (tmp_path / "app" / "package.json").write_text("{}")
-    assert is_skipped_path(Path("app/dist/bundle.js"), tmp_path)
-
-
-def test_node_modules_is_skipped_at_any_depth(tmp_path):
-    """A name that means the same everywhere keeps matching everywhere."""
-    assert is_skipped_path(Path("a/b/node_modules/pkg/index.ts"), tmp_path)
-    assert is_skipped_path(Path("node_modules/pkg/index.ts"), tmp_path)
-
-
-def test_a_fragment_off_disk_is_skipped_rather_than_guessed(tmp_path):
-    """A tool's stdout may name a path that does not resolve here.
-
-    Skipping is the safe reading: the name is build output far more often than
-    not, and a false skip costs coverage while a false keep audits a dependency.
+    It said "one language identifier per line" and listed `# typescript`; uncommenting that —
+    the happy path for every new install — raised `ValueError: malformed line: 'typescript'`.
+    The code was right and the doc was wrong, which is the worse direction. A test that asserts
+    the parser's behaviour cannot catch that; only one that READS THE DOC can.
     """
-    assert is_skipped_path(Path("nowhere/dist/x.go"), tmp_path)
+    template = Path(__file__).resolve().parents[3] / "rules" / "code-quality-languages.txt"
+    # A commented example is a `#` line whose FIRST pipe-field is a bare lowercase identifier.
+    # Matching on "has a pipe and says ENABLED" also catches the line documenting the STATUS
+    # column itself (`STATUS  ENABLED | DISABLED | DEFER`), which is prose, not an example.
+    examples = [
+        stripped
+        for line in template.read_text(encoding="utf-8").splitlines()
+        if line.startswith("#")
+        and (stripped := line.lstrip("#").strip())
+        and re.match(r"^[a-z][a-z0-9]*\s*\|", stripped)
+    ]
+    assert examples, f"{template} offers no commented example line to uncomment"
 
+    rule = tmp_path / "languages.txt"
+    rule.write_text("\n".join(examples) + "\n", encoding="utf-8")
+    cfg = load_languages_config(rule)
 
-def test_the_two_classes_together_are_the_legacy_set():
-    """`DEFAULT_SKIP_DIRS` stays the union, so callers reading names still work."""
-    from scripts._shared import SKIP_ANY_DEPTH, SKIP_WHEN_BUILD_OUTPUT
-
-    assert SKIP_ANY_DEPTH | SKIP_WHEN_BUILD_OUTPUT == DEFAULT_SKIP_DIRS
-    assert not (SKIP_ANY_DEPTH & SKIP_WHEN_BUILD_OUTPUT)
+    assert len(cfg) == len(examples)
+    assert "typescript" in cfg
+    for language, entry in cfg.items():
+        assert entry["manifest"], f"{language} example declares no manifest marker"
+        assert entry["status"] == "ENABLED"

@@ -35,3 +35,6 @@ sdk/storage-ts/package-lock.json
 # Saida de ferramenta de auditoria (loop-devops-audit): .db + relatorios gerados.
 # Evidencia de uma execucao, nao codigo — vive no knowledge-base quando vira decisao.
 devops-audit-output/
+
+# Plugin patch backups — local recovery snapshots, never part of the history.
+.claude/.patch-backups/
