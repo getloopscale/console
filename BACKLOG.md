@@ -8951,6 +8951,24 @@ dod:
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
 
+implemented: |
+  2026-08-12 — 79 -> 31, and the number now means something it did not before.
+
+  Classified one at a time: 54 were used inside their own module and exported for no reason
+  anyone acted on; 2 (`VerifiableAddress`, `AuthenticationMethod`) were the SAME type counted
+  twice — declaration plus re-export at `lib/auth/session.ts:31` — so the 79 was never 79
+  distinct types; 23 are referenced nowhere.
+
+  `tsc` is the arbiter for the first group and it earned that role: three of the 54 turned out
+  to be re-export statements rather than declarations, and it caught all three at once.
+
+  The 31 that remain are a different finding, filed as B-260: twenty are `*Input`/`*Response`,
+  the REQUEST half of the API contract for writes the dashboard performs with the body
+  assembled inline and untyped. Deleting them removes the only description of those payloads;
+  leaving them exported keeps a description nothing checks against what is sent.
+
+  Stays `triaged` — RELEASE is blocked on PR #475, per B-228.
+
 ## B-246 — Catraca `adr-nomenclature` em 234 citacoes de ADR de plano, sem dono   [x]
 
 domain: frontend-dashboard
