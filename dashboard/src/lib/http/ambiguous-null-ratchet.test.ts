@@ -46,8 +46,19 @@ const SRC = resolve(__dirname, '../..');
  * ratchet buys the same thing without the diff, and makes the 39 countable.
  */
 
-/** The detector measures; this number freezes. Measured 2026-08-12. ONLY GOES DOWN. */
-const CEILING_WITHOUT_CONTRACT = 39;
+/**
+ * The detector measures; this number freezes. ONLY GOES DOWN.
+ *
+ * 39 measured 2026-08-12. 37 the same day, with `settings/webhooks.tsx` migrated to
+ * `hooks/settings/use-workspace-webhooks.ts` (B-244): registering and revoking a webhook were two
+ * of the 39, and both are operations where resolving `null` on a refusal told the user the
+ * opposite of what happened.
+ *
+ * The coincidence is worth naming so it does not read as a revert: the SECOND measurement also
+ * said 37, from a 12-line window that was wrong in both directions. This 37 is the fourth
+ * measurement minus two real migrations. Same number, unrelated reasons.
+ */
+const CEILING_WITHOUT_CONTRACT = 37;
 
 /**
  * The corpus may not shrink silently.
@@ -98,7 +109,7 @@ describe('ambiguous-`null` ratchet (B-235)', () => {
         `${without.slice(0, 10).join('\n')}\n\n` +
         'If it WENT UP: a new call receives `null` for an auth failure, an ended session, a\n' +
         'non-2xx, a network rejection AND a successful 204, with no way to tell them apart. Pass\n' +
-        '`{ throwOnError: true }` and handle the `ApiError` — 132 calls already do.\n\n' +
+        '`{ throwOnError: true }` and handle the `ApiError` — 134 calls already do.\n\n' +
         'If it WENT DOWN: that is progress, and the ceiling above should follow.\n',
     ).toBeLessThanOrEqual(CEILING_WITHOUT_CONTRACT);
   });

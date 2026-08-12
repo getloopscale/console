@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { Button, Checkbox, Input } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import { Alert } from '@/components/ui/alert-guard';
 
 /**
  * O diálogo de cadastro de webhook, um só (B-193).
@@ -35,6 +36,15 @@ export interface AddWebhookDialogProps {
   onClose: () => void;
   submitting: boolean;
   onSubmit: (input: { url: string; label: string; events: string[] }) => void;
+  /**
+   * Why the last submit did not register the webhook, or `null`.
+   *
+   * B-244 — before this, a refused registration was invisible here. The request resolved `null`
+   * (B-235), the page treated that as success, closed the dialog and refreshed the list. The user
+   * left believing events would arrive at a URL the server never accepted. With the failure
+   * arriving as an error the dialog now stays open, and this is what tells them WHY.
+   */
+  errorMessage?: string | null;
   description: string;
   events: readonly EventoDeWebhook[];
   /** Exemplo mostrado no campo de URL — o caminho difere por domínio. */
@@ -63,6 +73,7 @@ export function AddWebhookDialog({
   onClose,
   submitting,
   onSubmit,
+  errorMessage = null,
   description,
   events,
   exemploUrl = 'https://hook.example.com/events',
@@ -114,6 +125,9 @@ export function AddWebhookDialog({
       }
     >
       <form id={idFormulario} className="space-y-4" onSubmit={submit}>
+        {errorMessage !== null && errorMessage !== '' ? (
+          <Alert intent="warning" title="Could not add webhook" description={errorMessage} />
+        ) : null}
         <div>
           <label htmlFor={idUrl} className="text-sm font-medium block mb-1">
             URL

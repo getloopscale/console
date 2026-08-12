@@ -13,6 +13,10 @@ import { useBuildSBOM, useBuildAttestation } from '@/hooks/deploy/use-build-arti
 import { useDomains } from '@/hooks/infra/use-domains';
 import { useCreateProject } from '@/hooks/projects/use-create-project';
 import { useDeleteTenant } from '@/hooks/settings/use-delete-tenant';
+import {
+  useCreateWorkspaceWebhook,
+  useRevokeWorkspaceWebhook,
+} from '@/hooks/settings/use-workspace-webhooks';
 import { queryKeys } from '@/lib/api/query-keys';
 
 /**
@@ -177,5 +181,47 @@ describe('what each hook decides on the caller\'s behalf (B-244)', () => {
     // hand. Drop it and the hook asks for `/builds//sbom`.
     expect(result.current.fetchStatus).toBe('idle');
     await waitFor(() => expect(asked.filter((u) => u.includes('/sbom'))).toEqual([]));
+  });
+});
+
+describe('registering and revoking a webhook cannot report success it did not observe (B-244)', () => {
+  it('create: a 422 rejects instead of resolving null', async () => {
+    // Before this, a refused registration resolved `null`, the page closed the dialog and
+    // refreshed the list, and the user left believing events would arrive at a URL the server
+    // never accepted.
+    await serverAnswers(422, { code: 'INVALID_URL', message: 'not reachable' });
+    const { result } = renderHook(() => useCreateWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
+
+    await expect(
+      result.current.mutateAsync({ url: 'https://x', label: 'l', events: ['deploy.failed'] }),
+    ).rejects.toMatchObject({ name: 'ApiError', status: 422 });
+  });
+
+  it('create: a 2xx with no body rejects — the secret is shown once or never', async () => {
+    await serverAnswers(204, null);
+    const { result } = renderHook(() => useCreateWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
+
+    await expect(
+      result.current.mutateAsync({ url: 'https://x', label: 'l', events: ['deploy.failed'] }),
+    ).rejects.toThrow(/signing secret/);
+  });
+
+  it('revoke: a 403 rejects — an endpoint the user cut off must not look cut off', async () => {
+    // The worst reading of the old behaviour: the dialog closed, the list refreshed, and the
+    // webhook kept receiving the workspace's payloads.
+    await serverAnswers(403);
+    const { result } = renderHook(() => useRevokeWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
+
+    await expect(result.current.mutateAsync('wwh-1')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 403,
+    });
+  });
+
+  it('revoke: a 204 resolves — for a DELETE that is the success', async () => {
+    await serverAnswers(204, null);
+    const { result } = renderHook(() => useRevokeWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
+
+    await expect(result.current.mutateAsync('wwh-1')).resolves.toBeUndefined();
   });
 });

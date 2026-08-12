@@ -264,7 +264,7 @@ export default [
       'src/pages/skills/bundle-detail.tsx', // 539 LOC
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
       'src/pages/settings/billing.tsx', // 502 LOC
-      'src/pages/settings/webhooks.tsx', // 385 LOC
+      'src/pages/settings/webhooks.tsx', // 354 LOC
       'src/pages/lens/alerts.tsx', // 523 LOC
       'src/pages/projects/projects.tsx', // 513 LOC
     ],
