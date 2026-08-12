@@ -9123,6 +9123,29 @@ dod:
   - cada pagina migrada passa a ler pelo hook do dominio, com o teste de tela cobrindo a leitura FALHA
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
+progress_2026_08_12: |
+  53 -> 46. Cada migração fechou um defeito visível, não só moveu código:
+
+    50  as duas abas de cadeia de suprimentos (`deployment-tabs/{sbom,attestation}`) — rodavam um
+        SEGUNDO mecanismo de busca (`useEffect` + `useState` + flag `cancelled`) ao lado do
+        react-query, e uma leitura que FALHAVA dizia "No SBOM for this build"
+    49  `projects/components/create-project-sheet.tsx` — toda falha virava a mesma frase
+    47  `settings/{profile,overview}.tsx` — apagar a conta podia falhar em silêncio (B-264)
+    46  `settings/webhooks.tsx` inteira — cadastrar e revogar webhook, mesma classe do B-264
+
+  A CATRACA NÃO TINHA PORTÃO DE IGUALDADE. Só `<=`, então o teto podia ficar ACIMA do real e cada
+  página migrada abria uma vaga silenciosa para outra nascer falando transporte direto. As catracas
+  do B-235 e do B-242 já pareavam `<=` com `toBe`; esta não. Corrigido junto com a migração de 47
+  para 46, e é por isso que o número agora bate com o disco.
+
+  REVISÃO ADVERSARIAL (2026-08-12) mutou os quatro hooks e 5 de 8 mutações SOBREVIVERAM — inclusive
+  remover `throwOnError` de `use-build-artifacts` e de `use-domains`, que é a razão de os hooks
+  existirem. Os testes mockavam `engineFetch`, então só enxergavam o argumento. Fechado com
+  `hooks/data-access-error-contract.test.tsx`, que passa pelo transporte REAL (stub em
+  `globalThis.fetch`); as 8 mutações morrem.
+
+  RESTA 46: lens 18, memory 12, rag 9, infra 4, workspace 3, projects 2, promptly 1 (contagem por
+  arquivo de `src/pages`, 2026-08-12).
 
 ## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [ ]
 
