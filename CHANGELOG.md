@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-12
+
 ### Fixed
 
 - **theo-cloud/dashboard:** starting an export of your memories no longer fails in silence. When the server refused, the request came back looking like an empty answer, the screen took that as success, and nothing appeared and nothing explained why. The screen already had the message for this — it was simply unreachable (B-244, B-235).
