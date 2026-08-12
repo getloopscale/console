@@ -1,11 +1,17 @@
 ## [Unreleased]
 
-## [2.0.0] - 2026-08-12
+## [1.0.1] - 2026-08-12
 
-<!-- B-268 — the entries below came back from a `## [1.0.1] - 2026-08-11` section that
-     announced a release which never happened: `chore(release): 1.0.1` reached develop and
-     never reached main, and no v1.0.1 tag exists anywhere. The work is real and still
-     unreleased, so it belongs here until a version actually ships it. -->
+<!-- B-268 — some of the entries below spent a day inside a `## [1.0.1] - 2026-08-11` section
+     that announced a release which never happened: `chore(release): 1.0.1` reached develop, never
+     reached main, and no v1.0.1 tag ever existed. They were moved back to [Unreleased] on
+     2026-08-12 because unreleased work belongs there.
+
+     This release is the other half of that fix, and the owner's call: rather than letting 1.0.1
+     vanish from the record, the number ships for real, carrying what it always claimed plus
+     everything measured since. The date moves from 2026-08-11 (the day it was announced) to
+     2026-08-12 (the day it shipped), because the first date was the claim and the second is the
+     fact. -->
 
 ### Fixed
 
