@@ -20,6 +20,29 @@ def isolated_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def hermetic_go_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer stdlib and toolchain-availability from fixtures, never from the runner.
+
+    `go list std` and `go version` reach a real binary, so the suite passed or failed
+    depending on whether the machine had Go installed — the same non-determinism the
+    module-graph fixture below was written to remove (`rules/testing.md` § 3). The three
+    tests that are ABOUT toolchain absence patch these back explicitly.
+    """
+    monkeypatch.setattr(_registry, "_go_toolchain_available", lambda: True)
+    monkeypatch.setattr(
+        _registry,
+        "_stdlib_packages",
+        lambda: frozenset(
+            {
+                "fmt", "os", "errors", "strings",
+                "net/http", "encoding/json", "log/slog", "database/sql",
+                "os/signal", "go/ast", "path/filepath", "net/http/httptest",
+            }
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
 def empty_module_graph(monkeypatch: pytest.MonkeyPatch) -> None:
     """No ambient module graph unless a test asks for one.
 
@@ -241,3 +264,54 @@ def test_bare_host_is_never_asked(monkeypatch: pytest.MonkeyPatch) -> None:
     _registry.module_exists_on_go_proxy("github.com/a/b/c")
 
     assert not any(u.endswith("github.com/@v/list") for u in seen)
+
+
+def test_missing_go_toolchain_is_ambiguous_never_fabricated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without `go`, stdlib must be UNVERIFIABLE — never "fabricated" (B-252 recurrence).
+
+    `_stdlib_packages()` returns an empty set when the toolchain is absent, which fell
+    through to the proxy: `encoding/json` 404s, comes back False, and the detector emits a
+    HARD `symbol_fabrication_go` — the exact defect B-252 fixed, reappearing whenever `go`
+    is not on PATH.
+
+    It also inverted this skill's own convention. Everywhere else a missing toolchain is
+    `auditor_unavailable_{tool}` at SOFT_CAP; here it produced a FAIL_HARD that blocks
+    /review. A gate must not turn "I could not check" into "I found a defect".
+    """
+    monkeypatch.setattr(_registry, "_stdlib_packages", frozenset)
+    monkeypatch.setattr(_registry, "_module_graph", frozenset)
+    monkeypatch.setattr(_registry, "_go_toolchain_available", lambda: False)
+    monkeypatch.setattr(_registry, "_http_get_json", lambda _url: ({}, 404))
+
+    assert _registry.module_exists_on_go_proxy("encoding/json") is None
+
+
+def test_ambiguous_results_are_not_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An answer produced without the toolchain must not outlive it.
+
+    B-254 versioned the cache against SEMANTICS drift. This is ENVIRONMENT drift: a result
+    reached while `go` was unavailable would otherwise be served as fact for 24h after the
+    toolchain is installed.
+    """
+    monkeypatch.setattr(_registry, "_stdlib_packages", frozenset)
+    monkeypatch.setattr(_registry, "_module_graph", frozenset)
+    monkeypatch.setattr(_registry, "_go_toolchain_available", lambda: False)
+    monkeypatch.setattr(_registry, "_http_get_json", lambda _url: ({}, 404))
+
+    _registry.module_exists_on_go_proxy("encoding/json")
+
+    assert _registry._cache_get("go", "encoding/json") is None
+
+
+def test_toolchain_present_still_reports_a_genuinely_absent_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The H1 fix must not disarm the gate when the toolchain IS available."""
+    monkeypatch.setattr(_registry, "_go_toolchain_available", lambda: True)
+    monkeypatch.setattr(_registry, "_stdlib_packages", lambda: frozenset({"net/http"}))
+    monkeypatch.setattr(_registry, "_module_graph", frozenset)
+    monkeypatch.setattr(_registry, "_http_get_json", lambda _url: ({}, 404))
+
+    assert _registry.module_exists_on_go_proxy("github.com/nobody/not-real") is False

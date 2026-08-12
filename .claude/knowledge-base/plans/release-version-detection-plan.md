@@ -382,7 +382,11 @@ a unit test — stated plainly rather than pretending a unit test covers it:
 
 - `grep -c "detect_current_version.py" .claude/skills/release/SKILL.md` returns at least 1, and
   the matched line pipes its output into `compute_next_version.py --current`.
-- `grep -c "git describe" .claude/skills/release/SKILL.md` returns 0.
+- No `git describe` appears inside an EXECUTABLE fence of `SKILL.md`. Verified by parsing
+  ```bash/```sh blocks, not by counting occurrences in the file: the prose that says NOT to
+  use it must stay, because it is the only thing standing between the next author and
+  reintroducing the defect. Amended 2026-08-12 after the original criterion (`grep -c` == 0)
+  was found to demand deleting that warning.
 - Step 2's fenced block writes the detected source name into the release record template, so
   `knowledge-base/releases/{version}-release.md` carries a `version_source:` line.
 
@@ -479,11 +483,18 @@ Every claim in the Goal maps to at least one task; every task maps to a claim. 1
 - `python3 -m pytest .claude/skills/release/tests/ -q` green.
 - `python3 -m pytest .claude/skills/discover-confidence/tests/ -q` still green (35 passed) — this
   session touched that suite and must not regress it.
-- `grep -rn "git describe" .claude/skills .claude/rules` → zero hits.
+- Zero `git describe` inside executable fences under `.claude/skills` and `.claude/rules`.
+  Prose occurrences are EXPECTED and required — 7 remain, each warning against the command,
+  including the hard gate added to `cycle-release.md`. Amended 2026-08-12; the original
+  bullet demanded zero occurrences of any kind, which the slice provably does not meet and
+  should not.
 - `python3 .claude/scripts/check_xrefs.py` → PASS.
 - Running the detector in this repository prints `v0.85.0` / `release-branch-tag`.
 - `CHANGELOG.md [Unreleased]` carries one entry per user-visible change, written for the consumer.
-- `BACKLOG.md` B-228 → `status: shipped` with a `shipped_note` recording what was and was not done.
+- `BACKLOG.md` B-228 carries a note recording what was and was not done. It advances to
+  `status: shipped` only when `cycle-release` emits `RELEASED` — not at implementation.
+  Amended 2026-08-12: the original bullet asked implementation to set a status that
+  `cycle-maintenance` reserves for the release, so it could never be met here.
 
 ## Failure scenarios (when I/O external)
 

@@ -238,3 +238,48 @@ def test_hotfix_numbered_below_a_shipped_release_does_not_win(tmp_path: Path) ->
     ).detect(git_runner(repo))
 
     assert result == DetectedVersion(version="v0.85.0", source="release-branch-tag")
+
+
+# --- Wiring: the caller is a shell line in Markdown, so assert it mechanically ---
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def test_the_release_skill_calls_this_module() -> None:
+    """Pillar (a) of the wiring triad, made self-checking.
+
+    `/release` is orchestrated by SKILL.md itself — all six release scripts are invoked only
+    from its bash blocks, so that IS the convention here, not a shortcut. But nothing
+    mechanically verified the line, and a path typo would surface at release time. This test
+    is the cheapest thing that makes the wiring fail loudly instead of quietly.
+    """
+    skill = (_repo_root() / ".claude/skills/release/SKILL.md").read_text(encoding="utf-8")
+
+    assert "detect_current_version.py" in skill
+    assert "--current" in skill
+
+
+def test_the_installer_ships_this_module() -> None:
+    """The caller must not ship without the callee.
+
+    patch_install.sh shipped SKILL.md and the five sibling scripts but not this one, while the
+    same change removed the old `|| echo v0.0.0` fallback — so a patched consumer would have
+    fed `--current ''` into the version computation and numbered a release from nothing.
+    Caught by review, not by a test; now by a test.
+    """
+    manifest = (_repo_root() / ".claude/scripts/patch_install.sh").read_text(encoding="utf-8")
+
+    assert "skills/release/scripts/detect_current_version.py" in manifest
+    assert "skills/release/tests/test_detect_current_version.py" in manifest
+
+
+def test_the_skill_halts_when_detection_fails() -> None:
+    """A missing detector must halt the chain, never yield an empty version."""
+    skill = (_repo_root() / ".claude/skills/release/SKILL.md").read_text(encoding="utf-8")
+
+    assert "exit 1" in skill
+    assert 'LAST_TAG=$(python3' not in skill, (
+        "assigning the detector's output directly reintroduces the empty-on-failure path"
+    )

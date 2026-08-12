@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -207,6 +208,63 @@ def _go_proxy_encode(module: str) -> str:
     return "".join(out)
 
 
+_GO_WORKDIR_ENV = "CODE_QUALITY_GO_WORKDIR"
+
+
+def _go_workdir() -> Path:
+    """The directory the Go toolchain is questioned in.
+
+    Every other subprocess in this skill passes an explicit `cwd` — `run_code_quality.py`
+    records the lesson in prose, measured on a repo whose crate did not sit at the root:
+    a detector asked from the wrong directory answers about the wrong module. These three
+    invocations read the process CWD instead, which is independent of `--repo-root`.
+
+    Set `CODE_QUALITY_GO_WORKDIR` to the manifest directory being audited. Defaults to the
+    process CWD, which is what the orchestrator uses today.
+    """
+    override = os.environ.get(_GO_WORKDIR_ENV)
+    return Path(override) if override else Path.cwd()
+
+
+def reset_go_resolution_cache() -> None:
+    """Forget the toolchain answers cached for this process.
+
+    `lru_cache` makes the FIRST module graph resolved global to the process, so auditing a
+    second module in the same run would judge its private imports against the first one's
+    graph. Call this when the audited module changes.
+    """
+    _go_toolchain_available.cache_clear()
+    _stdlib_packages.cache_clear()
+    _module_graph.cache_clear()
+
+
+@lru_cache(maxsize=1)
+def _go_toolchain_available() -> bool:
+    """Can we ask the Go toolchain anything at all?
+
+    Without it, `_stdlib_packages` and `_module_graph` are both empty — not because those
+    sets are empty, but because we could not look. Resolution must report that as
+    UNVERIFIABLE rather than falling through to the proxy, where every stdlib package 404s
+    and comes back "fabricated": the exact defect B-252 fixed, reappearing whenever `go` is
+    off PATH.
+
+    Everywhere else in this skill a missing toolchain is `auditor_unavailable_{tool}` at
+    SOFT_CAP. A gate must not turn "I could not check" into "I found a defect".
+    """
+    try:
+        proc = subprocess.run(
+            ["go", "version"],
+            cwd=str(_go_workdir()),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0
+
+
 @lru_cache(maxsize=1)
 def _stdlib_packages() -> frozenset[str]:
     """The standard library, from `go list std` — the only source that cannot drift.
@@ -222,7 +280,12 @@ def _stdlib_packages() -> frozenset[str]:
     """
     try:
         proc = subprocess.run(
-            ["go", "list", "std"], capture_output=True, text=True, check=False, timeout=60
+            ["go", "list", "std"],
+            cwd=str(_go_workdir()),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
         )
     except (FileNotFoundError, subprocess.SubprocessError):
         return frozenset()
@@ -251,6 +314,7 @@ def _module_graph() -> frozenset[str]:
     try:
         proc = subprocess.run(
             ["go", "list", "-m", "all"],
+            cwd=str(_go_workdir()),
             capture_output=True,
             text=True,
             check=False,
@@ -307,6 +371,16 @@ def module_exists_on_go_proxy(import_path: str) -> bool | None:
         # answer would be wrong, which is exactly how B-252 happened.
         _cache_set("go", import_path, True)
         return True
+    if not _go_toolchain_available():
+        # We could not consult stdlib or the module graph, so a proxy 404 would mean "not a
+        # published module" — which for `encoding/json` or a private dependency is not the
+        # same as "does not exist". Ambiguous, and deliberately NOT cached: an answer reached
+        # without the toolchain must not outlive it (B-254's lesson on a second axis).
+        print(
+            f"_registry: go toolchain unavailable; cannot verify Go import {import_path!r}",
+            file=sys.stderr,
+        )
+        return None
     if _resolved_by_module_graph(import_path):
         # The build already resolves it. Authoritative, offline, and true for private
         # modules the public proxy will never answer for.

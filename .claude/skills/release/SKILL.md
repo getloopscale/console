@@ -64,8 +64,14 @@ If any HARD check fails, refuse with the missing piece surfaced honestly.
 ### Step 2 — Detect current version and compute next
 
 ```bash
-LAST_TAG=$(python3 skills/release/scripts/detect_current_version.py --quiet)
-VERSION_SOURCE=$(python3 skills/release/scripts/detect_current_version.py | sed 's/.*(\(.*\))/\1/')
+DETECTED=$(python3 skills/release/scripts/detect_current_version.py) || {
+  echo "release: detect_current_version.py failed or is not installed — halting." >&2
+  echo "A missing detector must NOT fall back to an empty version: compute_next_version.py" >&2
+  echo "would receive --current '' and the release would be numbered from nothing." >&2
+  exit 1
+}
+LAST_TAG="${DETECTED%% *}"
+VERSION_SOURCE=$(printf '%s' "$DETECTED" | sed 's/.*(\(.*\))/\1/')
 NEXT_VERSION=$(python3 skills/release/scripts/compute_next_version.py \
   --current "$LAST_TAG" \
   --bump "${ARGUMENTS:-auto}" \
