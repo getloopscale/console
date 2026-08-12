@@ -87,7 +87,13 @@ exatamente a classe "grep casa prosa".
 // existia em `lib/api/types.ts` e que ninguém importava — o dashboard criava
 // projetos enquanto a descrição do payload de criação ficava sem conferência.
 // O knip caiu 31 -> 30 pelo mesmo motivo.
-const TETO_PAGINAS_COM_TRANSPORTE = 49;
+// 47 desde 2026-08-12, com `settings/{profile,overview}.tsx` lendo por
+// `hooks/settings/use-delete-tenant.ts`. As duas rodavam a MESMA operação
+// destrutiva — `DELETE /api/v1/tenants/{id}` — em cópias separadas, e nenhuma
+// tratava falha: sem `throwOnError` uma recusa resolvia `null`, ninguém olhava, e
+// a tela seguia fechando o diálogo e encerrando a sessão / navegando embora.
+// Apagar a conta podia falhar em silêncio e a tela dizia que deu certo (B-264).
+const TETO_PAGINAS_COM_TRANSPORTE = 47;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
