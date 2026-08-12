@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/internal tooling:** the backlog verifier now refuses an item whose checkbox contradicts its status. The two had drifted apart 41 times: work that shipped still showed an unticked box, and — the direction that misleads — ten items nobody had measured showed a ticked one, so a whole programme read as delivered to anyone skimming the list (B-242..B-246).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** searching the wiki while the page list fails to load now says the search did not cover the wiki, instead of reporting "no matching pages" over a list nobody managed to read (B-238).

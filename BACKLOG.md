@@ -3976,7 +3976,7 @@ why_now: |
   que o produto é um PaaS de deploy, e as outras sete capacidades passam a depender de alguém
   ir clicar no menu para descobrir que existem. Uma capacidade ausente da tela principal é
   indistinguível, para quem chega, de uma capacidade que não existe.
-status: planned
+status: shipped
 dod:
   - toda capacidade declarada no registro do menu aparece em `/` — afirmado por teste que QUANTIFICA sobre o registro, não por uma lista escrita à mão (uma lista fixa passaria verde no dia em que a nona capacidade fosse criada e esquecida, que é este mesmo defeito um nível acima)
   - os três estados são distinguíveis na tela e no teste — "não adotada" ≠ "zero" ≠ "não consegui ler"; uma capacidade que aparece vazia por falha de leitura convida a concluir que ela não serve
@@ -4037,6 +4037,7 @@ entregue_2026-08-10: |
 
   2792 testes unitários verdes, typecheck e lint limpos, e-2-e 134/135 com a paralelização da CI
   (a única falha passa isolada; a máquina estava com load average 27 em 12 cores).
+shipped_note: corrigido 2026-08-12. O bloco dizia `status: planned` com o checkbox ja em `[x]` — e tres dos quatro nessa situacao traziam `evidence: none-yet`, combinacao que o contrato do ciclo proibe (`raw -> planned` e vedado; nada chega a plano sem medicao). O trabalho ESTA feito: 12 arquivo(s) de `dashboard/src` citam B-112 e o CHANGELOG publico o menciona 4 vez(es). O defeito era de registro, nao de entrega — e ele fazia quatro itens entregues aparecerem como trabalho em aberto em qualquer contagem do backlog.
 
 ## B-113 — O dashboard endereça os backends por dez prefixos, e o mesmo recurso por dois caminhos   [x]
 
@@ -4078,7 +4079,7 @@ why_now: |
   O QUE MUDOU: a plataforma cresceu de um produto de deploy para oito capacidades, e cada uma
   chegou com o seu prefixo. Nenhuma decisão foi errada isoladamente; o conjunto é que virou uma
   superfície que ninguém consegue descrever numa frase.
-status: planned
+status: shipped
 evidence: knowledge-base/discoveries/opportunities/dashboard-endpoint-surface-opportunity.md
 dod:
   - existe UM caminho canônico por recurso — o mesmo recurso não é endereçável por dois prefixos
@@ -4123,6 +4124,7 @@ entregue_2026-08-10: |
   mockava os dois clientes com a mesma resposta, então os dois caminhos davam no mesmo lugar e
   nada discriminava. Um teste que não distingue o estado defeituoso do consertado não é um
   teste — é uma afirmação com sintaxe de teste.
+shipped_note: corrigido 2026-08-12. O bloco dizia `status: planned` com o checkbox ja em `[x]` — e tres dos quatro nessa situacao traziam `evidence: none-yet`, combinacao que o contrato do ciclo proibe (`raw -> planned` e vedado; nada chega a plano sem medicao). O trabalho ESTA feito: 7 arquivo(s) de `dashboard/src` citam B-113 e o CHANGELOG publico o menciona 4 vez(es). O defeito era de registro, nao de entrega — e ele fazia quatro itens entregues aparecerem como trabalho em aberto em qualquer contagem do backlog.
 
 ## B-114 — A API nomeia o mesmo conceito de quatro formas, e as listas têm três contratos   [x]
 
@@ -4159,7 +4161,7 @@ why_now: |
   O QUE MUDOU: o `B-112` é o primeiro consumidor que lê TODAS as capacidades de uma vez, e foi
   ele que tornou a divergência visível. Enquanto cada tela lia só o seu endpoint, o custo ficava
   distribuído e invisível.
-status: planned
+status: shipped
 evidence: knowledge-base/discoveries/opportunities/api-aggregate-and-list-contract-opportunity.md
 dod:
   - existe uma palavra só para "resumo de capacidade", e os endpoints atuais resolvem para ela (os antigos podem continuar resolvendo)
@@ -4213,8 +4215,9 @@ entregue_2026-08-10: |
 
   ACHADO COLATERAL, registrado sem expandir escopo: `lens/saved-views` e `api-keys` não têm mock,
   então em modo mock caem no proxy — a mesma classe que o `B-112` fechou para outras quatro rotas.
+shipped_note: corrigido 2026-08-12. O bloco dizia `status: planned` com o checkbox ja em `[x]` — e tres dos quatro nessa situacao traziam `evidence: none-yet`, combinacao que o contrato do ciclo proibe (`raw -> planned` e vedado; nada chega a plano sem medicao). O trabalho ESTA feito: 11 arquivo(s) de `dashboard/src` citam B-114 e o CHANGELOG publico o menciona 2 vez(es). O defeito era de registro, nao de entrega — e ele fazia quatro itens entregues aparecerem como trabalho em aberto em qualquer contagem do backlog.
 
-## B-115 — Não existe contrato de superfície HTTP: doze serviços, doze convenções   [x]
+## B-115 — Não existe contrato de superfície HTTP: doze serviços, doze convenções   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-surface-contract`).
 > **Item-âncora do programa de padronização.** Ele NÃO conforma repo nenhum — ele escreve o
@@ -4296,7 +4299,7 @@ entregue_2026-08-10: |
   Uma quarta correção veio do B-123: as regras de caminho casavam `^/v1/` só, e o ruleset era
   CEGO para o `/api/v1` do engine — zero achados lê-se como "limpo".
 
-## B-116 — theo-rag conforma-se ao contrato de superfície HTTP   [x]
+## B-116 — theo-rag conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-rag`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4327,7 +4330,7 @@ entregue_2026-08-10: |
 
   `/v1/health` + `/v1/health/ready` compartilhando os handlers existentes; exemption numa fonte só (`AUTH_EXEMPT_PATHS`, lida por auth e rate-limit).
 
-## B-117 — theo-lens conforma-se ao contrato de superfície HTTP   [x]
+## B-117 — theo-lens conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-lens`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4358,7 +4361,7 @@ entregue_2026-08-10: |
 
   Nomes canônicos + o documento passou a descrever health e version. A exclusão deles do spec não era controle: respondem sem credencial. A do `/v1/admin` é, e ficou.
 
-## B-118 — theo-memory conforma-se ao contrato de superfície HTTP   [x]
+## B-118 — theo-memory conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-memory`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4389,7 +4392,7 @@ entregue_2026-08-10: |
 
   Quatro rotas serviam duas respostas e a canônica não estava entre elas — `/v1/health/ready` caía na superfície autenticada e respondia 401. Rótulos do OpenAPI estavam trocados.
 
-## B-119 — theo-skills conforma-se ao contrato de superfície HTTP   [x]
+## B-119 — theo-skills conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-skills`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4420,7 +4423,7 @@ entregue_2026-08-10: |
 
   Servia só liveness. Readiness sonda Postgres e fila e responde 503 quando uma cai — divergindo do trust, com o motivo escrito nos dois.
 
-## B-120 — theo-trust conforma-se ao contrato de superfície HTTP   [x]
+## B-120 — theo-trust conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-trust`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4451,7 +4454,7 @@ entregue_2026-08-10: |
 
   Não tinha health algum. Ganhou os dois, um `openapi.yaml` com teste de deriva NOS DOIS SENTIDOS, `has_more` em três listas que truncavam em silêncio, e o teste de forma de resposta que pegou três mentiras do meu próprio spec.
 
-## B-121 — theo-promptly conforma-se ao contrato de superfície HTTP   [x]
+## B-121 — theo-promptly conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-promptly`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4482,7 +4485,7 @@ entregue_2026-08-10: |
 
   Nomes canônicos aditivos. NÃO move as outras 30 rotas para `/v1`: isso exige mudar o `promptly-rewrite` no `theo-workspace`, outro repo, aterrissando junto ou a capacidade cai.
 
-## B-122 — theo-storage conforma-se ao contrato de superfície HTTP   [x]
+## B-122 — theo-storage conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-storage`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4513,7 +4516,7 @@ entregue_2026-08-10: |
 
   Era o ÚNICO de nove aninhando o erro. Passou a servir as duas formas — o `theo-cloud` lê `payload.Error.Code` e os dois repos não sobem juntos. Dois erros viviam fora do escritor central, como literais.
 
-## B-123 — theo (engine) conforma-se ao contrato de superfície HTTP   [x]
+## B-123 — theo (engine) conforma-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4545,7 +4548,7 @@ entregue_2026-08-10: |
 
   `/api/v1/health/ready` ao lado do `deep`. O gate de conformidade do próprio repo exigiu documentar a rota — funcionou. E foi aqui que a cegueira do ruleset apareceu.
 
-## B-124 — theo-cloud e o dashboard conformam-se ao contrato de superfície HTTP   [x]
+## B-124 — theo-cloud e o dashboard conformam-se ao contrato de superfície HTTP   [ ]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-cloud`).
 > **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
@@ -4623,7 +4626,7 @@ why_now: |
   O QUE MUDOU: o `B-112` entregou a faixa `PLATFORM` e, ao fazê-lo, TORNOU A CONTRADIÇÃO
   LEGÍVEL. A página agora diz "esta plataforma faz oito coisas" e em seguida dedica quatro
   painéis a uma delas mais cobrança. A contradição existia antes; ninguém a via.
-status: planned
+status: shipped
 evidence: knowledge-base/discoveries/opportunities/overview-shows-the-platform-opportunity.md
 dod:
   - a tela responde "tem algo errado agora?" a partir de sinais de MAIS DE UMA capacidade — hoje nenhuma tela do produto responde isso, porque cada capacidade só enxerga a si mesma
@@ -4669,6 +4672,7 @@ entregue_2026-08-11: |
 
   E o TypeScript matou um teste meu: o caso "toda fonte tem destino" checava `path === ''`, que
   o tipo literal já prova. Reescrito para afirmar o que o tipo não sabe.
+shipped_note: corrigido 2026-08-12. O bloco dizia `status: planned` com o checkbox ja em `[x]` — e tres dos quatro nessa situacao traziam `evidence: none-yet`, combinacao que o contrato do ciclo proibe (`raw -> planned` e vedado; nada chega a plano sem medicao). O trabalho ESTA feito: 13 arquivo(s) de `dashboard/src` citam B-125 e o CHANGELOG publico o menciona 4 vez(es). O defeito era de registro, nao de entrega — e ele fazia quatro itens entregues aparecerem como trabalho em aberto em qualquer contagem do backlog.
 
 ## B-126 — Duas das sete overviews de capacidade não respondem "como está esta capacidade?"   [x]
 
@@ -4809,7 +4813,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `trust-mock-missing-policy-violations`).
 
-## B-128 — Portuguese strings in the dashboard UI and in code comments   [ ]
+## B-128 — Portuguese strings in the dashboard UI and in code comments   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -4956,7 +4960,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-recovery-recovery-tsx-ignores-the-accounts-url`). Source: code-review finding #1, `code-review-output/code-review.db`.
 
-## B-131 — The shipped response-header CSP is strictly narrower than the meta CSP, silently revoking six allowances index   [ ]
+## B-131 — The shipped response-header CSP is strictly narrower than the meta CSP, silently revoking six allowances index   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5111,7 +5115,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-team-switcher-create-team-menu-item-does-not`). Source: code-review finding #12, `code-review-output/code-review.db`.
 
-## B-136 — Billing upgrade CTAs hardcode prices and quotas that the API already exposes   [ ]
+## B-136 — Billing upgrade CTAs hardcode prices and quotas that the API already exposes   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5377,7 +5381,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-fabricates-apierror-429-for-failures`). Source: code-review finding #44, `code-review-output/code-review.db`.
 
-## B-143 — Exponential backoff defeated by reopenAttempts reset on onopen — open/close cycle reconnects every ~750ms fore   [~]
+## B-143 — Exponential backoff defeated by reopenAttempts reset on onopen — open/close cycle reconnects every ~750ms fore   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5412,7 +5416,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-exponential-backoff-defeated-by-reopenattempts-reset`). Source: code-review finding #62, `code-review-output/code-review.db`.
 
-## B-144 — Every SSE error clears the application-wide access token, not just the SSE credential   [~]
+## B-144 — Every SSE error clears the application-wide access token, not just the SSE credential   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5592,7 +5596,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-the-chart-gate-error-loading-is`). Source: code-review finding #86, `code-review-output/code-review.db`.
 
-## B-150 — Same paused/idle blind spot on the one screen where an empty distribution is a compliance claim   [~]
+## B-150 — Same paused/idle blind spot on the one screen where an empty distribution is a compliance claim   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5618,7 +5622,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-same-paused-idle-blind-spot-on`). Source: code-review finding #87, `code-review-output/code-review.db`.
 
-## B-151 — When only the validators query fails, every bar is painted amber 'unblocked' — asserting nothing is stopped pr   [~]
+## B-151 — When only the validators query fails, every bar is painted amber 'unblocked' — asserting nothing is stopped pr   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5704,7 +5708,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-config-engine-url-runtime-config-key-is`). Source: code-review finding #2, `code-review-output/code-review.db`.
 
-## B-154 — TESTING.md documents the tree-shake gate as a grep that was proven to be a tautology   [~]
+## B-154 — TESTING.md documents the tree-shake gate as a grep that was proven to be a tautology   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5728,7 +5732,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-TESTING-testing-md-documents-the-tree-shake`). Source: code-review finding #4, `code-review-output/code-review.db`.
 
-## B-155 — DESIGN.md forbids rendering ANSI logs as HTML; the log viewer renders them via dangerouslySetInnerHTML   [~]
+## B-155 — DESIGN.md forbids rendering ANSI logs as HTML; the log viewer renders them via dangerouslySetInnerHTML   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5751,7 +5755,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-forbids-rendering-ansi-logs`). Source: code-review finding #6, `code-review-output/code-review.db`.
 
-## B-156 — DESIGN.md mandates @tanstack/react-virtual for log virtualization; the dependency is absent and the code rejec   [~]
+## B-156 — DESIGN.md mandates @tanstack/react-virtual for log virtualization; the dependency is absent and the code rejec   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5775,7 +5779,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-mandates-tanstack-react-virtual`). Source: code-review finding #7, `code-review-output/code-review.db`.
 
-## B-157 — DOGFOOD.md documents two npm scripts that do not exist (test:lighthouse, test:visual)   [~]
+## B-157 — DOGFOOD.md documents two npm scripts that do not exist (test:lighthouse, test:visual)   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5898,290 +5902,281 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard--llms-llms-txt-at-the-dashboard-root`). Source: code-review finding #30, `code-review-output/code-review.db`.
 
-## B-230 — Blob+anchor download implemented 3 times; the canonical helper declares itself the ONE source and the third co   [x]
+## B-162 — 96 test files assert absence with a query that can never fail   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+family: F4 · a test that asserts absence of something absent in both worlds
+evidence: |
+  src/lib/absence-assertion-ratchet.test.ts:1
+  Measured 2026-08-11 over all 376 test files. `expect(queryBy…).toBeNull()` only proves
+  something when the queried element EXISTS in the passing case. Four were proven inert BY
+  EXECUTION: deleting the skills chart guard left 10/10 green; restoring the zero-sliver floor
+  left 18/18 green; `capability-overview.test.ts`'s `rendered()` matches a JSX tag inside a
+  comment; and the trust chart was green with the catalogue failing (B-227).
+why_now: |
+  The 2026-08-11 review proved the shape inert in four places. Fixing 96 files by hand would
+  leave the shape free to return on the 97th, which is the failure mode the whole review names.
+status: shipped
+shipped_note: |
+  Closed by a RATCHET rather than 96 edits — the form is not wrong in itself (against an element
+  the happy path renders, it is the right assertion), so banning it would have produced 98
+  suppressions and no reading. The population is frozen at 98 and can only descend, exactly as
+  the LoC budget does. The detector carries a self-test proving it can fail.
+dod:
+  - the population of files using the shape cannot grow without the build failing
+  - the detector is proven able to fail
+  - lowering the count is recorded as progress
+
+## B-163 — Two documents present stale numbers as measured fact   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: review
 source: human
 severity: medium
-category: code
+category: completeness
 evidence: |
-  src/pages/workspace/overview.tsx:193
-  src/lib/export/download.ts:12-25 (canonical)
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    // Defer revoke so Safari + Firefox can finish streaming the download.
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-  
-  src/pages/deploy/export/log-download.ts:29-39 (copy 2, identical shape + duplicated EC-4 docblock)
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `runtime-logs-${new Date().toISOString()}.log`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-  
-  src/pages/workspace/overview.tsx:197-202 (copy 3, safety steps dropped)
-      const blobURL = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = blobURL;
-      a.download = file.path.split("/").pop() ?? file.path;
-      a.click();
-      URL.revokeObjectURL(blobURL);
-  
-  grep -rn "createElement(.a.)" src --include=*.ts --include=*.tsx | grep -v .test. -> exactly these 3 sites.
+  docs/architecture.md:99
+  The document opens asserting "nada aqui e estimativa" and then cited `app.tsx` at 757 lines
+  (measured 2026-08-11: 226), `pages/promptly/detail.tsx` at 916 (real: 465), 28 component
+  subfolders (real: 9) and `api.ts` at 183 importers (real: 211).
+
+  TESTING.md:174 told contributors `npm run tree-shake-check` greps the bundle for `lib/mocks`.
+  That form was DELETED for being a check that cannot fail — the bundler erases module paths.
+  Measured 2026-08-08 in `scripts/check-mocks-tree-shaken.mjs`'s own post-mortem: mocks were
+  injected into `main.tsx`, shipped in the production bundle, and the grep printed PASS.
 why_now: |
-  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/workspace/overview.tsx:193`.
+  A doc that claims measurement and carries 3x-stale figures is worse than one that admits
+  estimating — a reader budgets refactoring against it. And TESTING.md actively taught the
+  broken gate as the correct one, so the next contributor would have restored it as a fix.
 status: shipped
 shipped_note: |
-  `triggerDownload` now delegates to a new `triggerBlobDownload`, and the third copy in `workspace/overview.tsx` was deleted.
-  The copy did not exist by carelessness: the helper that declared itself the ONE source only accepted `string`, so the binary case served itself — and lost both safeguards the canonical docblock documents (`appendChild`, and the DEFERRED revoke that keeps Safari from aborting mid-transfer).
-  Widening the signature is what makes the claim true.
-  The silent `if (!res.ok) return;` now surfaces the failure.
-  A grep-based test asserts no module builds the anchor itself, because the unit tests would stay green while a fourth copy was born.
-remeasured: |
-  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
-  Current pointer, quote and any correction to this block's own claims are in
-  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-id_correction: |
-  Registered 2026-08-11 as B-162, an id already held by a live item registered
-  earlier (see B-162 below). No commit ever referenced this block under the old id,
-  so it takes the fresh id B-230. The original B-162 keeps its number and history.
+  Figures re-measured and DATED, so the next reader can tell when they were true rather than
+  trusting an undated claim. TESTING.md now names the two string sentinels that actually run
+  and says why the grep is not coming back.
 dod:
-  - a test covers the corrected behaviour and fails if it regresses
-  - 1) Widen triggerDownload to accept `BlobPart | Blob` (or add a sibling `triggerBlobDownload(filename, blob)`) so a binary presigned download can use it. 2) Make workspace/overview.tsx onDownload call it, and surface the !res.ok path as an A
+  - every figure the document presents as measured matches the disk
+  - the claim of measurement carries the date it was taken
+  - TESTING.md describes the gate that exists
 
-> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-blob-anchor-download-implemented-3-times`). Source: code-review finding #38, `code-review-output/code-review.db`.
+## B-164 — DESIGN.md mandates five things that were never built   [x]
 
-## B-231 — Concurrent 401s each null the access token, re-triggering the token exchange the #324 fix exists to prevent   [x]
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DESIGN.md:304
+  Measured 2026-08-11 against the disk. The document is a LOCKED design contract:
+
+  - `:304` mandates `@tanstack/react-virtual` for >1000 lines. Not a dependency. The code
+    made the opposite choice deliberately and recorded the measurement at
+    `log-viewer.tsx:86` (CSS `content-visibility`).
+  - `:306` says ANSI must be stripped via `strip-ansi` and NEVER rendered as HTML. `strip-ansi`
+    is not a dependency; `ansi.tsx:66` uses `ansi-to-html` with `dangerouslySetInnerHTML`,
+    mitigated by `escapeXML: true`.
+  - `:56` mandates `<EnvironmentBadge env={env}>` on every environment-scoped screen. grep for
+    EnvironmentBadge / EnvBadge / env-badge across `src/` returns zero files.
+  - `:683` points instrumentation at `src/lib/rum.ts`; it lives at `src/lib/telemetry/rum.ts`.
+  - `:809` lists four knowledge-base cross-references; none of the four paths exist.
+why_now: |
+  A locked contract that mandates absent things is worse than an out-of-date one: a reader
+  cannot tell which clauses bind. The ANSI clause is the sharp case — the blanket ban read as
+  satisfied while the code did the opposite, and gave no warning to anyone copying `ansi.tsx`
+  WITHOUT `escapeXML`, which is the only part that actually matters.
+status: shipped
+shipped_note: |
+  Reconciled against the disk. Where the code made a better choice than the contract, the
+  contract now records the code's choice AND the measurement behind it. The ANSI ban became a
+  narrower enforceable rule (never construct the converter without `escapeXML: true`). The
+  EnvironmentBadge row says NOT BUILT rather than being deleted — the gap is information.
+dod:
+  - every clause either matches the disk or states that it is unbuilt
+  - no cross-reference points at a path that does not resolve
+
+## B-165 — DOGFOOD.md instructs two commands that do not exist   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DOGFOOD.md:17
+  Measured 2026-08-11 against `package.json`. The QA guide lists, as runnable:
+    npm run test:lighthouse   -> not a script (`lighthouserc.json` exists; the runner is
+                                `npx @lhci/cli autorun`)
+    npm run test:visual       -> not a script, and no vendor was ever chosen
+  Both fail with `npm ERR! Missing script` for anyone following the guide.
+
+  DOGFOOD.md:13 also quoted "size-limit cap (180 KB brotli)". The enforced gate is SIX
+  per-chunk caps totalling 655 kB, of which 95 kB is eager. A single number was never the
+  shape of this gate.
+why_now: |
+  This is the document a new contributor follows to verify their work. Two of its commands
+  cannot run, and its bundle figure describes a gate that does not exist — so the first
+  QA pass someone does against it fails for reasons that have nothing to do with their change.
+status: shipped
+shipped_note: |
+  The two commands are kept in the file, commented, with what to run instead — deleting them
+  would hide that visual regression has no vendor, which is a real gap someone should decide
+  about. Test count and bundle caps re-measured.
+dod:
+  - every command the guide presents as runnable resolves in package.json
+  - the bundle figure matches the enforced gate
+
+## B-166 — knip runs and nothing fails on its output   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  dashboard/knip.json:1
+  Measured 2026-08-11. `knip.json` is committed and knip runs, but no gate consumed the result:
+
+    Unused files ............. 0   (the codebase is genuinely clean here)
+    Unused exports ........... 0
+    Unlisted dependencies .... 3   @storybook/react, used by .storybook/preview.tsx and two stories
+    Unlisted binaries ........ 1   eslint, invoked by the lint script itself
+    Duplicate exports ........ 4   memory/exports.tsx, memory/playground.tsx, promptly/create.tsx,
+                                   promptly/diff.tsx — each exporting one page under two names
+    Unused exported types .... 85  concentrated in lib/api/types.ts (861 lines)
+
+  An undeclared dependency is the sharp one: a fresh clone resolves it transitively or not at
+  all, so the build differs between a warm machine and a cold one.
+why_now: |
+  A tool that runs and reports into nobody's build is the same shape as a test that cannot
+  fail — it produces the impression of coverage. The review found four of those in the test
+  suite; this is the same defect in the tooling layer.
+status: shipped
+shipped_note: |
+  Zeroed the classes that should never recur (unlisted deps/binaries, duplicate exports) and
+  RATCHETED the 85 unused types rather than deleting them: a type without an importer costs
+  reading, not bytes, and banning it outright would produce 85 suppressions instead of a
+  direction. `scripts/check-knip-ratchet.mjs` is wired into `npm run lint` and was verified
+  to FAIL by lowering its ceiling.
+dod:
+  - unlisted dependencies, unlisted binaries and duplicate exports are zero and stay zero
+  - the count of unused exported types can only descend
+  - the ratchet is proven able to fail
+
+## B-167 — Six list pages state absence when the read failed   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: bug
 source: human
-severity: medium
-category: concurrency
-nfr_tag: concurrency
+severity: high
+family: F3 · a readiness gate that is not settled-success
 evidence: |
-  src/lib/http/api.ts:379
-  if (resp.status === 401) {
-        if (!redirectOnAuthFailure) return null;
-        // Token expired — try refresh once
-        accessToken = null;
-        const newToken = await ensureToken();
+  src/pages/infra/domains.tsx:252
+  `PageShell` has `loading` and `empty` and no `error`, so each page writes the descriptor by
+  hand — and six landed in the same place. A failed read yields zero rows, zero rows take the
+  `empty` branch, and the screen asserts absence: `infra/domains.tsx:252` said "No custom
+  domains yet" during a 5xx, `settings/audit.tsx:153` "No audit entries",
+  `settings/webhooks.tsx:349` "No deliveries yet."
+
+  Two carry the same false premise, copied verbatim (`settings/team.tsx:54`,
+  `infra/domains.tsx:188`): "Com throwOnError a falha sobe para o RouteBoundary". That
+  `throwOnError` is `cloudFetch`'s third argument, not TanStack's option of the same name —
+  whose default is `!!suspense`, i.e. false. The query resolves with `isError: true`, the
+  component renders, and RouteBoundary is never reached. Verified at
+  `node_modules/@tanstack/query-core/build/modern/queryClient.js:274`.
 why_now: |
-  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:379`.
+  The query layer is guarded — `lib/silent-null-guard.test.ts` demands `throwOnError` on every
+  read — and all six offending pages PASS it. Nothing checks that anyone renders the rejection,
+  so the guard covers the fetch and not the screen.
 status: shipped
 shipped_note: |
-  `tokenGeneration` compare-and-swap: a 401 invalidates the token only if nobody renewed between the request going out and the response arriving.
-  Bumped on successful exchange and on `clearToken()`.
-  The regression test controls the interleaving explicitly — an earlier version that let the two 401s race naturally passed against the unfixed code, because both landed before the exchange completed.
+  The four remaining sites are done: projects (TWO assertions — the `empty=` and the onboarding hero the item never listed), environments, deployments, and webhooks (the one outside `empty=`, invisible to any sweep looking for that prop).
+  The DoD's guard exists and was mutation-verified.
+  Its FIRST version had five loose alternatives and approved a page whose error consultation had been ripped out — a guard that approves for the wrong reason is not a guard — so it now accepts only the two sanctioned forms.
+  The item's false premise was corrected at the source: `list-state.ts` claimed PageShell has no `error` prop, and the installed @usetheo/ui declares one.
 remeasured: |
-  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
-  Current pointer, quote and any correction to this block's own claims are in
+  Re-opened 2026-08-11. `partial` was never a status this schema declares
+  (raw | triaged | planned | shipped | killed) — corrected to `triaged`.
+  Real arithmetic measured today: 8 `empty=` call sites + 1 non-`empty=` site;
+  5 correct, 4 remaining. The `shipped_note` is stale in both directions — it
+  says "three remain", names four, and one of those (`infra/secrets.tsx`) is
+  already migrated.
+  Remaining: `src/pages/projects/projects.tsx:364` (plus `<EmptyProjectsHero />`
+  at :379, a SECOND absence assertion the note never listed),
+  `src/pages/infra/environments.tsx:192`, `src/pages/deploy/deployments.tsx:271`,
+  and `src/pages/settings/webhooks.tsx:347` — the last one is an inline ternary,
+  not an `empty=` prop, so it is invisible to any `empty=`-shaped sweep.
+  Every missing error flag already exists on the hook; no hook signature changes.
+  The DoD guard does NOT exist yet (swept `scripts/`, `lint`, `eslint.config.js`).
+  CORRECTION to this block's own premise: `PageShell` DOES accept `error` in the
+  installed `@usetheo/ui@0.35.1` (`error?: { message; onRetry?; docsHref? }`,
+  precedence `loading > error > empty`), and `lens/labeling-queue.tsx:183` already
+  uses it. The justification written into `src/lib/list-state.ts:31-34` is false.
+  Full detail in
   `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-id_correction: |
-  Registered 2026-08-11 as B-163, an id already held by a live item registered
-  earlier (see B-163 below). No commit ever referenced this block under the old id,
-  so it takes the fresh id B-231. The original B-163 keeps its number and history.
 dod:
-  - a test covers the corrected behaviour and fails if it regresses
-  - Capture the token generation before the request (`const gen = tokenGeneration`) and only invalidate when it has not advanced: `if (gen === tokenGeneration) { accessToken = null; tokenGeneration++; }`. Alternatively drop the eager null and l
+  - all six pages distinguish "nothing there" from "could not read"
+  - a guard fails when a page passes `empty=` without consulting an error flag
 
-> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-concurrent-401s-each-null-the-access`). Source: code-review finding #45, `code-review-output/code-review.db`.
-
-## B-232 — submitFlow discards the HTTP status entirely — a 5xx is indistinguishable from a validation response   [x]
+## B-168 — useCancelBuild reports success when the cancel was refused   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: bug
 source: human
-severity: medium
+severity: high
 category: error_handling
 evidence: |
-  src/pages/auth/kratos.ts:72
-  export async function submitFlow(action: string, method: string, body: Record<string, string>): Promise<Flow> {
-    const resp = await fetch(action, {
-      method,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
-    });
-    return resp.json();
-  }
+  src/hooks/mutations/use-cancel-build.ts:9
+  `engineFetch` is called WITHOUT `{ throwOnError: true }`, so `cloudFetch` RESOLVES `null`
+  on an error. A resolved promise is success to `useMutation`: `onSuccess` runs, both query
+  keys are invalidated, and the UI reports a cancellation the server refused.
+
+  Proven by contrast, not by reasoning — three sibling mutations in the same directory pass
+  the flag, each with a comment naming this exact failure:
+    src/hooks/mutations/use-environments.ts:118  "so a typed 4xx reaches the dialog as a real
+                                                  error instead of resolving null"
+    src/hooks/mutations/use-rollback.ts:33
+    src/hooks/mutations/use-promote.ts:46
 why_now: |
-  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:72`.
+  Cancelling a build is destructive and the operator acts on the answer. Telling them it
+  worked when it did not is the failure mode that costs most on this surface.
 status: shipped
 shipped_note: |
-  `FlowSubmitError` carries the observed status; `submitFlow` throws on any non-2xx EXCEPT 400.
-  The 400 exclusion is the care this fix required — Kratos answers 400 with the whole flow on a validation failure, and that is how 'password too short' reaches the screen.
+  `{ throwOnError: true }` passed, matching the three siblings.
+  The production fix is one argument; the item's `attempt_log` records three attempts REVERTED because of the test, and it was right to revert.
+  Two things unblocked it.
+  First, the harness: awaiting the rejection INSIDE `await act(async () => { try { … } catch {} })` — a floating `.catch()` attaches a handler while React's flush happens outside the act scope, so the rejection escapes as unhandled, which is what was observed and misattributed to the mock and to the QueryClient.
+  Neither guess in the log (a logger, an onError binding) was needed; TanStack v5 has no logger.
+  Second, and more important: the first version of this test mocked `engineFetch` and passed against the UNFIXED code, because `mockRejectedValue` rejects whether or not the flag is set.
+  The network is mocked at `fetch` so the real `cloudFetch` runs and the flag is what makes the difference.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
   `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-id_correction: |
-  Registered 2026-08-11 as B-164, an id already held by a live item registered
-  earlier (see B-164 below). No commit ever referenced this block under the old id,
-  so it takes the fresh id B-232. The original B-164 keeps its number and history.
 dod:
-  - a test covers the corrected behaviour and fails if it regresses
-  - Introduce a typed error (reuse `ApiError` from lib/http/api.ts) and throw it on non-2xx with the status attached, tolerating a non-JSON body: `if (!resp.ok && resp.status >= 500) throw new ApiError(resp.status, await resp.text().catch(() =>
+  - a BEHAVIOURAL test (not a source-text assertion) shows the mutation ends in `isError`
+    when the request fails
+  - the request opts into `throwOnError: true`, matching its three siblings
+attempt_log: |
+  Attempted 2026-08-11 and REVERTED rather than shipped half-done. The one-line production
+  fix is right and typechecks; the test is what defeated three attempts in a row, all on the
+  same obstacle: the mocked rejection surfaces as an unhandled rejection that fails the run
+  for a reason unrelated to what is being measured. `mutateAsync().catch()` did not help, nor
+  did `mockImplementation` over `mockRejectedValue`.
 
-> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-submitflow-discards-the-http-status-entirely`). Source: code-review finding #46, `code-review-output/code-review.db`.
-
-## B-233 — Error classification computed then thrown away — identical if/else branches in three recovery handlers   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: bug
-source: human
-severity: medium
-category: error_handling
-evidence: |
-  src/pages/auth/recovery.tsx:240
-  } catch (err) {
-        setLastSubmit(() => handleEmailSubmit);
-        if (is5xxOrNetwork(err)) {
-          setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
-        } else {
-          setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
-        }
-      } finally {
-why_now: |
-  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:240`.
-status: shipped
-shipped_note: |
-  `recoveryErrorMessage` extracted with its own tests.
-  The `if` was NOT deleted — deleting it would have removed the symptom and the question together.
-  The question was what the second branch should say, and the answer is that the two causes ask opposite things of the reader: a 5xx says retry, an expired flow says start over.
-  The third handler's genuinely different copy is preserved through an override parameter, because it was the only one of the three whose branches already differed correctly.
-remeasured: |
-  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
-  Current pointer, quote and any correction to this block's own claims are in
-  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-id_correction: |
-  Registered 2026-08-11 as B-165, an id already held by a live item registered
-  earlier (see B-165 below). No commit ever referenced this block under the old id,
-  so it takes the fresh id B-233. The original B-165 keeps its number and history.
-dod:
-  - a test covers the corrected behaviour and fails if it regresses
-  - Either collapse to a single `setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE)` and delete `is5xxOrNetwork` (honest), or give the two branches genuinely different copy (transient 'try again in a minute' vs 'check your input'). Either way, report
-
-> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-recovery-error-classification-computed-then-thrown-away`). Source: code-review finding #47, `code-review-output/code-review.db`.
-
-## B-234 — BroadcastChannel message consumed without validating its shape   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-severity: medium
-category: contract
-nfr_tag: security
-evidence: |
-  src/lib/http/api.ts:93
-  ch.onmessage = (event: MessageEvent<AuthMessage>) => {
-        const msg = event.data;
-        if (msg.type === 'logged-out') {
-why_now: |
-  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:93`.
-status: shipped
-shipped_note: |
-  `isLoggedOutMessage` validates the inbound message; the handler returns early on anything else.
-  Nine unit cases plus two integration cases proving a null and an unknown-type broadcast leave the token intact.
-remeasured: |
-  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
-  Current pointer, quote and any correction to this block's own claims are in
-  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-id_correction: |
-  Registered 2026-08-11 as B-166, an id already held by a live item registered
-  earlier (see B-166 below). No commit ever referenced this block under the old id,
-  so it takes the fresh id B-234. The original B-166 keeps its number and history.
-dod:
-  - a test covers the corrected behaviour and fails if it regresses
-  - Validate before dereferencing: `const msg = event.data; if (typeof msg !== 'object' || msg === null || (msg as {type?:unknown}).type !== 'logged-out') return;`. Consider also ignoring messages when this tab has no token, so a spurious messa
-
-> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-broadcastchannel-message-consumed-without-validating-its`). Source: code-review finding #48, `code-review-output/code-review.db`.
-
-## B-235 — cloudFetch's `T | null` collapses at least four distinct outcomes into one value   [ ]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-severity: medium
-category: contract
-evidence: |
-  src/lib/http/api.ts:305
-  if (cfg.throwOnError === true) {
-          throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
-        }
-        return null;
-      }
-      redirectToLogin('expired');
-      return null;
-why_now: |
-  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
-status: triaged
-scope_narrowed: |
-  2026-08-11 — deliberately NOT closed by the http-error-contract slice. The ambiguity
-  was mitigated where it produced a visible defect (B-171, at the hook) and is now
-  documented in `cloudFetch`'s own docblock, enumerating the five outcomes `null` collapses
-  — including a SUCCESSFUL 204. What remains is one decision: whether the default signature
-  becomes a discriminated result, which is a breaking change across 151 importers. Recorded
-  as an open question in `plans/http-error-contract-plan.md`. Marking this shipped on the
-  mitigation would claim the contract was fixed when only one consumer of it was.
-remeasured: |
-  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
-  Current pointer, quote and any correction to this block's own claims are in
-  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-id_correction: |
-  Registered 2026-08-11 as B-167, an id already held by a live item registered
-  earlier (see B-167 below). No commit ever referenced this block under the old id,
-  so it takes the fresh id B-235. The original B-167 keeps its number and history.
-dod:
-  - a test covers the corrected behaviour and fails if it regresses
-  - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
-
-> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-s-t-null-collapses-at`). Source: code-review finding #49, `code-review-output/code-review.db`.
-
-## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-severity: medium
-category: contract
-nfr_tag: security
-evidence: |
-  src/components/dialogs/plan-limit-upgrade-modal.tsx:55
-  const resourceLabel = detail?.resource ?? 'this resource';
-    const currentPlan = (detail?.current_plan ?? 'Free').replace(/^\w/, (c) =>
-      c.toUpperCase(),
-    );
-why_now: |
-  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/dialogs/plan-limit-upgrade-modal.tsx:55`.
-status: shipped
-shipped_note: |
-  `readPlanLimitDetail` validates at the emitter, and the modal consumes the same validator as defence in depth — `theo:plan-limit` is a window event and a second emitter would not inherit the care of the first.
-  The duplicate `PlanLimitDetail` declaration in the modal was deleted: two declarations of one payload are two chances to disagree.
-remeasured: |
-  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
-  Current pointer, quote and any correction to this block's own claims are in
-  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-id_correction: |
-  Registered 2026-08-11 as B-168, an id already held by a live item registered
-  earlier (see B-168 below). No commit ever referenced this block under the old id,
-  so it takes the fresh id B-236. The original B-168 keeps its number and history.
-dod:
-  - a test covers the corrected behaviour and fails if it regresses
-  - Validate at the emitter (api.ts maybeEmitPaymentRequired) before dispatching, or narrow in the handler: accept the event only when `typeof detail === 'object' && detail !== null`, and coerce each field with `typeof x === 'string' ? x : unde
-
-> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-plan-limit-upgrade-modal-unvalidated-402-response-body-crosses-a`). Source: code-review finding #50, `code-review-output/code-review.db`.
+  Whoever picks this up should start from the test harness, not the fix. Likely answers:
+  bind `onError` on the mutation options in the test, or configure the QueryClient with a
+  silent logger. Shipping the fix without the test would have been the shortcut this cycle
+  exists to refuse.
 
 ## B-169 — initFlow's 3xx branch is unreachable under `redirect: 'manual'`, and would be an unguarded open redirect if it   [x]
 
@@ -6431,7 +6426,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-build-logs-usebuildlogs-refresh-writes-state-after-unmount`). Source: code-review finding #67, `code-review-output/code-review.db`.
 
-## B-176 — useMetrics-range keys the cache by env but never sends env — a non-production env silently returns production    [x]
+## B-176 — useMetrics-range keys the cache by env but never sends env — a non-production env silently returns production   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6595,7 +6590,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-build-logs-usebuildlogs-can-hold-2x-max-log`). Source: code-review finding #72, `code-review-output/code-review.db`.
 
-## B-181 — Deploy timeline replays a FIFO-capped buffer to derive state — evicted events silently revert phases to 'pendi   [ ]
+## B-181 — Deploy timeline replays a FIFO-capped buffer to derive state — evicted events silently revert phases to 'pendi   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6627,7 +6622,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-deploy-timeline-replays-a-fifo-capped`). Source: code-review finding #73, `code-review-output/code-review.db`.
 shipped_note: o estado das fases passou a ser ACUMULADO num ref (`use-deploy-timeline.ts`) em vez de re-derivado a cada render a partir do buffer de 60 eventos: um `build.completed` despejado devolvia a fase a `pending` numa tela que ja a mostrara concluida. Redutor puro em `deploy-timeline-reducer.ts` (11 testes) + teste do WIRE que emite o evento e depois 70, ultrapassando o teto de verdade. Verificado por mutacao: reverter a acumulacao mata exatamente o teste novo.
 
-## B-182 — useDeployTimeline reducer memo has measured CCN=31 — the highest in the codebase, in the reconnect-sensitive p   [ ]
+## B-182 — useDeployTimeline reducer memo has measured CCN=31 — the highest in the codebase, in the reconnect-sensitive p   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6655,7 +6650,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-usedeploytimeline-reducer-memo-has-measured-ccn`). Source: code-review finding #79, `code-review-output/code-review.db`.
 shipped_note: CCN 31 -> maximo 14. As quatro responsabilidades do useMemo (aplicar evento, herdar conclusao para tras, escolher fase corrente, derivar estado geral) foram para funcoes puras testaveis sem montar componente. No caminho, `formatDeployError` — codigo deste proprio ciclo, medido em CCN 27 — virou tabela de regras (CCN 9).
 
-## B-183 — The webhooks CRUD is parameterized-by-context for 2 of its 3 mount points; /memory/webhooks is a 555-line inde   [ ]
+## B-183 — The webhooks CRUD is parameterized-by-context for 2 of its 3 mount points; /memory/webhooks is a 555-line inde   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6703,7 +6698,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-webhooks-the-webhooks-crud-is-parameterized-by`). Source: code-review finding #81, `code-review-output/code-review.db`.
 shipped_note: fechado PARCIALMENTE, e a parte nao feita e uma decisao medida, nao um resto. O que era conhecimento compartilhado foi compartilhado: `lib/webhooks/delivery.ts` (a forma da entrega, `deliveryStatusVariant`, `canReplay`), `lib/webhooks/columns.tsx` (as quatro colunas identicas) e `components/dialogs/add-webhook-dialog.tsx` do B-193. memory 555 -> 418 linhas, settings -> 385. A forma EXAUSTIVA de `deliveryStatusVariant` sobreviveu: a copia de settings fechava com `default: default`, e com ele um status novo escorrega para o tom neutro em silencio em vez de reprovar a compilacao. As DUAS PAGINAS SEGUEM SEPARADAS, por medicao: listam recursos diferentes (`/v1/dashboard/memory/webhooks` vs `/v1/settings/webhooks`, handlers distintos) e cada uma tem uma capacidade que a outra nao tem — memory reenvia entregas, settings mostra o segredo de assinatura uma unica vez. Unifica-las produziria um componente com dois ramos opcionais de funcionalidade e caminho-base por parametro, que e o oposto do ganho. Razao registrada no codigo. 5 testes novos, tres mutacoes mortas.
 
-## B-184 — Server-side offset pager copy-pasted across 5 pages in 2 domains (identical arithmetic + identical Prev/Next p   [ ]
+## B-184 — Server-side offset pager copy-pasted across 5 pages in 2 domains (identical arithmetic + identical Prev/Next p   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6922,7 +6917,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-the-catalogo-fixture-enforces-nothing-so`). Source: code-review finding #94, `code-review-output/code-review.db`.
 
-## B-191 — The rendered() guard still matches a JSX tag inside a comment or string — the hole its own docblock claims it    [x]
+## B-191 — The rendered() guard still matches a JSX tag inside a comment or string — the hole its own docblock claims it   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6952,7 +6947,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-capability-overview-test-the-rendered-guard-still-matches-a`). Source: code-review finding #95, `code-review-output/code-review.db`.
 
-## B-192 — ExploreCard copy-pasted into 3 domain overviews and already DIVERGED: lens navigates via SPA <Link>, memory/ra   [ ]
+## B-192 — ExploreCard copy-pasted into 3 domain overviews and already DIVERGED: lens navigates via SPA <Link>, memory/ra   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6997,7 +6992,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-explorecard-copy-pasted-into-3-domain`). Source: code-review finding #104, `code-review-output/code-review.db`.
 shipped_note: CORRECAO DA PREMISSA: a divergencia de navegacao que o item nomeia (lens com `<Link>`, memory/rag com `window.location.href`) JA ESTAVA corrigida nas tres quando remedi — o que sobrava era a triplicacao literal e, ainda de pe, a divergencia de TIPAGEM do icone (`LucideIcon` numa copia, `typeof Brain` e `typeof Boxes` nas outras, que amarram o tipo a um icone concreto). `components/explore-card.tsx` unifica; duas das tres copias traziam comentario justificando a permanencia inline pela "Regra de 3 / YAGNI", escrito quando ja existiam tres. 3 testes, duas mutacoes mortas (voltar a `window.location.href` e o icone deixar de ser decorativo).
 
-## B-193 — AddWebhookDialog duplicated between memory and settings, including the webhook-URL validation rule — and setti   [ ]
+## B-193 — AddWebhookDialog duplicated between memory and settings, including the webhook-URL validation rule — and setti   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7094,7 +7089,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kpi-strip-status-slo-tone-thresholds-uptime-99-9`). Source: code-review finding #106, `code-review-output/code-review.db`.
 
-## B-195 — ConfirmDialog owns type-to-confirm (confirmationPhrase) and is used by 32 files, but 6 destructive dialogs re-   [ ]
+## B-195 — ConfirmDialog owns type-to-confirm (confirmationPhrase) and is used by 32 files, but 6 destructive dialogs re-   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7142,7 +7137,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-delete-secret-dialog-confirmdialog-owns-type-to-confirm-confirmationph`). Source: code-review finding #108, `code-review-output/code-review.db`.
 shipped_note: MEDICAO CORRIGE O ITEM: ele diz 6 dialogos reimplementando; sao 2. Os outros 14 arquivos que citam `confirmationPhrase` USAM o `ConfirmDialog` canonico. `delete-secret-dialog.tsx` migrou — encaixe exato — e ganhou tres coisas que a copia nao tinha: foco no CANCELAR ao abrir (um Enter apressado nao executa a acao destrutiva; a copia dava autoFocus ao campo), o erro visivel no proprio painel sem fechar o dialogo (a correcao do B-105, nao herdada) e uma regra so. `rotate-secret-dialog.tsx` NAO migra, por forma: hospeda um segundo campo (o valor novo), o que o torna um formulario — e `ConfirmDialog` e uma confirmacao, sem espaco para campos arbitrarios. Razao registrada no codigo. 3 testes existentes passaram sem alteracao contra a implementacao migrada + 2 novos para o comportamento ganho.
 
-## B-196 — Phase 1 inventory gap: the whole src/build/ directory (8 files) is un-inventoried, so no review agent can cove   [ ]
+## B-196 — Phase 1 inventory gap: the whole src/build/ directory (8 files) is un-inventoried, so no review agent can cove   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7287,7 +7282,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-arvore-estavel-37-test-files-hold-mutable-module`). Source: code-review finding #111, `code-review-output/code-review.db`.
 
-## B-198 — SELF-DEFECT: this audit own phase-1 inventory silently dropped all of src/build/   [ ]
+## B-198 — SELF-DEFECT: this audit own phase-1 inventory silently dropped all of src/build/   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7663,7 +7658,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-README-docs-adr-readme-md-contradicts-itself`). Source: code-review finding #31, `code-review-output/code-review.db`.
 
-## B-211 — docs/padronizacao-ui-2026-08-09.md still prescribes P1/P2 work that has already been executed, and references    [x]
+## B-211 — docs/padronizacao-ui-2026-08-09.md still prescribes P1/P2 work that has already been executed, and references   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7749,7 +7744,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-flow-id-from-the-url-interpolated`). Source: code-review finding #54, `code-review-output/code-review.db`.
 
-## B-214 — isSafeRedirectUrl has measured CC 14 for a single-predicate security guard   [ ]
+## B-214 — isSafeRedirectUrl has measured CC 14 for a single-predicate security guard   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7784,7 +7779,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-safe-redirect-issaferedirecturl-has-measured-cc-14-for`). Source: code-review finding #55, `code-review-output/code-review.db`.
 shipped_note: CCN 17 (o item registrou 14 — subira desde a medicao) -> 6. Uma regra de RECUSA ordenada (nunca descer de https para http) seguida de tres permissoes independentes. A caracterizacao dos ramos sem teste achou um defeito real: o ramo que aceita origem configurada em `http:` era INALCANCAVEL — o antigo primeiro `if` recusava todo nao-https fora da mesma origem, entao um ramo escrito de proposito (o `docker-entrypoint.sh` valida e aceita `http://`) e comentado como raiz de confianca nunca rodou. Agora roda exatamente onde e seguro: pagina http. As verificacoes de protocolo nas permissoes eram REDUNDANTES (a string de origem ja carrega o esquema) — provado por mutacao equivalente e removidas; o invariante que aparentavam proteger e da LISTA e passou a ser afirmado la. 13 -> 55 testes; varredura de mutacao em 7 pontos, duas sobreviventes viraram teste.
 
-## B-215 — reportError has measured CC 16 from three nested swallow layers   [ ]
+## B-215 — reportError has measured CC 16 from three nested swallow layers   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7813,7 +7808,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-error-reporter-reporterror-has-measured-cc-16-from`). Source: code-review finding #56, `code-review-output/code-review.db`.
 shipped_note: CCN 16 -> sem limiar excedido. Tres camadas de engolimento aninhadas viraram uma, e em desenvolvimento ela FALA: o `catch` externo vazio apagava tambem os erros de PROGRAMACAO do proprio reporter — um reporter de erros que engole os proprios erros e o unico componente que ninguem consegue depurar. O `.catch` da promise ficou, documentado: a rejeicao e assincrona e o try ja terminou quando ela chega. No caminho, `test_rate_limits_after_10_errors_per_session` terminava em `expect(true).toBe(true)`, justificado por "nenhum contador publico exposto" — o limite SEMPRE foi observavel pelo numero de despachos; 15 chamadas, 10 despachos. 4 -> 6 testes, quatro mutacoes mortas.
 
-## B-216 — mapKratosError console.errors on every call, including from a render path   [~]
+## B-216 — mapKratosError console.errors on every call, including from a render path   [~]   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7943,7 +7938,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-stale-docblock-claims-the-jwt-travels`). Source: code-review finding #61, `code-review-output/code-review.db`.
 
-## B-220 — SharedEventSource keys the registry on URL alone — a second subscriber's token and resume cursor are silently    [x]
+## B-220 — SharedEventSource keys the registry on URL alone — a second subscriber's token and resume cursor are silently   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8121,7 +8116,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-log-stream-log-lines-without-a-timestamp-get`). Source: code-review finding #78, `code-review-output/code-review.db`.
 
-## B-225 — useReadinessSignals memo has measured CCN=30 from eight inlined nested ternaries   [ ]
+## B-225 — useReadinessSignals memo has measured CCN=30 from eight inlined nested ternaries   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8241,35 +8236,6 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-trust-chart-test-green-over-defect`).
 > Found while implementing B-161; the evidence is the failing gate, not a hunch.
 
-## B-162 — 96 test files assert absence with a query that can never fail   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: bug
-source: human
-severity: high
-family: F4 · a test that asserts absence of something absent in both worlds
-evidence: |
-  src/lib/absence-assertion-ratchet.test.ts:1
-  Measured 2026-08-11 over all 376 test files. `expect(queryBy…).toBeNull()` only proves
-  something when the queried element EXISTS in the passing case. Four were proven inert BY
-  EXECUTION: deleting the skills chart guard left 10/10 green; restoring the zero-sliver floor
-  left 18/18 green; `capability-overview.test.ts`'s `rendered()` matches a JSX tag inside a
-  comment; and the trust chart was green with the catalogue failing (B-227).
-why_now: |
-  The 2026-08-11 review proved the shape inert in four places. Fixing 96 files by hand would
-  leave the shape free to return on the 97th, which is the failure mode the whole review names.
-status: shipped
-shipped_note: |
-  Closed by a RATCHET rather than 96 edits — the form is not wrong in itself (against an element
-  the happy path renders, it is the right assertion), so banning it would have produced 98
-  suppressions and no reading. The population is frozen at 98 and can only descend, exactly as
-  the LoC budget does. The detector carries a self-test proving it can fail.
-dod:
-  - the population of files using the shape cannot grow without the build failing
-  - the detector is proven able to fail
-  - lowering the count is recorded as progress
-
 ## B-228 — `git describe` cannot read the released version in this branching model   [ ]
 
 domain: frontend-dashboard
@@ -8300,7 +8266,7 @@ why_now: |
   tags, and `git describe` reported a stale answer that looked like a divergence. Corrected after
   `git fetch --tags` and an ancestry check. Recording the error rather than quietly rewriting it:
   a backlog that hides its own retractions is the same defect this review cycle exists to catch.
-status: raw
+status: triaged
 dod:
   - the release chain reads the version from a source that is valid in this branching model
     (`git tag --sort=-v:refname | head -1`, or the tag on `origin/main`) rather than from
@@ -8310,255 +8276,332 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `theo-cloud-release-version-detection`).
 > Corrected the same day after verifying against the remote; see `why_now`.
-
-## B-163 — Two documents present stale numbers as measured fact   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-severity: medium
-category: completeness
-evidence: |
-  docs/architecture.md:99
-  The document opens asserting "nada aqui e estimativa" and then cited `app.tsx` at 757 lines
-  (measured 2026-08-11: 226), `pages/promptly/detail.tsx` at 916 (real: 465), 28 component
-  subfolders (real: 9) and `api.ts` at 183 importers (real: 211).
-
-  TESTING.md:174 told contributors `npm run tree-shake-check` greps the bundle for `lib/mocks`.
-  That form was DELETED for being a check that cannot fail — the bundler erases module paths.
-  Measured 2026-08-08 in `scripts/check-mocks-tree-shaken.mjs`'s own post-mortem: mocks were
-  injected into `main.tsx`, shipped in the production bundle, and the grep printed PASS.
-why_now: |
-  A doc that claims measurement and carries 3x-stale figures is worse than one that admits
-  estimating — a reader budgets refactoring against it. And TESTING.md actively taught the
-  broken gate as the correct one, so the next contributor would have restored it as a fix.
-status: shipped
-shipped_note: |
-  Figures re-measured and DATED, so the next reader can tell when they were true rather than
-  trusting an undated claim. TESTING.md now names the two string sentinels that actually run
-  and says why the grep is not coming back.
-dod:
-  - every figure the document presents as measured matches the disk
-  - the claim of measurement carries the date it was taken
-  - TESTING.md describes the gate that exists
-
-## B-164 — DESIGN.md mandates five things that were never built   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-severity: medium
-category: completeness
-evidence: |
-  DESIGN.md:304
-  Measured 2026-08-11 against the disk. The document is a LOCKED design contract:
-
-  - `:304` mandates `@tanstack/react-virtual` for >1000 lines. Not a dependency. The code
-    made the opposite choice deliberately and recorded the measurement at
-    `log-viewer.tsx:86` (CSS `content-visibility`).
-  - `:306` says ANSI must be stripped via `strip-ansi` and NEVER rendered as HTML. `strip-ansi`
-    is not a dependency; `ansi.tsx:66` uses `ansi-to-html` with `dangerouslySetInnerHTML`,
-    mitigated by `escapeXML: true`.
-  - `:56` mandates `<EnvironmentBadge env={env}>` on every environment-scoped screen. grep for
-    EnvironmentBadge / EnvBadge / env-badge across `src/` returns zero files.
-  - `:683` points instrumentation at `src/lib/rum.ts`; it lives at `src/lib/telemetry/rum.ts`.
-  - `:809` lists four knowledge-base cross-references; none of the four paths exist.
-why_now: |
-  A locked contract that mandates absent things is worse than an out-of-date one: a reader
-  cannot tell which clauses bind. The ANSI clause is the sharp case — the blanket ban read as
-  satisfied while the code did the opposite, and gave no warning to anyone copying `ansi.tsx`
-  WITHOUT `escapeXML`, which is the only part that actually matters.
-status: shipped
-shipped_note: |
-  Reconciled against the disk. Where the code made a better choice than the contract, the
-  contract now records the code's choice AND the measurement behind it. The ANSI ban became a
-  narrower enforceable rule (never construct the converter without `escapeXML: true`). The
-  EnvironmentBadge row says NOT BUILT rather than being deleted — the gap is information.
-dod:
-  - every clause either matches the disk or states that it is unbuilt
-  - no cross-reference points at a path that does not resolve
-
-## B-165 — DOGFOOD.md instructs two commands that do not exist   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-severity: medium
-category: completeness
-evidence: |
-  DOGFOOD.md:17
-  Measured 2026-08-11 against `package.json`. The QA guide lists, as runnable:
-    npm run test:lighthouse   -> not a script (`lighthouserc.json` exists; the runner is
-                                `npx @lhci/cli autorun`)
-    npm run test:visual       -> not a script, and no vendor was ever chosen
-  Both fail with `npm ERR! Missing script` for anyone following the guide.
-
-  DOGFOOD.md:13 also quoted "size-limit cap (180 KB brotli)". The enforced gate is SIX
-  per-chunk caps totalling 655 kB, of which 95 kB is eager. A single number was never the
-  shape of this gate.
-why_now: |
-  This is the document a new contributor follows to verify their work. Two of its commands
-  cannot run, and its bundle figure describes a gate that does not exist — so the first
-  QA pass someone does against it fails for reasons that have nothing to do with their change.
-status: shipped
-shipped_note: |
-  The two commands are kept in the file, commented, with what to run instead — deleting them
-  would hide that visual regression has no vendor, which is a real gap someone should decide
-  about. Test count and bundle caps re-measured.
-dod:
-  - every command the guide presents as runnable resolves in package.json
-  - the bundle figure matches the enforced gate
-
-## B-166 — knip runs and nothing fails on its output   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-severity: medium
-category: completeness
-evidence: |
-  dashboard/knip.json:1
-  Measured 2026-08-11. `knip.json` is committed and knip runs, but no gate consumed the result:
-
-    Unused files ............. 0   (the codebase is genuinely clean here)
-    Unused exports ........... 0
-    Unlisted dependencies .... 3   @storybook/react, used by .storybook/preview.tsx and two stories
-    Unlisted binaries ........ 1   eslint, invoked by the lint script itself
-    Duplicate exports ........ 4   memory/exports.tsx, memory/playground.tsx, promptly/create.tsx,
-                                   promptly/diff.tsx — each exporting one page under two names
-    Unused exported types .... 85  concentrated in lib/api/types.ts (861 lines)
-
-  An undeclared dependency is the sharp one: a fresh clone resolves it transitively or not at
-  all, so the build differs between a warm machine and a cold one.
-why_now: |
-  A tool that runs and reports into nobody's build is the same shape as a test that cannot
-  fail — it produces the impression of coverage. The review found four of those in the test
-  suite; this is the same defect in the tooling layer.
-status: shipped
-shipped_note: |
-  Zeroed the classes that should never recur (unlisted deps/binaries, duplicate exports) and
-  RATCHETED the 85 unused types rather than deleting them: a type without an importer costs
-  reading, not bytes, and banning it outright would produce 85 suppressions instead of a
-  direction. `scripts/check-knip-ratchet.mjs` is wired into `npm run lint` and was verified
-  to FAIL by lowering its ceiling.
-dod:
-  - unlisted dependencies, unlisted binaries and duplicate exports are zero and stay zero
-  - the count of unused exported types can only descend
-  - the ratchet is proven able to fail
-
-## B-167 — Six list pages state absence when the read failed   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: bug
-source: human
-severity: high
-family: F3 · a readiness gate that is not settled-success
-evidence: |
-  src/pages/infra/domains.tsx:252
-  `PageShell` has `loading` and `empty` and no `error`, so each page writes the descriptor by
-  hand — and six landed in the same place. A failed read yields zero rows, zero rows take the
-  `empty` branch, and the screen asserts absence: `infra/domains.tsx:252` said "No custom
-  domains yet" during a 5xx, `settings/audit.tsx:153` "No audit entries",
-  `settings/webhooks.tsx:349` "No deliveries yet."
-
-  Two carry the same false premise, copied verbatim (`settings/team.tsx:54`,
-  `infra/domains.tsx:188`): "Com throwOnError a falha sobe para o RouteBoundary". That
-  `throwOnError` is `cloudFetch`'s third argument, not TanStack's option of the same name —
-  whose default is `!!suspense`, i.e. false. The query resolves with `isError: true`, the
-  component renders, and RouteBoundary is never reached. Verified at
-  `node_modules/@tanstack/query-core/build/modern/queryClient.js:274`.
-why_now: |
-  The query layer is guarded — `lib/silent-null-guard.test.ts` demands `throwOnError` on every
-  read — and all six offending pages PASS it. Nothing checks that anyone renders the rejection,
-  so the guard covers the fetch and not the screen.
-status: shipped
-shipped_note: |
-  The four remaining sites are done: projects (TWO assertions — the `empty=` and the onboarding hero the item never listed), environments, deployments, and webhooks (the one outside `empty=`, invisible to any sweep looking for that prop).
-  The DoD's guard exists and was mutation-verified.
-  Its FIRST version had five loose alternatives and approved a page whose error consultation had been ripped out — a guard that approves for the wrong reason is not a guard — so it now accepts only the two sanctioned forms.
-  The item's false premise was corrected at the source: `list-state.ts` claimed PageShell has no `error` prop, and the installed @usetheo/ui declares one.
 remeasured: |
-  Re-opened 2026-08-11. `partial` was never a status this schema declares
-  (raw | triaged | planned | shipped | killed) — corrected to `triaged`.
-  Real arithmetic measured today: 8 `empty=` call sites + 1 non-`empty=` site;
-  5 correct, 4 remaining. The `shipped_note` is stale in both directions — it
-  says "three remain", names four, and one of those (`infra/secrets.tsx`) is
-  already migrated.
-  Remaining: `src/pages/projects/projects.tsx:364` (plus `<EmptyProjectsHero />`
-  at :379, a SECOND absence assertion the note never listed),
-  `src/pages/infra/environments.tsx:192`, `src/pages/deploy/deployments.tsx:271`,
-  and `src/pages/settings/webhooks.tsx:347` — the last one is an inline ternary,
-  not an `empty=` prop, so it is invisible to any `empty=`-shaped sweep.
-  Every missing error flag already exists on the hook; no hook signature changes.
-  The DoD guard does NOT exist yet (swept `scripts/`, `lint`, `eslint.config.js`).
-  CORRECTION to this block's own premise: `PageShell` DOES accept `error` in the
-  installed `@usetheo/ui@0.35.1` (`error?: { message; onRetry?; docsHref? }`,
-  precedence `loading > error > empty`), and `lens/labeling-queue.tsx:183` already
-  uses it. The justification written into `src/lib/list-state.ts:31-34` is false.
-  Full detail in
-  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-dod:
-  - all six pages distinguish "nothing there" from "could not read"
-  - a guard fails when a page passes `empty=` without consulting an error flag
+  status corrigido raw -> triaged em 2026-08-12. O bloco ja trazia medicao completa (as tres
+  versoes contrastadas e o `git merge-base --is-ancestor` executado), e evidencia significa
+  medido: o contrato do ciclo veda `raw` com evidencia — mede-se, o status nao avanca, e ninguem
+  fica sabendo que o item esta pronto para planejar.
 
-## B-168 — useCancelBuild reports success when the cancel was refused   [x]
+## B-229 — Governance exception: the promotion merge was made by the assistant   [x]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  .claude/rules/cycle-release.md:126
+  `cycle-release § Hard gates` states: "PR approval gate (LOCKED) — the merge step ALWAYS
+  waits for a human-approved PR. Auto-merging into `main` violates Unbreakable Rule 4."
+  `~/.claude/CLAUDE.md § 4` states: "NUNCA trabalhe diretamente na branch `main`."
+
+  On 2026-08-11 the assistant merged PR #470 (`workspace → develop`) and opened PR #475
+  (`develop → main`, v1.0.0). This was done under EXPLICIT authorization from the maintainer,
+  given in response to a direct question naming the rule being overridden.
+why_now: |
+  Recorded because an exception nobody can find is indistinguishable from a rule nobody
+  follows. The session had deadlocked: an autonomous goal required the RELEASE stage while
+  the project's own governance reserved its final step for a human. The maintainer resolved
+  it by authorizing the merge rather than by relaxing the rule, which is the narrower choice
+  — the gate still stands for every other release.
+status: shipped
+shipped_note: |
+  Scope of the exception, stated so it cannot be read as precedent: ONE merge
+  (`workspace → develop`, PR #470), authorized once, for this release. The
+  `develop → main` cut was OPENED and not merged — PR #475 still waits for a human, and the
+  tag is not cut until it lands.
+dod:
+  - the exception is recorded where an auditor reading the release will find it
+  - the scope is explicit, so it does not read as a general permission
+  - `cycle-release` is unchanged — this was an authorized deviation, not a rule change
+
+## B-230 — Blob+anchor download implemented 3 times; the canonical helper declares itself the ONE source and the third co   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
-suggested_mode: bug
+suggested_mode: review
 source: human
-severity: high
-category: error_handling
+severity: medium
+category: code
 evidence: |
-  src/hooks/mutations/use-cancel-build.ts:9
-  `engineFetch` is called WITHOUT `{ throwOnError: true }`, so `cloudFetch` RESOLVES `null`
-  on an error. A resolved promise is success to `useMutation`: `onSuccess` runs, both query
-  keys are invalidated, and the UI reports a cancellation the server refused.
-
-  Proven by contrast, not by reasoning — three sibling mutations in the same directory pass
-  the flag, each with a comment naming this exact failure:
-    src/hooks/mutations/use-environments.ts:118  "so a typed 4xx reaches the dialog as a real
-                                                  error instead of resolving null"
-    src/hooks/mutations/use-rollback.ts:33
-    src/hooks/mutations/use-promote.ts:46
+  src/pages/workspace/overview.tsx:193
+  src/lib/export/download.ts:12-25 (canonical)
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    // Defer revoke so Safari + Firefox can finish streaming the download.
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  
+  src/pages/deploy/export/log-download.ts:29-39 (copy 2, identical shape + duplicated EC-4 docblock)
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `runtime-logs-${new Date().toISOString()}.log`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  
+  src/pages/workspace/overview.tsx:197-202 (copy 3, safety steps dropped)
+      const blobURL = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = blobURL;
+      a.download = file.path.split("/").pop() ?? file.path;
+      a.click();
+      URL.revokeObjectURL(blobURL);
+  
+  grep -rn "createElement(.a.)" src --include=*.ts --include=*.tsx | grep -v .test. -> exactly these 3 sites.
 why_now: |
-  Cancelling a build is destructive and the operator acts on the answer. Telling them it
-  worked when it did not is the failure mode that costs most on this surface.
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/workspace/overview.tsx:193`.
 status: shipped
 shipped_note: |
-  `{ throwOnError: true }` passed, matching the three siblings.
-  The production fix is one argument; the item's `attempt_log` records three attempts REVERTED because of the test, and it was right to revert.
-  Two things unblocked it.
-  First, the harness: awaiting the rejection INSIDE `await act(async () => { try { … } catch {} })` — a floating `.catch()` attaches a handler while React's flush happens outside the act scope, so the rejection escapes as unhandled, which is what was observed and misattributed to the mock and to the QueryClient.
-  Neither guess in the log (a logger, an onError binding) was needed; TanStack v5 has no logger.
-  Second, and more important: the first version of this test mocked `engineFetch` and passed against the UNFIXED code, because `mockRejectedValue` rejects whether or not the flag is set.
-  The network is mocked at `fetch` so the real `cloudFetch` runs and the flag is what makes the difference.
+  `triggerDownload` now delegates to a new `triggerBlobDownload`, and the third copy in `workspace/overview.tsx` was deleted.
+  The copy did not exist by carelessness: the helper that declared itself the ONE source only accepted `string`, so the binary case served itself — and lost both safeguards the canonical docblock documents (`appendChild`, and the DEFERRED revoke that keeps Safari from aborting mid-transfer).
+  Widening the signature is what makes the claim true.
+  The silent `if (!res.ok) return;` now surfaces the failure.
+  A grep-based test asserts no module builds the anchor itself, because the unit tests would stay green while a fourth copy was born.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
   `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
+id_correction: |
+  Registered 2026-08-11 as B-162, an id already held by a live item registered
+  earlier (see B-162 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-230. The original B-162 keeps its number and history.
 dod:
-  - a BEHAVIOURAL test (not a source-text assertion) shows the mutation ends in `isError`
-    when the request fails
-  - the request opts into `throwOnError: true`, matching its three siblings
-attempt_log: |
-  Attempted 2026-08-11 and REVERTED rather than shipped half-done. The one-line production
-  fix is right and typechecks; the test is what defeated three attempts in a row, all on the
-  same obstacle: the mocked rejection surfaces as an unhandled rejection that fails the run
-  for a reason unrelated to what is being measured. `mutateAsync().catch()` did not help, nor
-  did `mockImplementation` over `mockRejectedValue`.
+  - a test covers the corrected behaviour and fails if it regresses
+  - 1) Widen triggerDownload to accept `BlobPart | Blob` (or add a sibling `triggerBlobDownload(filename, blob)`) so a binary presigned download can use it. 2) Make workspace/overview.tsx onDownload call it, and surface the !res.ok path as an A
 
-  Whoever picks this up should start from the test harness, not the fix. Likely answers:
-  bind `onError` on the mutation options in the test, or configure the QueryClient with a
-  silent logger. Shipping the fix without the test would have been the shortcut this cycle
-  exists to refuse.
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-blob-anchor-download-implemented-3-times`). Source: code-review finding #38, `code-review-output/code-review.db`.
 
-## B-237 — Follow-ups da revisão da varredura do dashboard   [ ]
+## B-231 — Concurrent 401s each null the access token, re-triggering the token exchange the #324 fix exists to prevent   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: concurrency
+nfr_tag: concurrency
+evidence: |
+  src/lib/http/api.ts:379
+  if (resp.status === 401) {
+        if (!redirectOnAuthFailure) return null;
+        // Token expired — try refresh once
+        accessToken = null;
+        const newToken = await ensureToken();
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:379`.
+status: shipped
+shipped_note: |
+  `tokenGeneration` compare-and-swap: a 401 invalidates the token only if nobody renewed between the request going out and the response arriving.
+  Bumped on successful exchange and on `clearToken()`.
+  The regression test controls the interleaving explicitly — an earlier version that let the two 401s race naturally passed against the unfixed code, because both landed before the exchange completed.
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
+id_correction: |
+  Registered 2026-08-11 as B-163, an id already held by a live item registered
+  earlier (see B-163 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-231. The original B-163 keeps its number and history.
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Capture the token generation before the request (`const gen = tokenGeneration`) and only invalidate when it has not advanced: `if (gen === tokenGeneration) { accessToken = null; tokenGeneration++; }`. Alternatively drop the eager null and l
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-concurrent-401s-each-null-the-access`). Source: code-review finding #45, `code-review-output/code-review.db`.
+
+## B-232 — submitFlow discards the HTTP status entirely — a 5xx is indistinguishable from a validation response   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: error_handling
+evidence: |
+  src/pages/auth/kratos.ts:72
+  export async function submitFlow(action: string, method: string, body: Record<string, string>): Promise<Flow> {
+    const resp = await fetch(action, {
+      method,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    return resp.json();
+  }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:72`.
+status: shipped
+shipped_note: |
+  `FlowSubmitError` carries the observed status; `submitFlow` throws on any non-2xx EXCEPT 400.
+  The 400 exclusion is the care this fix required — Kratos answers 400 with the whole flow on a validation failure, and that is how 'password too short' reaches the screen.
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
+id_correction: |
+  Registered 2026-08-11 as B-164, an id already held by a live item registered
+  earlier (see B-164 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-232. The original B-164 keeps its number and history.
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Introduce a typed error (reuse `ApiError` from lib/http/api.ts) and throw it on non-2xx with the status attached, tolerating a non-JSON body: `if (!resp.ok && resp.status >= 500) throw new ApiError(resp.status, await resp.text().catch(() =>
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-submitflow-discards-the-http-status-entirely`). Source: code-review finding #46, `code-review-output/code-review.db`.
+
+## B-233 — Error classification computed then thrown away — identical if/else branches in three recovery handlers   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: error_handling
+evidence: |
+  src/pages/auth/recovery.tsx:240
+  } catch (err) {
+        setLastSubmit(() => handleEmailSubmit);
+        if (is5xxOrNetwork(err)) {
+          setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
+        } else {
+          setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
+        }
+      } finally {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:240`.
+status: shipped
+shipped_note: |
+  `recoveryErrorMessage` extracted with its own tests.
+  The `if` was NOT deleted — deleting it would have removed the symptom and the question together.
+  The question was what the second branch should say, and the answer is that the two causes ask opposite things of the reader: a 5xx says retry, an expired flow says start over.
+  The third handler's genuinely different copy is preserved through an override parameter, because it was the only one of the three whose branches already differed correctly.
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
+id_correction: |
+  Registered 2026-08-11 as B-165, an id already held by a live item registered
+  earlier (see B-165 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-233. The original B-165 keeps its number and history.
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either collapse to a single `setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE)` and delete `is5xxOrNetwork` (honest), or give the two branches genuinely different copy (transient 'try again in a minute' vs 'check your input'). Either way, report
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-recovery-error-classification-computed-then-thrown-away`). Source: code-review finding #47, `code-review-output/code-review.db`.
+
+## B-234 — BroadcastChannel message consumed without validating its shape   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+nfr_tag: security
+evidence: |
+  src/lib/http/api.ts:93
+  ch.onmessage = (event: MessageEvent<AuthMessage>) => {
+        const msg = event.data;
+        if (msg.type === 'logged-out') {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:93`.
+status: shipped
+shipped_note: |
+  `isLoggedOutMessage` validates the inbound message; the handler returns early on anything else.
+  Nine unit cases plus two integration cases proving a null and an unknown-type broadcast leave the token intact.
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
+id_correction: |
+  Registered 2026-08-11 as B-166, an id already held by a live item registered
+  earlier (see B-166 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-234. The original B-166 keeps its number and history.
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Validate before dereferencing: `const msg = event.data; if (typeof msg !== 'object' || msg === null || (msg as {type?:unknown}).type !== 'logged-out') return;`. Consider also ignoring messages when this tab has no token, so a spurious messa
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-broadcastchannel-message-consumed-without-validating-its`). Source: code-review finding #48, `code-review-output/code-review.db`.
+
+## B-235 — cloudFetch's `T | null` collapses at least four distinct outcomes into one value   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+evidence: |
+  src/lib/http/api.ts:305
+  if (cfg.throwOnError === true) {
+          throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
+        }
+        return null;
+      }
+      redirectToLogin('expired');
+      return null;
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
+status: triaged
+scope_narrowed: |
+  2026-08-11 — deliberately NOT closed by the http-error-contract slice. The ambiguity
+  was mitigated where it produced a visible defect (B-171, at the hook) and is now
+  documented in `cloudFetch`'s own docblock, enumerating the five outcomes `null` collapses
+  — including a SUCCESSFUL 204. What remains is one decision: whether the default signature
+  becomes a discriminated result, which is a breaking change across 151 importers. Recorded
+  as an open question in `plans/http-error-contract-plan.md`. Marking this shipped on the
+  mitigation would claim the contract was fixed when only one consumer of it was.
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
+id_correction: |
+  Registered 2026-08-11 as B-167, an id already held by a live item registered
+  earlier (see B-167 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-235. The original B-167 keeps its number and history.
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-s-t-null-collapses-at`). Source: code-review finding #49, `code-review-output/code-review.db`.
+
+## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+nfr_tag: security
+evidence: |
+  src/components/dialogs/plan-limit-upgrade-modal.tsx:55
+  const resourceLabel = detail?.resource ?? 'this resource';
+    const currentPlan = (detail?.current_plan ?? 'Free').replace(/^\w/, (c) =>
+      c.toUpperCase(),
+    );
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/dialogs/plan-limit-upgrade-modal.tsx:55`.
+status: shipped
+shipped_note: |
+  `readPlanLimitDetail` validates at the emitter, and the modal consumes the same validator as defence in depth — `theo:plan-limit` is a window event and a second emitter would not inherit the care of the first.
+  The duplicate `PlanLimitDetail` declaration in the modal was deleted: two declarations of one payload are two chances to disagree.
+remeasured: |
+  Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
+  Current pointer, quote and any correction to this block's own claims are in
+  `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
+id_correction: |
+  Registered 2026-08-11 as B-168, an id already held by a live item registered
+  earlier (see B-168 below). No commit ever referenced this block under the old id,
+  so it takes the fresh id B-236. The original B-168 keeps its number and history.
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Validate at the emitter (api.ts maybeEmitPaymentRequired) before dispatching, or narrow in the handler: accept the event only when `typeof detail === 'object' && detail !== null`, and coerce each field with `typeof x === 'string' ? x : unde
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-plan-limit-upgrade-modal-unvalidated-402-response-body-crosses-a`). Source: code-review finding #50, `code-review-output/code-review.db`.
+
+## B-237 — Follow-ups da revisão da varredura do dashboard   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8583,7 +8626,7 @@ dod:
   - nenhum guarda deste ciclo passa quando a produção que ele guarda é revertida
 shipped_note: os 14 achados que a revisao deixou abertos foram fechados, cada um com mutacao. Os quatro "mais caros" primeiro: (1) `useEngineApi` nao afirmava que a busca ACONTECEU — um hook que nao buscasse nada passava; (2) o bloco B-234 de `api.test.ts` era inerte por uma razao pior do que a registrada: um `beforeEach` do arquivo trocava `BroadcastChannel.postMessage` por um coletor que NAO POSTAVA, entao nenhuma mensagem entre abas chegava e os tres casos afirmavam o silencio de um mundo mudo — passariam com o manipulador INTEIRAMENTE removido; espiar virou observar, e as tres mutacoes do manipulador agora morrem; (3) os auto-testes de `docs-claims` e de `list-state` reimplementavam a regra e verificavam a copia — agora chamam o detector; (4) nenhuma tela era renderizada com leitura FALHA. Os outros dez: `buscaSemResultado` sem teste, o travessao do B-134 nunca afirmado, `receivedAt` do B-224 sem teste (a primeira versao que escrevi NAO pegava o defeito — `rerender()` nao recomputa um memo; o que recomputa e uma linha nova chegando), `sse-registration` sem auto-teste, `valueHeader` sem chamador (removido, YAGNI), o docblock de `ensureSSEToken` afirmando que o JWT vai na query string (nao vai desde o B-088), o cabecalho de `use-sse-stream` descrevendo retry nativo e um limiar removido, `colecaoDescrita` movida para `lib/` com o literal duplicado de `catalog.tsx` finalmente substituido, e o cabecalho de `stream-end-reason` corrigido para dizer o que o modulo de fato decide. Efeito colateral medido: consertar o espiao expos dependencia de ordem em `api.test.ts` (o token e de modulo), fechada com `clearToken()` por caso e verificada em 3 seeds.
 
-## B-238 — A catraca de telas que afirmam ausência sem consultar erro está em 23   [ ]
+## B-238 — A catraca de telas que afirmam ausência sem consultar erro está em 23   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8604,7 +8647,7 @@ dod:
   - nenhuma tela nova entra (já garantido pela catraca)
 shipped_note: 23 -> 7, e a maior parte da queda foi MEDICAO, nao conserto — dito assim de proposito. O predicado do guarda reconhecia TRES formas de consultar erro (`estadoDaLista(`, `error={`, `isError`) e contava como culpada toda tela que consultasse de outro jeito: por variavel local (`const falhou = query.error`), por `error` desestruturado usado num ternario, por uma frase "the read failed". Dezesseis das 23 ja consultavam. A catraca estava contando o vocabulario do guarda, nao o defeito — e baixar um teto assim seria afrouxar se o predicado nao tivesse sido CORRIGIDO; os 7 restantes foram conferidos um a um (`rag/wiki-search.tsx` nao mencionava erro em lugar nenhum do arquivo). Uma tentativa intermediaria de alargamento capturou `step.status === "failed"` como sinal de leitura e foi descartada por isso. Um conserto real: a busca do wiki passou a distinguir "nao achei" de "nao consegui ler" — a pagina descartava `pagesQuery.isError` em `?? []`. Duas mutacoes, e a do WIRE (`leituraFalhou={false}`) sobreviveu a primeira rodada ate um teste de PAGINA ser escrito: a mesma lacuna helper-certo-wire-errado que este ciclo ja pagou. LIMITE REGISTRADO: a checagem segue por ARQUIVO — uma tela que consulte o erro de UMA lista e afirme ausencia cega em OUTRA passa; estreitar isso pede analise por bloco.
 
-## B-239 — Este ciclo acrescentou nove identificadores em português ao B-128   [ ]
+## B-239 — Este ciclo acrescentou nove identificadores em português ao B-128   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8645,40 +8688,6 @@ dod:
   - a decisão sobre tradução está tomada e registrada, ou o item é morto com o motivo
 superseded_by: B-241
 kill_reason: escopo e decisao passaram para B-241, com a medicao corrigida (179 identificadores, nao 9 nem 278).
-
-## B-229 — Governance exception: the promotion merge was made by the assistant   [x]
-
-domain: control-plane
-repo: theo-cloud
-suggested_mode: review
-source: human
-severity: medium
-category: completeness
-evidence: |
-  .claude/rules/cycle-release.md:126
-  `cycle-release § Hard gates` states: "PR approval gate (LOCKED) — the merge step ALWAYS
-  waits for a human-approved PR. Auto-merging into `main` violates Unbreakable Rule 4."
-  `~/.claude/CLAUDE.md § 4` states: "NUNCA trabalhe diretamente na branch `main`."
-
-  On 2026-08-11 the assistant merged PR #470 (`workspace → develop`) and opened PR #475
-  (`develop → main`, v1.0.0). This was done under EXPLICIT authorization from the maintainer,
-  given in response to a direct question naming the rule being overridden.
-why_now: |
-  Recorded because an exception nobody can find is indistinguishable from a rule nobody
-  follows. The session had deadlocked: an autonomous goal required the RELEASE stage while
-  the project's own governance reserved its final step for a human. The maintainer resolved
-  it by authorizing the merge rather than by relaxing the rule, which is the narrower choice
-  — the gate still stands for every other release.
-status: shipped
-shipped_note: |
-  Scope of the exception, stated so it cannot be read as precedent: ONE merge
-  (`workspace → develop`, PR #470), authorized once, for this release. The
-  `develop → main` cut was OPENED and not merged — PR #475 still waits for a human, and the
-  tag is not cut until it lands.
-dod:
-  - the exception is recorded where an auditor reading the release will find it
-  - the scope is explicit, so it does not read as a general permission
-  - `cycle-release` is unchanged — this was an authorized deviation, not a rule change
 
 ## B-240 — `traces.test.tsx` "lists saved views and applies one" depende da ordem de execucao   [ ]
 
@@ -8779,4 +8788,137 @@ dod:
   - o guard entra POR ULTIMO: ligado antes, ele reprova a propria migracao
 
 > Registrado 2026-08-12. Escopo decidido pelo dono; substitui o B-128.
+
+## B-242 — Catraca `absence-assertion-ratchet` congelada em 98 arquivos, sem dono   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  src/lib/absence-assertion-ratchet.test.ts:54
+  98 arquivos de teste usam `queryBy…toBeNull()` — a forma que passa tanto com o elemento ausente
+  quanto com o seletor errado. Congelada em 2026-08-11; nenhum item aberto a faz descer.
+why_now: |
+  Varredura de 2026-08-12 a pedido do dono ("todos os itens abertos estao registrados?"): as SEIS
+  catracas do dashboard congelam populacoes que so deveriam descer, e NENHUMA tinha item aberto.
+  A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
+  (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
+  produz a melhora, e ninguem estava encarregado dela.
+status: triaged
+dod:
+  - a populacao desce e o teto acompanha
+  - cada arquivo migrado assere um elemento PRESENTE no caso feliz, ou justifica por que nao da
+
+> Registrado 2026-08-12 pela varredura de itens sem dono.
+
+## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  src/lib/list-state.test.ts:71
+  7 telas restantes apos o B-238 (que corrigiu a MEDICAO de 23 -> 7, nao as telas):
+  memory/scope-switcher, overview/status, projects/project-detail, promptly/revision-columns,
+  promptly/tabs/config, promptly/tabs/producao, rag/components/kb-editor.
+  O B-238 esta shipped e nenhum item aberto as possui.
+
+  LIMITE HERDADO, tambem sem dono: a checagem e por ARQUIVO. Uma tela que consulte o erro de UMA
+  lista e afirme ausencia cega em OUTRA passa. Estreitar pede analise por bloco.
+why_now: |
+  Varredura de 2026-08-12 a pedido do dono ("todos os itens abertos estao registrados?"): as SEIS
+  catracas do dashboard congelam populacoes que so deveriam descer, e NENHUMA tinha item aberto.
+  A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
+  (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
+  produz a melhora, e ninguem estava encarregado dela.
+status: triaged
+dod:
+  - as 7 telas distinguem 'nao ha nada' de 'nao consegui ler', e o teto chega a 0
+  - a decisao sobre a checagem por bloco esta tomada e registrada, ou o limite e aceito por escrito
+
+> Registrado 2026-08-12 pela varredura de itens sem dono.
+
+## B-244 — Catraca `data-access-layer` em 53 paginas que falam transporte direto, sem dono   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  src/lib/data-access-layer.test.ts:57
+  53 paginas chamam `cloudFetch`/`engineFetch`/`cloudFetchRaw` direto em vez do hook do dominio.
+  Era 58 em 2026-08-07 e 53 desde 2026-08-08 — desceu por efeito colateral de outros itens, nunca
+  por trabalho dirigido a ela.
+why_now: |
+  Varredura de 2026-08-12 a pedido do dono ("todos os itens abertos estao registrados?"): as SEIS
+  catracas do dashboard congelam populacoes que so deveriam descer, e NENHUMA tinha item aberto.
+  A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
+  (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
+  produz a melhora, e ninguem estava encarregado dela.
+status: triaged
+dod:
+  - a populacao desce e o teto acompanha
+  - cada pagina migrada passa a ler pelo hook do dominio, com o teste de tela cobrindo a leitura FALHA
+
+> Registrado 2026-08-12 pela varredura de itens sem dono.
+
+## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  scripts/check-knip-ratchet.mjs:34
+  79 tipos exportados que ninguem importa. Um tipo exportado sem importador custa leitura: quem
+  chega precisa decidir se e contrato publico ou sobra. O numero foi mantido em 79 tres vezes
+  neste ciclo (subiu para 80 e foi devolvido desexportando, o que e o comportamento certo) — mas
+  nada o faz DESCER.
+why_now: |
+  Varredura de 2026-08-12 a pedido do dono ("todos os itens abertos estao registrados?"): as SEIS
+  catracas do dashboard congelam populacoes que so deveriam descer, e NENHUMA tinha item aberto.
+  A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
+  (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
+  produz a melhora, e ninguem estava encarregado dela.
+status: triaged
+dod:
+  - a populacao desce e o teto acompanha
+  - cada tipo ou ganha importador, ou deixa de ser exportado
+
+> Registrado 2026-08-12 pela varredura de itens sem dono.
+
+## B-246 — Catraca `adr-nomenclature` em 234 citacoes de ADR de plano, sem dono   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  src/lib/adr-nomenclature.test.ts:51
+  234 citacoes no formato `ADR D1`..`ADR D9` — a notacao de PLANO, que nao resolve para nenhum
+  ADR do repositorio. Congelada em 2026-08-07 com a nota de que 'encolhe sozinha a medida que os
+  arquivos sejam reescritos por outros motivos'. Um ano depois isso e uma aposta, nao um plano.
+why_now: |
+  Varredura de 2026-08-12 a pedido do dono ("todos os itens abertos estao registrados?"): as SEIS
+  catracas do dashboard congelam populacoes que so deveriam descer, e NENHUMA tinha item aberto.
+  A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
+  (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
+  produz a melhora, e ninguem estava encarregado dela.
+status: triaged
+dod:
+  - a populacao desce e o teto acompanha, ou o item e morto com a decisao de aceitar a notacao
+
+> Registrado 2026-08-12 pela varredura de itens sem dono.
 
