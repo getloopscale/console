@@ -64,12 +64,26 @@ If any HARD check fails, refuse with the missing piece surfaced honestly.
 ### Step 2 — Detect current version and compute next
 
 ```bash
-LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+LAST_TAG=$(python3 skills/release/scripts/detect_current_version.py --quiet)
+VERSION_SOURCE=$(python3 skills/release/scripts/detect_current_version.py | sed 's/.*(\(.*\))/\1/')
 NEXT_VERSION=$(python3 skills/release/scripts/compute_next_version.py \
   --current "$LAST_TAG" \
   --bump "${ARGUMENTS:-auto}" \
   --changelog CHANGELOG.md)
 ```
+
+Do **not** substitute `git describe` here. In this branching model release tags are cut on the
+`develop → main` merge commit and `main` is never merged back, so no release tag is an ancestor of
+`workspace` or `develop`: `git describe` answers `v0.29.0` where the released version is `v0.85.0`.
+Pointing it at `origin/main` is not a fix either — it walks ancestry, so a hotfix numbered below a
+shipped release wins over the higher version. See B-228 and ADR D1 of
+`knowledge-base/plans/release-version-detection-plan.md`.
+
+Record `$VERSION_SOURCE` in the release record (Step 8) as `version_source:`. `release-branch-tag`
+is the authoritative answer; `highest-semver-tag` means the release branch could not be read and
+the version came from a weaker source; `floor` means no tags were found at all — on a repository
+that has tags, that indicates a shallow clone or unfetched tags, and the release should be
+questioned before it is cut.
 
 If `compute_next_version.py` returns `AMBIGUOUS`, AskUserQuestion ONCE (major / minor / patch) and re-run with the chosen value.
 
@@ -201,6 +215,8 @@ Write `knowledge-base/releases/v${NEXT_VERSION}-release.md`:
 
 **Date:** {YYYY-MM-DD}
 **Verdict:** RELEASED
+**Detected from:** {LAST_TAG}
+**version_source:** {VERSION_SOURCE}
 **Source review:** {path to /review report}
 **PR:** {pr-url}
 **Merge commit:** {merge-sha}
@@ -261,5 +277,5 @@ This skill is `phase 1` (only phase) of `cycle-release`. The cycle rule SoT is `
 - Upstream cycle: [`rules/cycle-review.md`](../../rules/cycle-review.md) — consumes `READY_TO_MERGE` verdict
 - Conventions: [`rules/public-copy.md`](../../rules/public-copy.md) — release notes lint
 - Hooks enforced: `hooks/validate-command.sh` (git safety + Co-Authored-By block), `hooks/stop-validation.sh` (CHANGELOG hard gate)
-- Scripts: `scripts/compute_next_version.py`, `scripts/promote_unreleased.py`, `scripts/render_release_notes.py`, `scripts/changelog_section_nonempty.py`, `scripts/flip_milestone_checkbox.py` (Step 7.5 — pending implementation, see Task #20)
+- Scripts: `scripts/detect_current_version.py`, `scripts/compute_next_version.py`, `scripts/promote_unreleased.py`, `scripts/render_release_notes.py`, `scripts/changelog_section_nonempty.py`, `scripts/flip_milestone_checkbox.py` (Step 7.5 — pending implementation, see Task #20)
 - Macro super-loop: [`rules/cycle-maintenance.md`](../../rules/cycle-maintenance.md) — defines the single-flip invariant + the roadmap-runs file contract that Step 7.5 satisfies
