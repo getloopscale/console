@@ -10588,13 +10588,13 @@ status: triaged
 
 > Registrado 2026-08-12 ao desbloquear o `images` do publish.
 
-## B-273 — O gate Go depende de um download em runtime e falha com `socket hang up`   [ ]
+## B-273 — Gates baixam o próprio binário em runtime e reportam falha de rede como falha de análise   [ ]
 
 domain: control-plane
 repo: theo-cloud
 suggested_mode: bug
 source: discover-review
-severity: low
+severity: medium
 category: test
 evidence: |
   job 94258930430, 2026-08-12 (passo `Lint` de `quality.yml`):
@@ -10621,6 +10621,24 @@ why_now: |
   Descoberto ao desbloquear o `publish` em 2026-08-12. Custou um re-run e ~10 minutos, o que é
   barato — mas o custo real é de diagnóstico: um vermelho que não distingue "seu código está errado"
   de "a internet caiu" gasta o tempo de quem investiga, toda vez.
+segunda_ocorrencia: |
+  2026-08-12, ~20 minutos depois da primeira, em OUTRA ferramenta — o que confirma que isto é uma
+  classe e não um azar de um binário específico:
+
+    job do run 31642047844, passo `gitleaks` (gate de SEGURANÇA), na tag v1.0.2:
+      curl: (22) The requested URL returned error: 503
+      ##[error]Process completed with exit code 22
+
+  Efeito: o gate de segredos ficou VERMELHO sem ter escaneado nada, e o `images` foi `skipped` em
+  consequência — então a tag v1.0.2 saiu sem imagem, por 503 num download.
+
+  Duas ferramentas diferentes (golangci-lint, gitleaks), dois modos de falha de rede diferentes
+  (`socket hang up`, `503`), o mesmo padrão: o gate baixa seu próprio binário em runtime e reporta
+  a falha de download como falha de análise.
+
+  Isto eleva a severidade de LOW para MEDIUM: um gate de SEGREDOS que fica vermelho sem escanear é
+  indistinguível, para quem lê o painel, de um que escaneou e achou algo — e a reação correta às
+  duas é oposta.
 dod:
   - a falha de DOWNLOAD é distinguível da falha de ANÁLISE no output do job, sem ler log bruto
   - avaliar cachear o binário (a action já restaura um cache de `golangci-lint` — o cache é do
