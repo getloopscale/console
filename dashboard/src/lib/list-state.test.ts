@@ -56,19 +56,24 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
   }
 
   /**
-   * Congelado em 2026-08-11, medido com este mesmo detector.
+   * ZERO desde 2026-08-12 (B-243). A catraca deixa de congelar uma população e passa a ser o
+   * que sempre quis ser: nenhuma tela nova pode afirmar ausência sem consultar erro.
    *
-   * A primeira versão deste guarda só olhava arquivos com `empty={`, e por isso era cega a
-   * `memory/webhooks.tsx` — que afirma ausência por ternário inline. Alargá-lo revelou uma
-   * população maior do que as oito páginas do B-167: telas que afirmam "não há nada" sem
-   * consultar erro nenhum, todas anteriores a este ciclo.
+   * Como o número desceu, medido e não estimado:
    *
-   * Corrigir as oito não impede a nona, e corrigir todas de uma vez não cabia nesta fatia. A
-   * catraca é a resposta que este repositório já usa para exatamente isso (orçamento de LoC,
-   * asserções de ausência, tipos sem importador): a população fica congelada e só pode DESCER.
-   * Nenhuma tela nova entra; cada uma que sair baixa o teto.
+   *   7  congelado em 2026-08-11 (B-238, que já havia corrigido 23 -> 7 alargando o guarda)
+   *   5  duas telas CORRIGIDAS de fato — `memory/scope-switcher.tsx` lia `.data` e descartava
+   *      `.error`; `projects/project-detail.tsx` desestruturava `builds` e jogava fora o
+   *      `error` que o próprio hook devolve
+   *   1  quatro telas que JÁ CONFORMAVAM e o guarda não reconhecia (ver `consultaErro`)
+   *   0  um componente que não faz leitura nenhuma (ver `iniciaLeitura`)
+   *
+   * Cinco dos sete não eram defeito. Vale dizer isso alto: o B-238 diagnosticou esta mesma
+   * coisa uma camada acima — "a catraca estava contando o vocabulário do guarda, não o
+   * defeito" — e o resíduo que ele deixou era mais do mesmo. Um teto que desce porque a
+   * medição melhorou NÃO é afrouxamento; o número passou a significar o que sempre afirmou.
    */
-  const TETO_SEM_ERRO = 7;
+  const TETO_SEM_ERRO = 0;
 
   /**
    * Os dois predicados do guarda, nomeados (B-237).
@@ -90,12 +95,13 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
    * failed". A catraca estava contando o vocabulário do guarda, não o defeito.
    *
    * Baixar um teto assim seria afrouxar; o que houve foi o oposto — o número passou a significar
-   * o que sempre afirmou. Os 7 que sobram foram conferidos um a um: `rag/wiki-search.tsx`, por
-   * exemplo, não menciona erro em lugar nenhum do arquivo.
+   * o que sempre afirmou.
    *
-   * LIMITE HONESTO: a checagem é por ARQUIVO, como sempre foi. Uma tela que consulte o erro de UMA
-   * lista e afirme ausência cega em OUTRA passa. Estreitar isso pede análise por bloco, que é
-   * outro trabalho — e é o que o item que sobrar deve dizer.
+   * LIMITE QUE SEGUE DE PÉ: a checagem é por ARQUIVO. Uma tela que consulte o erro de UMA lista
+   * e afirme ausência cega em OUTRA passa. Isso NÃO foi o que produziu o resíduo do B-243 —
+   * medido, o limite que produzia era outro (por tipo de arquivo, resolvido em `iniciaLeitura`)
+   * — então a análise por bloco segue aberta e sem evidência que a justifique hoje. Construí-la
+   * agora seria resolver o problema para o qual a medição não aponta.
    */
   const consultaErro = (fonte: string) =>
     /estadoDaLista\(|\berror=\{|\bisError\b/.test(fonte) ||
@@ -103,14 +109,53 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     // que foi o que uma primeira tentativa de alargamento capturou por engano.
     /\.error\b|\berroDe\w*|\bfalhou\b|\bfalharam\b/.test(fonte) ||
     /read failed|failed to load|Could not load|setError\(/i.test(fonte) ||
+    // B-243 — três formas que telas JÁ CONFORMES usavam e o guarda não reconhecia. Medido
+    // 2026-08-12: das 5 que restavam, 4 estavam corretas e foram acusadas por vocabulário.
+    //
+    //   "Could not read …"   overview/status.tsx:46, com role="alert"
+    //   ilegivel / ilegiveis promptly/tabs/config.tsx:37 (`if (ilegivel) return …`),
+    //                        promptly/tabs/producao.tsx:174 (Alert dos dependentes)
+    //   'nao-lido'           promptly/revision-columns.tsx:110
+    //
+    // O guarda procurava "Could not load" e a tela dizia "Could not read": um verbo de
+    // diferença. É o mesmo defeito que o B-238 corrigiu uma camada acima — a catraca contando
+    // o vocabulário do guarda em vez do defeito.
+    //
+    // DEPENDÊNCIA COM O B-241: `ilegivel` e `nao-lido` são identificadores em português. Quando
+    // aquela migração os renomear, ESTES padrões têm de acompanhar no mesmo lote, ou o guarda
+    // volta a ficar cego — e desta vez sem ninguém procurando.
+    // `ilegiv` sem `\b`: em `dependentesIlegiveis` o radical vem colado a uma palavra,
+    // e a âncora o perdia — o auto-teste abaixo pegou isso.
+    /Could not read|could not be (?:read|loaded)|ilegiv\w*|\bnao-lido\b|\bnaoLido\b/i.test(
+      fonte,
+    ) ||
     // O valor de erro USADO numa condicional: é a consulta, escrita sem prop nem hook.
     /\b(?:error|erro)\b\s*(?:\?|&&|\|\|)|if\s*\(\s*!?\s*(?:error|erro)\b/.test(fonte);
+
+  /**
+   * B-243 — só é culpada a tela que FAZ a leitura.
+   *
+   * Um componente apresentacional recebe a lista pronta (`readonly variaveis: readonly
+   * string[]`) ou a mantém em estado local (o menu de slash do `kb-editor`). Não há requisição
+   * nele que possa falhar, e exigir que consulte um erro é exigir que invente um: quem sabe se
+   * a leitura falhou é quem a fez, e é lá que a distinção pertence — como `config.tsx` e
+   * `producao.tsx` já fazem, recebendo a flag do pai.
+   *
+   * Este é o limite que o item registrou como "checagem por ARQUIVO". Medido, o limite que
+   * produzia o resíduo não era esse: era por TIPO de arquivo — página que lê versus componente
+   * que recebe.
+   */
+  const iniciaLeitura = (fonte: string) =>
+    /\buseQuery\(|\buse[A-Z]\w*Query\(|useCloudApi\(|useEngineApi\(|cloudFetch\w*\(|engineFetch\(|\bfetch\(/.test(
+      fonte,
+    );
 
   function paginasSemConsultaDeErro(): string[] {
     const sem: string[] = [];
     for (const f of paginas()) {
       const fonte = readFileSync(f, 'utf-8');
       if (!afirmaAusencia(fonte)) continue;
+      if (!iniciaLeitura(fonte)) continue; // B-243 — nada a consultar; ver `iniciaLeitura`
       if (!consultaErro(fonte)) sem.push(relative(SRC, f));
     }
     return sem;
@@ -157,6 +202,37 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     const ternario = 'return items.length === 0 ? <p>No webhooks yet</p> : <Table />;';
     expect(afirmaAusencia(ternario)).toBe(true);
     expect(consultaErro(ternario)).toBe(false);
+  });
+
+  it('B-243 — reconhece as formas que telas conformes usavam e o guarda não via', () => {
+    // Uma asserção POR FORMA: se uma delas parar de casar, este caso diz qual.
+    // Sem isto, alargar o vocabulário seria indistinguível de afrouxar a catraca.
+    expect(consultaErro('<p role="alert">Could not read service status.</p>')).toBe(true);
+    expect(consultaErro('if (ilegivel) { return <Alert />; }')).toBe(true);
+    expect(consultaErro('{dependentesIlegiveis ? <Alert /> : null}')).toBe(true);
+    expect(consultaErro("if (u.estado === 'nao-lido') return null;")).toBe(true);
+  });
+
+  it('B-243 — o vocabulário novo NÃO transforma qualquer prosa em consulta de erro', () => {
+    // O alargamento tem de continuar discriminando. Um arquivo que só fala de leitura em
+    // outro sentido não passa a ser considerado conforme.
+    expect(consultaErro('<p>Read the docs to learn more.</p>')).toBe(false);
+    expect(consultaErro('const legible = true;')).toBe(false);
+  });
+
+  it('B-243 — `iniciaLeitura` separa quem FAZ a leitura de quem recebe a lista', () => {
+    expect(iniciaLeitura('const q = useQuery({ queryKey: [] });')).toBe(true);
+    expect(iniciaLeitura('const s = useSessionsQuery();')).toBe(true);
+    expect(iniciaLeitura("cloudFetch('/v1/x')")).toBe(true);
+
+    // Componente apresentacional: a lista chega por prop, e não há requisição para falhar.
+    expect(iniciaLeitura('function Tab({ variaveis }: { variaveis: string[] }) { return null; }')).toBe(
+      false,
+    );
+    // Estado local: o menu de slash do editor é filtrado no cliente.
+    expect(iniciaLeitura('const [slash, setSlash] = useState<SlashState | null>(null);')).toBe(false);
+    // `useEffect`/`useCallback` são hooks, mas não leituras — a distinção que importa aqui.
+    expect(iniciaLeitura('useEffect(() => { setOpen(true); }, []);')).toBe(false);
   });
 
   it('e NÃO acusa uma tela que consulta o erro por `isError`', () => {

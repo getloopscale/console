@@ -262,3 +262,54 @@ describe('ProjectDetailPage', () => {
     });
   });
 });
+
+describe('B-243 — "no deployments" is a claim about the project, not about a failed read', () => {
+  it('says there are no deployments when the read SUCCEEDED and returned none', () => {
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: false,
+      error: false,
+    });
+
+    render(<ProjectDetailPage />);
+
+    expect(screen.getByText(/no deployments yet/i)).toBeInTheDocument();
+  });
+
+  it('does NOT say there are no deployments when the read FAILED', () => {
+    // `useDeployments` returns `{ builds, total, loading, error, refetch }`
+    // (hooks/projects/use-deployments.ts). The page destructured `builds` alone, so a failed
+    // read arrived as `[]` and the screen invited the user to deploy their first project —
+    // over a list nobody managed to read. "You have none" and "I could not tell" ask for
+    // opposite next steps.
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: false,
+      error: true,
+    });
+
+    render(<ProjectDetailPage />);
+
+    // Asserted on the title that IS rendered. Exactly one empty-state title occupies this
+    // slot, so a regression rewrites it rather than removing it — which is precisely what an
+    // absence assertion cannot detect (src/lib/absence-assertion-ratchet.test.ts).
+    expect(screen.getByText(/could not read deployments/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/deployments|deploy/i).map((n) => n.textContent).join(' ')).not.toMatch(
+      /no deployments yet/i,
+    );
+  });
+
+  it('says the deployments could not be read, and offers a retry rather than a first deploy', () => {
+    const refetch = vi.fn();
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: false,
+      error: true,
+      refetch,
+    });
+
+    render(<ProjectDetailPage />);
+
+    expect(screen.getByText(/could not read deployments/i)).toBeInTheDocument();
+  });
+});
