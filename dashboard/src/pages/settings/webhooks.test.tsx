@@ -156,4 +156,63 @@ describe('WorkspaceWebhooksPage (/settings/webhooks)', () => {
       expect(screen.getByText(/delete webhook "prod-deploys"\?/i)).toBeInTheDocument();
     });
   });
+
+  // B-244 — the two failure paths that used to report success.
+  //
+  // Both requests resolved `null` on a refusal (B-235) and nobody looked: the dialog closed and
+  // the list refreshed either way. The user's reading of that is unambiguous and wrong — for
+  // create, that events will now arrive at a URL the server rejected; for revoke, that an endpoint
+  // has stopped receiving their payloads when it has not.
+
+  it('a REFUSED revoke keeps the dialog open and states the reason', async () => {
+    const user = userEvent.setup();
+    mockCloudFetch.mockImplementation((path: string) => {
+      if (path.includes('/list')) {
+        return Promise.resolve({
+          webhooks: [
+            {
+              id: 'wwh-0011223344556677',
+              url: 'https://hook.example.com/deploys',
+              label: 'prod-deploys',
+              events: ['deploy.succeeded'],
+              created_at: new Date().toISOString(),
+            },
+          ],
+        });
+      }
+      return Promise.reject(new Error('the server refused'));
+    });
+
+    render(<WorkspaceWebhooksPage />);
+    await screen.findByText('prod-deploys');
+    await user.click(screen.getByRole('button', { name: /delete webhook prod-deploys/i }));
+    await screen.findByText(/delete webhook "prod-deploys"\?/i);
+
+    // The dialog demands the label typed back before it will act.
+    await user.type(screen.getByRole('textbox'), 'prod-deploys');
+    await user.click(screen.getByRole('button', { name: /^delete webhook$/i }));
+
+    expect(await screen.findByText('the server refused')).toBeInTheDocument();
+    // Still open — closing here is what made a failed revoke read as a completed one.
+    expect(screen.getByText(/delete webhook "prod-deploys"\?/i)).toBeInTheDocument();
+  });
+
+  it('a REFUSED create keeps the add dialog open and states the reason', async () => {
+    const user = userEvent.setup();
+    mockCloudFetch.mockImplementation((path: string) => {
+      if (path.includes('/list')) return Promise.resolve({ webhooks: [] });
+      return Promise.reject(new Error('that URL is not reachable'));
+    });
+
+    render(<WorkspaceWebhooksPage />);
+    await screen.findByText(/no webhooks yet/i);
+    await user.click(screen.getByRole('button', { name: /add webhook/i }));
+
+    await user.type(await screen.findByPlaceholderText(/hook\.example\.com/i), 'https://x.example.com/h');
+    await user.type(screen.getByPlaceholderText(/prod-deploys/i), 'my-hook');
+    await user.click(screen.getByRole('button', { name: /^add webhook$/i }));
+
+    expect(await screen.findByText('that URL is not reachable')).toBeInTheDocument();
+    expect(screen.getByText('Could not add webhook')).toBeInTheDocument();
+  });
 });

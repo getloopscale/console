@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { Button, Input, Label } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
-import { engineFetch } from '@/lib/http/api';
+import { useCreateProject } from '@/hooks/projects/use-create-project';
 import type { Project } from '@/lib/api/types';
 
 interface CreateProjectSheetProps {
@@ -21,8 +21,12 @@ const SLUG_PATTERN = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
  */
 export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProjectSheetProps) {
   const [name, setName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // B-244 — the request lives in the domain hook. `isPending` replaces a hand-kept
+  // `submitting` flag, and the hook invalidates the projects list on success, which this form
+  // used to leave to whoever passed `onCreated`.
+  const createProject = useCreateProject();
+  const submitting = createProject.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,28 +35,21 @@ export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProj
       setError('Name must be lowercase, 3-40 chars, start with letter, hyphens allowed.');
       return;
     }
-    setSubmitting(true);
     try {
-      const res = await engineFetch<Project>('/api/v1/projects', {
-        method: 'POST',
-        body: JSON.stringify({ name }),
-      });
-      if (res === null) {
-        setError("Couldn't create project. Try again in a moment.");
-        return;
-      }
+      // B-260 — typed with `ProjectCreateInput`, the type that described this payload and was
+      // imported by nobody. The description is now checked against what is sent.
+      const res = await createProject.mutateAsync({ name });
       onCreated?.(res);
       setName('');
       onOpenChange(false);
     } catch (e) {
-      // T0.1 TCIA — sponsor critério #6
+      // T0.1 TCIA — sponsor critério #6. With `throwOnError` the failure ARRIVES here instead
+      // of resolving `null`, so the message can name it rather than guess (B-235).
       setError(
         e instanceof Error
           ? `Create project failed: ${e.message}. No project was created. Retry, or contact support if it persists.`
           : 'Create project failed. No project was created. Retry, or contact support if it persists.',
       );
-    } finally {
-      setSubmitting(false);
     }
   };
 

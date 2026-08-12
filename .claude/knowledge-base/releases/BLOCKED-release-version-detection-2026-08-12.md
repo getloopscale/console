@@ -2,7 +2,12 @@
 
 **Slug:** `release-version-detection` (B-228) · **Date:** 2026-08-12
 **Input verdict:** `READY_TO_MERGE_WITH_FOLLOWUPS` (`.claude/knowledge-base/reviews/release-version-detection-review-2026-08-12.md`)
-**Verdict:** `BLOCKED`
+**Verdict:** `BLOCKED` — **superseded 2026-08-12 by `v1.0.0-release.md`**
+
+> The block was real and is left standing as the record of it. It was cleared not by
+> anything changing in the work, but by the maintainer explicitly authorizing the merge
+> of #475 — the human-approval gate being passed by a human, which is what it is for.
+> The exception's scope is `BACKLOG.md` B-263.
 
 ## Why
 

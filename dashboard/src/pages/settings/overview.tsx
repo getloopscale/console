@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useWhoami } from '@/hooks/settings/use-whoami';
-import { engineFetch } from '@/lib/http/api';
+import { useDeleteTenant } from '@/hooks/settings/use-delete-tenant';
 
 export function SettingsPage() {
   useRequireAuth();
@@ -22,24 +22,23 @@ export function SettingsPage() {
   const { whoami } = useWhoami();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const deleteTenant = useDeleteTenant();
+  const deleting = deleteTenant.isPending;
 
   const handleDeleteTeam = async () => {
     // Delete CURRENT team via whoami().team_id (was hardcoded "team-acme" —
     // would have deleted demo tenant for every user in prod). Now correctly
     // scoped to the authenticated session's active team.
     if (!whoami?.team_id) return;
-    setDeleting(true);
-    try {
-      await engineFetch(
-        `/api/v1/tenants/${encodeURIComponent(whoami.team_id)}`,
-        { method: 'DELETE' },
-      );
-      setConfirmOpen(false);
-      navigate('/');
-    } finally {
-      setDeleting(false);
-    }
+    // B-264 — the same DELETE the profile screen runs, and it was hand-rolled here too, with
+    // the same absent error branch: without `throwOnError` a failure resolved `null`, nothing
+    // looked at it, and this closed the dialog and navigated away over a request that failed.
+    //
+    // No try/catch: `ConfirmDialog` already keeps itself open and renders the reason when
+    // `onConfirm` rejects (B-105). What was missing was that the request could not fail.
+    await deleteTenant.mutateAsync(whoami.team_id);
+    setConfirmOpen(false);
+    navigate('/');
   };
 
   return (

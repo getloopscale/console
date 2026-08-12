@@ -49,7 +49,12 @@ import { execFileSync } from 'node:child_process';
  * descrição daqueles payloads; deixá-los exportados mantém uma descrição que nada confere.
  * A saída é usá-los, e isso é uma fatia própria (B-260), não uma linha nesta catraca.
  */
-const TETO_TIPOS = 31;
+// 30 desde 2026-08-12: `ProjectCreateInput` ganhou importador quando
+// `use-create-project.ts` passou a tipar o corpo do POST com ele (B-244/B-260).
+// É a forma de resolver esta classe que o B-245 recomendou — usar o tipo, e não
+// apagá-lo: apagar remove a única descrição do payload; usá-lo faz o compilador
+// conferi-la contra o que é enviado.
+const TETO_TIPOS = 30;
 
 /** Estas classes foram zeradas e não voltam: uma dependência não declarada quebra o build de
  *  quem clona; um export duplicado é uma segunda porta para a mesma coisa. */

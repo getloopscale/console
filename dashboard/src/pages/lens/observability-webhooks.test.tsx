@@ -93,6 +93,16 @@ describe('M86 — webhooks surface inside observability', () => {
     // the DELETE was attempted…
     expect(mockCloudFetch.mock.calls.some((c) => (c[1] as { method?: string })?.method === 'DELETE')).toBe(true);
     // …and failed → the webhook is STILL listed (fail-closed; no optimistic removal without rollback).
-    expect(screen.getByText('prod-hook')).toBeInTheDocument();
+    //
+    // B-244 — this asserted `getByText('prod-hook')` and started matching TWO nodes, because the
+    // dialog now stays open and echoes the label. The label is no longer a witness for "still
+    // listed"; the URL is, since only the table row renders it. Widening this to `getAllByText`
+    // would have kept it green while measuring nothing — the row could vanish and the dialog's own
+    // copy would satisfy it.
+    expect(screen.getByText('https://hook.example/x')).toBeInTheDocument();
+    // And the half that was missing: the user is TOLD. Before, `revoke.mutate` swallowed the
+    // rejection and the dialog closed over a delete that never happened — fail-closed in the data
+    // and fail-open in what the screen claimed.
+    expect(await screen.findByText('backend 502')).toBeInTheDocument();
   });
 });

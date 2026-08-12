@@ -5,8 +5,6 @@
 # vermelho sem causa visivel.
 name: actionlint
 on:
-  pull_request:
-    branches: [develop, main]
   push:
     branches: [develop]
 permissions:

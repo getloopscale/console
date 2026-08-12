@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, FileText, Loader2 } from 'lucide-react';
 import { Badge, Button, Card, EmptyState } from '@usetheo/ui';
-import { engineFetch } from '@/lib/http/api';
+import { useBuildSBOM } from '@/hooks/deploy/use-build-artifacts';
 import { formatDate } from '@/lib/formatting/format';
-import type { BuildSBOM } from '@/lib/api/types';
 
 /**
  * SBOMTab — Plan J-17 T5.5.
@@ -19,31 +17,13 @@ import type { BuildSBOM } from '@/lib/api/types';
  */
 export function SBOMTab() {
   const { id = '' } = useParams<{ name: string; id: string }>();
-  const [sbom, setSbom] = useState<BuildSBOM | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    engineFetch<BuildSBOM>(`/api/v1/builds/${encodeURIComponent(id)}/sbom`)
-      .then((data) => {
-        if (cancelled) return;
-        setSbom(data);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load SBOM');
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  // B-244 — the read lives in the domain hook. It used to be a hand-rolled effect with its own
+  // `cancelled` flag, `loading` and `error` state: a second fetching mechanism beside
+  // react-query that cached nothing and deduplicated nothing.
+  const sbomQuery = useBuildSBOM(id);
+  const sbom = sbomQuery.data ?? null;
+  const loading = sbomQuery.isLoading;
+  const naoConsegiuLer = sbomQuery.isError;
 
   if (loading) {
     return (
@@ -53,16 +33,25 @@ export function SBOMTab() {
     );
   }
 
-  if (error || !sbom || !sbom.apps || sbom.apps.length === 0) {
+  // B-244 — a FAILED read is not an absent SBOM, and for a supply-chain artifact the two are
+  // opposite conclusions: "this build shipped without provenance" is a compliance finding,
+  // "I could not read the provenance" is a retry. They used to share a title.
+  if (naoConsegiuLer) {
+    return (
+      <EmptyState
+        icon={FileText}
+        title="Could not read the SBOM"
+        description="This build may well have one — the request failed, so what is on screen is not what exists. Try again in a moment."
+      />
+    );
+  }
+
+  if (!sbom || !sbom.apps || sbom.apps.length === 0) {
     return (
       <EmptyState
         icon={FileText}
         title="No SBOM for this build"
-        description={
-          error
-            ? `Could not load SBOM: ${error}`
-            : 'SBOMs are generated for succeeded builds. This build may have failed before the SBOM step.'
-        }
+        description="SBOMs are generated for succeeded builds. This build may have failed before the SBOM step."
       />
     );
   }

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { History, Plus, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -14,7 +13,6 @@ import {
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
-import type { Delivery } from '@/lib/webhooks/delivery';
 import { deliveryStatusVariant } from '@/lib/webhooks/delivery';
 import { colunasDeWebhook } from '@/lib/webhooks/columns';
 import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
@@ -22,8 +20,14 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import {
+  useWorkspaceWebhooks,
+  useCreateWorkspaceWebhook,
+  useRevokeWorkspaceWebhook,
+  useWorkspaceWebhookDeliveries,
+  type Webhook,
+  type CreatedWebhook,
+} from '@/hooks/settings/use-workspace-webhooks';
 
 /**
  * J-16 Settings › Webhooks — registration-only v0.1.
@@ -41,22 +45,6 @@ import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
  * now and shown ONCE on create (Stripe show-once pattern) so the customer can
  * store it before delivery goes live.
  */
-
-interface Webhook {
-  id: string;
-  url: string;
-  label: string;
-  events: string[];
-  created_at?: string;
-}
-
-interface CreatedWebhook extends Webhook {
-  secret: string;
-}
-
-interface ListResult {
-  webhooks: Webhook[];
-}
 
 // Events this resource actually fires on. Only the events the engine emits are
 // offered — subscribing to an event that never fires is dishonest (Rule 3).
@@ -107,46 +95,20 @@ const WEBHOOK_CONTEXTS: Record<WebhookContext, WebhookContextCopy> = {
   },
 };
 
-const LIST_KEY = ['cloud', '/v1/settings/webhooks/list'] as const;
-
 export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: WebhookContext } = {}) {
   const copy = WEBHOOK_CONTEXTS[context];
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Webhooks'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
-
-  const list = useQuery({
-    queryKey: LIST_KEY,
-    queryFn: () => cloudFetch<ListResult>(`/v1/settings/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
+  const list = useWorkspaceWebhooks();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Webhook | null>(null);
   const [createdSecret, setCreatedSecret] = useState<CreatedWebhook | null>(null);
   const [viewingFor, setViewingFor] = useState<Webhook | null>(null);
 
-  const create = useMutation({
-    mutationFn: (input: { url: string; label: string; events: string[] }) =>
-      cloudFetch<CreatedWebhook>('/v1/settings/webhooks', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(input),
-      }),
-    onSuccess: (data) => {
-      setCreateOpen(false);
-      if (data?.secret) setCreatedSecret(data);
-      void queryClient.invalidateQueries({ queryKey: LIST_KEY });
-    },
-  });
-
-  const revoke = useMutation({
-    mutationFn: (id: string) => cloudFetch<null>(`/v1/settings/webhooks/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: LIST_KEY });
-    },
-  });
+  const create = useCreateWorkspaceWebhook();
+  const revoke = useRevokeWorkspaceWebhook();
 
   const webhooks = list.data?.webhooks ?? [];
 
@@ -221,7 +183,15 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         submitting={create.isPending}
-        onSubmit={(input) => create.mutate(input)}
+        errorMessage={create.error === null ? null : create.error.message}
+        onSubmit={(input) => {
+          create.mutate(input, {
+            onSuccess: (data) => {
+              setCreateOpen(false);
+              setCreatedSecret(data);
+            },
+          });
+        }}
         description={copy.dialogDescription}
         events={copy.events}
         exemploUrl="https://hook.example.com/deploys"
@@ -254,7 +224,10 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
           intent="destructive"
           confirmationPhrase={pendingDelete.label}
           loading={revoke.isPending}
-          onConfirm={() => revoke.mutate(pendingDelete.id)}
+          onConfirm={async () => {
+            await revoke.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+          }}
         />
       ) : null}
 
@@ -283,11 +256,7 @@ function DeliveriesSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const query = useQuery({
-    queryKey: ['cloud', `/v1/settings/webhooks/${webhook.id}/deliveries`] as const,
-    queryFn: () => cloudFetch<{ deliveries: Delivery[] }>(`/v1/settings/webhooks/${webhook.id}/deliveries`, {}, { throwOnError: true }),
-    enabled: open,
-  });
+  const query = useWorkspaceWebhookDeliveries(webhook.id, open);
   const deliveries = query.data?.deliveries ?? [];
 
   return (

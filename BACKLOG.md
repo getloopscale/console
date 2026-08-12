@@ -8559,7 +8559,6 @@ evidence: |
       return null;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
-status: triaged
 scope_narrowed: |
   2026-08-11 — deliberately NOT closed by the http-error-contract slice. The ambiguity
   was mitigated where it produced a visible defect (B-171, at the hook) and is now
@@ -8581,23 +8580,88 @@ remeasured: |
   correction changes what the open decision is worth.
 
   "a breaking change across 151 importers": 151 is the number of files that MENTION
-  `cloudFetch` (`grep -rl cloudFetch src` -> 151). Nearly all are tests and mocks. Production
-  CALL SITES, which are what a signature change actually breaks:
+  `cloudFetch` (`grep -rl cloudFetch src` -> 151). Nearly all are tests and mocks.
 
-    grep -rn 'cloudFetch(' src | grep -v '\.test\.'   ->  13
+  CORRECTION, 2026-08-12 later the same day: my first re-measurement here said "13 production
+  call sites" and was WRONG — it came from a line-oriented grep that misses a call spanning
+  several lines, which most of them do. Counted properly (scan each call and look 12 lines
+  ahead for the option):
 
-  Thirteen call sites is a slice, not a migration. `throwOnError` already exists as an opt-in
-  (`src/lib/http/api.ts:49`), so the discriminated-result question is narrower than the block
-  implies: it is about the DEFAULT, over 13 sites, not about rewriting 151 files.
+    call sites that ALREADY pass `throwOnError: true`  ->  134
+    call sites that do NOT                             ->   37
 
-  Not reclassifying the item on this alone — the decision it records is still a real one, and
-  the tests that mention `cloudFetch` still have to keep compiling. Recording it so the next
-  person scoping this does not budget for 151.
+  SECOND CORRECTION, same day: the count above first read 135/41 because it also matched
+  `cloudFetchRaw`, which has NO config parameter — it returns `Response | null` BY DESIGN, as
+  the raw escape hatch for reading headers. Charging it with a contract it does not offer would
+  have measured the guard's vocabulary instead of the defect, which is the mistake B-238 and
+  B-243 each cost a cycle. Two wrong measurements before the right one, both mine, both here.
+
+  That inverts the item's framing. `throwOnError` is not a rarely-used opt-in whose promotion
+  would break 151 importers: it is what 78% of the codebase already asks for, one call at a
+  time. The ambiguous default is the MINORITY behaviour, and the migration is 37 sites.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-s-t-null-collapses-at`). Source: code-review finding #49, `code-review-output/code-review.db`.
+
+implemented: |
+  2026-08-12 — a catraca existe; a decisão sobre o default está medida e NÃO tomada.
+
+  `src/lib/http/ambiguous-null-ratchet.test.ts` congela em 37 as chamadas sem contrato, com
+  auto-testes que impedem as duas medições erradas de voltarem (a por linha, que perde chamadas
+  multi-linha; e a que cobrava `cloudFetchRaw`).
+
+  VIRAR O DEFAULT FOI TENTADO E REVERTIDO, com o motivo medido. O caminho seguro exige tornar
+  os 37 explícitos ANTES do flip — senão cada um passa a LANÇAR onde resolvia, 37 mudanças de
+  comportamento sem teste que descreva o que cada tela faz numa falha. O rewrite mecânico
+  funcionou (`tsc` limpo) mas tocou 34 arquivos de produção e quebrou 12 testes que asseriam a
+  forma exata da chamada — e comprava UMA coisa: que código novo receba o default seguro.
+
+  A catraca compra essa mesma coisa, sem o diff: uma chamada nova sem `throwOnError` sobe o
+  número e o teste fica vermelho. E compra mais uma que o rewrite não comprava — os 37 ficam
+  CONTÁVEIS, então migrá-los aparece como progresso em vez de sumir num teto por arquivo. É a
+  lição que o B-242 custou uma métrica inteira para aprender.
+
+  O que segue aberto, e é a decisão do item: se o default vira depois que os 37 forem
+  explícitos, ou se `cloudFetch` passa a devolver um resultado discriminado. A medição diz que
+  a primeira é barata (78% do código já pede) e não diz qual é certa.
+fourth_measurement: |
+  2026-08-12, depois de uma revisão adversarial — A CATRACA ACIMA MEDIA O VOCABULÁRIO, NÃO O
+  DEFEITO. É a quarta vez neste ciclo, e desta vez estava no meu próprio código.
+
+  A revisão provou por mutação que os auto-testes eram decorativos: guardavam uma CÓPIA da regra
+  e verificavam a cópia. Trocar a janela de `i + 12` por `i + 1` levava a contagem de 37 para 109
+  com 5/5 verdes; adicionar `&& e !== 'pages'` ao caminhamento levava de 37 para 4, também com
+  5/5 verdes. Um detector que pode ser destruído sem que nenhum teste caia não é um detector.
+
+  O que a medição por janela errava, verificado caso a caso:
+    - ABSOLVIA 3 chamadas reais porque um COMENTÁRIO até 12 linhas abaixo mencionava
+      `throwOnError` — uma delas pelo docblock da função SEGUINTE
+    - ACUSAVA 2 chamadas de `promptly-api.ts` (linhas 230 e 291) cujo `throwOnError: true` está
+      12 e 14 linhas abaixo, fora da janela
+    - contava `{ throwOnError: false }` — o defeito escrito por extenso — como conformidade,
+      porque a checagem era `includes('throwOnError')`
+
+  QUARTA MEDIÇÃO, e a primeira que mede a chamada em vez de um palpite sobre o tamanho dela
+  (`src/lib/http/ambiguous-null.ts`: comentários removidos, argumentos extraídos por parênteses
+  balanceados, `true` exigido):
+
+    com contrato   -> 132
+    sem contrato   ->  39
+    total          -> 171   (77,2%)
+
+  O teto passou de 37 para 39, e o número SUBIU porque a medição melhorou — não porque o código
+  piorou. Baixar um teto estreitando o detector é exatamente o que o B-238 registrou e o que eu
+  repeti aqui.
+
+  Além do teto, a catraca agora tem PISO DE CORPUS (430 arquivos): sem ele, parar de olhar para
+  um diretório derruba a contagem e passa por progresso. E os auto-testes chamam o detector
+  exportado, contra fixtures — não uma cópia. Cinco mutações aplicadas e todas mortas:
+  `hasContract` aceitando qualquer valor, `withoutComments` virando no-op, o caminhamento
+  ignorando `pages/`, `argsOf` guloso, e o lookbehind de `CALL_OPENING` removido — este último
+  sobrevivia até eu fixá-lo com um teste, porque nenhum nome no corpus o exercitava.
+status: triaged
 
 ## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [x]
 
@@ -8754,7 +8818,6 @@ why_now: |
   A varredura de shuffle do B-237 mediu isto. Registrar em vez de deixar meia-correcao no arquivo:
   as duas saidas obvias foram tentadas e ambas medidas como erradas, e a terceira (resetar o cache
   do nuqs entre casos) precisa de uma decisao sobre como, que nao cabe dentro do B-237.
-status: triaged
 dod:
   - o caso passa sob `--sequence.shuffle` em >= 3 seeds independentes E em ordem fixa
   - a saida escolhida nao desliga a navegacao real que o caso exercita
@@ -8796,6 +8859,33 @@ tentativa_1: |
   O QUE ESTE ITEM PASSA A SABER, e vale mais que a mudança valia: o caminho de PRODUÇÃO está são.
   O item é sobre o harness, e o critério "o caso passa sob shuffle" tem de ser atingido sem tocar
   na página — porque não há nada errado nela.
+
+resolved: |
+  2026-08-12 — RESOLVIDO em `e94a6cc1`, com ZERO linhas mudadas na página.
+
+  A quarta saída, depois de três medidas erradas (as duas do bloco original e a minha):
+  `render()` ganhou um opt-in `historyRouter` que monta sob `BrowserRouter`, o router que a
+  produção usa, e os dois casos de saved view passaram a usá-lo.
+
+  O MECANISMO, medido e não deduzido: o adapter do nuqs lê `window.location.search` no mount e
+  depois só muda por `popstate` ou pelo emitter dele; quem liga o `setSearchParams` do
+  react-router a esse emitter é o nuqs fazendo PATCH em `history.pushState`. O MemoryRouter
+  nunca toca `window.history`, então o patch não tem o que observar.
+
+    MemoryRouter    1 request   (o clique parece não fazer nada)
+    BrowserRouter   2 requests  (session_id=sess-old, depois status=error&model=…)
+
+  Mesma página, mesmo clique. O caso testava um mecanismo que o harness tinha desligado, e o
+  que o fazia passar em ordem fixa era um caso ANTERIOR ter escrito em `window.location` por um
+  setter do nuqs.
+
+  O caso novo assere a PREMISSA antes da conclusão — que a página está mesmo filtrada antes do
+  clique — porque sem isso "o filtro de sessão sumiu" é trivialmente verdadeiro. Foi a armadilha
+  que este bloco já registrava e na qual eu caí na primeira tentativa.
+
+  Verificado: o caso original passa SOZINHO; o arquivo passa 56/56 em ordem fixa e sob sete
+  seeds de shuffle, incluindo os quatro que o bloco nomeia. Suíte 3239 verdes.
+status: triaged
 
 ## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [ ]
 
@@ -8912,6 +9002,50 @@ remeasured: |
   RESTA: 113 asserções sem âncora. Cada uma tem de ser lida — a heurística erra nos dois
   sentidos e serve para dimensionar, não para reescrever em massa. Um sweep mecânico aqui
   produziria exatamente o enfraquecimento silencioso que esta catraca existe para impedir.
+third_measurement: |
+  2026-08-12, depois de uma revisão adversarial — O AUTO-TESTE DA MÉTRICA AFIADA ERA DECORATIVO,
+  pelo mesmo motivo que o do B-235: guardava uma CÓPIA da regra de âncora e verificava a cópia.
+
+  A revisão provou por mutação: alargar `(?:get|find)` para aceitar `query` no detector real
+  levava a contagem de 116 para 15 — e os 6 casos seguiam VERDES. Um detector que pode ser
+  destruído sem que nenhum teste caia não é um detector. É o defeito que o B-237 registrou neste
+  repositório, embarcado aqui e no B-235 no mesmo dia.
+
+  Reconstruído em `src/test/absence-assertion.ts`, com cada correção medida sozinha
+  (total / sem âncora):
+
+    340 / 117  cru
+    337 / 116  sem comentários       — 3 asserções que só existem dentro de comentário ou it.skip
+    336 / 116  parênteses balanceados — 1 seletor cujos argumentos contêm chamada aninhada
+    309 / 110  só asserções          — 27 ocorrências eram `const el = queryBy…`, que não asserem
+                                       NADA; 6 delas eram reportadas como asserções sem âncora
+                                       que não existiam
+    309 / 110  queryBy como âncora   — zero mudança neste corpus; uma asserção de PRESENÇA escrita
+                                       com `queryBy` é âncora legítima e nenhum arquivo usa hoje
+    317 / 111  vírgula final         — SUBCONTAGEM MINHA, pega pelo teto por arquivo
+
+  NÚMERO ATUAL: **317 asserções de ausência, 111 sem âncora, em 98 arquivos.**
+
+  A última linha é a que vale ler. Exigir que o matcher venha logo após o `)` da consulta perdia
+  a forma multi-linha, onde há uma vírgula entre os dois:
+
+      expect(
+        screen.queryByText(/…/i),
+      ).not.toBeInTheDocument();
+
+  Nada nos números parecia errado — 110 é plausível, e era MENOR, o que se lê como progresso. O
+  que pegou foi a contagem por arquivo discordar da antiga por exatamente um arquivo
+  (`pages/infra/components/promote-dialog.test.tsx`). Duas contagens independentes da mesma
+  população é a razão de a catraca por arquivo ficar: foi a única coisa que tornou visível uma
+  subcontagem silenciosa, e subcontagem silenciosa é como uma catraca para de guardar sem parar
+  de passar. Corrigido, as duas concordam: 98 arquivos pelos dois caminhos.
+
+  O 111 vem do 116 antigo com correção nos DOIS sentidos, não com estreitamento. Sete mutações
+  aplicadas e todas mortas — inclusive o BLOCKER da revisão, que antes passava 6/6 verde.
+
+  Os detectores moram em `src/test/` e não em `src/lib/`: o `test-only-module-guard` os acusou
+  como módulos de produção sem consumidor no instante em que nasceram em `lib/`, e ele estava
+  certo. Allowlistar seria suprimir um achado verdadeiro.
 
 ## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [ ]
 
@@ -8989,6 +9123,40 @@ dod:
   - cada pagina migrada passa a ler pelo hook do dominio, com o teste de tela cobrindo a leitura FALHA
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
+progress_2026_08_12: |
+  53 -> 46. Cada migração fechou um defeito visível, não só moveu código:
+
+    50  as duas abas de cadeia de suprimentos (`deployment-tabs/{sbom,attestation}`) — rodavam um
+        SEGUNDO mecanismo de busca (`useEffect` + `useState` + flag `cancelled`) ao lado do
+        react-query, e uma leitura que FALHAVA dizia "No SBOM for this build"
+    49  `projects/components/create-project-sheet.tsx` — toda falha virava a mesma frase
+    47  `settings/{profile,overview}.tsx` — apagar a conta podia falhar em silêncio (B-264)
+    46  `settings/webhooks.tsx` inteira — cadastrar e revogar webhook, mesma classe do B-264
+
+  A CATRACA NÃO TINHA PORTÃO DE IGUALDADE. Só `<=`, então o teto podia ficar ACIMA do real e cada
+  página migrada abria uma vaga silenciosa para outra nascer falando transporte direto. As catracas
+  do B-235 e do B-242 já pareavam `<=` com `toBe`; esta não. Corrigido junto com a migração de 47
+  para 46, e é por isso que o número agora bate com o disco.
+
+  REVISÃO ADVERSARIAL (2026-08-12) mutou os quatro hooks e 5 de 8 mutações SOBREVIVERAM — inclusive
+  remover `throwOnError` de `use-build-artifacts` e de `use-domains`, que é a razão de os hooks
+  existirem. Os testes mockavam `engineFetch`, então só enxergavam o argumento. Fechado com
+  `hooks/data-access-error-contract.test.tsx`, que passa pelo transporte REAL (stub em
+  `globalThis.fetch`); as 8 mutações morrem.
+
+  RESTA 46: lens 18, memory 12, rag 9, settings 3, projects 2, workspace 2 (2026-08-12, medido com
+  o detector da PRÓPRIA catraca).
+
+  CORREÇÃO, mesma data, apontada por revisão de validação cruzada: a primeira versão desta linha
+  dizia `lens 18, memory 12, rag 9, infra 4, workspace 3, projects 2, promptly 1` — que soma 49 e
+  não 46, inventa `infra` e `promptly` (zero ofensores nos dois) e omite `settings`. O total 46
+  estava certo; a distribuição, não.
+
+  A causa é a classe de erro que este ciclo passou inteiro corrigindo: contei com
+  `grep -rl "cloudFetch|engineFetch"`, que acha arquivos que MENCIONAM os nomes — inclusive em
+  comentário — enquanto a catraca conta os que os IMPORTAM de `@/lib/http/api`. Duas medições
+  diferentes da mesma coisa, e usei a mais fácil para uma tabela que serve justamente para alguém
+  escolher o próximo arquivo a migrar.
 
 ## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [ ]
 
@@ -9765,3 +9933,384 @@ dod:
 > Registered 2026-08-12, before acting, so the record exists even if the merge fails.
 > Second exception after B-229 (2026-08-11). Two in two days is worth someone's attention.
 
+## B-264 — deleting your account or workspace can fail silently, and the screen acts as if it worked   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: high
+category: code
+evidence: |
+  dashboard/src/pages/settings/profile.tsx:38
+  await engineFetch(`/api/v1/tenants/${encodeURIComponent(tenantId)}`, {
+    method: 'DELETE',
+  });
+  setConfirmOpen(false);
+  await logout();
+
+  dashboard/src/pages/settings/overview.tsx:34
+  await engineFetch(
+    `/api/v1/tenants/${encodeURIComponent(whoami.team_id)}`,
+    { method: 'DELETE' },
+  );
+  setConfirmOpen(false);
+  navigate('/');
+
+  Neither passes `{ throwOnError: true }`, so a non-2xx or a network rejection RESOLVES `null`
+  (B-235). Nothing inspects the result. The dialog then closes and the user is logged out or
+  navigated away — the screen performs the whole success path over a request that failed.
+
+  The user's reading is unambiguous and wrong: the confirmation closed, they were signed out,
+  so the account is gone. It may not be.
+
+  Both are the SAME operation, `DELETE /api/v1/tenants/{id}`, hand-rolled twice with the same
+  `try/finally` and the same absent error branch. `finally { setDeleting(false) }` restores the
+  button and nothing else.
+why_now: |
+  Found while migrating the `settings` domain for B-244. The ratchet counts these two as "pages
+  that talk transport directly", which understates them: the defect is not layering, it is that
+  the most destructive action in the product reports success it did not observe.
+
+  It is also the sharpest case for B-235 yet — `null` meaning "failed" and being read as
+  "fine" — and the second one this session, after create-project.
+status: triaged
+dod:
+  - a failed delete leaves the dialog open and says what went wrong; the session is NOT ended
+    and the route does NOT change
+  - the request goes through one hook, not two copies, so the next fix lands in both places
+  - a test fails on the current state — a rejected DELETE must not reach `logout()` or
+    `navigate('/')`
+  - the tenant-delete call passes `{ throwOnError: true }`, so the ratchet in
+    `lib/http/ambiguous-null-ratchet.test.ts` drops by two
+
+> Registered 2026-08-12 while migrating settings for B-244.
+
+
+## B-265 — "Delete Account" and "Delete Workspace" send DIFFERENT ids to the same endpoint   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  dashboard/src/pages/settings/profile.tsx:41
+    await deleteTenant.mutateAsync(session.identity.id);
+
+  dashboard/src/pages/settings/overview.tsx:39
+    await deleteTenant.mutateAsync(whoami.team_id);
+
+  Both call `useDeleteTenant`, which issues `DELETE /api/v1/tenants/{id}`
+  (`dashboard/src/hooks/settings/use-delete-tenant.ts:25`). They pass two DIFFERENT values, so at
+  most one of them is right.
+
+  A KRATOS IDENTITY ID IS NOT A TENANT ID, and this repo proves it rather than assuming it:
+
+    internal/routes/session_token.go:153
+      tid, aid, _, tErr := h.tenantProvisioner.EnsureTenant(r.Context(), session.Identity.ID, ...)
+      tenantID = tid
+
+    internal/routes/session_token.go:188
+      "identity": identityResponse{ ID: session.Identity.ID, ... }
+
+  `session.Identity.ID` is the INPUT to `EnsureTenant`; `tenantID` is a DIFFERENT value it
+  RETURNS. What the dashboard receives as `identity.id` is the input, never the tenant. The
+  dashboard's own types keep them apart too — `Whoami` carries `user_id` AND `team_id` as
+  distinct fields (`dashboard/src/lib/api/types.ts:35,38`).
+why_now: |
+  PRE-EXISTING — `session.identity.id` has been the argument since 801d1190, and B-264 preserved
+  it verbatim while fixing a different defect in the same handler. What changed is the
+  CONSEQUENCE. Until B-264, a refused delete resolved `null` and both screens reported success
+  silently, so a wrong id looked exactly like a right one. Now a refusal stays on screen with its
+  reason — which makes this newly visible to the user, and newly diagnosable.
+
+  Found by an adversarial review of the B-244/B-264 migrations on 2026-08-12, not by a user
+  report.
+honest_limit: |
+  The handler for `DELETE /engine/api/v1/tenants/{id}` lives in the `theo` engine repo, which is
+  NOT checked out here. I could not execute it, so I cannot say which of the two screens is
+  wrong — only that they disagree and that this repo's own token exchange says an identity id is
+  not a tenant id.
+
+  If the engine keys on tenant id, /settings/profile's "Delete Account" has never deleted
+  anything and now shows an error where it used to show silence. If it keys on identity id,
+  /settings "Delete Workspace" is the broken one. Either way one of the product's two most
+  destructive buttons is wired to the wrong resource.
+dod:
+  - the engine handler is read and the id it keys on is recorded in this block
+  - both screens pass that id, from a single named source rather than two ad-hoc fields
+  - a test fails if the two screens ever pass different values again
+  - the fix does NOT widen `useDeleteTenant` to accept either — a hook that takes "whichever id
+    you have" is how the two drifted apart in the first place
+
+> Registered 2026-08-12 by an adversarial review of the B-244 / B-264 migrations.
+
+## B-266 — ADR-0006 is cited as done; none of the three things it decided exist   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  dashboard/docs/adr/0006-camada-de-acesso-a-dados-e-factory-de-query-key.md:2
+    status: proposed
+
+  It decided option 2, three concrete artifacts (§ Decisao):
+
+    1. `src/lib/api/keys.ts` exposing `cloudKey(path, ...)` / `engineKey(path, ...)`
+    2. an ESLint `no-restricted-syntax` rule banning an ARRAY LITERAL as `queryKey`/`mutationKey`
+       — the ADR calls this "a acao prioritaria: e a que fecha o buraco de invalidacao"
+    3. `features/<f>/api/` + `features/<f>/hooks/` per feature
+
+  VERIFIED ABSENT on 2026-08-12:
+    ls dashboard/src/features            -> no such directory
+    ls dashboard/src/lib/api/keys.ts     -> no such file
+    grep no-restricted-syntax eslint.config.* -> no match
+
+  Meanwhile the ADR is cited in five places as if it governed live code
+  (`hooks/settings/use-api-keys.ts:17`, `hooks/infra/use-domains.ts`, `lib/data-access-layer.test.ts:19,199,215`),
+  and `hooks/deploy/use-build-artifacts.ts:25` uses exactly the array-literal-spread form rule (2)
+  was written to forbid.
+why_now: |
+  Found by an adversarial review of the B-244 migrations on 2026-08-12. The migrations are real
+  improvement — pages stopped choosing URL, cache key and error policy — but they implement a
+  DIFFERENT structure from the one the ADR decided, while citing it. `data-access-layer.test.ts:19`
+  already says the ADR "nunca foi executado"; the citations elsewhere do not.
+
+  This is the same defect class as B-246 (234 ADR citations resolving to nothing), one level up:
+  there the pointer did not resolve, here it resolves to a decision nobody executed. A citation
+  that reads as governance and is actually aspiration makes the next person believe a constraint
+  is enforced when nothing enforces it.
+dod:
+  - each of the three artifacts is either built or explicitly dropped by superseding the ADR
+  - the ADR leaves `proposed` — `accepted` if executed, `superseded`/`rejected` with the reason if
+    the structure that actually emerged is the one we want
+  - no docblock cites ADR-0006 as the authority for a structure that does not exist
+  - if the ESLint rule is built, it lands with the array-literal keys already migrated — turning it
+    on first would fail the codebase that motivated it
+
+> Registered 2026-08-12 by an adversarial review of the B-244 migrations.
+
+## B-267 — `pages.smoke.test.ts` times out under machine load, passes when idle   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: test
+evidence: |
+  dashboard/src/pages/pages.smoke.test.ts:21
+    it('exports OverviewPage', async () => {
+      const m = await import('./overview/overview');
+
+  MEASURED 2026-08-12, four full runs of `npx vitest run`, same tree, same commit:
+
+    machine loaded  -> Test Files 1 failed | 376 passed · 292s (import 1197s cumulative)
+                       "Error: Test timed out in 20000ms" on `exports OverviewPage`
+    machine loaded  -> same failure, same case · 263s (import 990s)
+    file alone      -> 23/23 pass · 4.8s (import 25ms)
+    machine idle    -> 3287/3287 pass · 166s (import 507s)
+
+  Nothing about the code under test changed between runs. What changed is contention: the two
+  failing runs had other work on the box, and cumulative import time doubled.
+why_now: |
+  Found while verifying an unrelated change on 2026-08-12. It matters because the failure mode is
+  invisible in the good case: a suite that is green when the machine is idle and red when it is
+  busy will be red in CI exactly when CI is busiest, and the failure names a page rather than a
+  timeout, so the first reading is always "the overview page broke".
+
+  `rules/testing.md` § 3 is unambiguous: a flaky test is a bug, fixed or deleted, not retried.
+honest_limit: |
+  I did not reproduce it under a controlled load, only observed the correlation across four runs.
+  The 20s ceiling is vitest's default `testTimeout`, and the case does a dynamic `import()` of a
+  page module that pulls a large transitive graph — so "the transform is slow under contention" is
+  the likely explanation, not a proven one.
+dod:
+  - the cause is measured, not assumed — instrument the import or reproduce under a load generator
+  - the fix removes the dependency on machine speed rather than raising the timeout, OR the raised
+    timeout is justified by a measurement of the worst observed case
+  - the case still fails if `OverviewPage` stops being exported (whatever the fix, the smoke test
+    must keep smoking)
+
+> Registered 2026-08-12 while verifying B-242.
+
+## B-268 — O CHANGELOG anuncia uma versão 1.0.1 que nunca foi lançada   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  CHANGELOG.md:162
+    ## [1.0.1] - 2026-08-11
+
+  MEDIDO 2026-08-12:
+
+    git tag -l | grep 1.0.1              -> vazio
+    git ls-remote --tags origin | grep -c 1.0.1  -> 0
+    git tag --sort=-v:refname | head -1  -> v1.0.0
+
+  A seção foi escrita por um release de verdade — `64fdcf9e chore(release): 1.0.1`, de 2026-08-11 —
+  que percorreu a fase de reescrita do CHANGELOG e PAROU antes de chegar em `main`:
+
+    git merge-base --is-ancestor 64fdcf9e origin/main     -> falso
+    git merge-base --is-ancestor 64fdcf9e origin/develop  -> verdadeiro
+
+  Ou seja: o commit de release existe, a seção versionada existe, a data existe — e o merge para
+  `main` e a tag anotada nunca aconteceram. O registro público afirma um lançamento em 2026-08-11
+  que não ocorreu, e o conteúdo que ele descreve (B-137, B-167, B-132, B-133, B-134, B-206) segue
+  não lançado até hoje.
+o_que_NAO_e_o_defeito: |
+  Suspeitei também que `[Unreleased]` estivesse acumulando trabalho já lançado, porque
+  `6c618990 chore(release): 1.0.0` alterou o CHANGELOG em apenas 2 linhas. VERIFIQUEI E ESTÁ
+  CERTO: aquelas 2 linhas são exatamente a inserção do cabeçalho `## [1.0.0] - 2026-08-11` acima
+  do corpo, que é o que a reescrita faz quando o corpo já está no lugar.
+
+  Auditados os 57 itens citados em `[Unreleased]` por ancestralidade contra `v1.0.0`:
+  ZERO já lançados, 43 posteriores, 14 sem commit rastreável pelo padrão de mensagem. A seção
+  está correta e a suspeita era minha, não um defeito do repositório. Registrado aqui porque uma
+  suspeita descartada por medição vale tanto quanto um achado — impede a próxima pessoa de gastar
+  o mesmo tempo.
+why_now: |
+  Descoberto ao executar a fase RELEASE do ciclo Squad em 2026-08-12, ao derivar o nível de bump a
+  partir do CHANGELOG. Bloqueava o release: cortar uma versão nova por cima deixaria a 1.0.1
+  fantasma no registro para sempre, e o conteúdo dela sairia sob outro número sem nada dizendo isso.
+
+  A classe é a do B-228 — o registro de release divergindo do que de fato foi lançado — do lado da
+  ESCRITA em vez do lado da leitura. O B-228 corrigiu como a versão é LIDA; ninguém tinha olhado o
+  que acontece quando a cadeia de release para no meio.
+dod:
+  - `[1.0.1]` deixa de afirmar um lançamento que não houve
+  - existe uma verificação que reprova um CHANGELOG cuja seção versionada não tem tag
+    correspondente em `origin/main`; hoje nada verifica isso
+  - a verificação falha contra o estado atual ANTES da correção entrar (TDD, `rules/testing.md` § 3)
+  - a verificação distingue "seção sem tag" de "tag sem seção" — são defeitos diferentes
+
+> Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
+
+## B-269 — Os detectores de catraca leem TypeScript com regex; o compilador já está instalado   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: discover-review
+severity: medium
+category: code
+evidence: |
+  dashboard/src/test/source-scan.ts:32
+    export function withoutComments(source: string): string {
+      // máquina de estados caractere a caractere: code | string | lineComment | blockComment
+
+  dashboard/src/test/source-scan.ts:69
+    export function balancedArgs(source: string, openParen: number): string | null {
+      // contador de profundidade sobre ( [ { ) ] }
+
+  O PRECEDENTE ESTÁ NO MESMO DIRETÓRIO, e resolve o mesmo problema pelo caminho certo:
+
+    dashboard/src/test/i18n-guard.ts:1
+      import ts from 'typescript';
+    dashboard/src/test/i18n-guard.ts:102
+      ts.createSourceFile(...) + ts.forEachChild
+
+  O `i18n-guard` precisa exatamente da mesma coisa — distinguir comentário, string e posição real
+  de conteúdo em código de produção — e usa a árvore sintática. O docblock dele diz por quê, e o
+  argumento vale palavra por palavra para estes dois detectores.
+
+  `typescript` já é devDependency (`dashboard/package.json:119`). Rung 4 da parsimony-ladder
+  ("existe dependência já instalada?") responde SIM, e eu escrevi um parser mesmo assim.
+limite_conhecido: |
+  MEDIDO, e é latente e não vivo: `balancedArgs` não conhece literal de regex, então um `(` ou `)`
+  desbalanceado dentro de `/…/` contaria errado. Varri os testes atrás disso:
+
+    seletores com regex contendo parêntese:        1  (`environments.test.tsx:193`, `/\(legacy\)/i`)
+    seletores com regex DESBALANCEADO:             0
+
+  O único caso real é balanceado, então a contagem de hoje está certa. Não é defeito ativo — é a
+  classe de defeito que estes próprios detectores existem para impedir ("um guarda que adivinha
+  onde a chamada termina está adivinhando"), presente no guarda.
+why_now: |
+  Apontado por revisão adversarial de arquitetura em 2026-08-12, sobre o diff que criou os dois
+  detectores. Registrado em vez de corrigido na hora por uma razão de processo, não de preguiça:
+  outros dois revisores estavam MUTANDO estes mesmos arquivos para validar as catracas naquele
+  instante, e reescrever o detector sob revisão invalidaria o trabalho dos dois.
+
+  O `cycle-review.md` permite `READY_TO_MERGE` com até 2 HIGH desde que cada um vire followup
+  registrado — não menção em prosa. Este é o registro.
+dod:
+  - `absence-assertion.ts` e `ambiguous-null.ts` acham chamadas por `ts.isCallExpression`, com os
+    argumentos vindo do nó e não de contagem de parêntese
+  - `source-scan.ts` deixa de existir OU passa a expor helpers sobre a árvore, não sobre texto
+  - as contagens ANTES e DEPOIS são publicadas lado a lado; se mudarem, cada diferença é explicada
+    caso a caso (a árvore é mais correta, então mudança é esperada e não é regressão)
+  - as mutações que hoje matam os auto-testes seguem matando (12 delas, registradas em B-235 e B-242)
+  - um caso cobre o parêntese desbalanceado dentro de literal de regex, que hoje passaria
+
+> Registrado 2026-08-12 por revisão adversarial de arquitetura, fase REVIEW do ciclo Squad.
+
+## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: blocker
+category: contract
+evidence: |
+  MEDIDO 2026-08-12 via `gh run list --workflow publish.yml`:
+
+    startup_failure  0s   develop   Merge PR #476              2026-08-12
+    startup_failure  1s   v1.0.0    Merge PR #475              2026-08-12   <- A TAG DE RELEASE
+    startup_failure  0s   develop   Promote workspace ...      2026-08-11
+    startup_failure  0s   develop   Merge PR #469              2026-08-07
+    success          4m39s v0.85.0  Merge PR #468              2026-08-05
+    success          4m38s develop  Merge PR #466              2026-08-05
+
+  Quatro runs seguidos morrem em 0-1s, sem executar job nenhum. O último sucesso é de 2026-08-05.
+
+  CONSEQUÊNCIA DIRETA, e é o que importa: o run disparado pela tag `v1.0.0` também é
+  `startup_failure`. O job `images` (`.github/workflows/publish.yml:115`) é quem constrói, escaneia
+  com trivy, assina com cosign e publica no GHCR. Ele nunca rodou.
+
+  **A v1.0.0 existe como tag e como GitHub release, e não existe como imagem.**
+o_que_ja_foi_descartado: |
+  - YAML inválido: `python3 -c "yaml.safe_load(...)"` carrega; `actionlint .github/workflows/publish.yml`
+    sai 0.
+  - Reusable inexistente: `usetheoai/theo/.github/workflows/build-publish.yml@d1f3c947` existe
+    (15982 bytes) e declara `on: workflow_call` com os inputs que `publish.yml:123-140` passa.
+  - Permissão do callee: `gh api repos/usetheoai/theo/actions/permissions/access` devolve
+    `{"access_level":"organization"}` — o repo chamado autoriza a organização.
+  - Os gates internos: `ci.yml`, `quality.yml`, `security-sast.yml` seguem declarando
+    `workflow_call`; a remoção de `pull_request` em 2026-08-12 (`fb90ce54`) NÃO é a causa — as
+    falhas começam em 2026-08-07, cinco dias antes.
+honest_limit: |
+  NÃO SEI a causa raiz. A API do GitHub não expõe a mensagem de erro de um `startup_failure` — nem
+  `runs/{id}` nem `runs/{id}/jobs` (que vem vazio, porque nenhum job chegou a existir). A mensagem
+  só aparece na interface web do run. Sem ela estou eliminando hipóteses, não diagnosticando.
+
+  A suspeita mais forte pela linha do tempo é o commit `6ef9cfde` (2026-08-06, "pina o reusable por
+  SHA"), que é o último a tocar essa chamada antes da primeira falha — mas o SHA resolve e o
+  arquivo está lá, então a suspeita não está confirmada. Alguém precisa abrir
+  https://github.com/usetheoai/theo-cloud/actions/runs/31607515055 e ler o erro.
+why_now: |
+  Descoberto ao executar a fase RELEASE do ciclo Squad em 2026-08-12, verificando a pré-condição
+  "CI verde em develop" do `cycle-release.md`. É por isso que a pré-condição existe.
+
+  BLOQUEIA O RELEASE. Cortar uma versão nova agora produziria exatamente o mesmo resultado que a
+  v1.0.0 produziu: uma tag, um GitHub release, e nenhum artefato atrás deles. Um release que
+  anuncia o que não publicou é pior do que nenhum release.
+dod:
+  - a mensagem de erro do startup está lida e registrada NESTE bloco (não inferida)
+  - `publish` volta a `success` em develop
+  - as imagens da v1.0.0 existem no GHCR, ou a v1.0.0 é declarada inválida e o registro diz isso
+  - existe verificação que reprova um corte de release quando o último `publish` do branch de
+    release não está `success` — hoje o `cycle-release.md` trata isso como "(Optional) CI is green",
+    e opcional foi o suficiente para uma release sair vazia
+
+> Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
