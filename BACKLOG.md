@@ -8754,7 +8754,6 @@ why_now: |
   A varredura de shuffle do B-237 mediu isto. Registrar em vez de deixar meia-correcao no arquivo:
   as duas saidas obvias foram tentadas e ambas medidas como erradas, e a terceira (resetar o cache
   do nuqs entre casos) precisa de uma decisao sobre como, que nao cabe dentro do B-237.
-status: triaged
 dod:
   - o caso passa sob `--sequence.shuffle` em >= 3 seeds independentes E em ordem fixa
   - a saida escolhida nao desliga a navegacao real que o caso exercita
@@ -8796,6 +8795,33 @@ tentativa_1: |
   O QUE ESTE ITEM PASSA A SABER, e vale mais que a mudança valia: o caminho de PRODUÇÃO está são.
   O item é sobre o harness, e o critério "o caso passa sob shuffle" tem de ser atingido sem tocar
   na página — porque não há nada errado nela.
+
+resolved: |
+  2026-08-12 — RESOLVIDO em `e94a6cc1`, com ZERO linhas mudadas na página.
+
+  A quarta saída, depois de três medidas erradas (as duas do bloco original e a minha):
+  `render()` ganhou um opt-in `historyRouter` que monta sob `BrowserRouter`, o router que a
+  produção usa, e os dois casos de saved view passaram a usá-lo.
+
+  O MECANISMO, medido e não deduzido: o adapter do nuqs lê `window.location.search` no mount e
+  depois só muda por `popstate` ou pelo emitter dele; quem liga o `setSearchParams` do
+  react-router a esse emitter é o nuqs fazendo PATCH em `history.pushState`. O MemoryRouter
+  nunca toca `window.history`, então o patch não tem o que observar.
+
+    MemoryRouter    1 request   (o clique parece não fazer nada)
+    BrowserRouter   2 requests  (session_id=sess-old, depois status=error&model=…)
+
+  Mesma página, mesmo clique. O caso testava um mecanismo que o harness tinha desligado, e o
+  que o fazia passar em ordem fixa era um caso ANTERIOR ter escrito em `window.location` por um
+  setter do nuqs.
+
+  O caso novo assere a PREMISSA antes da conclusão — que a página está mesmo filtrada antes do
+  clique — porque sem isso "o filtro de sessão sumiu" é trivialmente verdadeiro. Foi a armadilha
+  que este bloco já registrava e na qual eu caí na primeira tentativa.
+
+  Verificado: o caso original passa SOZINHO; o arquivo passa 56/56 em ordem fixa e sob sete
+  seeds de shuffle, incluindo os quatro que o bloco nomeia. Suíte 3239 verdes.
+status: triaged
 
 ## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [ ]
 
