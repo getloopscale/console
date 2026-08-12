@@ -10460,9 +10460,18 @@ fix: |
   arquivo do outro repo. RED contra o estado atual (3 problemas), GREEN depois do fix.
 status: shipped
 shipped_note: |
-  Corrigido em 2026-08-12. A verificação de que a imagem volta a ser construída depende do próximo
-  push em develop — este bloco NÃO afirma que a v1.0.0 e a v1.0.1 ganharam imagem, porque não
-  ganharam: elas seguem sem artefato e isso só muda com um novo corte.
+  Corrigido em 2026-08-12 e VERIFICADO no mesmo dia, não assumido.
+
+  O merge do PR #479 em develop disparou o run 31638064432. Ele não morreu no startup: ficou
+  `queued`, depois `in_progress`, e os jobs EXISTEM — `plan` e `gate-sast / gitleaks` concluíram
+  com sucesso, seis gates rodaram. É a primeira vez desde 2026-08-07 que qualquer job deste
+  workflow chega a ser criado.
+
+  Isso fecha o diagnóstico com evidência de execução: o defeito era o contrato de inputs, e
+  corrigi-lo bastou para o GitHub aceitar o workflow.
+
+  O QUE ESTE BLOCO CONTINUA NÃO AFIRMANDO: que a v1.0.0 e a v1.0.1 ganharam imagem. Não ganharam —
+  seguem com zero assets, conferido por `gh release view`, e isso só muda com um corte novo.
 
 > Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
 
