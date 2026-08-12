@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the check that guards how architecture decisions are cited now says what it actually delivers. It promised the 234 stale citations would "shrink on their own as files get rewritten"; measured, that produced one in five days — about three years for the rest. Its real value is stopping new ones from appearing, which it does, and it now says so (B-246).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** the session picker no longer says you have recorded no sessions when the list could not be read, or when it is still loading. Three situations that ask for different things — wait, retry, or record your first session — had been showing one sentence (B-243).

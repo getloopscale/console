@@ -8951,7 +8951,7 @@ dod:
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
 
-## B-246 — Catraca `adr-nomenclature` em 234 citacoes de ADR de plano, sem dono   [ ]
+## B-246 — Catraca `adr-nomenclature` em 234 citacoes de ADR de plano, sem dono   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8970,7 +8970,41 @@ why_now: |
   A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
   (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
   produz a melhora, e ninguem estava encarregado dela.
-status: triaged
+status: killed
+kill_reason: |
+  MEASURED 2026-08-12, and the item's own dod offered this branch: "ou o item e morto com a
+  decisao de aceitar a notacao". The measurement says that is the correct branch.
+
+  What was measured:
+
+    233 citations today against a ceiling of 234 — the population DID shrink, by exactly ONE
+    in five days across 134 files. "Encolhe sozinha" is therefore true and glacial: about
+    three years at that rate. The item's criticism was right.
+
+    The two ways to go faster were both measured and neither pays:
+      - Rewriting to `ADR-000N` requires deciding which of the 9 repo ADRs each citation means,
+        and for most the answer is none — B-098 established this and it still holds.
+      - Renaming the class to `plan decision D<n>` would touch 234 sites in 134 files,
+        including TEST NAMES (`reverify-button.test.tsx:25`), and would trade a misleading
+        reference for an honest one that STILL does not resolve: the cited plans use the
+        `date-slug` format and none is on disk. Re-verified against the 42 plans that do
+        exist, all in topic-slug format.
+
+    Sampled the citations themselves: each comment already states the decision AND its reason
+    inline (`use-service-versions.ts:60` — "A lone `not_deployed` does NOT drag the dot to
+    amber (ADR D7: theo-storage is permanently absent in dev, and a permanent amber is a new
+    constant lie)"). The tag is provenance, not meaning. Nothing is lost by leaving it and
+    nothing is recovered by rewriting it.
+
+  So the class is CONTAINED rather than paid down, and that was already the decision B-098 took
+  and `docs/adr/README.md` documents. What this item actually fixed is the ratchet's own
+  docstring, which promised a shrink it does not deliver: it now states the measured rate and
+  says plainly that the ratchet's value is preventing GROWTH — which it does, and proves with
+  two sibling tests (the canonical `ADR-000N` notation always resolves; the README is current).
+  Ceiling tightened 234 -> 233 so it keeps matching the disk.
+
+  Killing this is the successful outcome, not a failure: it stopped work that would have cost
+  134 files of churn to convert one unresolvable reference into another.
 dod:
   - a populacao desce e o teto acompanha, ou o item e morto com a decisao de aceitar a notacao
 
