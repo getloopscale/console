@@ -238,6 +238,24 @@ describe('the detector, exercised — not a copy of it', () => {
     expect(unanchoredIn('x.test.ts', source)).toHaveLength(1);
   });
 
+  it('a matcher on a DIFFERENT value does not make this query an assertion', () => {
+    // Review found the detector also carried an `expect(`-proximity check that no fixture could
+    // discriminate: deleting it left every case green, because `.toBeNull()` exists only on an
+    // `expect()` result, so the matcher already implies the wrapper. The check was deleted rather
+    // than shipped with a test that cannot fail; this case pins what actually does the work — the
+    // matcher must follow THIS query's closing paren, not appear somewhere later in the file.
+    const source = 'const maybe = screen.queryByText(/nothing here/i);\nexpect(other).toBeNull();';
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(0);
+  });
+
+  it('an argument-less `queryBy…()` is skipped rather than counted with an empty selector', () => {
+    // LOW from review: the `selector !== ''` filter was unexercised. An empty selector has no
+    // core, so it can never be anchored — counting it would inflate the ceiling with a call that
+    // says nothing about the defect.
+    const source = 'expect(screen.queryByText()).toBeNull();';
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(0);
+  });
+
   it('`selectorCore` needs 4 characters, so short noise is not an anchor', () => {
     expect(selectorCore("/nothing here/i")).toBe('nothing here');
     expect(selectorCore("'ab'")).toBeNull();

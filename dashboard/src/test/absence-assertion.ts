@@ -79,15 +79,24 @@ function rawQueries(code: string): RawQuery[] {
     const args = balancedArgs(code, open);
     if (args === null) continue;
     const after = code.slice(open + 1 + args.length);
-    // `expect(` immediately before is what turns a read into an assertion.
-    const before = code.slice(Math.max(0, m.index - 40), m.index);
-    const inExpect = /expect\(\s*(?:await\s+)?$/.test(before);
+    // The MATCHER is what turns a read into an assertion, and it is sufficient on its own.
+    //
+    // An earlier version also required a literal `expect(` in the 40 characters before the query.
+    // A reviewer proved that check was inert: deleting it left all 16 cases green, and no fixture
+    // could be written that discriminates — because `.toBeNull()` / `.not.toBeInTheDocument()`
+    // exist only on the result of `expect()`, so in valid test code the tail already implies the
+    // wrapper. Verified on the corpus: with the check and without it, 317 assertions and 111
+    // unanchored, identically.
+    //
+    // Keeping an unexercised guard would be keeping something indistinguishable from a broken
+    // one — the exact criticism this file's own docblock makes of decorative self-tests. It is
+    // deleted rather than shipped with a test that cannot fail (parsimony ladder, rung 1).
     out.push({
       kind: m[1],
       selector: args.trim(),
       index: m.index,
-      isAbsence: inExpect && ABSENCE_TAIL.test(after),
-      isPresence: inExpect && PRESENCE_TAIL.test(after),
+      isAbsence: ABSENCE_TAIL.test(after),
+      isPresence: PRESENCE_TAIL.test(after),
     });
   }
   return out;

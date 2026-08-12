@@ -9144,8 +9144,19 @@ progress_2026_08_12: |
   `hooks/data-access-error-contract.test.tsx`, que passa pelo transporte REAL (stub em
   `globalThis.fetch`); as 8 mutações morrem.
 
-  RESTA 46: lens 18, memory 12, rag 9, infra 4, workspace 3, projects 2, promptly 1 (contagem por
-  arquivo de `src/pages`, 2026-08-12).
+  RESTA 46: lens 18, memory 12, rag 9, settings 3, projects 2, workspace 2 (2026-08-12, medido com
+  o detector da PRÓPRIA catraca).
+
+  CORREÇÃO, mesma data, apontada por revisão de validação cruzada: a primeira versão desta linha
+  dizia `lens 18, memory 12, rag 9, infra 4, workspace 3, projects 2, promptly 1` — que soma 49 e
+  não 46, inventa `infra` e `promptly` (zero ofensores nos dois) e omite `settings`. O total 46
+  estava certo; a distribuição, não.
+
+  A causa é a classe de erro que este ciclo passou inteiro corrigindo: contei com
+  `grep -rl "cloudFetch|engineFetch"`, que acha arquivos que MENCIONAM os nomes — inclusive em
+  comentário — enquanto a catraca conta os que os IMPORTAM de `@/lib/http/api`. Duas medições
+  diferentes da mesma coisa, e usei a mais fácil para uma tabela que serve justamente para alguém
+  escolher o próximo arquivo a migrar.
 
 ## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [ ]
 

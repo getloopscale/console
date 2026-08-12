@@ -237,6 +237,23 @@ describe('the detector, exercised — not a copy of it', () => {
     expect(withoutComments("const p = '/v1/a//b';")).toContain('//b');
   });
 
+  it('reports the line the call is ON — the pointer a human follows', () => {
+    // MEDIUM from review: hardcoding `lineOf` to always return 1 left BOTH ratchets fully green.
+    // The only case touching `.line` happened to check a call on line 1, so the mutant satisfied
+    // it by coincidence. The consequence is not a wrong count — it is a wrong POINTER in the
+    // failure message, which sends whoever is fixing the debt to the wrong place. This
+    // repository calls an evidence pointer that does not resolve its cardinal sin.
+    const source = ['', '', '', "await cloudFetch('/v1/a');"].join('\n');
+    expect(callsIn('x.ts', source)[0].line).toBe(4);
+  });
+
+  it('a comment ABOVE a call does not shift the line it reports', () => {
+    // `withoutComments` preserves line count precisely so this holds. Without that, stripping a
+    // multi-line block comment would slide every pointer below it.
+    const source = ['/* one', '   two', '   three */', "await cloudFetch('/v1/a');"].join('\n');
+    expect(callsIn('x.ts', source)[0].line).toBe(4);
+  });
+
   it('`hasContract` requires `true`, not the mere presence of the key', () => {
     expect(hasContract('{ throwOnError: true }')).toBe(true);
     expect(hasContract('{ throwOnError: false }')).toBe(false);
