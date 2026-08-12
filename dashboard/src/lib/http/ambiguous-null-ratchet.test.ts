@@ -74,12 +74,16 @@ const SRC = resolve(__dirname, '../..');
  * 26 with `lens/monitors.tsx`, whose create had the same shape as its neighbour's — a third form
  * cleared on a refusal. Three of ~13 now, all found the same way.
  *
+ * 25 with `memory/memories.tsx`, whose `forget` accepts `hard=true`. On a permanent erase the
+ * reading is worse than "the product undid my action": the user asked for the content to be gone,
+ * was shown success, and it is still there.
+ *
  * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
  * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 26;
+const CEILING_WITHOUT_CONTRACT = 25;
 
 /**
  * The corpus may not shrink silently.

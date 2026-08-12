@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -19,7 +18,12 @@ import { ScopeSelect } from '@/pages/memory/scope-switcher';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useMemories,
+  useForgetMemory,
+  MEMORIES_PAGE_SIZE,
+  type MemoryRow,
+} from '@/hooks/memory/use-memories';
 
 /**
  * Plan 1 of dashboard-memory-section-roadmap.md, T1.8.
@@ -34,28 +38,12 @@ import { cloudFetch } from '@/lib/http/api';
  *    cleanly, not as broken table)
  */
 
-interface MemoryRow {
-  id: string;
-  content: string;
-  category?: string;
-  created_at?: string;
-  /** Session-separation (2026-07-23): non-empty marks a SESSION-tier row. */
-  session_id?: string;
-}
 
-interface ListResult {
-  memories: MemoryRow[];
-  next_offset?: number;
-  total?: number;
-}
-
-const PAGE_SIZE = 25;
 
 export function MemoryListPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Memories'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // URL-driven state — deep links carry filters + page offset.
@@ -88,45 +76,9 @@ export function MemoryListPage() {
     updateParam('offset', nextOffset > 0 ? String(nextOffset) : '');
   };
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/list', { category, from, to, offset, session }] as const,
-    queryFn: () => {
-      const params = new URLSearchParams();
-      params.set('limit', String(PAGE_SIZE));
-      if (offset > 0) params.set('offset', String(offset));
-      if (category) params.set('category', category);
-      if (session) {
-        params.set('scope', 'session');
-        params.set('session_id', session);
-      }
-      // <input type="date"> yields YYYY-MM-DD; the provider's from/to expect
-      // RFC3339 datetimes (ADR D3). Widen the day to its full inclusive range.
-      if (from) params.set('from', `${from}T00:00:00Z`);
-      if (to) params.set('to', `${to}T23:59:59Z`);
-      // throwOnError so a failed fetch REJECTS (→ query.isError) instead of
-      // resolving null. cloudFetch's default swallows 4xx/5xx to null, which this
-      // page would render identically to an empty list — the exact "No memories yet
-      // on a 404/502" defect (theo-cloud#250).
-      return cloudFetch<ListResult>(
-        `/v1/dashboard/memory/list?${params.toString()}`,
-        {},
-        { throwOnError: true },
-      );
-    },
-  });
+  const query = useMemories({ category, from, to, offset, session });
 
-  const forget = useMutation({
-    mutationFn: async (vars: { id: string; hard: boolean }) =>
-      cloudFetch<null>(
-        `/v1/dashboard/memory/forget/${vars.id}${vars.hard ? '?hard=true' : ''}`,
-        { method: 'DELETE' },
-      ),
-    onSuccess: () => {
-      setPendingDelete(null);
-      setHardDelete(false);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/list'] });
-    },
-  });
+  const forget = useForgetMemory();
 
   const memories = query.data?.memories ?? [];
 
@@ -251,7 +203,7 @@ export function MemoryListPage() {
                 past the first page was unreachable from the UI. */}
             <TablePager
               offset={offset}
-              pageSize={PAGE_SIZE}
+              pageSize={MEMORIES_PAGE_SIZE}
               pageCount={memories.length}
               total={query.data?.total}
               busy={query.isFetching}

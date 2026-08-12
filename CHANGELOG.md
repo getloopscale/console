@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** asking to permanently erase a memory no longer reports success when the server refused. The confirmation closed and the entry came back on the next read — and for a permanent erase that reads worse than an undone action: you asked for the content to be gone, were told it was, and it is still there (B-244, B-235).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the sessions list and the observability charts can no longer show one page's rows, or one period's numbers, under another's label. Which page and which period you are looking at now decide which cached answer is reused, from the same place that builds the request — the two were kept in step by hand before, which works until someone changes one of them (B-244).

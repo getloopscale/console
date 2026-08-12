@@ -170,7 +170,15 @@ exatamente a classe "grep casa prosa".
 // `ScoreBucket` e `PontoDaSerie` antes deles. Não é preferência: `src/hooks` não pode importar de
 // `src/pages`, então um tipo de RESPOSTA morando em `pages/` torna o hook impossível de tipar. A
 // regra de camada pegando isso é a regra funcionando.
-const TETO_PAGINAS_COM_TRANSPORTE = 37;
+// 36 desde 2026-08-12, com `memory/memories.tsx`. Cinco filtros — categoria, de, até, offset e
+// sessão — entravam TANTO na query string QUANTO na chave de cache, montados lado a lado. Cinco
+// valores mantidos em passo à mão; o primeiro que alguém acrescentar à URL e esquecer na chave faz
+// a lista mostrar o resultado de outro filtro sob os rótulos deste.
+//
+// E o `forget` não passava `throwOnError`. Numa exclusão comum isso já é ruim; num `hard=true` a
+// leitura é pior que "o produto desfez minha ação": o usuário pediu apagamento PERMANENTE, viu
+// sucesso, e o conteúdo continua lá.
+const TETO_PAGINAS_COM_TRANSPORTE = 36;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
