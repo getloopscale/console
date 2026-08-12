@@ -119,4 +119,32 @@ describe('B-178 — todo stream consumido tem resposta em modo mock', () => {
     expect(caminhosConsumidos().length).toBeGreaterThanOrEqual(4);
     expect(caminhosRegistrados().length).toBeGreaterThanOrEqual(4);
   });
+
+  // B-237 — a catraca era a única deste ciclo sem AUTO-TESTE. Os dois casos acima verificam o
+  // resultado do extrator contra o disco; nenhum verificava que o extrator DISCRIMINA. Um regex
+  // que casasse tudo, ou nada, produziria o mesmo verde: `semRegistro` vazio.
+
+  it('o extrator reconhece um caminho de stream e IGNORA uma URL comum', () => {
+    const casar = (fonte: string) =>
+      [...fonte.matchAll(/`((?:\/engine)?\/api\/v1\/[^`]*?(?:\/stream|\/timeline)(?:\?[^`]*)?)`/g)].map(
+        (m) => m[1],
+      );
+
+    // A forma que importa: o sufixo `/stream` ou `/timeline` é o que distingue um endereço de
+    // stream de qualquer outra chamada da API.
+    expect(casar('const u = `/api/v1/deployments/${id}/stream`;')).toEqual(['/api/v1/deployments/${id}/stream']);
+    expect(casar('const u = `/engine/api/v1/builds/${id}/timeline?since=1`;')).toHaveLength(1);
+
+    // E o que ele NÃO pode capturar: uma chamada REST comum não é um stream, e tratá-la como tal
+    // encheria a lista de "não registrados" com caminhos que nunca precisaram de registro.
+    expect(casar('const u = `/api/v1/projects/${id}`;')).toEqual([]);
+    expect(casar("const u = '/api/v1/deployments/x/stream';")).toEqual([]);
+  });
+
+  it('e um caminho consumido sem registro APARECE na diferença', () => {
+    // O auto-teste do predicado do caso principal: a subtração precisa poder produzir item.
+    const consumidos = ['/api/v1/a/stream', '/api/v1/b/stream'];
+    const registrados = new Set(['/api/v1/a/stream']);
+    expect(consumidos.filter((c) => !registrados.has(c))).toEqual(['/api/v1/b/stream']);
+  });
 });

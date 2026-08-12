@@ -80,29 +80,3 @@ export function catalogByCategory(skills: readonly SkillRow[]): { label: string;
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }
-
-/**
- * A coleção que a tela DESCREVE, escolhida entre o acervo acumulado e a página em mãos.
- *
- * ## Por que uma função nomeada e não a expressão solta
- *
- * B-149 — a expressão `paginas.length > 0 ? paginas : pagina` existia inline, e o gráfico de
- * categorias não a usava: ele lia `paginas` direto. No primeiro frame após o sucesso `paginas`
- * ainda está vazio enquanto `pagina` já tem linhas, então a tabela pintava povoada e o gráfico
- * acima dela dizia "Nothing recorded in this window." — a mesma afirmação falsa que o gate de
- * settled-success (`B-161`) foi introduzido para impedir, entrando pela outra porta.
- *
- * A correção não é o gráfico passar a ler `acervo`; é não haver DOIS lugares escolhendo. Com um
- * nome, os dois consumidores leem a mesma decisão e não podem divergir — a mesma disciplina de
- * `lib/list-state.ts`, que tirou do JSX a escolha entre "não há nada" e "não consegui ler".
- *
- * ## Honestidade sobre o teste
- *
- * A divergência era um transiente de UM frame. `render()` do Testing Library roda os efeitos
- * dentro do `act` da montagem, então uma asserção de tela passa VERDE com e sem a correção —
- * exatamente a forma de teste inerte que B-152/B-189 nomeiam. Por isso a garantia mora aqui, numa
- * função pura que um teste consegue reprovar.
- */
-export function colecaoDescrita<T>(acumulado: readonly T[], paginaAtual: readonly T[]): readonly T[] {
-  return acumulado.length > 0 ? acumulado : paginaAtual;
-}

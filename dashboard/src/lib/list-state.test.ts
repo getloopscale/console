@@ -70,17 +70,27 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
    */
   const TETO_SEM_ERRO = 23;
 
+  /**
+   * Os dois predicados do guarda, nomeados (B-237).
+   *
+   * O auto-teste lá embaixo REESCREVIA a regra numa constante local e verificava a cópia — provava
+   * que a expressão que ele mesmo acabara de escrever funcionava, e nada sobre o guarda. Um
+   * predicado que parasse de discriminar deixava tudo verde, que é o defeito que este arquivo
+   * inteiro existe para pegar em outras telas.
+   */
+  const afirmaAusencia = (fonte: string) =>
+    /\bempty=\{/.test(fonte) ||
+    /(?:length === 0|length !== 0)[\s\S]{0,400}?(?:No |Nenhum|Nada|não há|nao ha)/i.test(fonte);
+
+  const consultaErro = (fonte: string) =>
+    /estadoDaLista\(/.test(fonte) || /\berror=\{/.test(fonte) || /\bisError\b/.test(fonte);
+
   function paginasSemConsultaDeErro(): string[] {
     const sem: string[] = [];
     for (const f of paginas()) {
       const fonte = readFileSync(f, 'utf-8');
-      const afirmaAusencia =
-        /\bempty=\{/.test(fonte) ||
-        /(?:length === 0|length !== 0)[\s\S]{0,400}?(?:No |Nenhum|Nada|não há|nao ha)/i.test(fonte);
-      if (!afirmaAusencia) continue;
-      const consultaErro =
-        /estadoDaLista\(/.test(fonte) || /\berror=\{/.test(fonte) || /\bisError\b/.test(fonte);
-      if (!consultaErro) sem.push(relative(SRC, f));
+      if (!afirmaAusencia(fonte)) continue;
+      if (!consultaErro(fonte)) sem.push(relative(SRC, f));
     }
     return sem;
   }
@@ -109,15 +119,28 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
   });
 
   it('DETECTA uma página que monta `empty=` sem consultar erro', () => {
-    // Auto-teste do predicado contra uma amostra sintética. Sem ele, um predicado que parasse de
-    // discriminar deixaria o caso acima verde — que foi exatamente o que aconteceu com a primeira
-    // versão deste guarda, e só uma mutação revelou.
+    // B-237 — este auto-teste declarava uma cópia da regra (`const consulta = …`) e verificava a
+    // cópia. Agora chama OS MESMOS predicados que o guarda usa: se um deles parar de discriminar,
+    // este caso fica vermelho junto.
     const ruim = '<PageShell loading={loading} empty={{ title: "nada aqui" }} />';
     const bom = '<PageShell loading={loading} empty={estadoDaLista({ erro, vazio }, "x")} />';
-    const consulta = (f: string) => /estadoDaLista\(/.test(f) || /\berror=\{/.test(f);
 
-    expect(/\bempty=\{/.test(ruim)).toBe(true);
-    expect(consulta(ruim)).toBe(false);
-    expect(consulta(bom)).toBe(true);
+    expect(afirmaAusencia(ruim)).toBe(true);
+    expect(consultaErro(ruim)).toBe(false);
+    expect(consultaErro(bom)).toBe(true);
+  });
+
+  it('DETECTA a forma sem `empty=` — a que tornou o guarda cego à nona tela', () => {
+    // O B-167 foi marcado shipped com uma nona tela viva porque o guarda pulava qualquer arquivo
+    // sem `empty={`. A afirmação de ausência por ternário inline é a forma que faltava.
+    const ternario = 'return items.length === 0 ? <p>No webhooks yet</p> : <Table />;';
+    expect(afirmaAusencia(ternario)).toBe(true);
+    expect(consultaErro(ternario)).toBe(false);
+  });
+
+  it('e NÃO acusa uma tela que consulta o erro por `isError`', () => {
+    const comIsError = '<PageShell empty={{ title: "x" }} />\nif (query.isError) return <Alert />;';
+    expect(afirmaAusencia(comIsError)).toBe(true);
+    expect(consultaErro(comIsError)).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { catalogKpis, catalogByCategory, colecaoDescrita } from './catalog-kpis';
+import { catalogKpis, catalogByCategory } from './catalog-kpis';
+import { colecaoDescrita } from '@/lib/collection-described';
 
 /**
  * The registry's KPI dashboard (B-126, amendment D1-bis).

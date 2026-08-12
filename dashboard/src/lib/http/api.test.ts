@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired, installAuthChannel } from './api';
+import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired, installAuthChannel, clearToken } from './api';
 
 // B-049 — `mocksEnabled` passou a morar em ./config (era ./dev-mocks), para que
 // api.ts — o modulo mais importado do repo — nao dependa do modulo de fixtures.
@@ -18,9 +18,28 @@ const posted: unknown[] = [];
 // derrubava para todos os casos seguintes. Em ordem fixa isso nunca acontecia; sob
 // `--sequence.shuffle` a asserção de SEGURANÇA abaixo passava a não capturar nada. Reinstalar a
 // cada caso custa nada e não depende de quem rodou antes.
+//
+// B-237 — e ele ENGOLIA a mensagem. A implementação anterior só empurrava para `posted` e não
+// chamava o original, então nenhum `postMessage` deste arquivo chegava a canal nenhum. O efeito
+// foi silencioso e caro: os três casos de "uma mensagem malformada não derruba a sessão"
+// afirmavam que nada acontecia num mundo onde nada era entregue — passariam com o manipulador de
+// mensagens INTEIRAMENTE removido. Espiar é observar; substituir o comportamento fez o espião
+// virar o próprio ambiente do teste.
+const postOriginal = BroadcastChannel.prototype.postMessage;
 beforeEach(() => {
+  // B-237 — o token vive no MÓDULO, e cada caso deste arquivo o deixava como estivesse. Em ordem
+  // fixa isso funcionava; sob `--sequence.shuffle`, um caso que espera "sem token" herdava o token
+  // válido de outro e passava a receber `{ ok: true }` no lugar do `ApiError` que ele afirma.
+  //
+  // A dependência já existia — ela só era invisível porque `postMessage` era engolido e nenhuma
+  // mensagem de logout chegava a limpar nada. Consertar o espião tornou o estado observável, e é
+  // esta linha que o torna irrelevante: todo caso começa sem token.
+  clearToken();
   vi.spyOn(BroadcastChannel.prototype, 'postMessage').mockImplementation(
-    (msg: unknown) => { posted.push(msg); },
+    function (this: BroadcastChannel, msg: unknown) {
+      posted.push(msg);
+      postOriginal.call(this, msg);
+    },
   );
 });
 
@@ -624,45 +643,81 @@ describe('B-231 — concurrent 401s do not each invalidate the token', () => {
 // ---------------------------------------------------------------------------
 
 describe('B-234 — a malformed cross-tab message is not a logout', () => {
-  it('a null broadcast neither throws nor clears the token', async () => {
-    // `MessageEvent<AuthMessage>` was a compile-time claim about a runtime payload from another
-    // tab. `msg.type` on null threw a TypeError INSIDE the handler, where nothing catches it.
+  /**
+   * B-237 — estes dois casos afirmavam que o token SOBREVIVE e provavam outra coisa.
+   *
+   * O mock respondia 200 para qualquer URL, inclusive a da troca. Então um token limpo pela
+   * mensagem malformada era simplesmente re-trocado no `cloudFetch` seguinte, que resolvia
+   * `{ ok: true }` do mesmo jeito — a asserção passava nos dois mundos. O que distingue os dois é
+   * a CONTAGEM DE TROCAS, e é ela que estes casos passam a afirmar.
+   */
+  const contarTrocas = () => {
+    const contagem = { trocas: 0 };
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
       if (String(url).includes('/v1/auth/session/token')) {
-        return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+        contagem.trocas += 1;
+        return new Response(
+          JSON.stringify({ access_token: `tk-${String(contagem.trocas)}`, expires_in: 3600 }),
+          { status: 200 },
+        );
       }
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     });
+    return contagem;
+  };
+
+  it('a null broadcast neither throws nor clears the token', async () => {
+    // `MessageEvent<AuthMessage>` was a compile-time claim about a runtime payload from another
+    // tab. `msg.type` on null threw a TypeError INSIDE the handler, where nothing catches it.
+    const contagem = contarTrocas();
 
     const dispose = installAuthChannel();
     await exchangeSessionToken();
+    const antes = contagem.trocas;
 
     const canal = new BroadcastChannel('theo-auth');
     canal.postMessage(null);
     await new Promise((r) => setTimeout(r, 20));
 
-    // The token survives, and a subsequent call does not have to re-exchange.
     await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    // Zero trocas novas: o token que já existia foi usado. Uma troca aqui significaria que a
+    // mensagem malformada derrubou a sessão — que é exatamente o defeito.
+    expect(contagem.trocas - antes).toBe(0);
     canal.close();
     dispose();
   });
 
   it('a message with an unknown type does not force a logout', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
-      if (String(url).includes('/v1/auth/session/token')) {
-        return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
-      }
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
-    });
+    const contagem = contarTrocas();
 
     const dispose = installAuthChannel();
     await exchangeSessionToken();
+    const antes = contagem.trocas;
 
     const canal = new BroadcastChannel('theo-auth');
     canal.postMessage({ type: 'hello' });
     await new Promise((r) => setTimeout(r, 20));
 
     await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    expect(contagem.trocas - antes).toBe(0);
+    canal.close();
+    dispose();
+  });
+
+  it('e a mensagem que É um logout continua derrubando o token', async () => {
+    // O contraponto, sem o qual os dois casos acima passariam com um manipulador que ignora TUDO.
+    const contagem = contarTrocas();
+
+    const dispose = installAuthChannel();
+    await exchangeSessionToken();
+    const antes = contagem.trocas;
+
+    const canal = new BroadcastChannel('theo-auth');
+    canal.postMessage({ type: 'logged-out' });
+    await new Promise((r) => setTimeout(r, 20));
+
+    await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    expect(contagem.trocas - antes).toBe(1);
     canal.close();
     dispose();
   });

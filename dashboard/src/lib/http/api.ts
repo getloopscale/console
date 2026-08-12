@@ -258,9 +258,16 @@ async function ensureToken(): Promise<string | null> {
 }
 
 /**
- * Exposed for SSE consumers (use-log-stream) that need the JWT inline in
- * the URL query string because EventSource cannot set headers.
- * T6.0 of plan 2026-05-27-backend-frontend-integration v1.1 (EC-04).
+ * O JWT para os consumidores de SSE.
+ *
+ * B-219/B-237 — este docblock dizia que o token vai "inline na query string porque o EventSource
+ * não aceita headers". Não vai mais: o transporte é `fetch-event-source.ts`, que envia
+ * `Authorization: Bearer` como qualquer outra chamada (`fetch-event-source.ts:130`). A frase
+ * sobreviveu à mudança e descrevia um vazamento de credencial em URL — registrado em log de
+ * servidor, em histórico de navegador — que já não acontece.
+ *
+ * A função continua existindo porque `ensureToken` é privada e os consumidores de stream precisam
+ * do token ANTES de abrir a conexão, e não a cada requisição.
  */
 export async function ensureSSEToken(): Promise<string | null> {
   return ensureToken();

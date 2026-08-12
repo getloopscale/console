@@ -173,16 +173,18 @@ interface Divergencia {
  * A contagem faz parte do retorno de propósito: uma tabela que silenciosamente casasse zero linhas
  * passaria verde provando nada — a mesma forma inerte que B-152/B-189 nomeiam, um nível acima.
  */
-function conferirAfirmacoes(): { divergencias: Divergencia[]; conferidas: number } {
+function conferirAfirmacoes(
+  lista: readonly AfirmacaoNumerica[] = AFIRMACOES,
+): { divergencias: Divergencia[]; conferidas: number } {
   const divergencias: Divergencia[] = [];
-  for (const a of AFIRMACOES) {
+  for (const a of lista) {
     const m = a.padrao.exec(ler(a.doc));
     const medido = a.medir();
     // `null` = a frase mudou e a afirmação deixou de ser conferida. Isso É a falha, não um pulo.
     const afirmado = m === null ? null : Number(m[1]);
     if (afirmado !== medido) divergencias.push({ doc: a.doc, sobre: a.sobre, afirmado, medido });
   }
-  return { divergencias, conferidas: AFIRMACOES.length };
+  return { divergencias, conferidas: lista.length };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -306,19 +308,28 @@ describe('as afirmações medidas da documentação batem com o disco', () => {
   // que esta varredura inteira está corrigindo em outras telas (B-152, B-189, B-191).
   // ---------------------------------------------------------------------------------------------
 
+  // B-237 — estes auto-testes reimplementavam a comparação à mão (`padrao.exec` + `Number(...)`)
+  // em vez de chamar `conferirAfirmacoes`. Provavam que a REGEX se comporta, e não que o DETECTOR
+  // reporta: se ele parasse de empurrar divergências, os dois seguiriam verdes enquanto o guarda
+  // inteiro deixava de guardar. Agora passam a afirmação falsa PELO detector.
+
   it('DETECTA uma afirmação que derivou', () => {
-    const doc = 'docs/architecture.md';
-    const conteudo = readFileSync(join(DASHBOARD_ROOT, doc), 'utf-8');
     const falsa: AfirmacaoNumerica = {
-      doc,
+      doc: 'docs/architecture.md',
       sobre: 'self-test: a deliberately impossible count',
       padrao: /nas \*\*(\d+)\*\* subpastas de `src\/components\/`/,
       medir: () => 9999,
     };
 
-    const m = falsa.padrao.exec(conteudo);
-    expect(m, 'o padrão do auto-teste precisa casar, ou ele não prova nada').not.toBeNull();
-    expect(Number(m?.[1])).not.toBe(falsa.medir());
+    const { divergencias, conferidas } = conferirAfirmacoes([falsa]);
+
+    expect(conferidas).toBe(1);
+    expect(divergencias).toHaveLength(1);
+    expect(divergencias[0].medido).toBe(9999);
+    // O afirmado é o número REAL do documento — o padrão precisa ter casado, ou o auto-teste
+    // estaria provando o caso da frase reescrita, que é o de baixo.
+    expect(divergencias[0].afirmado).not.toBeNull();
+    expect(divergencias[0].afirmado).not.toBe(9999);
   });
 
   it('DETECTA uma frase reescrita que deixou de ser conferida', () => {
@@ -328,8 +339,28 @@ describe('as afirmações medidas da documentação batem com o disco', () => {
       padrao: /esta frase nao existe em lugar nenhum \((\d+)\)/,
       medir: () => 1,
     };
-    const conteudo = readFileSync(join(DASHBOARD_ROOT, falsa.doc), 'utf-8');
-    expect(falsa.padrao.exec(conteudo)).toBeNull();
+
+    const { divergencias } = conferirAfirmacoes([falsa]);
+
+    // `afirmado: null` é o ponto: uma frase que mudou faz a afirmação deixar de ser conferida, e
+    // isso É a falha — não um caso a pular.
+    expect(divergencias).toHaveLength(1);
+    expect(divergencias[0].afirmado).toBeNull();
+  });
+
+  it('e NÃO acusa uma afirmação que confere', () => {
+    // Sem este contraponto, um detector que acusasse tudo passaria nos dois casos acima.
+    const verdadeira: AfirmacaoNumerica = {
+      doc: 'docs/architecture.md',
+      sobre: 'self-test: a claim that holds',
+      padrao: /nas \*\*(\d+)\*\* subpastas de `src\/components\/`/,
+      medir: () => {
+        const conteudo = readFileSync(join(DASHBOARD_ROOT, 'docs/architecture.md'), 'utf-8');
+        return Number(/nas \*\*(\d+)\*\* subpastas de `src\/components\/`/.exec(conteudo)?.[1]);
+      },
+    };
+
+    expect(conferirAfirmacoes([verdadeira]).divergencias).toEqual([]);
   });
 });
 

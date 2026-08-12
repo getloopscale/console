@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { catalogVerdict } from './catalog-verdict';
 import { CategoryBars } from '@/components/charts/category-bars';
-import { catalogKpis, catalogByCategory, colecaoDescrita } from './catalog-kpis';
+import { catalogKpis, catalogByCategory } from './catalog-kpis';
+import { colecaoDescrita } from '@/lib/collection-described';
 import { CatalogVerdictBanner } from './components/catalog-verdict-banner';
 import { Link } from 'react-router-dom';
 import { Archive, Boxes, CircleAlert, CircleCheck } from 'lucide-react';

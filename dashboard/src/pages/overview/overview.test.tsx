@@ -239,5 +239,12 @@ describe('B-134 — o cartão não afirma uma branch que não leu', () => {
 
     expect(screen.getByText('alpha')).toBeInTheDocument();
     expect(container.textContent ?? '').not.toMatch(/\bmain\b/);
+    // B-237 — a asserção acima só verificava a AUSÊNCIA de `main`, e um cartão que deixasse de
+    // renderizar a branch por completo — ou a página inteira falhando em montar — passaria igual.
+    // O travessão é a convenção deste repositório para "não sabemos", e é ELE que a correção do
+    // B-134 promete: dizer que não se sabe, e não calar.
+    // Mais de um travessão na página (outras métricas também dizem "não sabemos"); o que importa
+    // é que existe ao menos um — a branch parou de ser afirmada sem deixar de ser respondida.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 });

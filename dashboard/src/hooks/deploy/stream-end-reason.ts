@@ -10,8 +10,19 @@
  * as the former, so it cleared the application-wide JWT every time a deploy's stream ended
  * normally, then reopened, forever (B-160).
  *
- * The transport is the only layer that knows which branch it took. It reports; the consumer
- * decides. A state is not a cause.
+ * The transport is the only layer that knows which branch it took. A state is not a cause.
+ *
+ * ## O que este módulo decide, e o que não decide (B-237)
+ *
+ * O texto anterior terminava em "ele reporta; o consumidor decide", e a revisão notou que o módulo
+ * abriga dois predicados — `credentialIsSuspect` e `shouldReopen` — que parecem decisões. A frase
+ * é que era imprecisa, não o lugar deles.
+ *
+ * A causa e a CLASSIFICAÇÃO da causa são a mesma matéria e moram juntas: só quem conhece as
+ * variantes sabe que um 401 põe a credencial em dúvida e um fim limpo de resposta não. O que o
+ * consumidor decide é o que FAZER com a classificação — reabrir agora ou depois, trocar o token,
+ * desistir. Mover os predicados para o consumidor não os tornaria decisões dele; duplicaria a
+ * classificação no dia em que houvesse um segundo.
  */
 type StreamEndKind =
   /** The server finished the response body. Not an error — reconnect, keep the token. */

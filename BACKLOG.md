@@ -8575,10 +8575,11 @@ why_now: |
   A revisão deste ciclo os produziu. Registrá-los é o que separa `READY_TO_MERGE_WITH_FOLLOWUPS`
   de chamar dívida reconhecida de verde limpo — e um caveat sem dono foi como o registro ficou
   atrás do código da primeira vez.
-status: triaged
+status: shipped
 dod:
   - cada achado da tabela vira teste que reprova, ou é morto com o motivo medido
   - nenhum guarda deste ciclo passa quando a produção que ele guarda é revertida
+shipped_note: os 14 achados que a revisao deixou abertos foram fechados, cada um com mutacao. Os quatro "mais caros" primeiro: (1) `useEngineApi` nao afirmava que a busca ACONTECEU — um hook que nao buscasse nada passava; (2) o bloco B-234 de `api.test.ts` era inerte por uma razao pior do que a registrada: um `beforeEach` do arquivo trocava `BroadcastChannel.postMessage` por um coletor que NAO POSTAVA, entao nenhuma mensagem entre abas chegava e os tres casos afirmavam o silencio de um mundo mudo — passariam com o manipulador INTEIRAMENTE removido; espiar virou observar, e as tres mutacoes do manipulador agora morrem; (3) os auto-testes de `docs-claims` e de `list-state` reimplementavam a regra e verificavam a copia — agora chamam o detector; (4) nenhuma tela era renderizada com leitura FALHA. Os outros dez: `buscaSemResultado` sem teste, o travessao do B-134 nunca afirmado, `receivedAt` do B-224 sem teste (a primeira versao que escrevi NAO pegava o defeito — `rerender()` nao recomputa um memo; o que recomputa e uma linha nova chegando), `sse-registration` sem auto-teste, `valueHeader` sem chamador (removido, YAGNI), o docblock de `ensureSSEToken` afirmando que o JWT vai na query string (nao vai desde o B-088), o cabecalho de `use-sse-stream` descrevendo retry nativo e um limiar removido, `colecaoDescrita` movida para `lib/` com o literal duplicado de `catalog.tsx` finalmente substituido, e o cabecalho de `stream-end-reason` corrigido para dizer o que o modulo de fato decide. Efeito colateral medido: consertar o espiao expos dependencia de ordem em `api.test.ts` (o token e de modulo), fechada com `clearToken()` por caso e verificada em 3 seeds.
 
 ## B-238 — A catraca de telas que afirmam ausência sem consultar erro está em 23   [ ]
 
@@ -8653,4 +8654,43 @@ dod:
   - the exception is recorded where an auditor reading the release will find it
   - the scope is explicit, so it does not read as a general permission
   - `cycle-release` is unchanged — this was an authorized deviation, not a rule change
+
+## B-240 — `traces.test.tsx` "lists saved views and applies one" depende da ordem de execucao   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: code
+evidence: |
+  src/pages/lens/traces.test.tsx:486
+  Verde em ordem fixa (55/55). REPROVA sob `--sequence.shuffle` nos seeds 777, 4242, 31337 e 91
+  (medido 2026-08-11): `expected false to be true` em
+  `listUrls().some(u => u.includes('status=error') && u.includes('model=claude-opus-4-8'))`.
+
+  PREEXISTENTE, nao regressao deste ciclo: medido tambem contra o `traces.tsx` anterior ao B-184
+  (`git show cf8fa2ee~1`), com o mesmo seed e a mesma falha.
+
+  Classe: o `NuqsAdapter` de PRODUCAO guarda o estado de URL num cache de MODULO, entao um caso
+  vizinho que ja deixou `?status=error` faz este clicar em "aplicar view" sem que a URL mude — e
+  sem mudanca de URL nao ha re-busca. E a mesma familia que o B-197 corrigiu neste arquivo.
+
+  DUAS SAIDAS JA TENTADAS E DESCARTADAS, com o motivo medido:
+    1. `render(..., { initialEntries: ['/observability/traces'] })` — nao resolve: o cache do
+       nuqs e de modulo e nao e alimentado pela localizacao inicial do MemoryRouter.
+    2. `renderWithParams(<LensTracesPage />, '')` (o `NuqsTestingAdapter`, que foi a saida do
+       B-197 para os vizinhos) — PIORA: o adaptador de teste mantem estado por render e nao
+       propaga o push de URL que "aplicar view" executa, entao o caso passa a falhar tambem em
+       ordem fixa. Este caso depende da navegacao real, ao contrario dos vizinhos do B-197.
+why_now: |
+  A varredura de shuffle do B-237 mediu isto. Registrar em vez de deixar meia-correcao no arquivo:
+  as duas saidas obvias foram tentadas e ambas medidas como erradas, e a terceira (resetar o cache
+  do nuqs entre casos) precisa de uma decisao sobre como, que nao cabe dentro do B-237.
+status: triaged
+dod:
+  - o caso passa sob `--sequence.shuffle` em >= 3 seeds independentes E em ordem fixa
+  - a saida escolhida nao desliga a navegacao real que o caso exercita
+
+> Registrado 2026-08-11 durante o B-237.
 

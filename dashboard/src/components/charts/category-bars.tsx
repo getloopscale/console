@@ -125,8 +125,6 @@ export interface CategoryBarsProps {
   readonly bars: readonly CategoryBar[];
   /** The unit belongs to the caller — `12` may be answers, milliseconds or prompts. */
   readonly valueFormatter?: (v: number) => string;
-  /** Column header for the value column. The unit belongs to the caller here too. */
-  readonly valueHeader?: string;
 }
 
 /**
@@ -141,7 +139,7 @@ function toneAnnouncement(bar: CategoryBar): string | null {
   return bar.tone;
 }
 
-export function CategoryBars({ title, bars, valueFormatter, valueHeader }: CategoryBarsProps) {
+export function CategoryBars({ title, bars, valueFormatter }: CategoryBarsProps) {
   // An empty frame is indistinguishable from a chart that failed to draw. Saying it in words is the
   // difference between "nothing was recorded" and "something is broken".
   if (bars.length === 0) {
@@ -160,7 +158,11 @@ export function CategoryBars({ title, bars, valueFormatter, valueHeader }: Categ
       <thead className="sr-only">
         <tr>
           <th scope="col">Category</th>
-          <th scope="col">{valueHeader ?? 'Value'}</th>
+          {/* B-237 — havia um `valueHeader` opcional aqui e nenhum chamador o passava. Os quatro
+              gráficos do produto plotam contagens, e "Value" serve a todos; um parâmetro que só o
+              default exercita é generalidade especulativa (YAGNI). Volta no dia em que houver um
+              gráfico cuja coluna não seja um valor. */}
+          <th scope="col">Value</th>
         </tr>
       </thead>
       <tbody>

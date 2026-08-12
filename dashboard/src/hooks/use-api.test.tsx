@@ -110,6 +110,11 @@ describe('useCloudApi', () => {
 
 describe('useEngineApi', () => {
   it('a successful empty response is not reported as an error', async () => {
+    // B-237 — este caso afirmava só `error === false` depois de `loading === false`. `error`
+    // começa em `false`, então um hook que NUNCA buscasse nada — ou que nunca sinalizasse erro
+    // algum — passava igual. As duas asserções acrescentadas são as que podem falhar: que a
+    // busca aconteceu, no caminho pedido, e que um corpo vazio chega como `null` em vez de virar
+    // um erro.
     mockedEngineFetch.mockResolvedValue(null);
 
     const { result } = renderHook(() => useEngineApi<{ a: number }>('/api/v1/thing'), {
@@ -117,6 +122,21 @@ describe('useEngineApi', () => {
     });
 
     await waitFor(() => { expect(result.current.loading).toBe(false); });
+    expect(mockedEngineFetch).toHaveBeenCalledWith('/api/v1/thing', {}, { throwOnError: true });
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBe(false);
+  });
+
+  it('o corpo devolvido chega em `data`', async () => {
+    // O caso positivo que faltava por completo: sem ele, os dois vizinhos só descrevem quando o
+    // hook NÃO reporta erro, e nada prova que ele entrega o que buscou.
+    mockedEngineFetch.mockResolvedValue({ a: 7 });
+
+    const { result } = renderHook(() => useEngineApi<{ a: number }>('/api/v1/thing'), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => { expect(result.current.data).toEqual({ a: 7 }); });
     expect(result.current.error).toBe(false);
   });
 

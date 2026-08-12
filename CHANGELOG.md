@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** signing out in one browser tab is verified to sign out the others, and a malformed message from another tab is verified not to. The checks covering this were passing against a test setup that silently discarded every cross-tab message, so they would have held with the feature entirely removed (B-237).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the two webhook screens now share the parts that were genuinely the same — the delivery shape, the status colours, when a delivery can be replayed, the table columns and the add dialog. They remain separate screens because they list different resources and each does something the other does not (B-183).

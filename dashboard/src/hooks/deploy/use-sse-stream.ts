@@ -13,12 +13,14 @@ import { credentialIsSuspect, shouldReopen, type StreamEndReason } from './strea
  * lines flow into the same buffer.
  *
  * Features:
- * - Last-Event-ID resume on reconnect (EC-9) — the browser handles this
- *   natively. We also expose `lastEventID` for callers that want to seed
- *   the URL after a token refresh.
- * - Token refresh on persistent 401 (EC-3) — when 3 consecutive errors
- *   land without a successful open, we call `clearToken()` + the next
- *   `ensureSSEToken()` exchanges a fresh JWT.
+ * - Last-Event-ID resume on reconnect (EC-9). B-173/B-237 — este texto dizia "o navegador faz
+ *   isso nativamente", e não faz: o transporte deixou de ser o `EventSource` nativo quando o JWT
+ *   saiu da URL e foi para o header (`fetch-event-source.ts`). A retomada é NOSSA, e `lastEventID`
+ *   é o que a alimenta.
+ * - Token refresh quando a credencial é suspeita (EC-3). O limiar de "3 erros consecutivos" que
+ *   este texto descrevia foi REMOVIDO: contar erros confundia uma queda de rede com uma credencial
+ *   inválida e deixava o stream morto até o componente remontar. Hoje quem decide é
+ *   `credentialIsSuspect` (401/403/sem token), e toda outra causa reabre.
  * - maxEvents FIFO cap (EC-10) — buffer cannot grow unbounded if the
  *   user leaves the tab in the background.
  * - `paused` lets the consumer freeze updates without disconnecting.
