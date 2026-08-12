@@ -68,7 +68,7 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
    * asserções de ausência, tipos sem importador): a população fica congelada e só pode DESCER.
    * Nenhuma tela nova entra; cada uma que sair baixa o teto.
    */
-  const TETO_SEM_ERRO = 23;
+  const TETO_SEM_ERRO = 7;
 
   /**
    * Os dois predicados do guarda, nomeados (B-237).
@@ -82,8 +82,29 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     /\bempty=\{/.test(fonte) ||
     /(?:length === 0|length !== 0)[\s\S]{0,400}?(?:No |Nenhum|Nada|não há|nao ha)/i.test(fonte);
 
+  /**
+   * B-238 — a versão anterior reconhecia TRÊS formas (`estadoDaLista(`, `error={`, `isError`) e
+   * contava como culpada toda tela que consultasse o erro de outro jeito. Medido: das 23 da
+   * população, 16 já consultavam — por uma variável local (`const falhou = query.error`), por um
+   * `error` desestruturado de um hook e usado num ternário, por uma frase que diz "the read
+   * failed". A catraca estava contando o vocabulário do guarda, não o defeito.
+   *
+   * Baixar um teto assim seria afrouxar; o que houve foi o oposto — o número passou a significar
+   * o que sempre afirmou. Os 7 que sobram foram conferidos um a um: `rag/wiki-search.tsx`, por
+   * exemplo, não menciona erro em lugar nenhum do arquivo.
+   *
+   * LIMITE HONESTO: a checagem é por ARQUIVO, como sempre foi. Uma tela que consulte o erro de UMA
+   * lista e afirme ausência cega em OUTRA passa. Estreitar isso pede análise por bloco, que é
+   * outro trabalho — e é o que o item que sobrar deve dizer.
+   */
   const consultaErro = (fonte: string) =>
-    /estadoDaLista\(/.test(fonte) || /\berror=\{/.test(fonte) || /\bisError\b/.test(fonte);
+    /estadoDaLista\(|\berror=\{|\bisError\b/.test(fonte) ||
+    // Um sinal de LEITURA que falhou — e não um status de domínio como `step.status === 'failed'`,
+    // que foi o que uma primeira tentativa de alargamento capturou por engano.
+    /\.error\b|\berroDe\w*|\bfalhou\b|\bfalharam\b/.test(fonte) ||
+    /read failed|failed to load|Could not load|setError\(/i.test(fonte) ||
+    // O valor de erro USADO numa condicional: é a consulta, escrita sem prop nem hook.
+    /\b(?:error|erro)\b\s*(?:\?|&&|\|\|)|if\s*\(\s*!?\s*(?:error|erro)\b/.test(fonte);
 
   function paginasSemConsultaDeErro(): string[] {
     const sem: string[] = [];

@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** searching the wiki while the page list fails to load now says the search did not cover the wiki, instead of reporting "no matching pages" over a list nobody managed to read (B-238).
+
+### Fixed
+
 - **theo-cloud/dashboard:** signing out in one browser tab is verified to sign out the others, and a malformed message from another tab is verified not to. The checks covering this were passing against a test setup that silently discarded every cross-tab message, so they would have held with the feature entirely removed (B-237).
 
 ### Changed

@@ -53,3 +53,23 @@ describe('WikiSearch — centered search modal', () => {
     expect(screen.getByText(/no matching pages/i)).toBeInTheDocument();
   });
 });
+
+describe('B-238 — "não achei" e "não consegui ler" não são a mesma frase', () => {
+  // Este componente recebe `pages` pronto, e a tela que o monta transformava um erro de leitura em
+  // lista vazia (`pagesQuery.data?.items ?? []`). Uma busca durante uma queda de rede respondia
+  // "No matching pages" — a afirmação mais confiante possível sobre um acervo que ninguém leu.
+
+  it('com a leitura FALHA, diz que a busca não percorreu o acervo', () => {
+    render(<WikiSearch open onClose={vi.fn()} pages={[]} onSelect={vi.fn()} leituraFalhou />);
+
+    expect(screen.getByText(/could not be read/i)).toBeInTheDocument();
+    expect(screen.queryByText('No matching pages.')).toBeNull();
+  });
+
+  it('sem erro, uma busca vazia continua dizendo que nada casou', () => {
+    // A correção não pode virar "sempre avisa que falhou": um acervo vazio de verdade é um fato.
+    render(<WikiSearch open onClose={vi.fn()} pages={[]} onSelect={vi.fn()} />);
+
+    expect(screen.getByText('No matching pages.')).toBeInTheDocument();
+  });
+});

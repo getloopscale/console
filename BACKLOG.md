@@ -8596,10 +8596,11 @@ evidence: |
 why_now: |
   Consertar as oito do B-167 não impediu a nona, e a nona foi achada pela revisão DEPOIS de o
   item ser marcado shipped. A catraca congela a população; o que falta é fazê-la descer.
-status: triaged
+status: shipped
 dod:
   - a população desce e o teto acompanha
   - nenhuma tela nova entra (já garantido pela catraca)
+shipped_note: 23 -> 7, e a maior parte da queda foi MEDICAO, nao conserto — dito assim de proposito. O predicado do guarda reconhecia TRES formas de consultar erro (`estadoDaLista(`, `error={`, `isError`) e contava como culpada toda tela que consultasse de outro jeito: por variavel local (`const falhou = query.error`), por `error` desestruturado usado num ternario, por uma frase "the read failed". Dezesseis das 23 ja consultavam. A catraca estava contando o vocabulario do guarda, nao o defeito — e baixar um teto assim seria afrouxar se o predicado nao tivesse sido CORRIGIDO; os 7 restantes foram conferidos um a um (`rag/wiki-search.tsx` nao mencionava erro em lugar nenhum do arquivo). Uma tentativa intermediaria de alargamento capturou `step.status === "failed"` como sinal de leitura e foi descartada por isso. Um conserto real: a busca do wiki passou a distinguir "nao achei" de "nao consegui ler" — a pagina descartava `pagesQuery.isError` em `?? []`. Duas mutacoes, e a do WIRE (`leituraFalhou={false}`) sobreviveu a primeira rodada ate um teste de PAGINA ser escrito: a mesma lacuna helper-certo-wire-errado que este ciclo ja pagou. LIMITE REGISTRADO: a checagem segue por ARQUIVO — uma tela que consulte o erro de UMA lista e afirme ausencia cega em OUTRA passa; estreitar isso pede analise por bloco.
 
 ## B-239 — Este ciclo acrescentou nove identificadores em português ao B-128   [ ]
 
