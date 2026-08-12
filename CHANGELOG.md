@@ -2,6 +2,10 @@
 
 ## [1.0.2] - 2026-08-12
 
+### Security
+
+- **theo-cloud:** a denial-of-service vulnerability in DNS record parsing is closed by upgrading the affected library (CVE-2026-46600, `golang.org/x/net` 0.55.0 → 0.56.0). It was found the first time the container vulnerability scan actually ran in six days — the scan itself had been failing without scanning (B-270, B-272).
+
 ### Fixed
 
 - **theo-cloud:** the control-plane image builds again, and the version it reports is the version that was built. The recipe still referenced the organisation's old name in eight places after the rename six days ago — which broke fetching the private dependency, and, more quietly, aimed the version stamp at a code path that no longer exists. That second one produced no error at all: the image would have built and reported itself as "dev" forever (B-270).
