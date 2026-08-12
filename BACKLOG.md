@@ -9501,3 +9501,50 @@ dod:
 
 > Registered 2026-08-12 by the wiring review of the B-228 slice.
 
+## B-260 — the dashboard sends untyped bodies to write endpoints whose payload types it already has   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  dashboard/src/lib/api/types.ts:172
+  Twenty of the 31 types that survive the knip ratchet after B-245 are request/response
+  contracts for write operations:
+
+    ProjectCreateInput  BuildCreateInput  EnvironmentCreateInput  DomainCreateInput
+    SecretSetInput  TeamMemberInput  TeamMemberRoleUpdate  PreviewCreateInput
+    RollbackInput  PromoteInput  ProjectConnectInput  TeamSwitchInput
+    BillingPortalResponse  TenantRestoreResponse  PaginationParams  Paginated  …
+
+  The dashboard performs those writes. Measured 2026-08-12:
+
+    dashboard/src/pages/projects/components/create-project-sheet.tsx:37   method: 'POST'
+    dashboard/src/pages/projects/project-connect.tsx:267                  method: 'POST'
+    dashboard/src/hooks/projects/use-scale.ts:34                          body: JSON.stringify(input)
+
+  `grep -rn "ProjectCreateInput" dashboard/src/hooks/projects` returns nothing. The project is
+  created and the type describing what a creation request looks like is not used where one is
+  sent — the bodies are assembled inline and untyped.
+why_now: |
+  Surfaced by B-245, which classified all 79 ratchet entries one by one. 54 were simply the word
+  `export` left on a module-local type and 2 were the same type counted twice through a
+  re-export; that part was mechanical. What remains is not leftovers — it is the REQUEST half of
+  the API contract, written down and then bypassed.
+
+  Deleting them would remove the only description of those payloads. Leaving them exported keeps
+  a description nothing checks against what is actually sent, which is the worse of the two: a
+  contract that cannot be wrong because nobody reads it.
+status: triaged
+dod:
+  - each write call site whose payload type exists annotates its body with that type
+  - any type whose endpoint the dashboard does not call is deleted, and the deletion says so
+  - the knip ratchet ceiling follows the resulting number down
+  - a type that turns out to DISAGREE with what is actually sent is reported, not silently
+    adjusted to match the call site — the disagreement is the finding
+
+> Registered 2026-08-12 by B-245's classification pass. Adjacent to B-244 (pages calling
+> transport directly): both are about the data-access boundary, from opposite sides.
+
