@@ -112,8 +112,16 @@ const SELF = 'absence-assertion-ratchet.test.ts';
  *
  * Measured both ways side by side before changing this number: 113 by AST, 111 by text, and the
  * delta is exactly those two files — nothing else moved.
+ *
+ * **106 later the same day**, and this one is real progress rather than a better measurement.
+ * `app-sidebar.test.tsx` held EIGHT of them: six proved a submenu had opened by asserting that
+ * 'Domains' and 'Projects' were absent, and no case in the file ever showed those two texts. The
+ * file's own docblock described the pair in prose — "a asserção é pela AUSÊNCIA dos itens que só a
+ * raiz tem" — and nothing executed it, so a rename or a typo in either selector satisfied all six
+ * for the wrong reason. One case rendering the root and asserting both present anchors seven at
+ * once; removing it puts the count straight back to 113.
  */
-const CEILING_UNANCHORED = 113;
+const CEILING_UNANCHORED = 106;
 
 /** Files holding at least one absence assertion. Frozen 2026-08-11, remeasured 2026-08-12. */
 const CEILING_FILES = 98;

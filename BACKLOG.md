@@ -8856,6 +8856,47 @@ dod:
 
 > Registrado 2026-08-11 durante o B-237.
 
+medicao_nao_e_reproduzivel: |
+  2026-08-12 — ANTES DE RENOMEAR QUALQUER COISA: o número deste item não é reproduzível, e essa é a
+  primeira coisa a consertar.
+
+  Quatro medições, quatro números, nenhum método escrito:
+
+    278  primeira, registrada como INFLADA por casar `isError`/`ApiError` contra "erro"
+    179  correção registrada neste bloco — método não descrito
+    314  minha, 2026-08-12, por AST — repeti exatamente o defeito de 278: meu regex casava `error`
+         por PREFIXO contra "erro", 55 arquivos de uma vez
+    329  minha, corrigida para casar PALAVRA exata — e ainda inflada
+
+  A terceira contaminação é a que importa, porque não some estreitando o regex: **português e
+  inglês compartilham cognatos**. `total` (38 arquivos), `item` (14), `texto` (15), `atual` (14),
+  `lista`, `erro` — vários são palavra válida nas duas línguas, ou diferem por uma letra. Uma lista
+  de palavras não separa "identificador em português" de "identificador em inglês" sem decidir
+  cognato a cognato, e essa decisão não está escrita em lugar nenhum.
+
+  CONSEQUÊNCIA DIRETA no DoD deste item: o segundo critério é "`i18n-guard.ts` reprova um
+  identificador em português". Um guard É uma medição. Não dá para construir o guard antes de o
+  critério existir, e não dá para renomear 240 identificadores contra um alvo que muda de tamanho a
+  cada tentativa.
+
+  O QUE FALTA, e é trabalho de verdade e não desculpa:
+    - uma lista de palavras COMMITADA no repositório, com os cognatos resolvidos explicitamente
+      (`total` fica? `item` fica? a resposta é uma decisão, não uma medição)
+    - exercitada por testes, como os detectores do B-235/B-242 passaram a ser
+    - e só então o número, o guard, e o rename
+
+  NÃO RENOMEEI NADA. Um sweep de 240 identificadores contra uma medição irreprodutível é
+  exatamente a varredura mecânica que a `tentativa_1` abaixo já custou 270 arquivos e uma reversão.
+
+o_bloqueio_que_eu_alegava: |
+  Levantei três vezes que este item estava travado numa decisão do dono — "comentários em português
+  seguem permitidos" no DoD versus a regra de que todo artefato do repositório é inglês. Reli: o
+  título, o escopo e os quatro critérios deste item falam de IDENTIFICADORES. O DoD diz
+  explicitamente que a convenção de comentários NÃO muda. Não havia conflito a resolver, e o que eu
+  chamei de bloqueio era leitura minha.
+
+  O bloqueio real é o de cima, e é técnico.
+
 tentativa_1: |
   TENTADO E REVERTIDO 2026-08-12 (`bce39891` -> `8217f96f`), com o motivo medido — e a medição
   CORRIGE o diagnóstico deste bloco.

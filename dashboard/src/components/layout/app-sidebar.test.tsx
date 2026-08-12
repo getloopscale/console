@@ -110,6 +110,21 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('button', { name: /^skills$/i })).toBeInTheDocument();
   });
 
+  it('a RAIZ mostra Domains e Projects — o par que dá sentido às ausências abaixo', () => {
+    // B-242 — seis asserções deste arquivo provam que um submenu abriu afirmando que 'Domains' e
+    // 'Projects' NÃO estão na tela. Elas só significam alguma coisa se esses dois textos forem
+    // encontráveis em ALGUM estado; sem isso, um seletor quebrado (um rename, um typo) satisfaz
+    // todas as seis pelo motivo errado e nenhuma fica vermelha.
+    //
+    // Este caso é a âncora: na raiz os dois estão presentes. É o par que o docblock do M26 já
+    // descrevia em prosa — "a asserção é pela AUSÊNCIA dos itens que só a raiz tem" — e que
+    // nenhum caso do arquivo executava.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/'] });
+
+    expect(screen.getByText('Domains')).toBeInTheDocument();
+    expect(screen.getByText('Projects')).toBeInTheDocument();
+  });
+
   it('M26 — uma rota /skills abre o submenu skills, e não a raiz', () => {
     // A peça 3, a que falha em SILÊNCIO. O submenu pode estar declarado inteiro e nunca abrir se
     // `resolveActiveMenu` não reconhecer o prefixo — foi exatamente essa omissão que deixou
