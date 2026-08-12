@@ -8761,6 +8761,42 @@ dod:
 
 > Registrado 2026-08-11 durante o B-237.
 
+tentativa_1: |
+  TENTADO E REVERTIDO 2026-08-12 (`bce39891` -> `8217f96f`), com o motivo medido — e a medição
+  CORRIGE o diagnóstico deste bloco.
+
+  Eu li o `applyView` escrevendo por `setSearchParams` (react-router) enquanto a página lê os
+  filtros pelo nuqs, e concluí que a leitura nunca observava a escrita. Reescrevi `applyView`
+  para escrever pelos setters do nuqs. Uma revisão adversarial mediu o código PRÉ-FIX sob
+  `BrowserRouter` — o router de produção — e obteve DOIS requests: o clique refazia a busca, como
+  primeira ação, sem interação de filtro anterior.
+
+  O nuqs 2.8.9 faz patch em `history.pushState/replaceState` e re-emite; `setSearchParams` escreve
+  via history, então o nuqs RELIA todas as chaves. O comentário que eu apaguei por "falso" estava
+  certo.
+
+  O DEFEITO É DO HARNESS. O `MemoryRouter` nunca toca `window.history`, então aquela ponte não
+  dispara; em ordem fixa um caso anterior já havia escrito em `window.location` por um setter do
+  nuqs, e é isso que fazia este passar. Eu medi sob MemoryRouter e generalizei para o navegador —
+  inclusive no CHANGELOG, como defeito visível ao usuário. Retirado.
+
+  A mudança também era pior que o problema: aplicar uma view deixava a URL só com `?viewId=`, e
+  "salvar view" logo depois gravava `query_string: "?viewId=lsv-1"` — uma view sem filtro nenhum
+  carregando o id de OUTRA, que o efeito de auto-aplicar então resolve para aquela outra.
+
+  E o teste que escrevi para fixar o contrato era VACUOUS: sob MemoryRouter o nuqs inicializa de
+  `window.location.search` e não de `initialEntries`, então a página nunca começava filtrada e a
+  asserção "session sumiu" era trivialmente verdadeira. É a armadilha que este próprio bloco já
+  registrava como "saída 1, nao resolve". Doze de treze mutações sobreviveram a ele.
+
+  TERCEIRA SAÍDA, identificada e NÃO concluída: semear `window.history.replaceState` antes do
+  mount, que é o que o navegador faz. Tentado, e a premissa (`session_id=sess-old` no primeiro
+  request) não se sustentou — falta entender por quê antes de mexer no arquivo de novo.
+
+  O QUE ESTE ITEM PASSA A SABER, e vale mais que a mudança valia: o caminho de PRODUÇÃO está são.
+  O item é sobre o harness, e o critério "o caso passa sob shuffle" tem de ser atingido sem tocar
+  na página — porque não há nada errado nela.
+
 ## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [ ]
 
 domain: frontend-dashboard
