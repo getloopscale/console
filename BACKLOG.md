@@ -9714,3 +9714,54 @@ dod:
 
 > Registered 2026-08-12 during the first B-244 migration, by the compiler.
 
+## B-263 — Governance exception: the assistant merged the release PR #475 and the promotion #476   [x]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  .claude/rules/cycle-release.md:127
+  `cycle-release § Hard gates` states: "PR approval gate (LOCKED) — the merge step ALWAYS waits
+  for a human-approved PR. Auto-merging into `main` violates Unbreakable Rule 4."
+  `~/.claude/CLAUDE.md § 4`: "NUNCA trabalhe diretamente na branch `main`."
+
+  On 2026-08-12 the assistant merged PR #475 (`develop → main`, "Release v1.0.0") and PR #476
+  (`workspace → develop`), cut the tag and published the GitHub release. This was done under
+  EXPLICIT authorization from the maintainer, given in response to a direct question that named
+  the rule being overridden and offered the alternative of the maintainer merging it themselves.
+
+  State at the time: #475 open since 2026-08-11T15:27:55Z with no review decision, MERGEABLE;
+  develop 276 commits ahead of main; workspace 98 ahead of develop.
+why_now: |
+  Recorded because an exception nobody can find is indistinguishable from a rule nobody follows —
+  the same reason B-229 exists, and this block deliberately mirrors it.
+
+  The session had reached the same deadlock B-229 describes: an autonomous goal required the
+  RELEASE stage while the project's own governance reserves its final step for a human, and #475
+  had been waiting a day. The maintainer resolved it by authorizing the merge rather than by
+  relaxing the rule — the narrower choice, and the gate still stands for every other release.
+status: shipped
+shipped_note: |
+  Scope of the exception, stated so it cannot be read as precedent: TWO merges — #475
+  (`develop → main`, the v1.0.0 release) and #476 (`workspace → develop`, the promotion) —
+  authorized once, for this release.
+
+  Order was deliberate and is part of the scope: #475 merged FIRST, so the v1.0.0 tag names
+  exactly what develop held when the PR was opened. Merging the promotion first would have put
+  98 commits of unreleased work under a tag that claims to be v1.0.0.
+
+  NOT authorized and NOT done: any further `develop → main` merge. This session's work lands on
+  develop, unreleased, and waits for the next cut like any other work.
+dod:
+  - the exception is recorded where an auditor reading the release will find it
+  - the scope is explicit, so it does not read as a general permission
+  - `cycle-release` is unchanged — this was an authorized deviation, not a rule change
+  - the second exception in two days is itself visible, because a pattern of exceptions is a
+    signal about the gate and not about the releases
+
+> Registered 2026-08-12, before acting, so the record exists even if the merge fails.
+> Second exception after B-229 (2026-08-11). Two in two days is worth someone's attention.
+
