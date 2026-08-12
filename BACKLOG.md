@@ -8626,6 +8626,41 @@ implemented: |
   O que segue aberto, e é a decisão do item: se o default vira depois que os 37 forem
   explícitos, ou se `cloudFetch` passa a devolver um resultado discriminado. A medição diz que
   a primeira é barata (78% do código já pede) e não diz qual é certa.
+fourth_measurement: |
+  2026-08-12, depois de uma revisão adversarial — A CATRACA ACIMA MEDIA O VOCABULÁRIO, NÃO O
+  DEFEITO. É a quarta vez neste ciclo, e desta vez estava no meu próprio código.
+
+  A revisão provou por mutação que os auto-testes eram decorativos: guardavam uma CÓPIA da regra
+  e verificavam a cópia. Trocar a janela de `i + 12` por `i + 1` levava a contagem de 37 para 109
+  com 5/5 verdes; adicionar `&& e !== 'pages'` ao caminhamento levava de 37 para 4, também com
+  5/5 verdes. Um detector que pode ser destruído sem que nenhum teste caia não é um detector.
+
+  O que a medição por janela errava, verificado caso a caso:
+    - ABSOLVIA 3 chamadas reais porque um COMENTÁRIO até 12 linhas abaixo mencionava
+      `throwOnError` — uma delas pelo docblock da função SEGUINTE
+    - ACUSAVA 2 chamadas de `promptly-api.ts` (linhas 230 e 291) cujo `throwOnError: true` está
+      12 e 14 linhas abaixo, fora da janela
+    - contava `{ throwOnError: false }` — o defeito escrito por extenso — como conformidade,
+      porque a checagem era `includes('throwOnError')`
+
+  QUARTA MEDIÇÃO, e a primeira que mede a chamada em vez de um palpite sobre o tamanho dela
+  (`src/lib/http/ambiguous-null.ts`: comentários removidos, argumentos extraídos por parênteses
+  balanceados, `true` exigido):
+
+    com contrato   -> 132
+    sem contrato   ->  39
+    total          -> 171   (77,2%)
+
+  O teto passou de 37 para 39, e o número SUBIU porque a medição melhorou — não porque o código
+  piorou. Baixar um teto estreitando o detector é exatamente o que o B-238 registrou e o que eu
+  repeti aqui.
+
+  Além do teto, a catraca agora tem PISO DE CORPUS (430 arquivos): sem ele, parar de olhar para
+  um diretório derruba a contagem e passa por progresso. E os auto-testes chamam o detector
+  exportado, contra fixtures — não uma cópia. Cinco mutações aplicadas e todas mortas:
+  `hasContract` aceitando qualquer valor, `withoutComments` virando no-op, o caminhamento
+  ignorando `pages/`, `argsOf` guloso, e o lookbehind de `CALL_OPENING` removido — este último
+  sobrevivia até eu fixá-lo com um teste, porque nenhum nome no corpus o exercitava.
 status: triaged
 
 ## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [x]
