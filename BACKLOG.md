@@ -10127,3 +10127,179 @@ dod:
     must keep smoking)
 
 > Registered 2026-08-12 while verifying B-242.
+
+## B-268 — O CHANGELOG anuncia uma versão 1.0.1 que nunca foi lançada   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  CHANGELOG.md:162
+    ## [1.0.1] - 2026-08-11
+
+  MEDIDO 2026-08-12:
+
+    git tag -l | grep 1.0.1              -> vazio
+    git ls-remote --tags origin | grep -c 1.0.1  -> 0
+    git tag --sort=-v:refname | head -1  -> v1.0.0
+
+  A seção foi escrita por um release de verdade — `64fdcf9e chore(release): 1.0.1`, de 2026-08-11 —
+  que percorreu a fase de reescrita do CHANGELOG e PAROU antes de chegar em `main`:
+
+    git merge-base --is-ancestor 64fdcf9e origin/main     -> falso
+    git merge-base --is-ancestor 64fdcf9e origin/develop  -> verdadeiro
+
+  Ou seja: o commit de release existe, a seção versionada existe, a data existe — e o merge para
+  `main` e a tag anotada nunca aconteceram. O registro público afirma um lançamento em 2026-08-11
+  que não ocorreu, e o conteúdo que ele descreve (B-137, B-167, B-132, B-133, B-134, B-206) segue
+  não lançado até hoje.
+o_que_NAO_e_o_defeito: |
+  Suspeitei também que `[Unreleased]` estivesse acumulando trabalho já lançado, porque
+  `6c618990 chore(release): 1.0.0` alterou o CHANGELOG em apenas 2 linhas. VERIFIQUEI E ESTÁ
+  CERTO: aquelas 2 linhas são exatamente a inserção do cabeçalho `## [1.0.0] - 2026-08-11` acima
+  do corpo, que é o que a reescrita faz quando o corpo já está no lugar.
+
+  Auditados os 57 itens citados em `[Unreleased]` por ancestralidade contra `v1.0.0`:
+  ZERO já lançados, 43 posteriores, 14 sem commit rastreável pelo padrão de mensagem. A seção
+  está correta e a suspeita era minha, não um defeito do repositório. Registrado aqui porque uma
+  suspeita descartada por medição vale tanto quanto um achado — impede a próxima pessoa de gastar
+  o mesmo tempo.
+why_now: |
+  Descoberto ao executar a fase RELEASE do ciclo Squad em 2026-08-12, ao derivar o nível de bump a
+  partir do CHANGELOG. Bloqueava o release: cortar uma versão nova por cima deixaria a 1.0.1
+  fantasma no registro para sempre, e o conteúdo dela sairia sob outro número sem nada dizendo isso.
+
+  A classe é a do B-228 — o registro de release divergindo do que de fato foi lançado — do lado da
+  ESCRITA em vez do lado da leitura. O B-228 corrigiu como a versão é LIDA; ninguém tinha olhado o
+  que acontece quando a cadeia de release para no meio.
+dod:
+  - `[1.0.1]` deixa de afirmar um lançamento que não houve
+  - existe uma verificação que reprova um CHANGELOG cuja seção versionada não tem tag
+    correspondente em `origin/main`; hoje nada verifica isso
+  - a verificação falha contra o estado atual ANTES da correção entrar (TDD, `rules/testing.md` § 3)
+  - a verificação distingue "seção sem tag" de "tag sem seção" — são defeitos diferentes
+
+> Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
+
+## B-269 — Os detectores de catraca leem TypeScript com regex; o compilador já está instalado   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: discover-review
+severity: medium
+category: code
+evidence: |
+  dashboard/src/test/source-scan.ts:32
+    export function withoutComments(source: string): string {
+      // máquina de estados caractere a caractere: code | string | lineComment | blockComment
+
+  dashboard/src/test/source-scan.ts:69
+    export function balancedArgs(source: string, openParen: number): string | null {
+      // contador de profundidade sobre ( [ { ) ] }
+
+  O PRECEDENTE ESTÁ NO MESMO DIRETÓRIO, e resolve o mesmo problema pelo caminho certo:
+
+    dashboard/src/test/i18n-guard.ts:1
+      import ts from 'typescript';
+    dashboard/src/test/i18n-guard.ts:102
+      ts.createSourceFile(...) + ts.forEachChild
+
+  O `i18n-guard` precisa exatamente da mesma coisa — distinguir comentário, string e posição real
+  de conteúdo em código de produção — e usa a árvore sintática. O docblock dele diz por quê, e o
+  argumento vale palavra por palavra para estes dois detectores.
+
+  `typescript` já é devDependency (`dashboard/package.json:119`). Rung 4 da parsimony-ladder
+  ("existe dependência já instalada?") responde SIM, e eu escrevi um parser mesmo assim.
+limite_conhecido: |
+  MEDIDO, e é latente e não vivo: `balancedArgs` não conhece literal de regex, então um `(` ou `)`
+  desbalanceado dentro de `/…/` contaria errado. Varri os testes atrás disso:
+
+    seletores com regex contendo parêntese:        1  (`environments.test.tsx:193`, `/\(legacy\)/i`)
+    seletores com regex DESBALANCEADO:             0
+
+  O único caso real é balanceado, então a contagem de hoje está certa. Não é defeito ativo — é a
+  classe de defeito que estes próprios detectores existem para impedir ("um guarda que adivinha
+  onde a chamada termina está adivinhando"), presente no guarda.
+why_now: |
+  Apontado por revisão adversarial de arquitetura em 2026-08-12, sobre o diff que criou os dois
+  detectores. Registrado em vez de corrigido na hora por uma razão de processo, não de preguiça:
+  outros dois revisores estavam MUTANDO estes mesmos arquivos para validar as catracas naquele
+  instante, e reescrever o detector sob revisão invalidaria o trabalho dos dois.
+
+  O `cycle-review.md` permite `READY_TO_MERGE` com até 2 HIGH desde que cada um vire followup
+  registrado — não menção em prosa. Este é o registro.
+dod:
+  - `absence-assertion.ts` e `ambiguous-null.ts` acham chamadas por `ts.isCallExpression`, com os
+    argumentos vindo do nó e não de contagem de parêntese
+  - `source-scan.ts` deixa de existir OU passa a expor helpers sobre a árvore, não sobre texto
+  - as contagens ANTES e DEPOIS são publicadas lado a lado; se mudarem, cada diferença é explicada
+    caso a caso (a árvore é mais correta, então mudança é esperada e não é regressão)
+  - as mutações que hoje matam os auto-testes seguem matando (12 delas, registradas em B-235 e B-242)
+  - um caso cobre o parêntese desbalanceado dentro de literal de regex, que hoje passaria
+
+> Registrado 2026-08-12 por revisão adversarial de arquitetura, fase REVIEW do ciclo Squad.
+
+## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: blocker
+category: contract
+evidence: |
+  MEDIDO 2026-08-12 via `gh run list --workflow publish.yml`:
+
+    startup_failure  0s   develop   Merge PR #476              2026-08-12
+    startup_failure  1s   v1.0.0    Merge PR #475              2026-08-12   <- A TAG DE RELEASE
+    startup_failure  0s   develop   Promote workspace ...      2026-08-11
+    startup_failure  0s   develop   Merge PR #469              2026-08-07
+    success          4m39s v0.85.0  Merge PR #468              2026-08-05
+    success          4m38s develop  Merge PR #466              2026-08-05
+
+  Quatro runs seguidos morrem em 0-1s, sem executar job nenhum. O último sucesso é de 2026-08-05.
+
+  CONSEQUÊNCIA DIRETA, e é o que importa: o run disparado pela tag `v1.0.0` também é
+  `startup_failure`. O job `images` (`.github/workflows/publish.yml:115`) é quem constrói, escaneia
+  com trivy, assina com cosign e publica no GHCR. Ele nunca rodou.
+
+  **A v1.0.0 existe como tag e como GitHub release, e não existe como imagem.**
+o_que_ja_foi_descartado: |
+  - YAML inválido: `python3 -c "yaml.safe_load(...)"` carrega; `actionlint .github/workflows/publish.yml`
+    sai 0.
+  - Reusable inexistente: `usetheoai/theo/.github/workflows/build-publish.yml@d1f3c947` existe
+    (15982 bytes) e declara `on: workflow_call` com os inputs que `publish.yml:123-140` passa.
+  - Permissão do callee: `gh api repos/usetheoai/theo/actions/permissions/access` devolve
+    `{"access_level":"organization"}` — o repo chamado autoriza a organização.
+  - Os gates internos: `ci.yml`, `quality.yml`, `security-sast.yml` seguem declarando
+    `workflow_call`; a remoção de `pull_request` em 2026-08-12 (`fb90ce54`) NÃO é a causa — as
+    falhas começam em 2026-08-07, cinco dias antes.
+honest_limit: |
+  NÃO SEI a causa raiz. A API do GitHub não expõe a mensagem de erro de um `startup_failure` — nem
+  `runs/{id}` nem `runs/{id}/jobs` (que vem vazio, porque nenhum job chegou a existir). A mensagem
+  só aparece na interface web do run. Sem ela estou eliminando hipóteses, não diagnosticando.
+
+  A suspeita mais forte pela linha do tempo é o commit `6ef9cfde` (2026-08-06, "pina o reusable por
+  SHA"), que é o último a tocar essa chamada antes da primeira falha — mas o SHA resolve e o
+  arquivo está lá, então a suspeita não está confirmada. Alguém precisa abrir
+  https://github.com/usetheoai/theo-cloud/actions/runs/31607515055 e ler o erro.
+why_now: |
+  Descoberto ao executar a fase RELEASE do ciclo Squad em 2026-08-12, verificando a pré-condição
+  "CI verde em develop" do `cycle-release.md`. É por isso que a pré-condição existe.
+
+  BLOQUEIA O RELEASE. Cortar uma versão nova agora produziria exatamente o mesmo resultado que a
+  v1.0.0 produziu: uma tag, um GitHub release, e nenhum artefato atrás deles. Um release que
+  anuncia o que não publicou é pior do que nenhum release.
+dod:
+  - a mensagem de erro do startup está lida e registrada NESTE bloco (não inferida)
+  - `publish` volta a `success` em develop
+  - as imagens da v1.0.0 existem no GHCR, ou a v1.0.0 é declarada inválida e o registro diz isso
+  - existe verificação que reprova um corte de release quando o último `publish` do branch de
+    release não está `success` — hoje o `cycle-release.md` trata isso como "(Optional) CI is green",
+    e opcional foi o suficiente para uma release sair vazia
+
+> Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
