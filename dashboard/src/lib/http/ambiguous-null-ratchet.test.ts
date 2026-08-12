@@ -5,7 +5,6 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { callsIn, callsWithoutContractIn, hasContract } from '@/test/ambiguous-null';
-import { withoutComments } from '@/test/source-scan';
 
 const SRC = resolve(__dirname, '../..');
 
@@ -55,10 +54,18 @@ const SRC = resolve(__dirname, '../..');
  * opposite of what happened.
  *
  * The coincidence is worth naming so it does not read as a revert: the SECOND measurement also
- * said 37, from a 12-line window that was wrong in both directions. This 37 is the fourth
+ * said 37, from a 12-line window that was wrong in both directions. That 37 was the fourth
  * measurement minus two real migrations. Same number, unrelated reasons.
+ *
+ * 35 later the same day, with `memory/exports.tsx` migrated (B-244). Both of its calls were in the
+ * set, and one of them was swallowing a refused export in silence.
+ *
+ * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
+ * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
+ * screen that reports a success it did not observe are the same defect seen from two sides — which
+ * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 37;
+const CEILING_WITHOUT_CONTRACT = 35;
 
 /**
  * The corpus may not shrink silently.
@@ -214,6 +221,23 @@ describe('the detector, exercised — not a copy of it', () => {
     expect(callsWithoutContractIn('x.ts', source)).toHaveLength(1);
   });
 
+  it('reads a selector holding an UNBALANCED paren inside a regex literal', () => {
+    // B-269 — the limit the architecture review named, written as a failing case before the fix.
+    //
+    // `balancedArgs` counts `(` and `)` as text. A regex literal is not text to a parser, and
+    // `/\(/` carries exactly one unbalanced paren. Today the counter opens a depth it never
+    // closes at the right place, so the call's arguments are read wrong — and the failure is
+    // SILENT, which is the exact defect class these detectors exist to catch in the code they
+    // scan ("a guard that guesses where a call ends is guessing").
+    //
+    // Zero such selectors exist in the corpus today, so this is latent rather than live. It is
+    // pinned before the rewrite so the rewrite has something to prove.
+    const source = "await cloudFetch(build(/\\(/), {}, { throwOnError: true });";
+    const found = callsIn('x.ts', source);
+    expect(found).toHaveLength(1);
+    expect(found[0].args).toContain('throwOnError');
+  });
+
   it('does not confuse `cloudFetchRaw`, which does not offer the option', () => {
     expect(callsIn('x.ts', "const r = await cloudFetchRaw('/v1/blob', {});")).toHaveLength(0);
   });
@@ -228,14 +252,7 @@ describe('the detector, exercised — not a copy of it', () => {
     expect(callsIn('x.ts', "await cloudFetch('/v1/a');")).toHaveLength(1);
   });
 
-  it('`withoutComments` preserves lines, so the line number stays right', () => {
-    const source = 'a\n// comment\nb\n/* block\nstill block */\nc';
-    expect(withoutComments(source).split('\n')).toHaveLength(source.split('\n').length);
-  });
 
-  it('`withoutComments` does NOT erase a slash inside a string', () => {
-    expect(withoutComments("const p = '/v1/a//b';")).toContain('//b');
-  });
 
   it('reports the line the call is ON — the pointer a human follows', () => {
     // MEDIUM from review: hardcoding `lineOf` to always return 1 left BOTH ratchets fully green.

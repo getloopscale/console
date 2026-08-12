@@ -74,12 +74,54 @@ const SRC = resolve(__dirname, '..');
  * the old 116 to 111 net of six false positives — a correction in both directions, not a
  * narrowing. Lowering a ceiling by narrowing its detector is what B-238 recorded and what B-235
  * repeated hours earlier.
+ *
+ * ## Fourth reading (2026-08-12) — the syntax tree, B-269
+ *
+ *   317 / 111  text: comments stripped, parens balanced, trailing comma allowed
+ *   319 / 113  `ts.createSourceFile`
+ *
+ * Two more, and neither is new debt — they are assertions the text reading could not see at all
+ * (both named in the ceiling's own docblock below). An architecture review had called the
+ * hand-rolled scanner a Rule 9 miss with a LATENT limit; measuring proved the limit was LIVE. I
+ * had checked one manifestation — an unbalanced paren inside a regex — found none, and generalised
+ * from it. The apostrophe in `/hasn't stored any memories/i` is the same bug wearing different
+ * clothes, and it was sitting in the corpus the whole time.
+ *
+ * The lesson is the cycle's own, one level up: I measured whether a specific SHAPE occurred instead
+ * of whether the CLASS of defect could occur, and reported the reassuring answer.
  */
 
 const SELF = 'absence-assertion-ratchet.test.ts';
 
-/** Unanchored assertions. Measured 2026-08-12 with the detector in `lib/absence-assertion.ts`. */
-const CEILING_UNANCHORED = 111;
+/**
+ * Unanchored assertions. ONLY GOES DOWN — except when the DETECTOR gets more correct, which is
+ * what happened here and is stated rather than smoothed over.
+ *
+ * 111 measured 2026-08-12 by reading the text. **113** the same day by reading the syntax tree
+ * (B-269). The two extra are not new debt; they are assertions the text reading could not see:
+ *
+ *   pages/lens/monitors.test.tsx:389   expect(query, 'why this matters').not.toBeInTheDocument()
+ *   pages/memory/memories.test.tsx:75  expect(screen.queryByText(/hasn't stored any memories/i))
+ *
+ * The first is a two-argument `expect()` carrying a custom failure message, so the matcher does
+ * not follow the query's closing paren. The second holds an APOSTROPHE inside a regex literal, and
+ * the hand-rolled bracket counter treated `'` as opening a string — after which it skipped the
+ * parens it needed to balance. Both are the same defect in different clothes: a counter that reads
+ * `(`, `)` and `'` as text cannot know it is inside a regex literal, and a matcher is not always
+ * the next token.
+ *
+ * Measured both ways side by side before changing this number: 113 by AST, 111 by text, and the
+ * delta is exactly those two files — nothing else moved.
+ *
+ * **106 later the same day**, and this one is real progress rather than a better measurement.
+ * `app-sidebar.test.tsx` held EIGHT of them: six proved a submenu had opened by asserting that
+ * 'Domains' and 'Projects' were absent, and no case in the file ever showed those two texts. The
+ * file's own docblock described the pair in prose — "a asserção é pela AUSÊNCIA dos itens que só a
+ * raiz tem" — and nothing executed it, so a rename or a typo in either selector satisfied all six
+ * for the wrong reason. One case rendering the root and asserting both present anchors seven at
+ * once; removing it puts the count straight back to 113.
+ */
+const CEILING_UNANCHORED = 106;
 
 /** Files holding at least one absence assertion. Frozen 2026-08-11, remeasured 2026-08-12. */
 const CEILING_FILES = 98;
@@ -254,6 +296,30 @@ describe('the detector, exercised — not a copy of it', () => {
     // says nothing about the defect.
     const source = 'expect(screen.queryByText()).toBeNull();';
     expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(0);
+  });
+
+  it('a matcher chain that does NOT start at `expect(` is not an assertion', () => {
+    // The text version carried an equivalent check that no fixture could discriminate — a matcher
+    // implies `expect()` in valid code — so it was deleted rather than shipped unexercised. On the
+    // tree the wrapper is not implied, it is REQUIRED: the walk starts at the matcher and must
+    // arrive at a call to `expect`. That makes the check meaningful and this fixture possible.
+    const source = "assertThat(screen.queryByText(/nothing here/i)).toBeNull();";
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(0);
+  });
+
+  it('sees an assertion carrying a custom failure message (B-269)', () => {
+    // `expect(x, 'why this matters')` — the matcher does not follow the query's closing paren, so
+    // the text reading dropped it. Live in `pages/lens/monitors.test.tsx:389`.
+    const source = "expect(screen.queryByText(/nothing here/i), 'the reason').not.toBeInTheDocument();";
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(1);
+  });
+
+  it('sees a selector whose regex literal contains an APOSTROPHE (B-269)', () => {
+    // The hand-rolled counter treated `'` as opening a string and then skipped the parens it had
+    // to balance. Live in `pages/memory/memories.test.tsx:75`. To a parser a regex literal is one
+    // token, so nothing inside it is syntax.
+    const source = "expect(screen.queryByText(/hasn't stored any memories/i)).not.toBeInTheDocument();";
+    expect(absenceAssertionsIn('x.test.ts', source)).toHaveLength(1);
   });
 
   it('`selectorCore` needs 4 characters, so short noise is not an anchor', () => {

@@ -1,5 +1,21 @@
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-12
+
+### Fixed
+
+- **theo-cloud/dashboard:** starting an export of your memories no longer fails in silence. When the server refused, the request came back looking like an empty answer, the screen took that as success, and nothing appeared and nothing explained why. The screen already had the message for this — it was simply unreachable (B-244, B-235).
+
+- **theo-cloud/release process:** the reason container images stopped being built is found and fixed. The pipeline that builds, scans, signs and publishes them had been refusing to start since 2026-08-07 — six runs, zero successes, each dying in under a second, including the runs for both released versions. Neither v1.0.0 nor v1.0.1 has an image behind it, checked rather than assumed: both releases report zero assets. The cause was a workflow passing three settings to a shared build pipeline that does not accept them — a local copy that did accept them had been replaced by the shared one, and nothing compared the two. A check now refuses a workflow that passes a setting its callee does not declare. This entry deliberately does not say the pipeline is green: the fix had not yet run when it was written, and claiming a success nobody observed is the defect the rest of this release is about (B-270).
+
+### Changed
+
+- **theo-cloud/release process:** the check that catches a workflow passing a setting its callee does not accept now runs in CI. It was written when that defect cost six dead pipeline runs and two releases with no image, and then shipped wired to nothing — so the next such change would have reproduced the same failure with the detector sitting unused in the repository (B-270).
+
+- **theo-cloud/dashboard:** six checks that proved a navigation submenu had opened now also prove the labels they look for exist at all. They asserted two menu items were absent and nothing ever showed those items, so renaming either one would have satisfied all six for the wrong reason. The count of assertions that cannot fail drops from 113 to 106 (B-242).
+
+- **theo-cloud/dashboard:** the two checks that watch for tests which cannot fail now read the code with the TypeScript compiler instead of matching text. They had been counting brackets by hand, and that missed two real assertions sitting in the codebase the whole time — one whose selector contains an apostrophe, one carrying a custom failure message — so the count rises from 111 to 113 without any new weak test being written. The number went up because the measurement got better (B-269, B-242).
+
 ## [1.0.1] - 2026-08-12
 
 <!-- B-268 — some of the entries below spent a day inside a `## [1.0.1] - 2026-08-11` section
