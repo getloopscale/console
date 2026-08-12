@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/release process:** container images are built again. The pipeline that builds, scans, signs and publishes them had been refusing to start since 2026-08-07 — five runs in a row, each dying in under a second, including the runs for both released versions. Neither v1.0.0 nor v1.0.1 has an image behind it. The cause was a workflow passing three settings to a shared build pipeline that does not accept them: a local copy that did accept them had been replaced by the shared one, and nothing compared the two. A check now refuses a workflow that passes a setting its callee does not declare (B-270).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the two checks that watch for tests which cannot fail now read the code with the TypeScript compiler instead of matching text. They had been counting brackets by hand, and that missed two real assertions sitting in the codebase the whole time — one whose selector contains an apostrophe, one carrying a custom failure message — so the count rises from 111 to 113 without any new weak test being written. The number went up because the measurement got better (B-269, B-242).

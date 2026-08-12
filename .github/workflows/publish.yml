@@ -131,14 +131,31 @@ jobs:
       # A MESMA verdade que o metadata-action grava em org.opencontainers.image.revision no mesmo
       # run. Binario e label viram duas projecoes de um unico fato, entao o criterio de aceite do
       # M22 (`/v1/version` bate com o label da imagem em execucao) e verdadeiro por construcao.
-      git_sha: ${{ github.sha }}
-      version_label: ${{ needs.plan.outputs.version_label }}
+      #
+      # B-270 — isto ia como `git_sha:` e `version_label:`, dois inputs que a COPIA VENDORIZADA
+      # deste repo declarava e que o reusable compartilhado nunca teve. Quando `03195817` trocou a
+      # copia pelo reusable de `usetheoai/theo`, o GitHub passou a recusar o workflow INTEIRO no
+      # startup — cinco runs seguidos mortos em menos de um segundo, incluindo as tags v1.0.0 e
+      # v1.0.1, que sairam sem imagem nenhuma atras delas.
+      #
+      # `build_args` e o input que o reusable JA declara e repassa aos dois builds (o do Trivy e o
+      # do push). O `Dockerfile:58-59` ja declara `ARG VERSION` e `ARG GIT_SHA` e os injeta por
+      # ldflags, entao o canal existia dos dois lados — faltava usa-lo.
+      build_args: |
+        VERSION=${{ needs.plan.outputs.version_label }}
+        GIT_SHA=${{ github.sha }}
       # `verify` fica preso a tag de proposito (EC-3): o cosign verify resolve contra Rekor/Fulcio
       # DEPOIS do push, entao uma indisponibilidade do Sigstore vermelharia um run cuja imagem ja
       # publicou — e o reconciliador convergiria numa imagem que a pipeline diz ter falhado.
       verify: ${{ needs.plan.outputs.sign == 'true' }}
-      # SBOM + provenance mode=max e o export pesado; so na release.
-      attest: ${{ needs.plan.outputs.sign == 'true' }}
+      # B-270 — `attest:` saiu daqui pelo mesmo motivo: o reusable compartilhado nao o declara.
+      # Ele FUNDE SBOM + provenance(mode=max) + cosign sob o unico `sign:` acima, que ja vai `true`.
+      #
+      # O que se perde e a otimizacao, nao a garantia: a copia vendorizada separava assinar (sempre)
+      # de exportar SBOM (so na release), e agora o export pesado roda em todo push para develop.
+      # Recuperar isso exige um input novo no reusable compartilhado — mudanca em `usetheoai/theo`,
+      # que alcanca todos os repos que o chamam. Registrado como B-271 em vez de resolvido aqui
+      # deixando de assinar o que producao consome, que e a troca que o comentario acima recusa.
     # Explicito, nao `secrets: inherit`. O reusable declara TRES secrets, todos opcionais;
     # herdar tudo passa cada segredo do repo para um workflow que usa no maximo tres — e o
     # semgrep sinaliza `secrets-inherit` por isso mesmo. A enumeracao nao custa nada.

@@ -10281,7 +10281,7 @@ dod:
 status: triaged
 > Registrado 2026-08-12 por revisão adversarial de arquitetura, fase REVIEW do ciclo Squad.
 
-## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [ ]
+## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -10350,4 +10350,85 @@ confirmado_na_v1_0_1: |
   GitHub release, e nenhuma imagem. A diferença é que desta vez estava escrito antes.
 
 status: triaged
+causa_raiz: |
+  ENCONTRADA 2026-08-12, lendo o run na interface do GitHub com o Chrome — a única superfície que
+  mostra a mensagem. A API não expõe nada: `runs/{id}` não traz o erro e `runs/{id}/jobs` vem vazio
+  porque nenhum job chegou a existir.
+
+    The workflow is not valid. .github/workflows/publish.yml (Line: 134, Col: 16):
+    Invalid input, git_sha is not defined in the referenced workflow.
+    (Line: 135, Col: 22): Invalid input, version_label is not defined in the referenced workflow.
+
+  E havia um TERCEIRO que a mensagem nem chegou a listar — `attest`, na linha 141 — achado pelo
+  detector escrito para o fix.
+
+  A CADEIA, verificada commit a commit e não suposta:
+
+    até 2026-08-05  `publish.yml` chamava `uses: ./.github/workflows/build-publish.yml` — uma CÓPIA
+                    VENDORIZADA dentro deste repo, que declarava `git_sha`, `version_label` e
+                    `attest` (`03195817~1:.github/workflows/build-publish.yml:48-49`)
+    2026-08-06      `03195817 ci: paga a divida da copia vendorizada do build-publish` trocou a
+                    cópia pelo reusable compartilhado de `usetheoai/theo` — que nunca teve esses
+                    três inputs, em versão nenhuma (conferido no SHA pinado E no develop atual)
+    2026-08-07      primeira falha de startup
+    2026-08-12      v1.0.0 e v1.0.1 cortadas, ambas sem imagem
+
+  Repinar não resolveria: o arquivo do reusable não muda desde 2026-07-31 e os inputs nunca
+  existiram nele. Foi o lado chamador que inventou um contrato.
+fix: |
+  `build_args` — o input que o reusable JÁ declara e repassa aos dois builds. O `Dockerfile:58-59`
+  já declara `ARG VERSION` e `ARG GIT_SHA` e os injeta por ldflags, então o canal existia dos dois
+  lados e faltava usá-lo. Degrau 4 da parsimony ladder, não input novo.
+
+  `attest` saiu porque o reusable funde SBOM+provenance+cosign sob o `sign:` que já vai `true`. O
+  que se perde é a otimização de exportar SBOM só na release — registrado em B-271, não escondido.
+
+  `.claude/scripts/check_reusable_inputs.py` é a rede: compara todo input passado a um reusable
+  cross-repo contra o que aquele SHA declara. `actionlint` sai 0 neste defeito porque não busca o
+  arquivo do outro repo. RED contra o estado atual (3 problemas), GREEN depois do fix.
+status: shipped
+shipped_note: |
+  Corrigido em 2026-08-12. A verificação de que a imagem volta a ser construída depende do próximo
+  push em develop — este bloco NÃO afirma que a v1.0.0 e a v1.0.1 ganharam imagem, porque não
+  ganharam: elas seguem sem artefato e isso só muda com um novo corte.
+
 > Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
+
+## B-271 — O export de SBOM deixou de ser só-na-release ao adotar o reusable compartilhado   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: evolve
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  A cópia vendorizada declarava DOIS flags separados (`03195817~1:.github/workflows/build-publish.yml:48-49`
+  e o `publish.yml` da época):
+
+    sign:   true                                  -> assina sempre
+    attest: needs.plan.outputs.sign == 'true'     -> SBOM + provenance(mode=max) só na release
+
+  O reusable compartilhado FUNDE os dois num flag só:
+
+    usetheoai/theo/.github/workflows/build-publish.yml@d1f3c947:39
+      sign: { required: false, type: boolean, default: false }   # SBOM+provenance(mode=max)+cosign — release only
+
+  Ao corrigir o B-270, `attest:` saiu (o reusable não o declara) e `sign: true` ficou. Efeito: o
+  export pesado passa a rodar em TODO push para develop, não só na release.
+o_que_NAO_foi_feito_e_por_que: |
+  A alternativa óbvia — `sign: ${{ needs.plan.outputs.sign == 'true' }}` — devolveria a otimização e
+  pararia de ASSINAR o que produção consome. O comentário em `publish.yml:128` recusa essa troca com
+  a razão medida: "deixar scan e assinatura presos a tags protegia artefatos que este host nunca
+  puxa, e não protegia o que ele executa". Custo de CI é preferível a imagem de develop não assinada.
+why_now: |
+  Descoberto ao corrigir o B-270 em 2026-08-12. Não é regressão de comportamento observável — desde
+  2026-08-06 nenhuma imagem foi construída, então nem o caminho antigo nem o novo rodaram.
+dod:
+  - medir quanto o export mode=max custa por push em develop antes de decidir se vale mexer
+  - se valer: input novo no reusable de `usetheoai/theo` separando assinar de exportar SBOM, com o
+    blast radius avaliado (alcança todo repo que chama o reusable)
+  - se não valer: este item é morto com kill_reason dizendo o custo medido
+status: triaged
+
+> Registrado 2026-08-12 ao corrigir o B-270.
