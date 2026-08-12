@@ -12,6 +12,7 @@
 
 ### Changed
 
+- **theo-cloud/internal tooling:** 21 Go symbols the dead-code audit reports as unreachable are exempted for 90 days, each with the reason and the line it fires on. Four are called by the language runtime and deleting them would put a credential back in the logs; four are seams the tests use; thirteen are metrics helpers still to be classified. The exemptions expire on 2026-11-10 and every one re-fires then (B-256).
 - **theo-cloud/internal tooling:** the backlog verifier now refuses an item whose checkbox contradicts its status. The two had drifted apart 41 times: work that shipped still showed an unticked box, and — the direction that misleads — ten items nobody had measured showed a ticked one, so a whole programme read as delivered to anyone skimming the list (B-242..B-246).
 
 ### Fixed

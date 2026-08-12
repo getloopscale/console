@@ -32,3 +32,46 @@
 
 # Example (commented):
 # dead_code_unallowlisted_python | src/legacy/migrator.py:128 | 2026-09-01 | Legacy migration helper retained for v0.9 rollback path; remove after v1.0 release.
+
+# ---------------------------------------------------------------------------
+# B-256 — 21 unreachable Go symbols, surfaced 2026-08-12 when B-255 fixed the D1
+# parser. They were being reported before, as five findings named `<unknown>`; the
+# fix did not create them, it made them legible.
+#
+# Exempted here rather than deleted because deleting is the WRONG action for at
+# least two of the three classes below, and deciding which is which is B-256's
+# job, not a side-quest inside a release-tooling fix (B-228, which touched zero
+# Go files). ADR: knowledge-base/adrs/0001-b256-preexisting-go-dead-code.md
+# Sunset 2026-11-10 (90 days). On expiry every line below re-fires at HARD.
+#
+# Class 1 — called by the LANGUAGE RUNTIME, never by our code. CHANGELOG § [0.83.1]
+# Security: deleting any of these makes a credential serialize in clear text again,
+# with no test going red. `deadcode` cannot see a call it does not make.
+dead_code_unallowlisted_go | internal/config/config.go:19 | 2026-11-10 | Secret.String — fmt calls it; deleting it un-redacts a credential in every %v (B-256)
+dead_code_unallowlisted_go | internal/config/config.go:20 | 2026-11-10 | Secret.GoString — fmt %#v path, same exposure (B-256)
+dead_code_unallowlisted_go | internal/config/config.go:21 | 2026-11-10 | Secret.MarshalJSON — encoding/json calls it; deleting it leaks the secret into any JSON body (B-256)
+dead_code_unallowlisted_go | internal/config/config.go:22 | 2026-11-10 | Secret.MarshalText — encoding.TextMarshaler path, same exposure (B-256)
+#
+# Class 2 — test seams. `deadcode` analyses reachability from `main` and does not
+# consider test binaries, so a constructor option used only by tests reads as dead.
+dead_code_unallowlisted_go | internal/billing/cost_aggregator.go:74 | 2026-11-10 | CostAggregator.WithClock — injected clock, used by tests only (B-256)
+dead_code_unallowlisted_go | internal/routes/integrations_github.go:57 | 2026-11-10 | WithInsecureCookieForTests — name states the caller (B-256)
+dead_code_unallowlisted_go | internal/routes/rag_connectors_oauth.go:114 | 2026-11-10 | WithInsecureCookieForTests — name states the caller (B-256)
+dead_code_unallowlisted_go | internal/routes/memory_exports.go:254 | 2026-11-10 | MemoryExportsHandler.WaitForWorkers — test synchronisation seam (B-256)
+#
+# Class 3 — metrics helpers, the only ones that may be genuinely dead. A metric
+# helper nobody calls is a signal nobody emits, which is worth knowing either way;
+# B-256 decides per symbol.
+dead_code_unallowlisted_go | internal/metrics/metrics.go:211 | 2026-11-10 | StorageBytesWrittenValue — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:227 | 2026-11-10 | ObjectsDeletedValue — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:270 | 2026-11-10 | ServiceVersionInfoValue — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:293 | 2026-11-10 | ServiceVersionProbeValue — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:306 | 2026-11-10 | IncTokenExchange — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:315 | 2026-11-10 | IncDeviceFlow — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:332 | 2026-11-10 | ObserveTenantProvisioning — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:342 | 2026-11-10 | IncAuthRejection — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:360 | 2026-11-10 | IncWebhook — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:369 | 2026-11-10 | IncCheckout — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:378 | 2026-11-10 | IncUsageDrift — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:383 | 2026-11-10 | IncSubscriptionFallback — pending B-256 classification
+dead_code_unallowlisted_go | internal/metrics/metrics.go:401 | 2026-11-10 | ObserveHTTPRequest — pending B-256 classification
