@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** a new request that cannot tell a failure from an empty answer now fails the build. 134 of the 171 requests already ask for the typed error; the 37 that do not are frozen, so the ambiguity stops spreading while they are migrated one at a time (B-235).
 - **theo-cloud/dashboard:** when creating a project fails, the screen now says why. It used to show "Couldn't create project. Try again in a moment." for every failure, because the request could not tell a rejection from an empty answer — so a name already taken and a service being down read the same. Creating a project also refreshes the project list, which it previously left to whoever opened the form (B-244).
 - **theo-cloud/dashboard:** a build whose SBOM or signature cannot be read no longer says the build has none. For a supply-chain artifact the two are opposite conclusions — "this build shipped without provenance" is something to act on, "I could not read the provenance" is something to retry — and they shared a heading. Both tabs also stop re-fetching every time you switch to them (B-244).
 - **theo-cloud/dashboard:** a test that could only pass when another test ran before it now passes on its own. Nothing was wrong with the screen it covers — the test harness had a mechanism switched off that the browser has on, so it reported a defect the product does not have (B-240).

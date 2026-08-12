@@ -8559,7 +8559,6 @@ evidence: |
       return null;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
-status: triaged
 scope_narrowed: |
   2026-08-11 — deliberately NOT closed by the http-error-contract slice. The ambiguity
   was mitigated where it produced a visible defect (B-171, at the hook) and is now
@@ -8588,17 +8587,46 @@ remeasured: |
   several lines, which most of them do. Counted properly (scan each call and look 12 lines
   ahead for the option):
 
-    call sites that ALREADY pass `throwOnError: true`  ->  135
-    call sites that do NOT                             ->   41   (2 of them inside api.ts itself)
+    call sites that ALREADY pass `throwOnError: true`  ->  134
+    call sites that do NOT                             ->   37
+
+  SECOND CORRECTION, same day: the count above first read 135/41 because it also matched
+  `cloudFetchRaw`, which has NO config parameter — it returns `Response | null` BY DESIGN, as
+  the raw escape hatch for reading headers. Charging it with a contract it does not offer would
+  have measured the guard's vocabulary instead of the defect, which is the mistake B-238 and
+  B-243 each cost a cycle. Two wrong measurements before the right one, both mine, both here.
 
   That inverts the item's framing. `throwOnError` is not a rarely-used opt-in whose promotion
-  would break 151 importers: it is what 77% of the codebase already asks for, one call at a
-  time. The ambiguous default is the MINORITY behaviour, and the migration is 39 sites.
+  would break 151 importers: it is what 78% of the codebase already asks for, one call at a
+  time. The ambiguous default is the MINORITY behaviour, and the migration is 37 sites.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-s-t-null-collapses-at`). Source: code-review finding #49, `code-review-output/code-review.db`.
+
+implemented: |
+  2026-08-12 — a catraca existe; a decisão sobre o default está medida e NÃO tomada.
+
+  `src/lib/http/ambiguous-null-ratchet.test.ts` congela em 37 as chamadas sem contrato, com
+  auto-testes que impedem as duas medições erradas de voltarem (a por linha, que perde chamadas
+  multi-linha; e a que cobrava `cloudFetchRaw`).
+
+  VIRAR O DEFAULT FOI TENTADO E REVERTIDO, com o motivo medido. O caminho seguro exige tornar
+  os 37 explícitos ANTES do flip — senão cada um passa a LANÇAR onde resolvia, 37 mudanças de
+  comportamento sem teste que descreva o que cada tela faz numa falha. O rewrite mecânico
+  funcionou (`tsc` limpo) mas tocou 34 arquivos de produção e quebrou 12 testes que asseriam a
+  forma exata da chamada — e comprava UMA coisa: que código novo receba o default seguro.
+
+  A catraca compra essa mesma coisa, sem o diff: uma chamada nova sem `throwOnError` sobe o
+  número e o teste fica vermelho. E compra mais uma que o rewrite não comprava — os 37 ficam
+  CONTÁVEIS, então migrá-los aparece como progresso em vez de sumir num teto por arquivo. É a
+  lição que o B-242 custou uma métrica inteira para aprender.
+
+  O que segue aberto, e é a decisão do item: se o default vira depois que os 37 forem
+  explícitos, ou se `cloudFetch` passa a devolver um resultado discriminado. A medição diz que
+  a primeira é barata (78% do código já pede) e não diz qual é certa.
+status: triaged
 
 ## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [x]
 
