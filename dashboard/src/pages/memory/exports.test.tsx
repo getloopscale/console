@@ -50,9 +50,38 @@ describe('ExportsPage (/memory/exports)', () => {
     await user.click(
       (await screen.findAllByRole('button', { name: /create export/i }))[0],
     );
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/memory/exports', expect.objectContaining({ method: 'POST' }));
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/memory/exports',
+      expect.objectContaining({ method: 'POST' }),
+      // B-244/B-235 — the third argument is the error contract, not decoration. Without it a
+      // refused POST RESOLVES `null`, `onSuccess` fires with that `null`, and the handler's
+      // `if (!row?.id) return` swallows it: the user clicks and nothing happens, silently.
+      { throwOnError: true },
+    );
     // Wait for the row to appear with `pending` status badge.
     expect(await screen.findByTestId('status-export-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).toBeInTheDocument();
+  });
+
+  it('a rejected create surfaces in the Alert the screen already had', async () => {
+    // WHAT THIS DOES AND DOES NOT PROVE, because an earlier version of this comment claimed more
+    // than the code delivers and a review caught it.
+    //
+    // It proves the PAGE renders `createMutation.isError`. It does NOT prove the B-244 fix: this
+    // mocks a REJECTION, and a rejection already set `isError` in the pre-migration page too — so
+    // this case passes unchanged against the old code, which is the definition of a test that
+    // cannot fail on the defect it names.
+    //
+    // The actual defect — a refusal RESOLVING `null`, swallowed by `if (!row?.id) return` — is only
+    // observable below the mock, and is covered in `hooks/data-access-error-contract.test.tsx`,
+    // which stubs `globalThis.fetch` and lets the real `cloudFetch` run.
+    mockCloudFetch.mockRejectedValueOnce(new Error('quota exceeded'));
+    const user = userEvent.setup();
+    render(<ExportsPage />);
+    await user.click((await screen.findAllByRole('button', { name: /create export/i }))[0]);
+
+    expect(await screen.findByText('Could not start export')).toBeInTheDocument();
+    // …and no phantom row was added for an export that was never created.
+    expect(screen.getByText(/no exports yet/i)).toBeInTheDocument();
   });
 
   it('D3 (EC-15) — polling SKIPS the status fetch when document.visibilityState is hidden', async () => {

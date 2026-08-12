@@ -17,6 +17,7 @@ import {
   useCreateWorkspaceWebhook,
   useRevokeWorkspaceWebhook,
 } from '@/hooks/settings/use-workspace-webhooks';
+import { useCreateMemoryExport } from '@/hooks/memory/use-memory-exports';
 import { queryKeys } from '@/lib/api/query-keys';
 
 /**
@@ -223,5 +224,39 @@ describe('registering and revoking a webhook cannot report success it did not ob
     const { result } = renderHook(() => useRevokeWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync('wwh-1')).resolves.toBeUndefined();
+  });
+});
+
+describe('starting a memory export cannot report a job that was never created (B-244)', () => {
+  // A review caught me repeating the exact mistake this file was written to fix. The page-level
+  // test I added mocks the failure as a REJECTION — and a rejection already set `isError` in the
+  // OLD code, so that test passes unchanged against the pre-migration page. The defect was that a
+  // refusal RESOLVED `null` and `if (!row?.id) return` swallowed it, and nothing exercised that.
+  //
+  // These go through the real transport, where the difference is observable.
+
+  it('a 403 rejects instead of resolving null', async () => {
+    await serverAnswers(403);
+    const { result } = renderHook(() => useCreateMemoryExport(), { wrapper: wrapper(testClient()) });
+
+    await expect(result.current.mutateAsync()).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 403,
+    });
+  });
+
+  it('a 2xx with no body rejects — an export nobody can identify is not an export', async () => {
+    // The `created === null` branch. Without a case that RESOLVES null, this line was untested.
+    await serverAnswers(204, null);
+    const { result } = renderHook(() => useCreateMemoryExport(), { wrapper: wrapper(testClient()) });
+
+    await expect(result.current.mutateAsync()).rejects.toThrow(/did not say which one/);
+  });
+
+  it('a 201 with a body resolves the job', async () => {
+    await serverAnswers(201, { id: 'export-1', status: 'pending' });
+    const { result } = renderHook(() => useCreateMemoryExport(), { wrapper: wrapper(testClient()) });
+
+    await expect(result.current.mutateAsync()).resolves.toMatchObject({ id: 'export-1' });
   });
 });

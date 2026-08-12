@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { Download, Plus } from 'lucide-react';
 import { Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, getApiBase } from '@/lib/http/api';
+import { getApiBase } from '@/lib/http/api';
+import {
+  useCreateMemoryExport,
+  fetchMemoryExportStatus,
+  type MemoryExport,
+} from '@/hooks/memory/use-memory-exports';
 import { safeNavigator } from '@/lib/navigation';
 
 /**
@@ -20,17 +24,9 @@ import { safeNavigator } from '@/lib/navigation';
  *  - Succeeded row gets a download link
  */
 
-interface ExportRow {
-  id: string;
-  display_name?: string | null;
-  status: 'pending' | 'running' | 'succeeded' | 'failed';
-  created_at?: string;
-  error_message?: string;
-}
-
 const POLL_INTERVAL_MS = 2000;
 
-function statusVariant(s: ExportRow['status']): 'default' | 'warning' | 'success' | 'destructive' {
+function statusVariant(s: MemoryExport['status']): 'default' | 'warning' | 'success' | 'destructive' {
   switch (s) {
     case 'pending':
       return 'default';
@@ -49,13 +45,11 @@ export function ExportsPage() {
   useRequireAuth();
 
   // v0.1 list source: client-side accumulator + per-id status polling.
-  const [exports, setExports] = useState<ExportRow[]>([]);
+  const [exports, setExports] = useState<MemoryExport[]>([]);
 
-  const createMutation = useMutation({
-    mutationFn: async () => cloudFetch<ExportRow>('/v1/dashboard/memory/exports', { method: 'POST', body: '{}' }),
-    onSuccess: (row) => {
-      if (!row?.id) return;
-      const fresh: ExportRow = {
+  const createMutation = useCreateMemoryExport();
+  const onCreated = (row: MemoryExport) => {
+      const fresh: MemoryExport = {
         id: row.id,
         display_name: row.display_name ?? null,
         status: row.status ?? 'pending',
@@ -63,8 +57,7 @@ export function ExportsPage() {
         error_message: row.error_message,
       };
       setExports((prev) => [fresh, ...prev]);
-    },
-  });
+  };
 
   // D3 (EC-15) — polling pauses when tab hidden. Implemented via a single
   // setInterval gated by visibilityState; visibilitychange flips the
@@ -77,15 +70,15 @@ export function ExportsPage() {
       if (active.length === 0) return;
       const updates = await Promise.all(
         active.map((e) =>
-          cloudFetch<ExportRow>(`/v1/dashboard/memory/exports/${e.id}/status`).catch(() => null),
+          fetchMemoryExportStatus(e.id).catch(() => null),
         ),
       );
-      const byId = new Map<string, ExportRow>();
+      const byId = new Map<string, MemoryExport>();
       for (const u of updates) {
         if (u) byId.set(u.id, u);
       }
       setExports((prev) => {
-        const next: ExportRow[] = [];
+        const next: MemoryExport[] = [];
         for (const row of prev) {
           const u = byId.get(row.id);
           if (u) {
@@ -123,7 +116,7 @@ export function ExportsPage() {
     };
   }, [exports]);
 
-  const columns: DataTableColumn<ExportRow>[] = [
+  const columns: DataTableColumn<MemoryExport>[] = [
     {
       key: 'id',
       label: 'ID',
@@ -188,7 +181,7 @@ export function ExportsPage() {
       primaryAction={{
         label: 'Create export',
         icon: Plus,
-        onClick: () => createMutation.mutate(),
+        onClick: () => { createMutation.mutate(undefined, { onSuccess: onCreated }); },
         loading: createMutation.isPending,
       }}
     >

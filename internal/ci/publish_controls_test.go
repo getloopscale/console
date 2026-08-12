@@ -530,9 +530,25 @@ func TestVersionLabelIdentifiesTheBuildOnTheDevelopChannel(t *testing.T) {
 	if !ok {
 		t.Fatal("publish.yml perdeu o job `images`")
 	}
-	got, _ := images.With["version_label"].(string)
+	// O CANAL mudou; o contrato nao. Ate 2026-08-12 isto ia como o input `version_label:`, que a
+	// COPIA VENDORIZADA do build-publish declarava. O reusable compartilhado nunca teve esse input,
+	// e passar um input inexistente faz o GitHub recusar o workflow INTEIRO no startup — seis runs
+	// mortos em menos de um segundo e duas releases sem imagem (B-270).
+	//
+	// O valor agora viaja por `build_args`, que o reusable declara e repassa aos dois builds, e que
+	// o `Dockerfile:58-59` ja recebia via `ARG VERSION`. A asserção segue sendo sobre o mesmo fato
+	// — o rotulo composto pelo job `plan` chega ao build da imagem — porque e' esse fato que o
+	// criterio de aceite do M22 depende, e nao a grafia do input.
+	got, _ := images.With["build_args"].(string)
 	if !strings.Contains(got, "needs.plan.outputs.version_label") {
-		t.Errorf("images.with.version_label = %q; esperado consumir needs.plan.outputs.version_label", got)
+		t.Errorf("images.with.build_args = %q; esperado carregar VERSION=needs.plan.outputs.version_label", got)
+	}
+	if !strings.Contains(got, "VERSION=") {
+		t.Errorf("images.with.build_args = %q; o Dockerfile le `ARG VERSION`, entao a chave importa", got)
+	}
+	if _, temInputMorto := images.With["version_label"]; temInputMorto {
+		t.Error("images.with.version_label voltou: o reusable compartilhado NAO declara esse input, " +
+			"e passa-lo faz o GitHub recusar o workflow no startup (B-270)")
 	}
 }
 

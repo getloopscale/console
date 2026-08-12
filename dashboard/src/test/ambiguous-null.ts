@@ -1,21 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-import { withoutComments, balancedArgs, lineOf } from '@/test/source-scan';
+import { parse, callSites } from '@/test/source-scan';
 
 /**
  * The B-235 detector, separated from the test that freezes its count.
  *
- * It lives in its own module for a measured reason: while the logic sat inside the test file,
- * the self-tests meant to prove it held a COPY of the rule and checked the copy. Three mutations
- * that destroyed the detector stayed green — the search window cut to one line, the selector's
- * core truncated, the alternation widened. That is the defect B-237 already recorded in this
- * repository, re-shipped.
+ * It lives in its own module for a measured reason: while the logic sat inside the test file, the
+ * self-tests meant to prove it held a COPY of the rule and checked the copy. Three mutations that
+ * destroyed the detector stayed green — the search window cut to one line, the selector's core
+ * truncated, the alternation widened. That is the defect B-237 already recorded in this repository,
+ * re-shipped.
  *
  * Exported, the self-tests call THIS function. If it stops discriminating, they go red.
  *
- * Comment stripping and balanced-paren extraction come from `lib/source-scan` — the B-242
- * detector needs the same two, and a fix to either has to reach both.
+ * ## What it reads, and what four measurements cost to learn
+ *
+ *   13  grep by LINE — most calls span several
+ *   41  matched `cloudFetchRaw`, which takes no config: it returns `Response | null` BY DESIGN
+ *   37  a 12-line window, wrong in both directions — absolving calls because a COMMENT below them
+ *       mentioned the option, accusing calls whose option sat 14 lines down
+ *   39  balanced parentheses over comment-stripped text
+ *
+ * The fifth reading is this one, and it changes no number: `ts.createSourceFile` gives the call's
+ * arguments from the grammar. Comments are not nodes. A regex literal is one token, so the
+ * unbalanced paren in `/\(/` — which made the previous extractor lose the whole call — is not
+ * syntax to be counted (B-269).
  */
 
 /** One call site, with its argument list already extracted. */
@@ -25,9 +35,6 @@ export interface FoundCall {
   readonly args: string;
 }
 
-/** `cloudFetch(` or `cloudFetch<T>(` — NEVER `cloudFetchRaw`, which takes no config. */
-const CALL_OPENING = /(?<![\w.])cloudFetch\s*(?:<[^(]*?>)?\s*\(/g;
-
 /** `{ throwOnError: true }` present IN THE ARGUMENTS. `false` is the defect spelled out. */
 export function hasContract(args: string): boolean {
   return /\bthrowOnError\s*:\s*true\b/.test(args);
@@ -36,20 +43,14 @@ export function hasContract(args: string): boolean {
 /**
  * Every `cloudFetch` call in a file, with its real arguments.
  *
- * This item's first measurement checked LINE by line and said 13; the second used a 12-line
- * window and said 37, missing two calls whose `throwOnError` sits 12 and 14 lines below. A window
- * is a guess about how long a call is; the parentheses are the call.
+ * `cloudFetchRaw` is excluded by identity rather than by regex: the callee's trailing name must be
+ * exactly `cloudFetch`. A property access — `client.cloudFetch`, `mockCloudFetch` — is a different
+ * function and is not counted, which the parser settles without a lookbehind.
  */
 export function callsIn(file: string, source: string): FoundCall[] {
-  const code = withoutComments(source);
-  const found: FoundCall[] = [];
-  for (const m of code.matchAll(CALL_OPENING)) {
-    const open = m.index + m[0].length - 1;
-    const args = balancedArgs(code, open);
-    if (args === null) continue;
-    found.push({ file, line: lineOf(code, m.index), args });
-  }
-  return found;
+  return callSites(parse(file, source))
+    .filter((c) => c.callee === 'cloudFetch')
+    .map((c) => ({ file, line: c.line, args: c.argsText }));
 }
 
 /** The calls with no `{ throwOnError: true }` — where `null` still means five things. */

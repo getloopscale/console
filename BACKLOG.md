@@ -8236,7 +8236,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-trust-chart-test-green-over-defect`).
 > Found while implementing B-161; the evidence is the failing gate, not a hunch.
 
-## B-228 — `git describe` cannot read the released version in this branching model   [ ]
+## B-228 — `git describe` cannot read the released version in this branching model   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud
@@ -8266,7 +8266,8 @@ why_now: |
   tags, and `git describe` reported a stale answer that looked like a divergence. Corrected after
   `git fetch --tags` and an ancestry check. Recording the error rather than quietly rewriting it:
   a backlog that hides its own retractions is the same defect this review cycle exists to catch.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - the release chain reads the version from a source that is valid in this branching model
     (`git tag --sort=-v:refname | head -1`, or the tag on `origin/main`) rather than from
@@ -8626,6 +8627,37 @@ implemented: |
   O que segue aberto, e é a decisão do item: se o default vira depois que os 37 forem
   explícitos, ou se `cloudFetch` passa a devolver um resultado discriminado. A medição diz que
   a primeira é barata (78% do código já pede) e não diz qual é certa.
+decisao_2026_08_12: |
+  A PERGUNTA ABERTA DESTE ITEM SE FECHA, e a resposta é NÃO VIRAR o default.
+
+  O item enumerava duas saídas — virar o default, ou devolver resultado discriminado — e media que a
+  primeira era "barata (78% do código já pede)". Ao listar os 37 restantes um a um, a conta muda.
+
+  VIRAR SEM TOCAR NOS 37 é inseguro, e isso já estava medido: cada um passa a LANÇAR onde resolvia,
+  em 37 telas sem teste descrevendo o que elas fazem numa falha.
+
+  MARCAR OS 37 COM `{ throwOnError: false }` ANTES DE VIRAR preserva o comportamento por construção
+  — cada chamada continua resolvendo `null` exatamente como hoje, agora dizendo isso em voz alta.
+  Parece a saída óbvia, e é aqui que a conta vira: o ÚNICO benefício de virar depois disso é que
+  código NOVO recebe o default seguro.
+
+  E a catraca JÁ ENTREGA exatamente isso, com diff zero e risco zero.
+
+  Então o flip compra uma coisa que já está comprada, ao preço de 37 edições em ~20 arquivos, mais
+  os testes que asserem a FORMA da chamada (a tentativa revertida quebrou 12 por isso). Degrau 1 da
+  parsimony ladder: isto não precisa existir.
+
+  O QUE FECHA OS 37 é migrá-los um a um COM tratamento de erro na tela — que é literalmente o que o
+  B-244 vem fazendo, e cada migração baixa este número junto. Medido hoje: 39 -> 37 com duas
+  migrações (create-project e settings/webhooks), cada uma fechando um defeito visível ao usuário no
+  caminho. Não é coincidência: uma chamada sem contrato e uma tela que reporta sucesso falso são o
+  mesmo defeito visto de dois lados.
+
+  ENTÃO: este item deixa de ser uma decisão de arquitetura em aberto e vira um burn-down já em
+  movimento, com dono (B-244) e com número que só desce. O resultado discriminado continua sendo a
+  saída correta SE algum dia os 37 chegarem a zero e alguém quiser tipar a ausência — mas aí é outro
+  item, com outra evidência.
+
 fourth_measurement: |
   2026-08-12, depois de uma revisão adversarial — A CATRACA ACIMA MEDIA O VOCABULÁRIO, NÃO O
   DEFEITO. É a quarta vez neste ciclo, e desta vez estava no meu próprio código.
@@ -8786,7 +8818,7 @@ dod:
 superseded_by: B-241
 kill_reason: escopo e decisao passaram para B-241, com a medicao corrigida (179 identificadores, nao 9 nem 278).
 
-## B-240 — `traces.test.tsx` "lists saved views and applies one" depende da ordem de execucao   [ ]
+## B-240 — `traces.test.tsx` "lists saved views and applies one" depende da ordem de execucao   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8823,6 +8855,47 @@ dod:
   - a saida escolhida nao desliga a navegacao real que o caso exercita
 
 > Registrado 2026-08-11 durante o B-237.
+
+medicao_nao_e_reproduzivel: |
+  2026-08-12 — ANTES DE RENOMEAR QUALQUER COISA: o número deste item não é reproduzível, e essa é a
+  primeira coisa a consertar.
+
+  Quatro medições, quatro números, nenhum método escrito:
+
+    278  primeira, registrada como INFLADA por casar `isError`/`ApiError` contra "erro"
+    179  correção registrada neste bloco — método não descrito
+    314  minha, 2026-08-12, por AST — repeti exatamente o defeito de 278: meu regex casava `error`
+         por PREFIXO contra "erro", 55 arquivos de uma vez
+    329  minha, corrigida para casar PALAVRA exata — e ainda inflada
+
+  A terceira contaminação é a que importa, porque não some estreitando o regex: **português e
+  inglês compartilham cognatos**. `total` (38 arquivos), `item` (14), `texto` (15), `atual` (14),
+  `lista`, `erro` — vários são palavra válida nas duas línguas, ou diferem por uma letra. Uma lista
+  de palavras não separa "identificador em português" de "identificador em inglês" sem decidir
+  cognato a cognato, e essa decisão não está escrita em lugar nenhum.
+
+  CONSEQUÊNCIA DIRETA no DoD deste item: o segundo critério é "`i18n-guard.ts` reprova um
+  identificador em português". Um guard É uma medição. Não dá para construir o guard antes de o
+  critério existir, e não dá para renomear 240 identificadores contra um alvo que muda de tamanho a
+  cada tentativa.
+
+  O QUE FALTA, e é trabalho de verdade e não desculpa:
+    - uma lista de palavras COMMITADA no repositório, com os cognatos resolvidos explicitamente
+      (`total` fica? `item` fica? a resposta é uma decisão, não uma medição)
+    - exercitada por testes, como os detectores do B-235/B-242 passaram a ser
+    - e só então o número, o guard, e o rename
+
+  NÃO RENOMEEI NADA. Um sweep de 240 identificadores contra uma medição irreprodutível é
+  exatamente a varredura mecânica que a `tentativa_1` abaixo já custou 270 arquivos e uma reversão.
+
+o_bloqueio_que_eu_alegava: |
+  Levantei três vezes que este item estava travado numa decisão do dono — "comentários em português
+  seguem permitidos" no DoD versus a regra de que todo artefato do repositório é inglês. Reli: o
+  título, o escopo e os quatro critérios deste item falam de IDENTIFICADORES. O DoD diz
+  explicitamente que a convenção de comentários NÃO muda. Não havia conflito a resolver, e o que eu
+  chamei de bloqueio era leitura minha.
+
+  O bloqueio real é o de cima, e é técnico.
 
 tentativa_1: |
   TENTADO E REVERTIDO 2026-08-12 (`bce39891` -> `8217f96f`), com o motivo medido — e a medição
@@ -8885,7 +8958,8 @@ resolved: |
 
   Verificado: o caso original passa SOZINHO; o arquivo passa 56/56 em ordem fixa e sob sete
   seeds de shuffle, incluindo os quatro que o bloco nomeia. Suíte 3239 verdes.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 
 ## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [ ]
 
@@ -9047,7 +9121,7 @@ third_measurement: |
   como módulos de produção sem consumidor no instante em que nasceram em `lib/`, e ele estava
   certo. Allowlistar seria suprimir um achado verdadeiro.
 
-## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [ ]
+## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9070,7 +9144,8 @@ why_now: |
   A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
   (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
   produz a melhora, e ninguem estava encarregado dela.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - as 7 telas distinguem 'nao ha nada' de 'nao consegui ler', e o teto chega a 0
   - a decisao sobre a checagem por bloco esta tomada e registrada, ou o limite e aceito por escrito
@@ -9158,7 +9233,7 @@ progress_2026_08_12: |
   diferentes da mesma coisa, e usei a mais fácil para uma tabela que serve justamente para alguém
   escolher o próximo arquivo a migrar.
 
-## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [ ]
+## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9178,7 +9253,8 @@ why_now: |
   A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
   (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
   produz a melhora, e ninguem estava encarregado dela.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - a populacao desce e o teto acompanha
   - cada tipo ou ganha importador, ou deixa de ser exportado
@@ -9933,7 +10009,7 @@ dod:
 > Registered 2026-08-12, before acting, so the record exists even if the merge fails.
 > Second exception after B-229 (2026-08-11). Two in two days is worth someone's attention.
 
-## B-264 — deleting your account or workspace can fail silently, and the screen acts as if it worked   [ ]
+## B-264 — deleting your account or workspace can fail silently, and the screen acts as if it worked   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9974,7 +10050,8 @@ why_now: |
 
   It is also the sharpest case for B-235 yet — `null` meaning "failed" and being read as
   "fine" — and the second one this session, after create-project.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - a failed delete leaves the dialog open and says what went wrong; the session is NOT ended
     and the route does NOT change
@@ -10045,6 +10122,7 @@ dod:
   - the fix does NOT widen `useDeleteTenant` to accept either — a hook that takes "whichever id
     you have" is how the two drifted apart in the first place
 
+status: triaged
 > Registered 2026-08-12 by an adversarial review of the B-244 / B-264 migrations.
 
 ## B-266 — ADR-0006 is cited as done; none of the three things it decided exist   [ ]
@@ -10093,6 +10171,7 @@ dod:
   - if the ESLint rule is built, it lands with the array-literal keys already migrated — turning it
     on first would fail the codebase that motivated it
 
+status: triaged
 > Registered 2026-08-12 by an adversarial review of the B-244 migrations.
 
 ## B-267 — `pages.smoke.test.ts` times out under machine load, passes when idle   [ ]
@@ -10137,9 +10216,10 @@ dod:
   - the case still fails if `OverviewPage` stops being exported (whatever the fix, the smoke test
     must keep smoking)
 
+status: triaged
 > Registered 2026-08-12 while verifying B-242.
 
-## B-268 — O CHANGELOG anuncia uma versão 1.0.1 que nunca foi lançada   [ ]
+## B-268 — O CHANGELOG anuncia uma versão 1.0.1 que nunca foi lançada   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -10193,9 +10273,11 @@ dod:
   - a verificação falha contra o estado atual ANTES da correção entrar (TDD, `rules/testing.md` § 3)
   - a verificação distingue "seção sem tag" de "tag sem seção" — são defeitos diferentes
 
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — o número anunciado e nunca cortado agora existe de verdade
 > Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
 
-## B-269 — Os detectores de catraca leem TypeScript com regex; o compilador já está instalado   [ ]
+## B-269 — Os detectores de catraca leem TypeScript com regex; o compilador já está instalado   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -10225,16 +10307,32 @@ evidence: |
 
   `typescript` já é devDependency (`dashboard/package.json:119`). Rung 4 da parsimony-ladder
   ("existe dependência já instalada?") responde SIM, e eu escrevi um parser mesmo assim.
-limite_conhecido: |
-  MEDIDO, e é latente e não vivo: `balancedArgs` não conhece literal de regex, então um `(` ou `)`
-  desbalanceado dentro de `/…/` contaria errado. Varri os testes atrás disso:
+limite_conhecido_CORRIGIDO: |
+  ERA VIVO, NÃO LATENTE, e a correção do meu próprio diagnóstico é a parte que importa deste bloco.
 
-    seletores com regex contendo parêntese:        1  (`environments.test.tsx:193`, `/\(legacy\)/i`)
-    seletores com regex DESBALANCEADO:             0
+  Registrei assim: "MEDIDO, e é latente e não vivo — varri os testes e há 1 seletor com parêntese
+  em regex, balanceado, e 0 desbalanceados". A varredura estava certa e a CONCLUSÃO estava errada.
+  Verifiquei se uma MANIFESTAÇÃO específica ocorria (parêntese desbalanceado), não achei, e
+  generalizei para a CLASSE inteira.
 
-  O único caso real é balanceado, então a contagem de hoje está certa. Não é defeito ativo — é a
-  classe de defeito que estes próprios detectores existem para impedir ("um guarda que adivinha
-  onde a chamada termina está adivinhando"), presente no guarda.
+  Ao reescrever sobre a árvore, a contagem subiu de 111 para 113. As duas diferenças são assertivas
+  que o detector de texto NÃO ENXERGAVA, e estavam no corpus o tempo todo:
+
+    pages/memory/memories.test.tsx:75
+      expect(screen.queryByText(/hasn't stored any memories/i)).not.toBeInTheDocument()
+
+      O APÓSTROFO. `balancedArgs` trata `'` como abertura de string, entra em estado de aspas
+      dentro do literal de regex, e passa a pular os parênteses que precisava balancear.
+
+    pages/lens/monitors.test.tsx:389
+      expect(query, 'a mensagem de falha').not.toBeInTheDocument()
+
+      `expect()` de DOIS argumentos: o matcher não vem depois do `)` da consulta.
+
+  Provado com os dois detectores lado a lado (texto: 0 nos dois casos; árvore: 1 nos dois).
+
+  A lição é a do próprio ciclo, um nível acima: medi se uma FORMA ocorria em vez de medir se a
+  CLASSE de defeito podia ocorrer, e reportei a resposta tranquilizadora.
 why_now: |
   Apontado por revisão adversarial de arquitetura em 2026-08-12, sobre o diff que criou os dois
   detectores. Registrado em vez de corrigido na hora por uma razão de processo, não de preguiça:
@@ -10252,9 +10350,10 @@ dod:
   - as mutações que hoje matam os auto-testes seguem matando (12 delas, registradas em B-235 e B-242)
   - um caso cobre o parêntese desbalanceado dentro de literal de regex, que hoje passaria
 
+status: triaged
 > Registrado 2026-08-12 por revisão adversarial de arquitetura, fase REVIEW do ciclo Squad.
 
-## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [ ]
+## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -10313,4 +10412,220 @@ dod:
     release não está `success` — hoje o `cycle-release.md` trata isso como "(Optional) CI is green",
     e opcional foi o suficiente para uma release sair vazia
 
+confirmado_na_v1_0_1: |
+  2026-08-12, PREVISTO E CONFIRMADO. O bloqueio foi declarado ANTES do corte — no corpo do PR #478,
+  nas notas do release e no `1.0.1-release.md` — e aconteceu:
+
+    startup_failure  1s  v1.0.1  Merge PR #478  run 31627708133  2026-08-12T18:27:15Z
+
+  Cinco runs seguidos agora, duas tags de release entre eles. A v1.0.1 sai como a v1.0.0: tag,
+  GitHub release, e nenhuma imagem. A diferença é que desta vez estava escrito antes.
+
+status: triaged
+causa_raiz: |
+  ENCONTRADA 2026-08-12, lendo o run na interface do GitHub com o Chrome — a única superfície que
+  mostra a mensagem. A API não expõe nada: `runs/{id}` não traz o erro e `runs/{id}/jobs` vem vazio
+  porque nenhum job chegou a existir.
+
+    The workflow is not valid. .github/workflows/publish.yml (Line: 134, Col: 16):
+    Invalid input, git_sha is not defined in the referenced workflow.
+    (Line: 135, Col: 22): Invalid input, version_label is not defined in the referenced workflow.
+
+  E havia um TERCEIRO que a mensagem nem chegou a listar — `attest`, na linha 141 — achado pelo
+  detector escrito para o fix.
+
+  A CADEIA, verificada commit a commit e não suposta:
+
+    até 2026-08-05  `publish.yml` chamava `uses: ./.github/workflows/build-publish.yml` — uma CÓPIA
+                    VENDORIZADA dentro deste repo, que declarava `git_sha`, `version_label` e
+                    `attest` (`03195817~1:.github/workflows/build-publish.yml:48-49`)
+    2026-08-06      `03195817 ci: paga a divida da copia vendorizada do build-publish` trocou a
+                    cópia pelo reusable compartilhado de `usetheoai/theo` — que nunca teve esses
+                    três inputs, em versão nenhuma (conferido no SHA pinado E no develop atual)
+    2026-08-07      primeira falha de startup
+    2026-08-12      v1.0.0 e v1.0.1 cortadas, ambas sem imagem
+
+  Repinar não resolveria: o arquivo do reusable não muda desde 2026-07-31 e os inputs nunca
+  existiram nele. Foi o lado chamador que inventou um contrato.
+fix: |
+  `build_args` — o input que o reusable JÁ declara e repassa aos dois builds. O `Dockerfile:58-59`
+  já declara `ARG VERSION` e `ARG GIT_SHA` e os injeta por ldflags, então o canal existia dos dois
+  lados e faltava usá-lo. Degrau 4 da parsimony ladder, não input novo.
+
+  `attest` saiu porque o reusable funde SBOM+provenance+cosign sob o `sign:` que já vai `true`. O
+  que se perde é a otimização de exportar SBOM só na release — registrado em B-271, não escondido.
+
+  `.claude/scripts/check_reusable_inputs.py` é a rede: compara todo input passado a um reusable
+  cross-repo contra o que aquele SHA declara. `actionlint` sai 0 neste defeito porque não busca o
+  arquivo do outro repo. RED contra o estado atual (3 problemas), GREEN depois do fix.
+status: shipped
+shipped_note: |
+  Corrigido em 2026-08-12 e VERIFICADO no mesmo dia, não assumido.
+
+  O merge do PR #479 em develop disparou o run 31638064432. Ele não morreu no startup: ficou
+  `queued`, depois `in_progress`, e os jobs EXISTEM — `plan` e `gate-sast / gitleaks` concluíram
+  com sucesso, seis gates rodaram. É a primeira vez desde 2026-08-07 que qualquer job deste
+  workflow chega a ser criado.
+
+  Isso fecha o diagnóstico com evidência de execução: o defeito era o contrato de inputs, e
+  corrigi-lo bastou para o GitHub aceitar o workflow.
+
+  O QUE O DESBLOQUEIO REVELOU, e é a parte que vale mais que o próprio fix: com o `publish`
+  finalmente executando, ele reprovou em CASCATA quatro defeitos que estavam invisíveis há seis
+  dias — todos com a mesma assinatura.
+
+    1. dois testes Go contradiziam o código (`gate_workflows_test.go`, `publish_controls_test.go`)
+       — um afirmava um invariante que o dono revogou, o outro exigia o input que este próprio
+       item removeu
+    2. `.trivyignore` ausente: o trivy saía em 17ms e o gate reportava falha de vulnerabilidade
+       para um scan que não rodou (B-272)
+    3. o binário do golangci-lint não baixava: `socket hang up`, e o passo chamado "Lint" ficava
+       vermelho sem nenhuma análise ter acontecido (B-273)
+    4. o `Dockerfile` ainda nomeava a org antiga em oito lugares, seis dias depois do rename — e a
+       pior das três consequências não dá erro nenhum: uma ldflag que não casa símbolo é aceita em
+       silêncio pelo linker, então a imagem compilaria e reportaria `dev`/`unknown` para sempre
+
+  A ASSINATURA COMUM: uma verificação que NÃO ACONTECEU sendo reportada como uma que aconteceu e
+  falhou. Vale nomear como classe porque o custo não é o vermelho — é que um vermelho incapaz de
+  distinguir "seu código está errado" de "nada rodou" gasta o tempo de quem investiga, sempre.
+
+  E vale registrar o efeito de segunda ordem: um pipeline morto não apenas para de produzir
+  artefato, ele para de REPROVAR. Seis dias de mudanças entraram sem gate, e os quatro defeitos
+  acima são o que se acumulou nesse intervalo.
+
+  O QUE ESTE BLOCO CONTINUA NÃO AFIRMANDO: que a v1.0.0 e a v1.0.1 ganharam imagem. Não ganharam —
+  seguem com zero assets, conferido por `gh release view`, e isso só muda com um corte novo.
+
 > Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
+
+## B-271 — O export de SBOM deixou de ser só-na-release ao adotar o reusable compartilhado   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: evolve
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  A cópia vendorizada declarava DOIS flags separados (`03195817~1:.github/workflows/build-publish.yml:48-49`
+  e o `publish.yml` da época):
+
+    sign:   true                                  -> assina sempre
+    attest: needs.plan.outputs.sign == 'true'     -> SBOM + provenance(mode=max) só na release
+
+  O reusable compartilhado FUNDE os dois num flag só:
+
+    usetheoai/theo/.github/workflows/build-publish.yml@d1f3c947:39
+      sign: { required: false, type: boolean, default: false }   # SBOM+provenance(mode=max)+cosign — release only
+
+  Ao corrigir o B-270, `attest:` saiu (o reusable não o declara) e `sign: true` ficou. Efeito: o
+  export pesado passa a rodar em TODO push para develop, não só na release.
+o_que_NAO_foi_feito_e_por_que: |
+  A alternativa óbvia — `sign: ${{ needs.plan.outputs.sign == 'true' }}` — devolveria a otimização e
+  pararia de ASSINAR o que produção consome. O comentário em `publish.yml:128` recusa essa troca com
+  a razão medida: "deixar scan e assinatura presos a tags protegia artefatos que este host nunca
+  puxa, e não protegia o que ele executa". Custo de CI é preferível a imagem de develop não assinada.
+why_now: |
+  Descoberto ao corrigir o B-270 em 2026-08-12. Não é regressão de comportamento observável — desde
+  2026-08-06 nenhuma imagem foi construída, então nem o caminho antigo nem o novo rodaram.
+dod:
+  - medir quanto o export mode=max custa por push em develop antes de decidir se vale mexer
+  - se valer: input novo no reusable de `usetheoai/theo` separando assinar de exportar SBOM, com o
+    blast radius avaliado (alcança todo repo que chama o reusable)
+  - se não valer: este item é morto com kill_reason dizendo o custo medido
+status: triaged
+
+> Registrado 2026-08-12 ao corrigir o B-270.
+
+## B-272 — O `trivyignores:` do reusable é incondicional, e o comentário dele promete o contrário   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  usetheoai/theo/.github/workflows/build-publish.yml:41
+    trivy: { ... }   # CRITICAL/HIGH Trivy gate before push (uses .trivyignore if present)
+
+  usetheoai/theo/.github/workflows/build-publish.yml:184
+    trivyignores: .trivyignore
+
+  O comentário do input promete "if present"; a linha 184 passa incondicionalmente. Sem o arquivo o
+  trivy sai 1 em 17ms:
+
+    job 94256732867, 2026-08-12 — ERROR: cannot find ignorefile '.trivyignore'
+
+  E o efeito é pior do que uma falha de build: o SCAN NÃO RODA, e o gate reporta falha de
+  vulnerabilidade para uma varredura que nunca houve. Um verde e um vermelho igualmente sem lastro.
+
+  Já estava MEDIDO neste repositório antes: a cópia vendorizada do build-publish deliberadamente NÃO
+  passava `trivyignores:`, citando o run 30570111324 com o mesmo sintoma. Essa decisão foi perdida
+  quando `03195817` adotou o reusable compartilhado — a mesma perda de contrato que o B-270 registra,
+  em outro input.
+why_now: |
+  Bloqueou o corte da v1.0.2 em 2026-08-12: com o B-270 corrigido, o `publish` finalmente executou os
+  jobs e o `images` morreu aqui, nas duas imagens.
+o_que_foi_feito_no_lugar: |
+  Criado `.trivyignore` VAZIO neste repo, com o raciocínio no cabeçalho, e `internal/ci` passou a
+  reprovar qualquer linha não-comentário nele.
+
+  Isto SOBREPÕE a decisão anterior de propósito, e a razão está registrada: o receio dela — "um
+  allowlist vazio é um convite para a primeira supressão" — continua certo, mas a alternativa que
+  ela escolhia (não passar o ponteiro) mora hoje noutro repositório. A escolha real deixou de ser
+  "arquivo vazio versus nada" e passou a ser "arquivo vazio versus scan que nunca roda". O convite
+  que ela temia está fechado por teste, com prova de reprovação.
+dod:
+  - `trivyignores:` no reusable passa a ser condicional à existência do arquivo, cumprindo o que o
+    comentário do input já promete
+  - o blast radius é avaliado: a mudança alcança TODO repo que chama o reusable (para quem tem o
+    arquivo nada muda; para quem não tem, o scan passa a rodar — estritamente melhor)
+  - `theo-cloud/.trivyignore` é removido junto, com o guard de `internal/ci`
+  - `TestTrivyIgnoreFileInputMatchesReality`, que hoje faz SKIP porque o reusable é upstream, volta
+    a ter o que verificar — ou é apagado por dizer que verifica algo que não verifica
+status: triaged
+
+> Registrado 2026-08-12 ao desbloquear o `images` do publish.
+
+## B-273 — O gate Go depende de um download em runtime e falha com `socket hang up`   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: low
+category: test
+evidence: |
+  job 94258930430, 2026-08-12 (passo `Lint` de `quality.yml`):
+
+    Installing golangci-lint binary v2.12.2...
+    Downloading binary https://github.com/golangci/golangci-lint/releases/download/v2.12.2/...
+    socket hang up
+    Waiting 18 seconds before trying again
+    socket hang up
+    Waiting 10 seconds before trying again
+    ##[error]Failed to run: Error: socket hang up, Error: socket hang up
+
+  Não é achado de lint: `golangci-lint run ./...` local sai com `0 issues`. É o BINÁRIO que não
+  desceu. A action tenta 3 vezes e desiste.
+por_que_isso_engana: |
+  O job aparece como `failure` no passo chamado "Lint", e o primeiro palpite de qualquer pessoa —
+  o meu inclusive — é que o código tem um problema de lint. Foram necessárias quatro consultas e a
+  leitura do log bruto para descobrir que nenhuma análise chegou a rodar.
+
+  É a mesma forma dos outros três defeitos desta sessão: uma verificação que NÃO ACONTECEU
+  reportada como se tivesse acontecido e falhado. O B-270 (workflow recusado no startup), o B-272
+  (trivy saindo em 17ms sem escanear) e este são o mesmo padrão em três camadas diferentes.
+why_now: |
+  Descoberto ao desbloquear o `publish` em 2026-08-12. Custou um re-run e ~10 minutos, o que é
+  barato — mas o custo real é de diagnóstico: um vermelho que não distingue "seu código está errado"
+  de "a internet caiu" gasta o tempo de quem investiga, toda vez.
+dod:
+  - a falha de DOWNLOAD é distinguível da falha de ANÁLISE no output do job, sem ler log bruto
+  - avaliar cachear o binário (a action já restaura um cache de `golangci-lint` — o cache é do
+    resultado, não do binário) ou fixá-lo numa imagem
+  - NÃO resolver com `continue-on-error`: um gate que ignora a própria falha é pior que o flake
+status: triaged
+
+> Registrado 2026-08-12 ao desbloquear o publish.

@@ -1,0 +1,22 @@
+# INTENCIONALMENTE VAZIO — este arquivo NAO e' um allowlist em uso.
+#
+# Ele existe porque o reusable compartilhado (`usetheoai/theo/.github/workflows/build-publish.yml`)
+# passa `trivyignores: .trivyignore` INCONDICIONALMENTE, e o trivy sai 1 em 17ms com
+# `cannot find ignorefile` quando o arquivo nao esta la. O efeito medido e' pior do que parece: o
+# scan NAO RODA, e o gate reporta falha de vulnerabilidade para uma varredura que nunca houve
+# (run 30570111324, e de novo no job 94256732867 em 2026-08-12).
+#
+# ISTO SOBREPÕE UMA DECISAO ANTERIOR, e a razao esta escrita para poder ser contestada. A copia
+# vendorizada do build-publish deste repo NAO passava `trivyignores:` justamente para nao precisar
+# deste arquivo, dizendo: "o M22 zerou a superficie por UPGRADE (14 HIGH -> 0), nao por supressao,
+# e um allowlist vazio no repo e um convite para a primeira supressao". O argumento continua certo.
+# O que mudou foi a PREMISSA: a alternativa daquela decisao — nao passar o ponteiro — vive hoje num
+# repositorio diferente, e enquanto ela nao for corrigida la a escolha real nao e' "arquivo vazio
+# versus nada", e' "arquivo vazio versus scan que nunca roda".
+#
+# O convite que aquela decisao temia esta FECHADO por teste: `internal/ci` reprova qualquer linha
+# nao-comentario aqui. Suprimir um CVE exige mexer no guard, o que forca a conversa.
+#
+# A correcao de verdade e' o B-272: tornar o `trivyignores:` do reusable condicional a existencia do
+# arquivo — o que o comentario do proprio input ja PROMETE ("uses .trivyignore if present") e o
+# codigo nao faz. Quando isso entrar, este arquivo sai junto.

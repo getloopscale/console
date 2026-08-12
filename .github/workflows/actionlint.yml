@@ -17,6 +17,23 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - name: inputs de reusable cross-repo declarados pelo callee (B-270)
+        # O `actionlint` abaixo SAI 0 neste defeito, e a razao e' estrutural: ele valida um
+        # reusable LOCAL, e nao busca o arquivo de outro repositorio para comparar. Foi por isso
+        # que `publish.yml` passou a mandar tres inputs que o reusable compartilhado nao declara e
+        # ninguem viu — seis runs mortos em menos de um segundo, e duas releases com zero imagem.
+        #
+        # A falha e' invisivel pela API (`startup_failure` nao traz mensagem e `runs/{id}/jobs` vem
+        # vazio), entao ela LE como um workflow que nunca rodou. Mesma classe do defeito que este
+        # workflow inteiro existe para pegar, uma camada acima.
+        #
+        # FALHA FECHADO: se o token nao alcancar o repo do callee, o script reporta NAO VERIFICADO
+        # e sai 1. Um gate que fica quieto quando nao consegue conferir reporta cobertura que nao
+        # tem — que e' exatamente como se chega em seis runs mortos sem ninguem notar.
+        env:
+          GH_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+        run: python3 .claude/scripts/check_reusable_inputs.py
+
       - name: actionlint (workflows + shellcheck dos blocos run:)
         # Imagem fixada por DIGEST — nao `bash <(curl .../main/...)`, que baixa e executa um
         # script de branch mutavel no runner. Este repo pina actions por SHA; a disciplina de

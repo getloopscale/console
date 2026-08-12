@@ -98,6 +98,13 @@ def main() -> int:
         str(d),
     )
 
+    print("\nsections() — a header, not prose that looks like one")
+    check(
+        "a version-shaped string mid-prose is not a section",
+        sections("Some text about ## [1.2.3] in a sentence.\n## [1.0.0] - 2026-01-01\n") == ["1.0.0"],
+        str(sections("Some text about ## [1.2.3] in a sentence.\n## [1.0.0] - 2026-01-01\n")),
+    )
+
     print("\nreleased_tags() — ancestry, not mere existence")
     check(
         "accepts both v-prefixed and bare tags",
@@ -106,6 +113,13 @@ def main() -> int:
     check(
         "ignores non-semver refs",
         released_tags("ref", lambda _a: "v1.0.0\nnightly\nrelease-candidate\n") == {"1.0.0"},
+    )
+    check(
+        "a PRERELEASE tag is not the release — `v1.2.3-rc1` does not satisfy `[1.2.3]`",
+        # Accepting it would let a section announce a version whose only tag is a release
+        # candidate, which is the phantom this whole check exists to catch, one suffix over.
+        released_tags("ref", lambda _a: "v1.2.3-rc1\nv1.2.3+build.5\n") == set(),
+        str(released_tags("ref", lambda _a: "v1.2.3-rc1\nv1.2.3+build.5\n")),
     )
     check(
         "a git failure yields no tags rather than a crash",

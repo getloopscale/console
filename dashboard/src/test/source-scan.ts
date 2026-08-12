@@ -1,92 +1,101 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-/**
- * The two primitives every source-scanning ratchet in this repository needs.
- *
- * They live here because both of the repo's scanning guards learned the same two lessons the
- * hard way, separately:
- *
- *   - A guard that reads PROSE measures the guard's vocabulary, not the defect. The B-235 window
- *     absolved three real calls because a comment below them mentioned `throwOnError`; the B-242
- *     detector counted assertions that only appear inside a comment or an `it.skip`.
- *   - A guard that guesses where a call ENDS is guessing. A line window, or a `[^)]*` capture,
- *     both break on the first argument that spans lines or contains a nested call — and they
- *     break silently, which is the part that costs.
- *
- * Duplicating them would be duplicating knowledge, not code (Unbreakable Rule 12): a fix to
- * either one has to reach both, and nothing would make it.
- *
- * They live under `src/test/` and not `src/lib/` because they are test support, and
- * `test-only-module-guard.test.ts` is right to say so — it flagged them the moment they landed in
- * `src/lib/`, as production modules whose only importer is a test. Allowlisting that would have
- * been suppressing a true finding; moving them states the fact instead.
- */
+import ts from 'typescript';
 
 /**
- * Strips comments while preserving line count and string contents.
+ * Finding calls in TypeScript source, for the ratchets that count them.
  *
- * Line count is preserved so a reported line number still points at the right line. String
- * contents are preserved so a URL path (`'/v1/a//b'`) is not truncated at its own slashes.
+ * ## Why the compiler and not a regex
+ *
+ * The first version of this module hand-rolled a lexer (`withoutComments`, a character-by-character
+ * state machine) and an argument extractor (`balancedArgs`, a depth counter over brackets). An
+ * architecture review named it as a Rule 9 miss — `typescript` is already a devDependency, and
+ * `i18n-guard.ts`, in this same directory, had solved the identical problem with
+ * `ts.createSourceFile` for the reasons its own docblock gives.
+ *
+ * The review also named the failure the hand-roll carried, and it was measured rather than
+ * theorised: a depth counter reads `(` and `)` as text, but a regex literal is not text. `/\(/`
+ * holds one unbalanced paren, and against `cloudFetch(build(/\(/), {}, { throwOnError: true })` the
+ * old extractor did not merely misread the arguments — it lost the call entirely and reported ZERO
+ * call sites. A silently vanishing call is the exact defect class these ratchets exist to catch in
+ * the code they scan: a guard that guesses where a call ends is guessing.
+ *
+ * Zero such selectors existed in the corpus when this was written, so nothing was miscounted in
+ * practice. The rewrite is not a bug fix; it is removing the guess.
+ *
+ * ## What the parser gives for free
+ *
+ * Comments are not nodes, so nothing has to strip them. Argument boundaries come from the grammar,
+ * so nothing has to count brackets. String, template and regex literals are single tokens, so none
+ * of their contents can be mistaken for syntax. The three lessons the hand-roll learned separately
+ * are all properties of parsing.
+ *
+ * ## Honest limits
+ *
+ * - It parses ONE file with no type information. `cloudFetch` here is whatever is named
+ *   `cloudFetch` in this file; the ratchets rely on the repo's single import of it, not on the
+ *   checker. A type-aware version needs a Program, which needs the whole tsconfig graph, which is
+ *   an order of magnitude more work per run for an answer the ratchets do not use.
+ * - Syntactically invalid source still parses — the TS parser recovers rather than throwing — so a
+ *   broken file yields whatever nodes survived recovery instead of an error. That matches what the
+ *   ratchets want (a file mid-edit should not crash the suite) and is stated so nobody reads a
+ *   successful parse as a validity check.
+ *
+ * Lives under `src/test/` and not `src/lib/` because it is test support, and
+ * `test-only-module-guard.test.ts` was right to say so — it flagged this module as a production
+ * file whose only importer is a test the moment it landed in `src/lib/`.
  */
-export function withoutComments(source: string): string {
-  let out = '';
-  let i = 0;
-  let state: 'code' | 'lineComment' | 'blockComment' | 'string' = 'code';
-  let quote = '';
-  while (i < source.length) {
-    const c = source[i];
-    const next = source[i + 1];
-    if (state === 'code') {
-      if (c === '/' && next === '/') { state = 'lineComment'; out += '  '; i += 2; continue; }
-      if (c === '/' && next === '*') { state = 'blockComment'; out += '  '; i += 2; continue; }
-      if (c === '"' || c === "'" || c === '`') { state = 'string'; quote = c; out += c; i++; continue; }
-      out += c; i++; continue;
-    }
-    if (state === 'string') {
-      if (c === '\\') { out += c + (next ?? ''); i += 2; continue; }
-      if (c === quote) state = 'code';
-      out += c; i++; continue;
-    }
-    if (state === 'lineComment') {
-      if (c === '\n') { state = 'code'; out += c; } else out += ' ';
-      i++; continue;
-    }
-    // blockComment
-    if (c === '*' && next === '/') { state = 'code'; out += '  '; i += 2; continue; }
-    out += c === '\n' ? c : ' ';
-    i++;
-  }
-  return out;
+
+/** One call expression, with the pieces both ratchets need. */
+export interface CallSite {
+  /** The callee as written: `cloudFetch`, `screen.queryByText`, `within(x).queryByRole`. */
+  readonly callee: string;
+  /** The last identifier of the callee: `cloudFetch`, `queryByText`. */
+  readonly name: string;
+  /** The argument list, verbatim, without the enclosing parentheses. */
+  readonly argsText: string;
+  /** 1-based line of the callee. */
+  readonly line: number;
+  readonly node: ts.CallExpression;
 }
 
-/**
- * The text between a `(` and the `)` that closes it, counting nesting and ignoring quotes.
- *
- * `openParen` is the index OF the opening parenthesis. Returns `null` when it is never closed —
- * a truncated file or invalid syntax — so the caller skips it rather than reading to end of file.
- */
-export function balancedArgs(source: string, openParen: number): string | null {
-  let depth = 0;
-  let insideQuote: string | null = null;
-  for (let i = openParen; i < source.length; i++) {
-    const c = source[i];
-    const previous = source[i - 1];
-    if (insideQuote !== null) {
-      if (c === insideQuote && previous !== '\\') insideQuote = null;
-      continue;
-    }
-    if (c === '"' || c === "'" || c === '`') { insideQuote = c; continue; }
-    if (c === '(' || c === '[' || c === '{') depth++;
-    else if (c === ')' || c === ']' || c === '}') {
-      depth--;
-      if (depth === 0) return source.slice(openParen + 1, i);
-    }
-  }
-  return null;
+/** Parse one file. `.tsx` matters: without it, JSX is read as type assertions. */
+export function parse(file: string, source: string): ts.SourceFile {
+  return ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
 }
 
-/** 1-based line number of a character offset. */
-export function lineOf(source: string, index: number): number {
-  return source.slice(0, index).split('\n').length;
+/** The last identifier of a callee expression — `queryByText` in `within(row).queryByText`. */
+function trailingName(expression: ts.Expression): string {
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  if (ts.isIdentifier(expression)) return expression.text;
+  return '';
+}
+
+/** Every call expression in the file, in source order. */
+export function callSites(sf: ts.SourceFile): CallSite[] {
+  const found: CallSite[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const start = node.expression.getStart(sf);
+      found.push({
+        callee: node.expression.getText(sf),
+        name: trailingName(node.expression),
+        argsText: node.arguments.map((a) => a.getText(sf)).join(', '),
+        line: sf.getLineAndCharacterOfPosition(start).line + 1,
+        node,
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  ts.forEachChild(sf, visit);
+  return found;
 }
