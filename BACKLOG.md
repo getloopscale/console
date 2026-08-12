@@ -8618,6 +8618,26 @@ why_now: |
   A revisão de cross-validation mediu isto e apontou que nenhum item nem entrada de CHANGELOG
   registrava que este ciclo aumentou a dívida do B-128. Registrar é o mínimo; a decisão de
   traduzir (e o escopo dela) é do dono.
+remeasured: |
+  RE-MEDIDO 2026-08-11 ao fim do ciclo: nao sao nove, sao ~34. Contados sobre o diff completo do
+  ciclo (`git diff cf8fa2ee~20 HEAD -- dashboard/src`, 98 arquivos), declaracoes novas com forma
+  portuguesa:
+
+    calcularPaginacao, usePaginacao, Paginacao, EstadoDePaginacao, paginacao, usarPaginador,
+    colunasDeWebhook, podeCadastrarWebhook, colecaoDescrita, aplicarEvento, aplicarNaFase,
+    estadoInicial, faseCorrente, fase, estado, REGRAS, lerMedidas, Medidas, medidas,
+    OFERTA_POR_PLANO, OfertaDeUpgrade, PayloadDeErro, Contexto, contexto, paginaHttps, lerHeader,
+    lerMeta, conferirAfirmacoes, afirmaAusencia, consultaErro, TETO_SEM_ERRO, acervo, acao, falhou
+
+  A TENSAO, dita sem rodeio: o codigo ao redor e majoritariamente portugues e o `i18n-guard`
+  permite comentario em portugues explicitamente — seguir a vizinhanca foi o que produziu estes 34.
+  A regra do dono (MEMORY.md, e citada pelo B-128) diz que TODO artefato e escrito em ingles.
+  As duas coisas nao podem valer ao mesmo tempo, e este ciclo aumentou a divida em vez de decidir.
+
+  O que NAO foi feito, e por que: renomear 34 identificadores em 98 arquivos e um diff mecanico
+  grande, e mistura-lo aos commits deste ciclo tornaria ilegivel tanto o rename quanto as
+  correcoes. E a decisao de ESCOPO (so o novo? o repo inteiro? o guard passa a reprovar?) e do
+  dono, como o proprio DoD deste item diz.
 status: triaged
 dod:
   - a decisão sobre tradução está tomada e registrada, ou o item é morto com o motivo
