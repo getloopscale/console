@@ -10,6 +10,8 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { triggerDownload } from '@/lib/export/download';
+import { usePaginacao } from '@/lib/pagination';
+import { Pager } from '@/components/pager';
 import {
   fetchFilteredTraces,
   tracesToCsv,
@@ -223,9 +225,14 @@ export function LensTracesPage() {
 
   // M81 — pagination derived state (workspace-scoped total from the response).
   const total = query.data?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / TRACES_PAGE_SIZE));
-  const firstShown = total === 0 ? 0 : (page - 1) * TRACES_PAGE_SIZE + 1;
-  const lastShown = Math.min(page * TRACES_PAGE_SIZE, total);
+  // B-184 — aritmética e passo-atrás compartilhados.
+  const paginacao = usePaginacao({
+    total,
+    pageSize: TRACES_PAGE_SIZE,
+    page,
+    setPage,
+    naoAssentado: query.isFetching || !query.data,
+  });
 
   // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
   // M98 (D-M1) — memoized so the column set is rebuilt only when the selection / visible columns
@@ -404,7 +411,7 @@ export function LensTracesPage() {
               <p data-testid="traces-count" className="mb-1 text-xs text-muted-foreground">
                 {/* M81 — server-side pagination: the read now returns a workspace-scoped `total`, so this
                     discloses the window over the real total (not just the loaded rows). */}
-                {total > 0 ? `Showing ${firstShown}–${lastShown} of ${total}` : `${traces.length} ${traces.length === 1 ? 'trace' : 'traces'}`}
+                {total > 0 ? paginacao.resumo : `${traces.length} ${traces.length === 1 ? 'trace' : 'traces'}`}
               </p>
               <Card>
                 {/* M59 P1 — density toggles the row height (compact vs comfortable) via a data-attr
@@ -421,17 +428,9 @@ export function LensTracesPage() {
                 </div>
               </Card>
               {/* M81 — server-side pager (mirrors the M70 labeling-queue): page 2+ reachable, count disclosed. */}
-              {pageCount > 1 ? (
-                <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
-                  <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                    Previous
-                  </Button>
-                  <span className="tabular-nums" data-testid="traces-pager">{`Page ${page} / ${pageCount}`}</span>
-                  <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
-                    Next
-                  </Button>
-                </div>
-              ) : null}
+              <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
+                <Pager paginacao={paginacao} ocupado={query.isFetching} testId="traces-pager" />
+              </div>
             </>
           )}
 

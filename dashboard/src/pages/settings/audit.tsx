@@ -6,6 +6,8 @@ import { Badge, Button, Card, PageShell, Table } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/http/api';
+import { usePaginacao } from '@/lib/pagination';
+import { Pager } from '@/components/pager';
 import { formatDate } from '@/lib/formatting/format';
 import { triggerAuditCsvDownload } from '@/pages/settings/audit-csv';
 import type { AuditListResponse, AuditSeverity } from '@/lib/api/types';
@@ -114,7 +116,17 @@ export function AuditPage() {
   const total = query.data?.total ?? 0;
   const loading = query.isLoading;
   const erroDeLeitura = query.isError;
-  const pageCount = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
+  // B-184 — a aritmética é compartilhada; com ela vem o passo-atrás quando a página fica além do
+  // fim, que esta tela não tinha: filtrar por ação encolhe o total, e quem estava na página 4
+  // ficava olhando uma tabela vazia sem nada explicando por quê.
+  const paginacao = usePaginacao({
+    total,
+    pageSize: AUDIT_PAGE_SIZE,
+    page,
+    setPage,
+    naoAssentado: query.isFetching || !query.data,
+  });
+  const { pageCount } = paginacao;
 
   // Trocar filtro reinicia a paginacao: manter a pagina 7 ao filtrar por outro
   // ator mostra uma tela vazia que parece "sem resultados".
@@ -313,22 +325,7 @@ export function AuditPage() {
                 Page {page} of {pageCount} · {total} records
               </span>
               <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={page <= 1 || query.isFetching}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={page >= pageCount || query.isFetching}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
+                <Pager paginacao={paginacao} ocupado={query.isFetching} mostrarPagina={false} />
               </div>
             </div>
           </Card.Footer>

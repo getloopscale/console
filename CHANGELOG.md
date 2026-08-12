@@ -2,6 +2,11 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** paging back is no longer the only way out of an empty page. On four of the five paged screens, deleting or filtering records shrank the list while you were on a later page, leaving an empty table and nothing on screen explaining why. One screen already stepped back automatically; now all of them do (B-184).
+- **theo-cloud/dashboard:** the row counter on Lens usage-by-user is in English, like every other screen (B-184).
+
+### Fixed
+
 - **theo-cloud/dashboard:** rotating the dashboards runtime configuration now reaches returning visitors. The service worker matched the file against its static-asset rule first and kept it for thirty days, so a changed API or identity-service address stayed stale on every browser that had loaded the app before — pointing at hosts the security policy may no longer permit (B-196).
 
 ### Fixed

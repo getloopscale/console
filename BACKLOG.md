@@ -6736,7 +6736,7 @@ evidence: |
     <Button variant="ghost" size="sm" disabled={page >
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/lens/sessions.tsx:58`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6746,6 +6746,7 @@ dod:
   - Extract two artifacts and migrate the five sites: (1) `useOffsetPagination({ total, pageSize })` returning { page, setPage, offset, pageCount, firstShown, lastShown } and owning the labeling-queue clamp effect so every consumer inherits the
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-sessions-server-side-offset-pager-copy-pasted`). Source: code-review finding #82, `code-review-output/code-review.db`.
+shipped_note: `lib/pagination.ts` (`calcularPaginacao` + `usePaginacao`) e `components/pager.tsx` substituem as cinco copias. As duas divergencias que a duplicacao ja tinha produzido foram corrigidas junto, e sao a razao de o item valer: (1) `lens/usage-by-user` dizia "Mostrando … de …" enquanto as outras quatro diziam "Showing … of …" — e HAVIA UM TESTE prendendo o texto em portugues; (2) so `lens/labeling-queue` corrigia a pagina quando ela passava do fim, entao nas outras quatro apagar ou filtrar registros deixava quem estava na ultima pagina olhando tabela vazia sem explicacao. As quatro herdaram a correcao. O estado de `page` ficou com a tela por ORDEM: a query precisa dele para montar o offset, e `total` so existe depois da resposta. 10 testes novos, cinco mutacoes mortas. O guarda de afirmacoes do B-207 pegou `DESIGN.md` desatualizado no mesmo commit que causou a mudanca.
 
 ## B-185 — Removing the Math.max(2,…) floor fixed zero-as-sliver and introduced the inverse: a real non-zero count render   [x]
 
