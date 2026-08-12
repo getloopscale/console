@@ -81,7 +81,13 @@ exatamente a classe "grep casa prosa".
 // duas conclusões são opostas — "este build subiu sem proveniência" é achado de
 // conformidade; "não consegui ler a proveniência" é retry. Nenhuma das duas abas
 // tinha teste; agora têm seis.
-const TETO_PAGINAS_COM_TRANSPORTE = 50;
+// 49 desde 2026-08-12, com `projects/components/create-project-sheet.tsx` lendo
+// por `hooks/projects/use-create-project.ts`. A migração fechou parte do B-260 de
+// tabela: o corpo passou a ser tipado com `ProjectCreateInput`, um tipo que
+// existia em `lib/api/types.ts` e que ninguém importava — o dashboard criava
+// projetos enquanto a descrição do payload de criação ficava sem conferência.
+// O knip caiu 31 -> 30 pelo mesmo motivo.
+const TETO_PAGINAS_COM_TRANSPORTE = 49;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
