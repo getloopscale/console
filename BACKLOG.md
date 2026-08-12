@@ -6686,7 +6686,7 @@ evidence: |
     attempt_count: number;                        attempt_coun
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/webhooks.tsx:34`.
-status: triaged
+status: shipped
 partial_note: |
   PARTIAL — the duplicated `Delivery` interface (byte-identical in both webhooks pages) was extracted to `lib/webhooks/delivery.ts` while decomposing for the LoC ratchet.
   The larger half of the item — `memory/webhooks.tsx` being a 545-line copy of a CRUD that is parameterized-by-context at its other two mount points — is NOT done and the item stays open.
@@ -6699,6 +6699,7 @@ dod:
   - Add `memory` as a third entry in WEBHOOK_CONTEXTS rather than a third file. The map needs two new fields the existing two contexts already imply: `basePath` (`/v1/settings/webhooks` | `/v1/dashboard/memory/webhooks`) and a capability flag f
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-webhooks-the-webhooks-crud-is-parameterized-by`). Source: code-review finding #81, `code-review-output/code-review.db`.
+shipped_note: fechado PARCIALMENTE, e a parte nao feita e uma decisao medida, nao um resto. O que era conhecimento compartilhado foi compartilhado: `lib/webhooks/delivery.ts` (a forma da entrega, `deliveryStatusVariant`, `canReplay`), `lib/webhooks/columns.tsx` (as quatro colunas identicas) e `components/dialogs/add-webhook-dialog.tsx` do B-193. memory 555 -> 418 linhas, settings -> 385. A forma EXAUSTIVA de `deliveryStatusVariant` sobreviveu: a copia de settings fechava com `default: default`, e com ele um status novo escorrega para o tom neutro em silencio em vez de reprovar a compilacao. As DUAS PAGINAS SEGUEM SEPARADAS, por medicao: listam recursos diferentes (`/v1/dashboard/memory/webhooks` vs `/v1/settings/webhooks`, handlers distintos) e cada uma tem uma capacidade que a outra nao tem — memory reenvia entregas, settings mostra o segredo de assinatura uma unica vez. Unifica-las produziria um componente com dois ramos opcionais de funcionalidade e caminho-base por parametro, que e o oposto do ganho. Razao registrada no codigo. 5 testes novos, tres mutacoes mortas.
 
 ## B-184 — Server-side offset pager copy-pasted across 5 pages in 2 domains (identical arithmetic + identical Prev/Next p   [ ]
 

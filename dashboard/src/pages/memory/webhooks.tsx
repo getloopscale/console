@@ -16,6 +16,8 @@ import {
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
 import type { Delivery } from '@/lib/webhooks/delivery';
+import { deliveryStatusVariant, canReplay } from '@/lib/webhooks/delivery';
+import { colunasDeWebhook } from '@/lib/webhooks/columns';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -51,27 +53,6 @@ interface ReplayResult {
   id: string;
   status: 'pending' | 'delivering';
   noop: boolean;
-}
-
-function deliveryStatusVariant(s: Delivery['status']): 'default' | 'success' | 'warning' | 'destructive' {
-  switch (s) {
-    case 'pending':
-    case 'delivering':
-      return 'warning';
-    case 'delivered':
-      return 'success';
-    case 'failed':
-      return 'default';
-    case 'dead_letter':
-      return 'destructive';
-  }
-}
-
-// Replay button is visible ONLY for these statuses (D5 of the plan).
-// `delivered` would create a duplicate; `pending|delivering` would be a no-op
-// the customer doesn't need to trigger manually.
-function canReplay(s: Delivery['status']): boolean {
-  return s === 'failed' || s === 'dead_letter';
 }
 
 const AVAILABLE_EVENTS = [
@@ -121,6 +102,8 @@ export function WebhooksPage() {
 
   const webhooks = list.data?.webhooks ?? [];
 
+  // B-183 — as quatro colunas que descrevem o webhook vêm de `lib/webhooks/columns.tsx`; o selo de
+  // entregas recentes e a exclusão são desta tela.
   const columns: DataTableColumn<Webhook>[] = [
     {
       key: 'recent',
@@ -129,32 +112,7 @@ export function WebhooksPage() {
         <RecentDeliveriesBadge webhookId={row.id} onClick={() => setViewingFor(row)} />
       ),
     },
-    { key: 'label', label: 'Label', render: (row) => <span className="font-medium">{row.label}</span> },
-    {
-      key: 'url',
-      label: 'URL',
-      render: (row) => (
-        <code className="font-mono text-xs text-muted-foreground">{row.url}</code>
-      ),
-    },
-    {
-      key: 'events',
-      label: 'Events',
-      render: (row) => (
-        <div className="flex flex-wrap gap-1">
-          {row.events.map((e) => (
-            <Badge key={e} variant="outline">
-              {e}
-            </Badge>
-          ))}
-        </div>
-      ),
-    },
-    {
-      key: 'created_at',
-      label: 'Created',
-      render: (row) => (row.created_at ? <Timestamp value={row.created_at} /> : null),
-    },
+    ...colunasDeWebhook<Webhook>(),
     {
       key: 'actions',
       label: '',

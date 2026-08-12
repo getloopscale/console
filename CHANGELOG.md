@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the two webhook screens now share the parts that were genuinely the same — the delivery shape, the status colours, when a delivery can be replayed, the table columns and the add dialog. They remain separate screens because they list different resources and each does something the other does not (B-183).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** deleting a secret now keeps the dialog open and says what went wrong when the server refuses, instead of closing as though it had worked. The dialog also opens with Cancel focused, so a stray Enter cannot delete anything (B-195).

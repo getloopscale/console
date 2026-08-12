@@ -93,7 +93,7 @@ The dashboard uses **two** npm packages, with disjoint surfaces (measured
 
 | Package | Version installed | Owns | Reach |
 |---|---|---|---|
-| `@usetheo/ui` | `0.35.1` | components | 200 files import it |
+| `@usetheo/ui` | `0.35.1` | components | 201 files import it |
 | `@theokit/ui` | `1.3.2` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 7 files |
 
 There is nothing to consolidate: `@usetheo/ui` exports 116 symbols and **none**

@@ -15,6 +15,8 @@ import {
 import { AppModal } from '@/components/ui/app-modal';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import type { Delivery } from '@/lib/webhooks/delivery';
+import { deliveryStatusVariant } from '@/lib/webhooks/delivery';
+import { colunasDeWebhook } from '@/lib/webhooks/columns';
 import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
@@ -148,31 +150,9 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
 
   const webhooks = list.data?.webhooks ?? [];
 
+  // B-183 — colunas compartilhadas; as ações são desta tela.
   const columns: DataTableColumn<Webhook>[] = [
-    { key: 'label', label: 'Label', render: (row) => <span className="font-medium">{row.label}</span> },
-    {
-      key: 'url',
-      label: 'URL',
-      render: (row) => <code className="font-mono text-xs text-muted-foreground">{row.url}</code>,
-    },
-    {
-      key: 'events',
-      label: 'Events',
-      render: (row) => (
-        <div className="flex flex-wrap gap-1">
-          {row.events.map((e) => (
-            <Badge key={e} variant="outline">
-              {e}
-            </Badge>
-          ))}
-        </div>
-      ),
-    },
-    {
-      key: 'created_at',
-      label: 'Created',
-      render: (row) => (row.created_at ? <Timestamp value={row.created_at} /> : null),
-    },
+    ...colunasDeWebhook<Webhook>(),
     {
       key: 'actions',
       label: '',
@@ -287,20 +267,6 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
       ) : null}
     </>
   );
-}
-
-function deliveryStatusVariant(s: Delivery['status']): 'default' | 'success' | 'warning' | 'destructive' {
-  switch (s) {
-    case 'delivered':
-      return 'success';
-    case 'pending':
-    case 'delivering':
-      return 'warning';
-    case 'dead_letter':
-      return 'destructive';
-    default:
-      return 'default';
-  }
 }
 
 /**
