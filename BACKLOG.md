@@ -9548,3 +9548,44 @@ dod:
 > Registered 2026-08-12 by B-245's classification pass. Adjacent to B-244 (pages calling
 > transport directly): both are about the data-access boundary, from opposite sides.
 
+## B-261 — the prompt detail computes "labels could not be read" and passes it to one child, not the other   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium
+category: code
+evidence: |
+  dashboard/src/pages/promptly/detail.tsx:334
+  The parent knows the labels read failed and says so to one consumer only:
+
+    detail.tsx:231   const ponteiros = labelRows(labels.data)     // labelRows = asArray(...)
+    detail.tsx:240   const labelsFailed = Boolean(labels.error)   // the flag EXISTS
+    detail.tsx:436   <AmbientesCard ... labelsFailed />           // passed here
+    detail.tsx:334   revisionColumns({ usoPorRevisao, ponteiros, ... })   // NOT passed here
+
+  `labelRows` runs `asArray(payload)` (`components/projections.ts:316`), so a failed read
+  yields `[]`. Every row of the revisions table then reads "no label on this prompt" — an
+  absence claim over a list nobody managed to read.
+
+  Partially mitigated by the page-level banner at `detail.tsx:401-406`, and the same file's
+  USAGE column handles the identical situation correctly through its `nao-lido` state — so the
+  distinction is understood in this file and applied to two of three consumers.
+why_now: |
+  Found by the cross-validation review of B-243, which classified `revision-columns.tsx` as
+  "a presentational component with nothing to read". True about the FILE and wrong about the
+  SCREEN: the read happens in the parent, the parent computes the flag, and it withholds it
+  from this child. This is the one place in the seven where "the defect moved rather than being
+  fixed" is literally true, and B-243's per-file guard cannot see it by construction.
+status: triaged
+dod:
+  - `revisionColumns` receives the labels-failed flag and the label cell distinguishes
+    "no label" from "could not read labels"
+  - a test fails on the current state — a failed labels read must not render "no label" on
+    every row
+  - the page banner stays, because a per-cell state and a page-level one answer different
+    questions
+
+> Registered 2026-08-12 by the cross-validation review of B-243.
+
