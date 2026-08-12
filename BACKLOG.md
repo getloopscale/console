@@ -9033,3 +9033,42 @@ dod:
 
 > Registered 2026-08-12 while running /plan-confidence for B-228.
 
+## B-250 — a plugin patch silently reverted committed fixes in the working tree   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  .claude/skills/discover-confidence/scripts/check_evidence_pointers.py:30
+  Measured 2026-08-12, mid-session. A plugin update ran (evidence:
+  `.claude/.patch-backups/20260812T072812/` appeared, together with a new `.claude/skills/arch-check/`)
+  and overwrote 22 tracked files in the working tree. Three of them were fixes committed EARLIER
+  IN THE SAME SESSION:
+
+    check_evidence_pointers.py    B-247 regex fix   -> reverted to the broken `\b` anchor
+    test_check_evidence_pointers.py  B-247 tests    -> 32 lines deleted, both regression tests gone
+    fixtures/good-opportunity.md  B-248 fix         -> reverted to standalone-layout pointers
+
+  `git diff` confirms the patch made NO other change to those three files — it was a pure revert,
+  not a merge. The commits (`c5a7afdb`, `3ebd0bdf`) were untouched; only the tree was clobbered.
+
+  Detected only because the plan's Integration Validation re-runs the neighbouring suite:
+  35 passed -> 32 passed + 1 failed. Nothing warned.
+why_now: |
+  The failure mode is silent by construction. A later `git add -A` would have committed the
+  reverted state as if it were intentional work, deleting two shipped fixes and their tests with
+  no diff anyone would read as a revert. It was caught by a cross-suite check that exists for an
+  unrelated reason, which is luck, not a control.
+status: triaged
+dod:
+  - a patch/install run that would overwrite a tracked file modified since the last patch either
+    refuses or reports every file it is about to clobber, by name
+  - the report distinguishes "file unchanged since last patch" from "file changed locally"
+  - a regression test drives the patcher against a tree with a locally-modified tracked file
+
+> Registered 2026-08-12 mid-session, after restoring the three files with
+> `git restore --source=HEAD`. Suite back to 35 passed.
+
