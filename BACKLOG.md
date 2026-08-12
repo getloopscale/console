@@ -9820,3 +9820,56 @@ dod:
 > Registered 2026-08-12, before acting, so the record exists even if the merge fails.
 > Second exception after B-229 (2026-08-11). Two in two days is worth someone's attention.
 
+## B-264 — deleting your account or workspace can fail silently, and the screen acts as if it worked   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: high
+category: code
+evidence: |
+  dashboard/src/pages/settings/profile.tsx:38
+  await engineFetch(`/api/v1/tenants/${encodeURIComponent(tenantId)}`, {
+    method: 'DELETE',
+  });
+  setConfirmOpen(false);
+  await logout();
+
+  dashboard/src/pages/settings/overview.tsx:34
+  await engineFetch(
+    `/api/v1/tenants/${encodeURIComponent(whoami.team_id)}`,
+    { method: 'DELETE' },
+  );
+  setConfirmOpen(false);
+  navigate('/');
+
+  Neither passes `{ throwOnError: true }`, so a non-2xx or a network rejection RESOLVES `null`
+  (B-235). Nothing inspects the result. The dialog then closes and the user is logged out or
+  navigated away — the screen performs the whole success path over a request that failed.
+
+  The user's reading is unambiguous and wrong: the confirmation closed, they were signed out,
+  so the account is gone. It may not be.
+
+  Both are the SAME operation, `DELETE /api/v1/tenants/{id}`, hand-rolled twice with the same
+  `try/finally` and the same absent error branch. `finally { setDeleting(false) }` restores the
+  button and nothing else.
+why_now: |
+  Found while migrating the `settings` domain for B-244. The ratchet counts these two as "pages
+  that talk transport directly", which understates them: the defect is not layering, it is that
+  the most destructive action in the product reports success it did not observe.
+
+  It is also the sharpest case for B-235 yet — `null` meaning "failed" and being read as
+  "fine" — and the second one this session, after create-project.
+status: triaged
+dod:
+  - a failed delete leaves the dialog open and says what went wrong; the session is NOT ended
+    and the route does NOT change
+  - the request goes through one hook, not two copies, so the next fix lands in both places
+  - a test fails on the current state — a rejected DELETE must not reach `logout()` or
+    `navigate('/')`
+  - the tenant-delete call passes `{ throwOnError: true }`, so the ratchet in
+    `lib/http/ambiguous-null-ratchet.test.ts` drops by two
+
+> Registered 2026-08-12 while migrating settings for B-244.
+
