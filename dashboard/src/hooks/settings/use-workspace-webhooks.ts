@@ -50,7 +50,10 @@ export interface WebhookInput {
  * purpose is to carry the signing secret exactly once, so a body-less success is a contract
  * violation, not a webhook without a secret.
  */
-export const workspaceWebhookKeys = {
+// Module-private on purpose. It was exported while the page still built the deliveries query
+// itself; once that moved in here, nothing outside imported it and knip said so. An export with no
+// importer is a wider surface than the code needs — the same reasoning B-245 froze into a ratchet.
+const workspaceWebhookKeys = {
   all: ['cloud', '/v1/settings/webhooks/list'] as const,
   deliveries: (id: string) => ['cloud', `/v1/settings/webhooks/${id}/deliveries`] as const,
 };
