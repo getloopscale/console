@@ -27,6 +27,12 @@ Both are reported, separately, because conflating them would hide which way the 
   question `skills/release/scripts/detect_current_version.py` asks (B-228). A stale local ref gives
   a stale answer; pass `--ref` when that matters.
 - It matches `## [x.y.z] - date` headers only. `[Unreleased]` is skipped by design.
+- IT FAILS DURING A RELEASE, BY DESIGN, and that is worth stating before someone wires it into CI
+  and is surprised. Between the CHANGELOG rewrite and the tag being cut, the newest section has no
+  tag — which is precisely the state `[1.0.1]` got stuck in. The window is the defect's own shape,
+  so the check cannot exempt it without exempting the thing it exists to catch. Run it BEFORE the
+  rewrite and AFTER the tag; do not put it on the release PR.
+
 - It cannot tell a legitimately yanked release from a phantom one. A yanked version needs an
   explicit marker; today there is no convention for that in this repository, so a yank would be
   reported here and should be answered by adding the convention rather than by loosening this.

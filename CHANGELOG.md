@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-12
+
 <!-- B-268 — the entries below came back from a `## [1.0.1] - 2026-08-11` section that
      announced a release which never happened: `chore(release): 1.0.1` reached develop and
      never reached main, and no v1.0.1 tag exists anywhere. The work is real and still
