@@ -53,8 +53,23 @@ exatamente a classe "grep casa prosa".
  */
 // 58 em 2026-08-07; 53 desde 2026-08-08, quando `settings/api-keys.tsx`,
 // `settings/components/api-key-lineage.tsx` e `lens/traces.tsx` ganharam hooks
-// de domínio (B-012 / B-053). SÓ DESCE.
-const TETO_PAGINAS_COM_TRANSPORTE = 53;
+// de domínio (B-012 / B-053).
+//
+// 52 desde 2026-08-12 (B-244): `infra/domains.tsx` passou a ler por
+// `hooks/infra/use-domains.ts`. A migração revelou algo que só aparece quando a
+// forma sai da tela: a página carregava um `Domain` LOCAL mais rico que o de
+// `@/lib/api/types` — com `nameservers` e `failure_mode`, que o backend devolve
+// e o tipo compartilhado não declara. O `tsc` acusou no instante em que o hook
+// tentou usar o compartilhado; adotá-lo teria apagado dois campos que a UI
+// renderiza. Reconciliar os dois é trabalho de quem possui o tipo compartilhado,
+// e está registrado (B-262) em vez de resolvido alargando um tipo global a
+// partir da evidência de um chamador só.
+//
+// Distribuição do que resta: lens 18, memory 12, rag 9, settings 6, projects 3,
+// deployment-tabs 2, workspace 2.
+//
+// SÓ DESCE.
+const TETO_PAGINAS_COM_TRANSPORTE = 52;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
