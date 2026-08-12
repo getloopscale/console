@@ -104,9 +104,23 @@ func TestGateTriggerSurfaceMatchesTheMeasuredDesign(t *testing.T) {
 				"call in the callee's own concurrency group", g.file)
 		}
 
-		// pull_request coverage is never traded away — it is what protects the branch before merge.
-		if _, hasPR := wf.On["pull_request"]; !hasPR {
-			t.Errorf("%s: `pull_request:` must remain — removing it would drop pre-merge coverage", g.file)
+		// `pull_request:` is ABSENT by decision, and the assertion is inverted rather than deleted.
+		//
+		// This block used to read "pull_request coverage is never traded away". The owner traded it
+		// on 2026-08-12 (CHANGELOG § Unreleased): CI runs only on merge — push to develop/main —
+		// and these three files are invoked as gates by publish.yml, which fires on that push. The
+		// coverage moves; it does not vanish.
+		//
+		// Nobody found out for six days, and the reason is worth keeping next to the code: the only
+		// thing that runs this test is publish.yml, and publish.yml was itself dead at startup
+		// (B-270). A guard and the pipeline that runs it were broken at the same time, each hiding
+		// the other. That is why this stays an assertion instead of a deleted line — re-adding
+		// `pull_request:` would put the standalone-trigger collision back, and the decision should
+		// fail loudly if it is reversed by accident rather than on purpose.
+		if _, hasPR := wf.On["pull_request"]; hasPR {
+			t.Errorf("%s: `pull_request:` is back. It was removed by decision on 2026-08-12 so CI "+
+				"runs only on merge; publish.yml invokes this file as a gate on push to develop. "+
+				"Re-adding it restores the standalone trigger that collides with the gated call.", g.file)
 		}
 	}
 }

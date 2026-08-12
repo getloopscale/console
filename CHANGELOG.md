@@ -10,6 +10,8 @@
 
 ### Changed
 
+- **theo-cloud/CI:** two guards that had been contradicting the code since 2026-08-06 now match it. One asserted that opening a pull request must trigger the pipeline — a rule the owner deliberately reversed a week later — and the other asserted a setting that the build pipeline stopped accepting. Neither failure was visible, because the only thing that runs those guards is the pipeline that was itself refusing to start (B-270).
+
 - **theo-cloud/release process:** the check that catches a workflow passing a setting its callee does not accept now runs in CI. It was written when that defect cost six dead pipeline runs and two releases with no image, and then shipped wired to nothing — so the next such change would have reproduced the same failure with the detector sitting unused in the repository (B-270).
 
 - **theo-cloud/dashboard:** six checks that proved a navigation submenu had opened now also prove the labels they look for exist at all. They asserted two menu items were absent and nothing ever showed those items, so renaming either one would have satisfied all six for the wrong reason. The count of assertions that cannot fail drops from 113 to 106 (B-242).
