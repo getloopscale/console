@@ -116,9 +116,9 @@ def test_dotfile_directory_pointer_resolves(rooted: Path) -> None:
     """A pointer into `.claude/…` keeps its leading dot and resolves.
 
     Regression for B-247. The pattern anchored on `\\b`, which falls BETWEEN the dot and
-    the first letter of a dotfile directory, so `.claude/rules/x.md:1` was captured as
-    `claude/rules/x.md` — a path that never resolves from the project root. Every
-    opportunity about this ecosystem's own tooling was therefore capped INVALID by
+    the first letter of a dotfile directory, so a pointer into `.claude/` lost its leading
+    dot and became a path that never resolves from the project root. Every opportunity
+    about this ecosystem's own tooling was therefore capped INVALID by
     `fabricated_evidence` against pointers that exist on disk.
     """
     target = rooted / ".claude" / "rules" / "cycle-release.md"

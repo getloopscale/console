@@ -30,8 +30,8 @@ from typing import Any
 #
 # The left guard says "do not start in the MIDDLE of a path token" — which is what the
 # original `\b` was reaching for, but could not express: `\b` falls between the dot and
-# the first letter of a dotfile directory, so `.claude/rules/x.md:1` was captured as
-# `claude/rules/x.md` and reported fabricated against a file that exists (B-247).
+# the first letter of a dotfile directory, so a pointer into `.claude/` lost its leading
+# dot and was reported fabricated against a file that exists on disk (B-247).
 CODE_POINTER_RE = re.compile(
     r"(?<![A-Za-z0-9_.\-/])((?:[A-Za-z0-9_.\-]+/)+[A-Za-z0-9_.\-]+\.[A-Za-z0-9]{1,10}):(\d+)(?::\d+)?\b"
 )
