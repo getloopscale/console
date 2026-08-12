@@ -10470,6 +10470,29 @@ shipped_note: |
   Isso fecha o diagnóstico com evidência de execução: o defeito era o contrato de inputs, e
   corrigi-lo bastou para o GitHub aceitar o workflow.
 
+  O QUE O DESBLOQUEIO REVELOU, e é a parte que vale mais que o próprio fix: com o `publish`
+  finalmente executando, ele reprovou em CASCATA quatro defeitos que estavam invisíveis há seis
+  dias — todos com a mesma assinatura.
+
+    1. dois testes Go contradiziam o código (`gate_workflows_test.go`, `publish_controls_test.go`)
+       — um afirmava um invariante que o dono revogou, o outro exigia o input que este próprio
+       item removeu
+    2. `.trivyignore` ausente: o trivy saía em 17ms e o gate reportava falha de vulnerabilidade
+       para um scan que não rodou (B-272)
+    3. o binário do golangci-lint não baixava: `socket hang up`, e o passo chamado "Lint" ficava
+       vermelho sem nenhuma análise ter acontecido (B-273)
+    4. o `Dockerfile` ainda nomeava a org antiga em oito lugares, seis dias depois do rename — e a
+       pior das três consequências não dá erro nenhum: uma ldflag que não casa símbolo é aceita em
+       silêncio pelo linker, então a imagem compilaria e reportaria `dev`/`unknown` para sempre
+
+  A ASSINATURA COMUM: uma verificação que NÃO ACONTECEU sendo reportada como uma que aconteceu e
+  falhou. Vale nomear como classe porque o custo não é o vermelho — é que um vermelho incapaz de
+  distinguir "seu código está errado" de "nada rodou" gasta o tempo de quem investiga, sempre.
+
+  E vale registrar o efeito de segunda ordem: um pipeline morto não apenas para de produzir
+  artefato, ele para de REPROVAR. Seis dias de mudanças entraram sem gate, e os quatro defeitos
+  acima são o que se acumulou nesse intervalo.
+
   O QUE ESTE BLOCO CONTINUA NÃO AFIRMANDO: que a v1.0.0 e a v1.0.1 ganharam imagem. Não ganharam —
   seguem com zero assets, conferido por `gh release view`, e isso só muda com um corte novo.
 
