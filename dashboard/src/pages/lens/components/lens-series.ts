@@ -5,25 +5,16 @@
  */
 import type {PercentileBucket, TrendSeries} from '@usetheo/ui';
 import type { ScoreBucket } from '@/hooks/lens/use-evaluator-scores';
+// B-244 — as formas dos buckets moram com os ENDPOINTS que as devolvem. Esta aritmética consome.
+import type {
+  TrafficBucket,
+  LatencyBucket,
+  ModelBucket,
+} from '@/hooks/lens/use-observability';
 
-export interface TrafficBucket {
-  periodStart: string;
-  traceCount: number;
-  errorCount: number;
-  errorRate: number;
-}
-export interface LatencyBucket {
-  periodStart: string;
-  p50Ms: number;
-  p95Ms: number;
-  p99Ms: number;
-}
-export interface ModelBucket {
-  periodStart: string;
-  model: string;
-  totalTokens: number;
-  costUsd: number;
-}
+
+
+
 
 // A fixed, colorblind-conscious palette; series index maps into it (wraps for safety).
 const PALETTE = ['#6366f1', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ec4899'];
@@ -136,7 +127,7 @@ export function tokensByModelSeries(rows: ModelBucket[], topN = 5): TrendSeries[
 // (`hooks/lens/use-evaluator-scores.ts`). Esta aritmética é consumidora dela, não dona: cinco
 // módulos leem `ScoreBucket`, e com a forma junto do endpoint o próximo campo do backend alcança
 // os cinco numa edição só.
-export type { ScoreBucket };
+export type { ScoreBucket, TrafficBucket, LatencyBucket, ModelBucket };
 
 /**
  * Score over time (M90): one line per evaluator that recorded a numeric mean, over the shared

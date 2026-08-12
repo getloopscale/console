@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button, Card, CopyButton, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
@@ -10,7 +9,11 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/formatting/format';
 import { usePaginacao } from '@/lib/pagination';
 import { Pager } from '@/components/pager';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useSessions,
+  SESSIONS_PAGE_SIZE,
+  type Session,
+} from '@/hooks/lens/use-sessions';
 
 /**
  * M44 — /lens/sessions. Read-only session replay list (`GET /v1/dashboard/lens/sessions`).
@@ -18,30 +21,8 @@ import { cloudFetch } from '@/lib/http/api';
  * session body (ADR-2/3); replay is a read.
  */
 
-interface Session {
-  sessionId: string;
-  traceCount?: number;
-  // M54 — the aggregate fields the lens ALREADY returns (session-list DTO). Rendered so a session is
-  // identifiable without opening it (SOTA parity). All optional → honest em-dash when absent.
-  lastSeenAt?: string;
-  costUsd?: number;
-  totalTokens?: number;
-  errorRate?: number;
-  firstMessagePreview?: string;
-  // M131 — Arize-parity residual columns. Last assistant reply (bookend of first message), session
-  // span-time duration, and best-effort user id. All optional → honest em-dash when absent.
-  lastMessagePreview?: string;
-  durationMs?: number;
-  userId?: string;
-}
-interface SessionsResult {
-  sessions: Session[];
-  // M81 — server-side pagination envelope.
-  total?: number;
-}
 
 /** M81 — the sessions page window. */
-const SESSIONS_PAGE_SIZE = 50;
 
 export function LensSessionsPage() {
   const { setPageTitle } = usePageMeta();
@@ -50,12 +31,7 @@ export function LensSessionsPage() {
 
   // M81 — server-side pagination (the engine now honors limit/offset + returns a workspace-scoped total).
   const [page, setPage] = useState(1);
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/sessions', page] as const,
-    queryFn: () =>
-      cloudFetch<SessionsResult>(
-        `/v1/dashboard/lens/sessions?limit=${SESSIONS_PAGE_SIZE}&offset=${(page - 1) * SESSIONS_PAGE_SIZE}`, {}, { throwOnError: true }),
-  });
+  const query = useSessions(page);
   const total = query.data?.total ?? 0;
   // B-184 — a aritmética e a correção de página-além-do-fim vêm de `usePaginacao`.
   const paginacao = usePaginacao({

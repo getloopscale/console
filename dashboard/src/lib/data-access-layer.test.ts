@@ -158,7 +158,19 @@ exatamente a classe "grep casa prosa".
 // avaliador ao lado: recusa resolvia `null`, o `onSuccess` disparava e o handler limpava o
 // avaliador, o operador, o limiar e o diálogo. O formulário ia embora por um monitor que nunca foi
 // criado. Limpar passou a acontecer só no SUCESSO, no ponto de uso.
-const TETO_PAGINAS_COM_TRANSPORTE = 39;
+// 37 desde 2026-08-12, com `lens/{sessions,overview}.tsx`.
+//
+// Nenhuma das duas tinha defeito de contrato — as duas já passavam `throwOnError`. O que elas
+// tinham era a chave de cache montada à mão ao lado da URL: em `sessions` o `page`, em `overview` o
+// `range`. Esse acordo não falha enquanto uma pessoa edita os dois, e falha em silêncio no primeiro
+// filtro que alguém acrescenta a um e esquece no outro — a tela passa a mostrar a resposta de outra
+// página ou de outro período, com o rótulo certo por cima.
+//
+// `TrafficBucket`, `LatencyBucket` e `ModelBucket` foram para o módulo do endpoint, como
+// `ScoreBucket` e `PontoDaSerie` antes deles. Não é preferência: `src/hooks` não pode importar de
+// `src/pages`, então um tipo de RESPOSTA morando em `pages/` torna o hook impossível de tipar. A
+// regra de camada pegando isso é a regra funcionando.
+const TETO_PAGINAS_COM_TRANSPORTE = 37;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

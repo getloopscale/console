@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the sessions list and the observability charts can no longer show one page's rows, or one period's numbers, under another's label. Which page and which period you are looking at now decide which cached answer is reused, from the same place that builds the request — the two were kept in step by hand before, which works until someone changes one of them (B-244).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** creating a monitor the server refuses no longer clears the form. The evaluator, the operator and the threshold were all wiped and the dialog closed, for a monitor that was never created. Deleting one had the opposite symptom: the confirmation closed and the monitor came back on the next read (B-244, B-235).
