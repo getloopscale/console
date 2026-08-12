@@ -8560,6 +8560,23 @@ id_correction: |
   Registered 2026-08-11 as B-167, an id already held by a live item registered
   earlier (see B-167 below). No commit ever referenced this block under the old id,
   so it takes the fresh id B-235. The original B-167 keeps its number and history.
+remeasured: |
+  2026-08-12 — the cost in this block is overstated by an order of magnitude, and the
+  correction changes what the open decision is worth.
+
+  "a breaking change across 151 importers": 151 is the number of files that MENTION
+  `cloudFetch` (`grep -rl cloudFetch src` -> 151). Nearly all are tests and mocks. Production
+  CALL SITES, which are what a signature change actually breaks:
+
+    grep -rn 'cloudFetch(' src | grep -v '\.test\.'   ->  13
+
+  Thirteen call sites is a slice, not a migration. `throwOnError` already exists as an opt-in
+  (`src/lib/http/api.ts:49`), so the discriminated-result question is narrower than the block
+  implies: it is about the DEFAULT, over 13 sites, not about rewriting 151 files.
+
+  Not reclassifying the item on this alone — the decision it records is still a real one, and
+  the tests that mention `cloudFetch` still have to keep compiling. Recording it so the next
+  person scoping this does not budget for 151.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
