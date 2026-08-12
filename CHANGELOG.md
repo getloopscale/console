@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the count of identifiers still written in Portuguese is now reproducible and frozen. It had been measured five times with five answers, because Portuguese and English share words like "total" and "item" and nothing recorded which of those count. The list that decides already existed in the repository for a neighbouring check; reusing it makes the number derivable instead of remembered, and a new declaration in Portuguese now fails the build (B-241).
+
 ## [1.0.2] - 2026-08-12
 
 ### Security

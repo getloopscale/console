@@ -8885,8 +8885,36 @@ medicao_nao_e_reproduzivel: |
     - exercitada por testes, como os detectores do B-235/B-242 passaram a ser
     - e só então o número, o guard, e o rename
 
-  NÃO RENOMEEI NADA. Um sweep de 240 identificadores contra uma medição irreprodutível é
-  exatamente a varredura mecânica que a `tentativa_1` abaixo já custou 270 arquivos e uma reversão.
+  NÃO RENOMEEI NADA nesta etapa. Um sweep contra medição irreprodutível é exatamente a varredura
+  mecânica que a `tentativa_1` abaixo já custou 270 arquivos e uma reversão.
+medicao_resolvida: |
+  2026-08-12, mesma sessão — O BLOQUEIO CAIU, e a solução já estava no repositório.
+
+  `i18n-guard.ts` tem o `MARCADOR`: uma lista curada, commitada e em uso, cujo docblock diz
+  exatamente o critério que eu disse faltar — "acento, ou palavra que não existe em inglês". Ela
+  contém `nome`, `chave`, `linha`, `janela`, `busca`; e NÃO contém `total`, `item`, `atual`. A
+  decisão cognato-a-cognato existia; eu é que estava escrevendo uma segunda lista em vez de achar a
+  primeira. Degrau 4 da parsimony ladder.
+
+  MEDIÇÃO REPRODUZÍVEL, por AST, casando por PALAVRA:
+
+    484  ocorrências
+    277  identificadores distintos
+    217  distintos LOCAIS (declarados e usados num arquivo só) — o lote seguro
+
+  Sozinho o `MARCADOR` dava 398, e parar ali SUBCONTARIA: ele foi escrito para texto de interface,
+  então palavras inequívocas num identificador que nunca viram rótulo de tela — `erro`, `vazio`,
+  `seletor`, `teto` — simplesmente não estão nele. Um suplemento as lista, sem nenhum cognato, e
+  leva a 484. Aceitar 398 em silêncio seria o mesmo defeito que esta sessão inteira documentou.
+
+  CONGELADO em `src/lib/identifier-language-ratchet.test.ts`, com auto-testes que provam as duas
+  armadilhas anteriores: `error`/`isError`/`ApiError` NÃO casam (o defeito que deu 314), e
+  `total`/`item`/`atual` NÃO casam (o que deu 329).
+
+  O segundo critério do DoD — "o guard reprova um identificador em português" — está atendido: a
+  catraca reprova qualquer declaração nova. O que falta é a migração dos 277, e ela começa pelos
+  217 locais, onde um rename não colide com homônimo em outro escopo — que é exatamente como a
+  `tentativa_1` quebrou.
 
 o_bloqueio_que_eu_alegava: |
   Levantei três vezes que este item estava travado numa decisão do dono — "comentários em português
