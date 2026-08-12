@@ -9217,3 +9217,48 @@ dod:
 
 > Registered 2026-08-12 while verifying B-252, which it silently blocked.
 
+## B-255 — the Go dead-code parser reads packages as symbols and reports every one as `<unknown>`   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  .claude/skills/code-quality/scripts/detectors/go.py:163
+  position = entry.get("position", "<unknown>:0:0")
+  name = entry.get("name", "<unknown>")
+
+  `deadcode -json` emits a list of PACKAGES, each `{Name, Path, Funcs:[{Name, Position:{File,
+  Line, Col}}]}`. The parser treats each entry as a SYMBOL and looks for lowercase `name` /
+  `position` keys that do not exist at that level, so both defaults fire on every entry and it
+  never descends into `Funcs`.
+
+  Measured 2026-08-12 on this repository:
+
+    what the tool found     5 packages containing 28 dead functions
+    what the detector said  5 findings, every one `Unreachable Go symbol '<unknown>' at
+                            <unknown>:0:0`, HARD
+
+  So it under-reports (5 for 28), mis-attributes (a package reported as a symbol), and gives no
+  location at all — while holding the `dead_code_unallowlisted_go` HARD cap, which blocks
+  /review.
+
+  Second defect, same detector: 7 of the 28 are in
+  `dashboard/node_modules/flatted/golang/pkg/flatted/flatted.go` — Go source vendored inside an
+  npm package. Auditing a third-party tree for dead code is noise by construction.
+why_now: |
+  Found while clearing B-252, which was the other half of the same FAIL_HARD. With the
+  fabrication cap gone this is the last thing keeping /code-quality red, and it is unactionable
+  as written: a reviewer handed `<unknown> at <unknown>:0:0` cannot act, cannot allowlist it
+  (the allowlist key is the same for all five), and cannot tell whether it is real.
+status: triaged
+dod:
+  - findings name the function, the file and the line the tool actually reported
+  - the count matches what `deadcode -json` reports, function for function
+  - vendored trees (`node_modules/`, `vendor/`) are excluded, and the exclusion is tested
+  - each finding gets a distinct allowlist key, so one can be exempted without exempting all
+
+> Registered 2026-08-12 during B-228's code-quality phase, which it blocks.
+
