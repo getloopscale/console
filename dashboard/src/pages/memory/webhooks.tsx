@@ -5,17 +5,15 @@ import {
   Badge,
   Button,
   Card,
-  Checkbox,
   DataTable,
   type DataTableColumn,
   EmptyState,
-  Input,
   PageShell,
   Sheet,
   Timestamp,
   useToast,
 } from '@usetheo/ui';
-import { AppModal } from '@/components/ui/app-modal';
+import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
 import type { Delivery } from '@/lib/webhooks/delivery';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
@@ -210,6 +208,9 @@ export function WebhooksPage() {
         onClose={() => setCreateOpen(false)}
         submitting={create.isPending}
         onSubmit={(input) => create.mutate(input)}
+        description="Register a URL to be notified when memory events occur."
+        events={AVAILABLE_EVENTS}
+        exemploUrl="https://hook.example.com/memory"
       />
 
       {pendingDelete ? (
@@ -457,96 +458,3 @@ function DeliveryCard({
   );
 }
 
-interface AddWebhookDialogProps {
-  open: boolean;
-  onClose: () => void;
-  submitting: boolean;
-  onSubmit: (input: { url: string; label: string; events: string[] }) => void;
-}
-
-function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDialogProps) {
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set([AVAILABLE_EVENTS[0].id]));
-
-  const reset = () => {
-    setUrl('');
-    setLabel('');
-    setSelected(new Set([AVAILABLE_EVENTS[0].id]));
-  };
-  const handleClose = () => {
-    if (!submitting) {
-      reset();
-      onClose();
-    }
-  };
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return;
-    onSubmit({ url, label: label.trim(), events: Array.from(selected) });
-  };
-
-  const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
-
-  return (
-    <AppModal
-      open={open}
-      onClose={handleClose}
-      title={<>Add webhook</>}
-      description={<>Register a URL to be notified when memory events occur.</>}
-      footer={<><Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button><Button type="submit" form="add-webhook-form" disabled={submitDisabled}>
-            {submitting ? 'Adding…' : 'Add webhook'}
-          </Button></>}
-    >
-      <form id="add-webhook-form" className="space-y-4" onSubmit={submit}>
-            <div>
-              <label htmlFor="wh-url" className="text-sm font-medium block mb-1">
-                URL
-              </label>
-              <Input
-                id="wh-url"
-                placeholder="https://hook.example.com/memory"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="wh-label" className="text-sm font-medium block mb-1">
-                Label
-              </label>
-              <Input
-                id="wh-label"
-                placeholder="prod-events"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                maxLength={64}
-              />
-            </div>
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">Events</legend>
-              <div className="space-y-2">
-                {AVAILABLE_EVENTS.map((evt) => (
-                  <label key={evt.id} className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox
-                      checked={selected.has(evt.id)}
-                      onCheckedChange={() => {
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(evt.id)) next.delete(evt.id);
-                          else next.add(evt.id);
-                          return next;
-                        });
-                      }}
-                      aria-label={evt.id}
-                    />
-                    <span className="font-mono text-sm">{evt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </form>
-    </AppModal>
-  );
-}

@@ -180,6 +180,18 @@ describe('primitivo de modal único', () => {
       varridos++;
 
       const ids = new Set([...src.matchAll(/<form[^>]*\bid="([^"]+)"/g)].map((m) => m[1]));
+      // B-193 — um `id` também pode ser uma EXPRESSÃO. `add-webhook-dialog.tsx` usa `useId()`,
+      // que é a resposta da própria plataforma para o problema que ids literais têm: dois
+      // diálogos montados na mesma página compartilhariam o literal, e um `<label htmlFor>`
+      // ambíguo manda o leitor de tela para o campo errado.
+      //
+      // Aceitar `id={x}` + `form={x}` não afrouxa o guarda — prova a mesma coisa de forma mais
+      // forte, porque exige o MESMO identificador dos dois lados em vez de duas strings que só
+      // por hábito coincidem. O que continua reprovado é o que sempre foi o defeito: um submit
+      // no footer sem `form` nenhum.
+      const idsPorExpressao = new Set(
+        [...src.matchAll(/<form[^>]*\bid=\{([A-Za-z0-9_$.]+)\}/g)].map((m) => m[1]),
+      );
       const rel = relative(SRC, f).replace(/\\/g, '/');
 
       // SÓ a região do `footer={…}`, e não o arquivo inteiro.
@@ -201,9 +213,15 @@ describe('primitivo de modal único', () => {
         }
         const regiao = src.slice(inicio, i);
         for (const m of regiao.matchAll(/<Button\b[^>]*?type="submit"[^>]*?>/gs)) {
-          const alvo = m[0].match(/\bform="([^"]+)"/)?.[1];
-          if (!alvo) quebrados.push(`${rel}: submit no footer sem \`form=\``);
-          else if (!ids.has(alvo)) quebrados.push(`${rel}: form="${alvo}" não existe no arquivo`);
+          const literal = m[0].match(/\bform="([^"]+)"/)?.[1];
+          const expressao = m[0].match(/\bform=\{([A-Za-z0-9_$.]+)\}/)?.[1];
+          if (literal === undefined && expressao === undefined) {
+            quebrados.push(`${rel}: submit no footer sem \`form=\``);
+          } else if (literal !== undefined && !ids.has(literal)) {
+            quebrados.push(`${rel}: form="${literal}" não existe no arquivo`);
+          } else if (expressao !== undefined && !idsPorExpressao.has(expressao)) {
+            quebrados.push(`${rel}: form={${expressao}} não casa nenhum \`<form id={…}>\``);
+          }
         }
       }
     }

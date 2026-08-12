@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { ExploreCard } from '@/components/explore-card';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
-import { RefreshCw, type LucideIcon } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { LENS_EXPLORE_CARDS } from '@/components/layout/lens-capabilities';
@@ -241,26 +242,3 @@ export function LensOverviewPage() {
   );
 }
 
-interface ExploreCardProps {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  href: string;
-}
-
-/** Single Explore card — icon + title + 1-line description + a destination link.
- * Uses a router `<Link>` (SPA nav) — not `window.location.href` (which forced a full reload). */
-function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps) {
-  return (
-    <Card>
-      <Card.Body className="space-y-2">
-        <Icon className="size-5 text-primary" aria-hidden="true" />
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        <Button asChild variant="ghost" size="sm">
-          <Link to={href}>Open →</Link>
-        </Button>
-      </Card.Body>
-    </Card>
-  );
-}

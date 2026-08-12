@@ -6982,7 +6982,7 @@ evidence: |
           <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/overview.tsx:255`. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6992,6 +6992,7 @@ dod:
   - Fix the defect first, then remove its cause. (1) Immediately change memory/overview.tsx:262 and rag/overview.tsx:200 to the `<Button asChild><Link to={href}>` form already proven in lens/overview.tsx:260-262 — this is a user-visible navigat
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-explorecard-copy-pasted-into-3-domain`). Source: code-review finding #104, `code-review-output/code-review.db`.
+shipped_note: CORRECAO DA PREMISSA: a divergencia de navegacao que o item nomeia (lens com `<Link>`, memory/rag com `window.location.href`) JA ESTAVA corrigida nas tres quando remedi — o que sobrava era a triplicacao literal e, ainda de pe, a divergencia de TIPAGEM do icone (`LucideIcon` numa copia, `typeof Brain` e `typeof Boxes` nas outras, que amarram o tipo a um icone concreto). `components/explore-card.tsx` unifica; duas das tres copias traziam comentario justificando a permanencia inline pela "Regra de 3 / YAGNI", escrito quando ja existiam tres. 3 testes, duas mutacoes mortas (voltar a `window.location.href` e o icone deixar de ser decorativo).
 
 ## B-193 — AddWebhookDialog duplicated between memory and settings, including the webhook-URL validation rule — and setti   [ ]
 
@@ -7024,7 +7025,7 @@ evidence: |
     settings:436 function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, events }: AddWebhookDialogProps)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/webhooks.tsx:470`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7034,6 +7035,7 @@ dod:
   - Promote the settings/webhooks.tsx version verbatim to a shared module (e.g. src/components/dialogs/add-webhook-dialog.tsx), have both pages import it, and pass memory's `AVAILABLE_EVENTS` and its description string as the `events` / `descri
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-webhooks-addwebhookdialog-duplicated-between-memory-and-settings`). Source: code-review finding #105, `code-review-output/code-review.db`.
+shipped_note: `components/dialogs/add-webhook-dialog.tsx` substitui as duas copias; a de settings era o superconjunto (recebia `description` e `events`) e e a que sobreviveu. A REGRA DE NEGOCIO — URL http(s) absoluta, rotulo nao vazio, ao menos um evento — virou `podeCadastrarWebhook`, testavel sem montar dialogo: 4 testes, tres mutacoes mortas. Os ids fixos (`wh-url`/`wwh-url`) viraram `useId`, que resolve tambem a colisao que os literais nao resolviam: dois dialogos na mesma pagina compartilhariam o id e um `<label htmlFor>` ambiguo manda o leitor de tela ao campo errado. Isso exigiu ENSINAR o guarda de modal (`modal-primitive.test.ts`) a aceitar `id={x}`+`form={x}` — nao e afrouxar: exige o MESMO identificador dos dois lados, e as duas mutacoes (submit sem form, form apontando para outra expressao) continuam reprovadas.
 
 ## B-194 — SLO tone thresholds (uptime 99.9/99.0, p95 500/1000ms, error rate 1/5) duplicated between two components rende   [x]
 
@@ -7125,7 +7127,7 @@ evidence: |
     cons
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/infra/components/delete-secret-dialog.tsx:41`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7135,6 +7137,7 @@ dod:
   - Migrate the six to `<ConfirmDialog confirmationPhrase={...} intent="destructive" onConfirm={...} />`, keeping only the genuinely extra body content as children (cascade warning, the rollback `ack` checkbox, the new-value field for rotate).
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-delete-secret-dialog-confirmdialog-owns-type-to-confirm-confirmationph`). Source: code-review finding #108, `code-review-output/code-review.db`.
+shipped_note: MEDICAO CORRIGE O ITEM: ele diz 6 dialogos reimplementando; sao 2. Os outros 14 arquivos que citam `confirmationPhrase` USAM o `ConfirmDialog` canonico. `delete-secret-dialog.tsx` migrou — encaixe exato — e ganhou tres coisas que a copia nao tinha: foco no CANCELAR ao abrir (um Enter apressado nao executa a acao destrutiva; a copia dava autoFocus ao campo), o erro visivel no proprio painel sem fechar o dialogo (a correcao do B-105, nao herdada) e uma regra so. `rotate-secret-dialog.tsx` NAO migra, por forma: hospeda um segundo campo (o valor novo), o que o torna um formulario — e `ConfirmDialog` e uma confirmacao, sem espaco para campos arbitrarios. Razao registrada no codigo. 3 testes existentes passaram sem alteracao contra a implementacao migrada + 2 novos para o comportamento ganho.
 
 ## B-196 — Phase 1 inventory gap: the whole src/build/ directory (8 files) is un-inventoried, so no review agent can cove   [ ]
 

@@ -2,6 +2,14 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** deleting a secret now keeps the dialog open and says what went wrong when the server refuses, instead of closing as though it had worked. The dialog also opens with Cancel focused, so a stray Enter cannot delete anything (B-195).
+
+### Changed
+
+- **theo-cloud/dashboard:** the Explore cards, the add-webhook dialog and the delete-secret confirmation each exist once instead of two or three times. No behaviour changed beyond the fixes noted above; what changed is that the next fix to any of them lands everywhere it should (B-192, B-193, B-195).
+
+### Fixed
+
 - **theo-cloud/dashboard:** paging back is no longer the only way out of an empty page. On four of the five paged screens, deleting or filtering records shrank the list while you were on a later page, leaving an empty table and nothing on screen explaining why. One screen already stepped back automatically; now all of them do (B-184).
 - **theo-cloud/dashboard:** the row counter on Lens usage-by-user is in English, like every other screen (B-184).
 

@@ -5,16 +5,15 @@ import {
   Badge,
   Button,
   Card,
-  Checkbox,
   DataTable,
   type DataTableColumn,
   EmptyState,
-  Input,
   PageShell,
   Sheet,
   Timestamp,
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import type { Delivery } from '@/lib/webhooks/delivery';
 import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
@@ -245,6 +244,8 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
         onSubmit={(input) => create.mutate(input)}
         description={copy.dialogDescription}
         events={copy.events}
+        exemploUrl="https://hook.example.com/deploys"
+        exemploLabel="prod-deploys"
       />
 
       {createdSecret ? (
@@ -416,98 +417,3 @@ function SecretShownOnceDialog({
   );
 }
 
-interface AddWebhookDialogProps {
-  open: boolean;
-  onClose: () => void;
-  submitting: boolean;
-  onSubmit: (input: { url: string; label: string; events: string[] }) => void;
-  description: string;
-  events: readonly { id: string; label: string }[];
-}
-
-function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, events }: AddWebhookDialogProps) {
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set([events[0]?.id ?? '']));
-
-  const reset = () => {
-    setUrl('');
-    setLabel('');
-    setSelected(new Set([events[0]?.id ?? '']));
-  };
-  const handleClose = () => {
-    if (!submitting) {
-      reset();
-      onClose();
-    }
-  };
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return;
-    onSubmit({ url, label: label.trim(), events: Array.from(selected) });
-  };
-
-  const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
-
-  return (
-    <AppModal
-      open={open}
-      onClose={handleClose}
-      title={<>Add webhook</>}
-      description={<>{description}</>}
-      footer={<><Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button><Button type="submit" form="add-workspace-webhook-form" disabled={submitDisabled}>
-            {submitting ? 'Adding…' : 'Add webhook'}
-          </Button></>}
-    >
-      <form id="add-workspace-webhook-form" className="space-y-4" onSubmit={submit}>
-            <div>
-              <label htmlFor="wwh-url" className="text-sm font-medium block mb-1">
-                URL
-              </label>
-              <Input
-                id="wwh-url"
-                placeholder="https://hook.example.com/deploys"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="wwh-label" className="text-sm font-medium block mb-1">
-                Label
-              </label>
-              <Input
-                id="wwh-label"
-                placeholder="prod-deploys"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                maxLength={64}
-              />
-            </div>
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">Events</legend>
-              <div className="space-y-2">
-                {events.map((evt) => (
-                  <label key={evt.id} className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox
-                      checked={selected.has(evt.id)}
-                      onCheckedChange={() => {
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(evt.id)) next.delete(evt.id);
-                          else next.add(evt.id);
-                          return next;
-                        });
-                      }}
-                      aria-label={evt.id}
-                    />
-                    <span className="font-mono text-sm">{evt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </form>
-    </AppModal>
-  );
-}

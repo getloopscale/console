@@ -1,12 +1,4 @@
-import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import {
-  Button,
-  Input,
-  Label,
-} from '@usetheo/ui';
-import { AppModal } from '@/components/ui/app-modal';
-import { Alert } from '@/components/ui/alert-guard';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useDeleteSecret } from '@/hooks/mutations/use-secrets-mutations';
 import type { Secret } from '@/lib/api/types';
 
@@ -23,12 +15,27 @@ interface DeleteSecretDialogProps {
 /**
  * J-22 T3.4 — DeleteSecretDialog (Vercel-canonical destructive pattern).
  *
- * Same contract as RotateSecretDialog (T3.3): Delete button is DISABLED
- * until the user types the EXACT secret name (case-sensitive — EC-19)
- * into the confirm input. Paste-allowed; case-mismatch keeps disabled.
+ * O botão de excluir fica DESABILITADO até que o nome exato do segredo seja digitado
+ * (sensível a maiúsculas — EC-19). Colar é permitido; diferença de caixa mantém desabilitado.
  *
- * Per-env scope: each delete removes the secret from ONE environment.
- * Removing from all envs requires multiple deletes (or future bulk-delete).
+ * Escopo por ambiente: cada exclusão remove o segredo de UM ambiente. Removê-lo de todos exige
+ * várias exclusões.
+ *
+ * ## B-195 — isto era um diálogo próprio
+ *
+ * Reimplementava a mesma regra de digite-para-confirmar que `ConfirmDialog` já tem —
+ * `useState('')`, comparação exata, botão desabilitado — mais o modal, o rodapé e o tratamento
+ * de erro. Três coisas se ganham ao migrar, e nenhuma é estética:
+ *
+ * - O foco. `ConfirmDialog` foca o botão CANCELAR ao abrir, deliberadamente, para que um Enter
+ *   apressado não execute a ação destrutiva. Esta cópia dava `autoFocus` ao campo de texto.
+ * - O erro fica visível no próprio painel, e o diálogo não fecha em cima de uma falha — a
+ *   correção do B-105, que esta cópia não tinha herdado.
+ * - Uma regra só. Qualquer melhoria futura na confirmação destrutiva chega aqui sozinha.
+ *
+ * `RotateSecretDialog` NÃO migra, e a razão é de forma: ele hospeda um segundo campo (o valor
+ * novo do segredo). Isso o torna um formulário, e `ConfirmDialog` é uma confirmação — não tem
+ * nem deve ter um espaço para campos arbitrários.
  */
 export function DeleteSecretDialog({
   open,
@@ -38,93 +45,40 @@ export function DeleteSecretDialog({
   project,
   onDeleted,
 }: DeleteSecretDialogProps) {
-  const [confirmInput, setConfirmInput] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const deleteSecret = useDeleteSecret();
-  const submitting = deleteSecret.isPending;
-
-  const reset = () => {
-    setConfirmInput('');
-    setError(null);
-  };
-
-  // EC-19: exact match, case-sensitive.
-  const canDelete = secret !== null && confirmInput === secret.name;
-
-  const handleDelete = async () => {
-    if (!canDelete || secret === null) return;
-    setError(null);
-    try {
-      const env =
-        environment ?? (secret.environments && secret.environments[0]) ?? 'production';
-      await deleteSecret.mutateAsync({
-        name: secret.name,
-        environment: env,
-        project,
-      });
-      reset();
-      onOpenChange(false);
-      onDeleted?.();
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? `Delete failed: ${err.message}. The secret was NOT removed.`
-          : 'Delete failed. The secret was NOT removed.',
-      );
-    }
-  };
 
   if (!secret) return null;
 
-  return (
-    <AppModal
-      open={open}
-      onClose={() => onOpenChange(false)}
-      title={<>Delete {secret.name}</>}
-      description={<>This permanently removes the secret from {environment ?? 'this environment'}.
-            Apps reading it will fail on next deploy.</>}
-      footer={<><Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              reset();
-              onOpenChange(false);
-            }}
-            disabled={submitting}
-          >
-            Cancel
-          </Button><Button
-            type="button"
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={!canDelete || submitting}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Deleting…
-              </>
-            ) : (
-              'Delete'
-            )}
-          </Button></>}
-    >
-      <div className="space-y-4 py-2">
-          <div>
-            <Label htmlFor="delete-confirm">
-              Type <span className="font-mono font-semibold">{secret.name}</span> to confirm
-            </Label>
-            <Input
-              id="delete-confirm"
-              type="text"
-              value={confirmInput}
-              onChange={(e) => setConfirmInput(e.target.value)}
-              autoFocus
-            />
-          </div>
+  const excluir = async () => {
+    const env = environment ?? secret.environments?.[0] ?? 'production';
+    try {
+      await deleteSecret.mutateAsync({ name: secret.name, environment: env, project });
+    } catch (err) {
+      // Dizer que o segredo CONTINUA lá é a parte que importa: sem isso, quem viu a falha não
+      // sabe se precisa tentar de novo ou se acabou de excluir duas vezes.
+      throw new Error(
+        err instanceof Error
+          ? `Delete failed: ${err.message}. The secret was NOT removed.`
+          : 'Delete failed. The secret was NOT removed.',
+        // A causa original acompanha o sintoma: a frase acima é para quem está na tela, e a
+        // cadeia é para quem for depurar.
+        { cause: err },
+      );
+    }
+    onDeleted?.();
+  };
 
-          {error && <Alert intent="destructive" description={error} />}
-        </div>
-    </AppModal>
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Delete ${secret.name}`}
+      description={`This permanently removes the secret from ${environment ?? 'this environment'}. Apps reading it will fail on next deploy.`}
+      confirmLabel="Delete"
+      intent="destructive"
+      confirmationPhrase={secret.name}
+      onConfirm={excluir}
+      loading={deleteSecret.isPending}
+    />
   );
 }
