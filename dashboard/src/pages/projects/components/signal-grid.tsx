@@ -28,7 +28,7 @@ import type { SignalName } from '@/hooks/projects/use-status-stream';
  * error rate, replicas count, alerts active, status). Renders 8 cells
  * regardless of partial input — defensively shows "—" rather than blanking.
  */
-export interface SignalValues {
+interface SignalValues {
   status?: 'Healthy' | 'Progressing' | 'Degraded' | 'Unknown' | string | null;
   replicas?: number | null;
   uptime_24h?: number | null;

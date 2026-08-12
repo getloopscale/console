@@ -61,6 +61,7 @@ export function ProjectDetailPage() {
   });
   const {
     builds,
+    loading: buildsLoading,
     error: buildsUnreadable,
     refetch: refetchBuilds,
   } = useDeployments(name);
@@ -322,7 +323,23 @@ export function ProjectDetailPage() {
             this page used to discard, so a failed read arrived as `[]` and the screen invited
             the user to ship their first deploy over a list nobody managed to read. "You have
             none" and "I could not tell" ask for opposite next steps. */}
-        {buildsUnreadable ? (
+        {buildsLoading ? (
+          /* B-243 — an empty `builds` array means the same thing while LOADING as it does
+             after a successful empty read, so every load of a project that HAS deployments
+             flashed "No deployments yet — trigger a deploy" before the list arrived. Same
+             defect as the session picker's, in the sibling file, found by the review of that
+             fix rather than by the fix itself. */
+          <Card>
+            <Card.Body className="py-10">
+              <div className="flex items-center justify-center">
+                <Loader2
+                  className="size-5 animate-spin text-muted-foreground"
+                  aria-label="Loading deployments"
+                />
+              </div>
+            </Card.Body>
+          </Card>
+        ) : buildsUnreadable && recentBuilds.length === 0 ? (
           <Card>
             <Card.Body className="py-10">
               <EmptyState

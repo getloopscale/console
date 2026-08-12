@@ -23,7 +23,7 @@ const SESSION_PICKER_LIMIT = 100;
  * picks the session INSTANCE on surfaces whose tab already fixed the tier.
  */
 
-export interface SessionRow {
+interface SessionRow {
   session_id: string;
   memory_count: number;
   last_activity_at?: string;

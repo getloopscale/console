@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { render } from '@/test/render';
 import { ApiError } from '@/lib/http/api';
 import { SessionPicker, ScopeSelect } from './scope-switcher';
@@ -98,10 +98,20 @@ describe('ScopeSelect — its empty label is a TIER, not an absence claim', () =
 
     render(<ScopeSelect value="" onChange={() => undefined} />);
 
+    // WAIT for the query to settle before asserting. `findByText` resolved on the first,
+    // still-pending render, so this case never saw the failed read at all — a mutation that
+    // made SessionSelectBase override the label on error survived it. The test advertised a
+    // guarantee it did not provide, which is worse than a redundant test.
+    await waitFor(() => {
+      expect(mockCloudFetch).toHaveBeenCalled();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     // "Global — durable memory" asserts nothing about the user's data: it names the scope you
     // are in when no session is selected. A failed session read does not make it false, so it
-    // must NOT be rewritten into an error the way SessionPicker's label is. Widening the fix
-    // to every caller of SessionSelectBase would break this.
+    // must NOT be rewritten into an error the way SessionPicker's label is — which is exactly
+    // what widening the fix into SessionSelectBase would do, taking away the only way back to
+    // the global tier whenever the session list 500s.
     expect(await screen.findByText(/global — durable memory/i)).toBeInTheDocument();
   });
 });

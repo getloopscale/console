@@ -59,19 +59,33 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
    * ZERO desde 2026-08-12 (B-243). A catraca deixa de congelar uma população e passa a ser o
    * que sempre quis ser: nenhuma tela nova pode afirmar ausência sem consultar erro.
    *
-   * Como o número desceu, medido e não estimado:
+   * A PRIMEIRA versão deste número, escrita horas antes, era falsa e a revisão a derrubou.
+   * Ela atribuía 7 -> 0 a "2 correções + 4 vocabulário + 1 sem leitura". Medido, o
+   * `consultaErro` alargado removia ZERO arquivos: todos os quatro já saíam antes, pelo
+   * `iniciaLeitura` — que naquela versão casava sete grafias literais e por isso classificava
+   * `useProjects()`, `useApiKeys()`, `useTrustViolations()` como "componente que recebe a
+   * lista". O revisor provou o buraco removendo TODO o tratamento de erro de cinco páginas
+   * que buscam de verdade: a catraca seguiu verde.
    *
-   *   7  congelado em 2026-08-11 (B-238, que já havia corrigido 23 -> 7 alargando o guarda)
-   *   5  duas telas CORRIGIDAS de fato — `memory/scope-switcher.tsx` lia `.data` e descartava
-   *      `.error`; `projects/project-detail.tsx` desestruturava `builds` e jogava fora o
-   *      `error` que o próprio hook devolve
-   *   1  quatro telas que JÁ CONFORMAVAM e o guarda não reconhecia (ver `consultaErro`)
-   *   0  um componente que não faz leitura nenhuma (ver `iniciaLeitura`)
+   * Ou seja: eu havia baixado a catraca estreitando o próprio detector — exatamente o que o
+   * B-238 diagnosticou e este arquivo existe para não repetir.
    *
-   * Cinco dos sete não eram defeito. Vale dizer isso alto: o B-238 diagnosticou esta mesma
-   * coisa uma camada acima — "a catraca estava contando o vocabulário do guarda, não o
-   * defeito" — e o resíduo que ele deixou era mais do mesmo. Um teto que desce porque a
-   * medição melhorou NÃO é afrouxamento; o número passou a significar o que sempre afirmou.
+   * Com o `iniciaLeitura` corrigido (hooks de domínio contam como leitura), a decomposição
+   * medida é:
+   *
+   *   59  páginas afirmam ausência
+   *   45  dessas FAZEM leitura — as outras 14 recebem a lista pronta ou a mantêm em estado
+   *       local, e não têm erro nenhum para consultar
+   *    3  eram culpadas antes desta fatia
+   *    2  CORRIGIDAS em código: `memory/scope-switcher.tsx` lia `.data` e descartava `.error`;
+   *       `projects/project-detail.tsx` desestruturava `builds` e jogava fora o `error`
+   *    1  `overview/status.tsx`, que JÁ era conforme — renderiza role="alert" "Could not read
+   *       service status" e o guarda procurava "Could not load". Um verbo.
+   *    0  culpadas agora
+   *
+   * Dois terços por correção, um terço por medição consertada — e agora o número diz o que
+   * afirma, porque a atribuição foi conferida contra o que o código produz, e não contra o
+   * que eu quis que ele produzisse.
    */
   const TETO_SEM_ERRO = 0;
 
@@ -145,10 +159,24 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
    * produzia o resíduo não era esse: era por TIPO de arquivo — página que lê versus componente
    * que recebe.
    */
-  const iniciaLeitura = (fonte: string) =>
-    /\buseQuery\(|\buse[A-Z]\w*Query\(|useCloudApi\(|useEngineApi\(|cloudFetch\w*\(|engineFetch\(|\bfetch\(/.test(
-      fonte,
-    );
+  /**
+   * Hooks que NÃO são leitura. Tudo o mais que se chame `useAlgo(` numa página é hook de
+   * domínio, e hook de domínio lê.
+   *
+   * A lista cresce quando aparece um hook novo de UI. Errar para MAIS aqui é seguro — o
+   * arquivo apenas passa a ser cobrado —; errar para MENOS é o defeito que a primeira versão
+   * deste predicado tinha, e ele é silencioso.
+   */
+  const HOOKS_QUE_NAO_LEEM =
+    /^use(State|Effect|Memo|Callback|Ref|Context|Reducer|Id|Transition|DeferredValue|LayoutEffect|ImperativeHandle|SyncExternalStore|Params|Navigate|Location|SearchParams|Navigation|PageMeta|SetPageTitle|RequireAuth|Auth|Toast|Theme|Form|Debounce|Interval|Media|QueryClient|Editor)$/;
+
+  const iniciaLeitura = (fonte: string) => {
+    if (/cloudFetch\w*\(|engineFetch\(|\bfetch\(|\buseQuery\(/.test(fonte)) return true;
+    for (const m of fonte.matchAll(/\b(use[A-Z]\w*)\s*\(/g)) {
+      if (!HOOKS_QUE_NAO_LEEM.test(m[1])) return true;
+    }
+    return false;
+  };
 
   function paginasSemConsultaDeErro(): string[] {
     const sem: string[] = [];
@@ -214,10 +242,48 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
   });
 
   it('B-243 — o vocabulário novo NÃO transforma qualquer prosa em consulta de erro', () => {
-    // O alargamento tem de continuar discriminando. Um arquivo que só fala de leitura em
-    // outro sentido não passa a ser considerado conforme.
-    expect(consultaErro('<p>Read the docs to learn more.</p>')).toBe(false);
-    expect(consultaErro('const legible = true;')).toBe(false);
+    // A primeira versão deste caso usava espantalhos — "Read the docs", `const legible` —
+    // que não contêm NENHUMA das frases adicionadas. Ele passava sem exercitar o alargamento,
+    // e a revisão apontou: um teste que anuncia uma garantia que não dá é pior que um teste
+    // redundante. Estes espantalhos contêm quase a frase, e têm de continuar não casando.
+    expect(consultaErro('<p>Could not reduce the list to a single row.</p>')).toBe(false);
+    expect(consultaErro('const ilegal = true;')).toBe(false);
+    expect(consultaErro("const status = 'nao-lidos-ainda';")).toBe(false);
+  });
+
+  it('B-243 — LIMITE DECLARADO: a frase em PROSA excusa o arquivo, e isso é sabido', () => {
+    // O guarda é textual. Um arquivo que afirme ausência, faça leitura, não consulte erro
+    // nenhum e mencione "Could not read" num COMENTÁRIO passa — a revisão construiu esse
+    // arquivo e ele passou.
+    //
+    // Não é um descuido escondido: é o mesmo limite que a checagem por ARQUIVO já tem, e
+    // fechá-lo pede analisar em que contexto sintático a frase aparece. Fica DECLARADO e com
+    // teste, para que quem o encontrar saiba que foi visto, e não que ninguém olhou.
+    const soEmComentario =
+      "// Docs: if the manifest is malformed the CLI prints \"Could not read manifest\".\n" +
+      "const q = useQuery({ queryKey: ['x'] });\n" +
+      "return <PageShell empty={{ title: 'No items yet' }} />;";
+
+    expect(afirmaAusencia(soEmComentario)).toBe(true);
+    expect(iniciaLeitura(soEmComentario)).toBe(true);
+    expect(consultaErro(soEmComentario)).toBe(true); // <- o falso negativo, provado
+  });
+
+  it('B-243 — `iniciaLeitura` reconhece hook de DOMÍNIO, não só sete grafias literais', () => {
+    // O buraco que a revisão mediu: `useProjects()`, `useApiKeys()`, `useTrustViolations()`
+    // são leituras, e a primeira versão do predicado dizia que não. Trinta e uma de 59
+    // páginas ficavam fora da checagem — incluindo cinco de onde o revisor removeu TODO o
+    // tratamento de erro sem que a catraca piscasse.
+    expect(iniciaLeitura('const { projects } = useProjects();')).toBe(true);
+    expect(iniciaLeitura('const keys = useApiKeys();')).toBe(true);
+    expect(iniciaLeitura('const v = useTrustViolations({ limit: 20 });')).toBe(true);
+    expect(iniciaLeitura('const s = useServiceVersions();')).toBe(true);
+
+    // E os hooks de UI continuam não sendo leitura.
+    expect(iniciaLeitura('const [x, setX] = useState(0);')).toBe(false);
+    expect(iniciaLeitura('useEffect(() => { setOpen(true); }, []);')).toBe(false);
+    expect(iniciaLeitura('const editor = useEditor({ extensions: [] });')).toBe(false);
+    expect(iniciaLeitura('const { name } = useParams();')).toBe(false);
   });
 
   it('B-243 — `iniciaLeitura` separa quem FAZ a leitura de quem recebe a lista', () => {
