@@ -50,9 +50,29 @@ describe('ExportsPage (/memory/exports)', () => {
     await user.click(
       (await screen.findAllByRole('button', { name: /create export/i }))[0],
     );
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/memory/exports', expect.objectContaining({ method: 'POST' }));
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/memory/exports',
+      expect.objectContaining({ method: 'POST' }),
+      // B-244/B-235 — the third argument is the error contract, not decoration. Without it a
+      // refused POST RESOLVES `null`, `onSuccess` fires with that `null`, and the handler's
+      // `if (!row?.id) return` swallows it: the user clicks and nothing happens, silently.
+      { throwOnError: true },
+    );
     // Wait for the row to appear with `pending` status badge.
     expect(await screen.findByTestId('status-export-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).toBeInTheDocument();
+  });
+
+  it('a REFUSED create says so — the screen had this Alert and could never reach it', async () => {
+    // The `createMutation.isError` branch was written and unreachable: without `throwOnError` the
+    // refusal resolved, so `isError` was never true. Dead code that looked like error handling.
+    mockCloudFetch.mockRejectedValueOnce(new Error('quota exceeded'));
+    const user = userEvent.setup();
+    render(<ExportsPage />);
+    await user.click((await screen.findAllByRole('button', { name: /create export/i }))[0]);
+
+    expect(await screen.findByText('Could not start export')).toBeInTheDocument();
+    // …and no phantom row was added for an export that was never created.
+    expect(screen.getByText(/no exports yet/i)).toBeInTheDocument();
   });
 
   it('D3 (EC-15) — polling SKIPS the status fetch when document.visibilityState is hidden', async () => {

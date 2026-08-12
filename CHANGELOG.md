@@ -2,6 +2,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** starting an export of your memories no longer fails in silence. When the server refused, the request came back looking like an empty answer, the screen took that as success, and nothing appeared and nothing explained why. The screen already had the message for this — it was simply unreachable (B-244, B-235).
+
 - **theo-cloud/release process:** container images are built again. The pipeline that builds, scans, signs and publishes them had been refusing to start since 2026-08-07 — five runs in a row, each dying in under a second, including the runs for both released versions. Neither v1.0.0 nor v1.0.1 has an image behind it. The cause was a workflow passing three settings to a shared build pipeline that does not accept them: a local copy that did accept them had been replaced by the shared one, and nothing compared the two. A check now refuses a workflow that passes a setting its callee does not declare (B-270).
 
 ### Changed

@@ -54,10 +54,18 @@ const SRC = resolve(__dirname, '../..');
  * opposite of what happened.
  *
  * The coincidence is worth naming so it does not read as a revert: the SECOND measurement also
- * said 37, from a 12-line window that was wrong in both directions. This 37 is the fourth
+ * said 37, from a 12-line window that was wrong in both directions. That 37 was the fourth
  * measurement minus two real migrations. Same number, unrelated reasons.
+ *
+ * 35 later the same day, with `memory/exports.tsx` migrated (B-244). Both of its calls were in the
+ * set, and one of them was swallowing a refused export in silence.
+ *
+ * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
+ * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
+ * screen that reports a success it did not observe are the same defect seen from two sides — which
+ * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 37;
+const CEILING_WITHOUT_CONTRACT = 35;
 
 /**
  * The corpus may not shrink silently.

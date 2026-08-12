@@ -104,7 +104,14 @@ exatamente a classe "grep casa prosa".
 // O `ConfirmDialog` só vê a recusa se `onConfirm` devolver promessa que rejeita (ele dá `await`):
 // a tela passou de `revoke.mutate` para `mutateAsync`. E `AddWebhookDialog` ganhou `errorMessage`,
 // porque ele NÃO espera o `onSubmit` — sem isso o diálogo ficaria aberto e mudo.
-const TETO_PAGINAS_COM_TRANSPORTE = 46;
+// 45 desde 2026-08-12, com `memory/exports.tsx` lendo por `hooks/memory/use-memory-exports.ts`.
+// A criação do export não passava `throwOnError`: uma recusa RESOLVIA `null`, o `onSuccess`
+// disparava com esse `null` e a primeira linha do handler era `if (!row?.id) return`. O usuário
+// clicava em "Create export", nada aparecia e nada dizia por quê — falha engolida vestida de no-op.
+//
+// A tela JÁ TINHA o `Alert` de "Could not start export", e ele era inalcançável: sem o contrato,
+// `isError` nunca ficava true. Código morto com aparência de tratamento de erro.
+const TETO_PAGINAS_COM_TRANSPORTE = 45;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

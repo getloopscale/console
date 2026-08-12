@@ -8627,6 +8627,37 @@ implemented: |
   O que segue aberto, e é a decisão do item: se o default vira depois que os 37 forem
   explícitos, ou se `cloudFetch` passa a devolver um resultado discriminado. A medição diz que
   a primeira é barata (78% do código já pede) e não diz qual é certa.
+decisao_2026_08_12: |
+  A PERGUNTA ABERTA DESTE ITEM SE FECHA, e a resposta é NÃO VIRAR o default.
+
+  O item enumerava duas saídas — virar o default, ou devolver resultado discriminado — e media que a
+  primeira era "barata (78% do código já pede)". Ao listar os 37 restantes um a um, a conta muda.
+
+  VIRAR SEM TOCAR NOS 37 é inseguro, e isso já estava medido: cada um passa a LANÇAR onde resolvia,
+  em 37 telas sem teste descrevendo o que elas fazem numa falha.
+
+  MARCAR OS 37 COM `{ throwOnError: false }` ANTES DE VIRAR preserva o comportamento por construção
+  — cada chamada continua resolvendo `null` exatamente como hoje, agora dizendo isso em voz alta.
+  Parece a saída óbvia, e é aqui que a conta vira: o ÚNICO benefício de virar depois disso é que
+  código NOVO recebe o default seguro.
+
+  E a catraca JÁ ENTREGA exatamente isso, com diff zero e risco zero.
+
+  Então o flip compra uma coisa que já está comprada, ao preço de 37 edições em ~20 arquivos, mais
+  os testes que asserem a FORMA da chamada (a tentativa revertida quebrou 12 por isso). Degrau 1 da
+  parsimony ladder: isto não precisa existir.
+
+  O QUE FECHA OS 37 é migrá-los um a um COM tratamento de erro na tela — que é literalmente o que o
+  B-244 vem fazendo, e cada migração baixa este número junto. Medido hoje: 39 -> 37 com duas
+  migrações (create-project e settings/webhooks), cada uma fechando um defeito visível ao usuário no
+  caminho. Não é coincidência: uma chamada sem contrato e uma tela que reporta sucesso falso são o
+  mesmo defeito visto de dois lados.
+
+  ENTÃO: este item deixa de ser uma decisão de arquitetura em aberto e vira um burn-down já em
+  movimento, com dono (B-244) e com número que só desce. O resultado discriminado continua sendo a
+  saída correta SE algum dia os 37 chegarem a zero e alguém quiser tipar a ausência — mas aí é outro
+  item, com outra evidência.
+
 fourth_measurement: |
   2026-08-12, depois de uma revisão adversarial — A CATRACA ACIMA MEDIA O VOCABULÁRIO, NÃO O
   DEFEITO. É a quarta vez neste ciclo, e desta vez estava no meu próprio código.
