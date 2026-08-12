@@ -8236,7 +8236,7 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-trust-chart-test-green-over-defect`).
 > Found while implementing B-161; the evidence is the failing gate, not a hunch.
 
-## B-228 — `git describe` cannot read the released version in this branching model   [ ]
+## B-228 — `git describe` cannot read the released version in this branching model   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud
@@ -8266,7 +8266,8 @@ why_now: |
   tags, and `git describe` reported a stale answer that looked like a divergence. Corrected after
   `git fetch --tags` and an ancestry check. Recording the error rather than quietly rewriting it:
   a backlog that hides its own retractions is the same defect this review cycle exists to catch.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - the release chain reads the version from a source that is valid in this branching model
     (`git tag --sort=-v:refname | head -1`, or the tag on `origin/main`) rather than from
@@ -8786,7 +8787,7 @@ dod:
 superseded_by: B-241
 kill_reason: escopo e decisao passaram para B-241, com a medicao corrigida (179 identificadores, nao 9 nem 278).
 
-## B-240 — `traces.test.tsx` "lists saved views and applies one" depende da ordem de execucao   [ ]
+## B-240 — `traces.test.tsx` "lists saved views and applies one" depende da ordem de execucao   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8885,7 +8886,8 @@ resolved: |
 
   Verificado: o caso original passa SOZINHO; o arquivo passa 56/56 em ordem fixa e sob sete
   seeds de shuffle, incluindo os quatro que o bloco nomeia. Suíte 3239 verdes.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 
 ## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [ ]
 
@@ -9047,7 +9049,7 @@ third_measurement: |
   como módulos de produção sem consumidor no instante em que nasceram em `lib/`, e ele estava
   certo. Allowlistar seria suprimir um achado verdadeiro.
 
-## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [ ]
+## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9070,7 +9072,8 @@ why_now: |
   A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
   (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
   produz a melhora, e ninguem estava encarregado dela.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - as 7 telas distinguem 'nao ha nada' de 'nao consegui ler', e o teto chega a 0
   - a decisao sobre a checagem por bloco esta tomada e registrada, ou o limite e aceito por escrito
@@ -9158,7 +9161,7 @@ progress_2026_08_12: |
   diferentes da mesma coisa, e usei a mais fácil para uma tabela que serve justamente para alguém
   escolher o próximo arquivo a migrar.
 
-## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [ ]
+## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9178,7 +9181,8 @@ why_now: |
   A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
   (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
   produz a melhora, e ninguem estava encarregado dela.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - a populacao desce e o teto acompanha
   - cada tipo ou ganha importador, ou deixa de ser exportado
@@ -9933,7 +9937,7 @@ dod:
 > Registered 2026-08-12, before acting, so the record exists even if the merge fails.
 > Second exception after B-229 (2026-08-11). Two in two days is worth someone's attention.
 
-## B-264 — deleting your account or workspace can fail silently, and the screen acts as if it worked   [ ]
+## B-264 — deleting your account or workspace can fail silently, and the screen acts as if it worked   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9974,7 +9978,8 @@ why_now: |
 
   It is also the sharpest case for B-235 yet — `null` meaning "failed" and being read as
   "fine" — and the second one this session, after create-project.
-status: triaged
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 dod:
   - a failed delete leaves the dialog open and says what went wrong; the session is NOT ended
     and the route does NOT change
@@ -10045,6 +10050,7 @@ dod:
   - the fix does NOT widen `useDeleteTenant` to accept either — a hook that takes "whichever id
     you have" is how the two drifted apart in the first place
 
+status: triaged
 > Registered 2026-08-12 by an adversarial review of the B-244 / B-264 migrations.
 
 ## B-266 — ADR-0006 is cited as done; none of the three things it decided exist   [ ]
@@ -10093,6 +10099,7 @@ dod:
   - if the ESLint rule is built, it lands with the array-literal keys already migrated — turning it
     on first would fail the codebase that motivated it
 
+status: triaged
 > Registered 2026-08-12 by an adversarial review of the B-244 migrations.
 
 ## B-267 — `pages.smoke.test.ts` times out under machine load, passes when idle   [ ]
@@ -10137,9 +10144,10 @@ dod:
   - the case still fails if `OverviewPage` stops being exported (whatever the fix, the smoke test
     must keep smoking)
 
+status: triaged
 > Registered 2026-08-12 while verifying B-242.
 
-## B-268 — O CHANGELOG anuncia uma versão 1.0.1 que nunca foi lançada   [ ]
+## B-268 — O CHANGELOG anuncia uma versão 1.0.1 que nunca foi lançada   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -10193,6 +10201,8 @@ dod:
   - a verificação falha contra o estado atual ANTES da correção entrar (TDD, `rules/testing.md` § 3)
   - a verificação distingue "seção sem tag" de "tag sem seção" — são defeitos diferentes
 
+status: shipped
+shipped_in: v1.0.1 (2026-08-12) — o número anunciado e nunca cortado agora existe de verdade
 > Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
 
 ## B-269 — Os detectores de catraca leem TypeScript com regex; o compilador já está instalado   [ ]
@@ -10252,6 +10262,7 @@ dod:
   - as mutações que hoje matam os auto-testes seguem matando (12 delas, registradas em B-235 e B-242)
   - um caso cobre o parêntese desbalanceado dentro de literal de regex, que hoje passaria
 
+status: triaged
 > Registrado 2026-08-12 por revisão adversarial de arquitetura, fase REVIEW do ciclo Squad.
 
 ## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [ ]
@@ -10313,4 +10324,14 @@ dod:
     release não está `success` — hoje o `cycle-release.md` trata isso como "(Optional) CI is green",
     e opcional foi o suficiente para uma release sair vazia
 
+confirmado_na_v1_0_1: |
+  2026-08-12, PREVISTO E CONFIRMADO. O bloqueio foi declarado ANTES do corte — no corpo do PR #478,
+  nas notas do release e no `1.0.1-release.md` — e aconteceu:
+
+    startup_failure  1s  v1.0.1  Merge PR #478  run 31627708133  2026-08-12T18:27:15Z
+
+  Cinco runs seguidos agora, duas tags de release entre eles. A v1.0.1 sai como a v1.0.0: tag,
+  GitHub release, e nenhuma imagem. A diferença é que desta vez estava escrito antes.
+
+status: triaged
 > Registrado 2026-08-12 durante a fase RELEASE do ciclo Squad.
