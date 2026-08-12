@@ -62,9 +62,18 @@ describe('ExportsPage (/memory/exports)', () => {
     expect(await screen.findByTestId('status-export-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).toBeInTheDocument();
   });
 
-  it('a REFUSED create says so — the screen had this Alert and could never reach it', async () => {
-    // The `createMutation.isError` branch was written and unreachable: without `throwOnError` the
-    // refusal resolved, so `isError` was never true. Dead code that looked like error handling.
+  it('a rejected create surfaces in the Alert the screen already had', async () => {
+    // WHAT THIS DOES AND DOES NOT PROVE, because an earlier version of this comment claimed more
+    // than the code delivers and a review caught it.
+    //
+    // It proves the PAGE renders `createMutation.isError`. It does NOT prove the B-244 fix: this
+    // mocks a REJECTION, and a rejection already set `isError` in the pre-migration page too — so
+    // this case passes unchanged against the old code, which is the definition of a test that
+    // cannot fail on the defect it names.
+    //
+    // The actual defect — a refusal RESOLVING `null`, swallowed by `if (!row?.id) return` — is only
+    // observable below the mock, and is covered in `hooks/data-access-error-contract.test.tsx`,
+    // which stubs `globalThis.fetch` and lets the real `cloudFetch` run.
     mockCloudFetch.mockRejectedValueOnce(new Error('quota exceeded'));
     const user = userEvent.setup();
     render(<ExportsPage />);

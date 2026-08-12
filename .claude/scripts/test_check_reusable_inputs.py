@@ -44,6 +44,11 @@ jobs:
       image: ${{ matrix.image }}
       # a comment between inputs must not end the block
       trivy: true
+      # A block scalar whose CONTENT is `KEY=value` shaped. A detector keyed on "any line with a
+      # colon under `with:`" would ingest these as inputs; they are the value of `build_args`.
+      build_args: |
+        VERSION: not-an-input
+        GIT_SHA: also-not-an-input
       git_sha: ${{ github.sha }}
     secrets:
       GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
@@ -56,6 +61,14 @@ on:
     inputs:
       image:           { required: true,  type: string }
       trivy:           { required: false, type: boolean, default: false }
+      build_args:      { required: false, type: string,  default: "" }
+      # Block style, not flow style. A reusable may declare inputs either way, and a detector
+      # that reads sub-keys as names would report `required`/`type`/`default` as declared inputs —
+      # which would then ABSOLVE a caller passing an input actually named `required`.
+      runner:
+        required: false
+        type: string
+        default: '["ubuntu-latest"]'
     secrets:
       GOMOD_TOKEN:
         required: false
@@ -72,12 +85,12 @@ def main() -> int:
     passed = passed_inputs(lines, uses_at)
     check(
         "reads every input under `with:`",
-        set(passed) == {"image", "trivy", "git_sha"},
+        set(passed) == {"image", "trivy", "build_args", "git_sha"},
         str(sorted(passed)),
     )
     check(
         "reports the LINE of each input, so the message points where GitHub will complain",
-        passed["git_sha"] == 12,  # counted from the fixture, not by hand
+        passed["git_sha"] == 17,  # counted from the fixture, not by hand
         str(passed),
     )
     check(
@@ -88,10 +101,40 @@ def main() -> int:
         "stops at `secrets:` — a secret is not an input",
         "GOMOD_TOKEN" not in passed,
     )
+    check(
+        "a block scalar's CONTENT is a value, not a list of inputs",
+        not ({"VERSION", "GIT_SHA"} & set(passed)),
+        str(sorted(passed)),
+    )
+
+    print("\nCROSS_REPO — a reusable WORKFLOW, not any three-segment ref")
+    from check_reusable_inputs import CROSS_REPO  # noqa: PLC0415
+
+    check(
+        "matches a cross-repo reusable workflow",
+        CROSS_REPO.match("    uses: owner/repo/.github/workflows/x.yml@abc123") is not None,
+    )
+    check(
+        "does NOT match a nested composite action — it has no `with:`-declared workflow inputs",
+        CROSS_REPO.match("    uses: owner/repo/actions/setup/action.yml@abc123") is None,
+    )
+    check(
+        "does NOT match a LOCAL reusable — actionlint already validates those",
+        CROSS_REPO.match("    uses: ./.github/workflows/ci.yml") is None,
+    )
 
     print("\ndeclared_inputs()")
     declared = declared_inputs(CALLEE)
-    check("reads the callee's declared inputs", declared == {"image", "trivy"}, str(declared))
+    check(
+        "reads the callee's declared inputs, flow style AND block style",
+        declared == {"image", "trivy", "build_args", "runner"},
+        str(declared),
+    )
+    check(
+        "does NOT read an input's sub-keys as input names",
+        not ({"required", "type", "default"} & declared),
+        str(declared),
+    )
     check(
         "does NOT read the callee's secrets as inputs",
         "GOMOD_TOKEN" not in declared,
@@ -109,7 +152,7 @@ def main() -> int:
     print("\nundeclared_inputs() — the pure core, and the defect B-270 was")
     check(
         "flags exactly the input the callee does not declare",
-        undeclared_inputs(passed, declared) == [("git_sha", 12)],
+        undeclared_inputs(passed, declared) == [("git_sha", 17)],
         str(undeclared_inputs(passed, declared)),
     )
     check(

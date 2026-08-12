@@ -78,6 +78,17 @@ def passed_inputs(lines: list[str], uses_index: int) -> dict[str, int]:
             continue
         if indent <= with_indent:
             break
+        # EXACTLY one level under `with:`. The `==` is what makes a block scalar's CONTENT a value
+        # rather than a list of inputs: YAML requires that content to be MORE indented than its
+        # key, so `build_args: |` at `with_indent + 2` puts its lines at `+4` or deeper, outside
+        # this test. Nested mapping values are excluded the same way.
+        #
+        # This was briefly a `>=` plus an explicit block-scalar skip. The skip was DEAD CODE — I
+        # added it believing a fixture had exposed a live bug, and the fixture had actually exposed
+        # an incomplete fixture. Worse, the two guards masked each other: with both present,
+        # neither could be shown to matter, because removing either left the other covering. Two
+        # mechanisms that cover for one another prove nothing about either, which is the same
+        # criticism this repository's ratchets earned in review.
         m = re.match(r"\s*([A-Za-z_][\w-]*)\s*:", line)
         if m and indent == with_indent + 2:
             out[m.group(1)] = i + 1

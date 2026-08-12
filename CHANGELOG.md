@@ -8,6 +8,8 @@
 
 ### Changed
 
+- **theo-cloud/release process:** the check that catches a workflow passing a setting its callee does not accept now runs in CI. It was written when that defect cost six dead pipeline runs and two releases with no image, and then shipped wired to nothing — so the next such change would have reproduced the same failure with the detector sitting unused in the repository (B-270).
+
 - **theo-cloud/dashboard:** six checks that proved a navigation submenu had opened now also prove the labels they look for exist at all. They asserted two menu items were absent and nothing ever showed those items, so renaming either one would have satisfied all six for the wrong reason. The count of assertions that cannot fail drops from 113 to 106 (B-242).
 
 - **theo-cloud/dashboard:** the two checks that watch for tests which cannot fail now read the code with the TypeScript compiler instead of matching text. They had been counting brackets by hand, and that missed two real assertions sitting in the codebase the whole time — one whose selector contains an apostrophe, one carrying a custom failure message — so the count rises from 111 to 113 without any new weak test being written. The number went up because the measurement got better (B-269, B-242).
