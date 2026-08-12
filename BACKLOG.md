@@ -8581,18 +8581,19 @@ remeasured: |
   correction changes what the open decision is worth.
 
   "a breaking change across 151 importers": 151 is the number of files that MENTION
-  `cloudFetch` (`grep -rl cloudFetch src` -> 151). Nearly all are tests and mocks. Production
-  CALL SITES, which are what a signature change actually breaks:
+  `cloudFetch` (`grep -rl cloudFetch src` -> 151). Nearly all are tests and mocks.
 
-    grep -rn 'cloudFetch(' src | grep -v '\.test\.'   ->  13
+  CORRECTION, 2026-08-12 later the same day: my first re-measurement here said "13 production
+  call sites" and was WRONG — it came from a line-oriented grep that misses a call spanning
+  several lines, which most of them do. Counted properly (scan each call and look 12 lines
+  ahead for the option):
 
-  Thirteen call sites is a slice, not a migration. `throwOnError` already exists as an opt-in
-  (`src/lib/http/api.ts:49`), so the discriminated-result question is narrower than the block
-  implies: it is about the DEFAULT, over 13 sites, not about rewriting 151 files.
+    call sites that ALREADY pass `throwOnError: true`  ->  135
+    call sites that do NOT                             ->   41   (2 of them inside api.ts itself)
 
-  Not reclassifying the item on this alone — the decision it records is still a real one, and
-  the tests that mention `cloudFetch` still have to keep compiling. Recording it so the next
-  person scoping this does not budget for 151.
+  That inverts the item's framing. `throwOnError` is not a rarely-used opt-in whose promotion
+  would break 151 importers: it is what 77% of the codebase already asks for, one call at a
+  time. The ambiguous default is the MINORITY behaviour, and the migration is 39 sites.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
