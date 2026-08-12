@@ -8,7 +8,6 @@
 
 ### Fixed
 
-- **theo-cloud/dashboard:** applying a saved view on the traces screen now actually re-runs the search. Applying one as the first thing you did after opening the screen changed the address bar and left the list exactly as it was — it only worked if you had already touched a filter beforehand. Applying a view also clears the filters it does not carry, which is what "apply this view" has always meant, and closes an open trace panel rather than leaving it over a list that changed underneath it (B-240).
 - **theo-cloud/dashboard:** the session picker no longer says you have recorded no sessions when the list could not be read, or when it is still loading. Three situations that ask for different things — wait, retry, or record your first session — had been showing one sentence (B-243).
 - **theo-cloud/dashboard:** a project whose deployment list fails to load no longer invites you to ship your first deploy. It says the deployments could not be read and offers to try again, instead of describing a project that may well have deployments as empty (B-243).
 - **theo-cloud/internal tooling:** the dead-code audit now names the function, file and line it found, instead of reporting `<unknown>`. It was reading the tool's per-package output as if each entry were a single symbol, so 28 unreachable functions arrived as 5 findings that named nothing, could not be located, and could not be exempted individually. Vendored third-party trees are no longer audited (B-255).

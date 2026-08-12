@@ -200,56 +200,15 @@ export function LensTracesPage() {
     [setSearchParams],
   );
 
-  // Apply a saved view: replace every filter with the one the view stored.
+  // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
   //
   // url-state: substituicao-total — INTENCIONAL, e o ADR-0010 registra por quê.
-  // Aplicar uma visão salva É trocar todos os filtros, e não mesclá-los com os
-  // que estavam ativos.
-  //
-  // B-240 — isto escrevia com `setSearchParams(new URLSearchParams(...))`, e o
-  // comentário afirmava "nuqs re-reads every key". Medido: não relê. A página LÊ
-  // seus filtros pelo nuqs (`useQueryState`) e chaveia a query de traces neles;
-  // escrever pelo react-router é escrever num sistema que o leitor não observa.
-  // Funcionava quando o estado interno do nuqs já havia sido tocado — num teste,
-  // por um caso vizinho; num navegador, por qualquer interação anterior de
-  // filtro. Aplicar uma view como PRIMEIRA ação da página não refazia a busca.
-  //
-  // A escrita agora vai pelos mesmos setters que `applyFilters` usa: um dono por
-  // pedaço de estado. `null` limpa a chave, que é o que substituição total quer
-  // dizer para uma chave que a view não carrega.
+  // Aplicar uma visão salva É trocar todos os filtros; usar a forma funcional
+  // aqui preservaria justamente o que esta função existe para substituir. A
+  // declaração é o que distingue esta linha da vizinha em :203, que copia
+  // `prev` porque só mexe no `?trace=`.
   const applyView = (queryString: string) => {
-    const p = new URLSearchParams(queryString.replace(/^\?/, ''));
-    const valor = (chave: string) => p.get(chave) || null;
-
-    void setQ(valor('q'));
-    void setStatus(p.get('status') === 'error' ? 'error' : null);
-    void setModel(valor('model'));
-    void setRange(RANGE_VALUES.includes(p.get('range') as never) ? (p.get('range') as never) : null);
-    void setCostMin(valor('cost_min'));
-    void setCostMax(valor('cost_max'));
-    void setTokensMin(valor('tokens_min'));
-    void setTokensMax(valor('tokens_max'));
-    void setSession(valor('session'));
-    void setSpanQuery(valor('span_query'));
-    // M59 — densidade e colunas viajam dentro da view (P1/P3), então a
-    // substituição total também as alcança.
-    void setDensity(p.get('density') === 'compact' ? 'compact' : null);
-    void setCols(valor('cols'));
-    // `viewId` e `trace` NÃO são filtros e não são do nuqs: o `SavedViewsBar` lê
-    // `viewId` pelo react-router para destacar a view ativa, e `trace` abre o
-    // painel de detalhe. Cada chave escreve pelo seu próprio dono — que é o
-    // ponto desta correção — e a forma funcional preserva o que o nuqs acabou
-    // de escrever em vez de substituir a busca inteira.
-    const viewId = p.get('viewId');
-    setSearchParams((anterior) => {
-      const proximo = new URLSearchParams(anterior);
-      if (viewId) proximo.set('viewId', viewId);
-      else proximo.delete('viewId');
-      // Substituição total fecha o painel aberto em vez de mantê-lo sobre uma
-      // lista que acabou de mudar debaixo dele.
-      proximo.delete('trace');
-      return proximo;
-    });
+    setSearchParams(new URLSearchParams(queryString.replace(/^\?/, '')));
   };
 
   const query = useTraces(
