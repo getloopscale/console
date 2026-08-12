@@ -19,8 +19,6 @@ on:
       GOMOD_TOKEN:
         required: true
         description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
-  pull_request:
-    branches: [develop, main]
   push:
     branches: [develop]
 permissions:

@@ -27,7 +27,6 @@ on:
       GOMOD_TOKEN:
         required: true
         description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
-  pull_request: {}
 permissions:
   contents: read
   packages: read # pull das imagens dos vizinhos no GHCR da org
