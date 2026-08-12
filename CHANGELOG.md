@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** rotating the dashboards runtime configuration now reaches returning visitors. The service worker matched the file against its static-asset rule first and kept it for thirty days, so a changed API or identity-service address stayed stale on every browser that had loaded the app before — pointing at hosts the security policy may no longer permit (B-196).
+
+### Fixed
+
 - **theo-cloud/dashboard:** sign-in can now complete on deployments whose identity service runs over plain HTTP on a local network. The redirect guard carried a branch that allowed operator-configured hosts on HTTP — written deliberately, and unreachable in every execution, because an earlier check rejected the request first. Redirects from an HTTPS page to HTTP stay blocked, which is what that check was for (B-214).
 - **theo-cloud/dashboard:** a bug inside the error reporter no longer disappears without trace. Its outermost handler discarded everything, including its own programming errors — in the one component whose job is to make sure errors are not lost. Failures are now surfaced during development and stay silent in production, where a telemetry gap is not the user's problem (B-215).
 

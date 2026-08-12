@@ -13,6 +13,14 @@ import { BFF_NAVIGATION_REGEXP } from './sw-bff-paths';
  * O config importa e passa adiante. O teste ao lado verifica o significado das
  * regras contra caminhos reais do app.
  *
+ * ## A ORDEM DESTE ARRAY É SEMÂNTICA
+ *
+ * O Workbox registra as rotas nesta sequência e a PRIMEIRA cujo padrão casa atende
+ * a requisição — as demais nem são consultadas. Uma regra mais genérica colocada
+ * acima de uma específica torna a específica MORTA, sem erro nenhum. Foi o que
+ * aconteceu com `/__config.js` (B-196). Ao acrescentar uma regra, a pergunta não é
+ * "ela casa o que eu quero?" e sim "alguma acima dela já casa isso?".
+ *
  * ## `urlPattern` é sempre um RegExp, nunca uma função
  *
  * O Workbox `generateSW` **serializa** o `urlPattern` para dentro de `sw.js` e
@@ -50,7 +58,24 @@ export const SW_RUNTIME_CACHING: readonly RegraDeCache[] = [
   // O TanStack Query é a única camada de cache de dado de servidor. Ele tem
   // invalidação por `queryKey`; o SW não tem nada equivalente, e é por isso que
   // as duas camadas não podiam coexistir sobre o mesmo dado.
+
+  // Config de runtime — StaleWhileRevalidate: muda pouco, mas tem de atualizar depois de uma
+  // rotação.
   //
+  // B-196 — ESTA REGRA VEM ANTES DA DE ASSETS, E A ORDEM É O QUE A FAZ EXISTIR. O Workbox
+  // registra as rotas nesta sequência e a PRIMEIRA que casa atende; `/__config.js` termina em
+  // `.js`, então a regra de assets — que vinha antes — o pegava em `CacheFirst` por 30 dias e
+  // esta aqui nunca rodava. O efeito: depois de o operador rotacionar `AUTH_URL`/`API_URL`, quem
+  // já tinha visitado continuava com a config antiga por até um mês, apontando para hosts que a
+  // política de CSP (B-131) talvez nem permita mais.
+  //
+  // A premissa que torna `CacheFirst` seguro para assets — nome com hash a cada build — não vale
+  // para este arquivo: ele é gerado na subida do contêiner e tem nome fixo.
+  {
+    urlPattern: /\/__config\.js$/,
+    handler: 'StaleWhileRevalidate',
+    options: { cacheName: 'theo-config' },
+  },
   // Assets estáticos — CacheFirst, 30 dias. Cada build emite nomes com hash,
   // então uma entrada velha nunca é servida no lugar de uma nova.
   {
@@ -60,12 +85,5 @@ export const SW_RUNTIME_CACHING: readonly RegraDeCache[] = [
       cacheName: 'theo-assets',
       expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
     },
-  },
-  // Config de runtime — StaleWhileRevalidate: muda pouco, mas tem de atualizar
-  // depois de uma rotação.
-  {
-    urlPattern: /\/__config\.js$/,
-    handler: 'StaleWhileRevalidate',
-    options: { cacheName: 'theo-config' },
   },
 ];

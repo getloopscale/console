@@ -7155,7 +7155,7 @@ evidence: |
   Counted coverage: 767 of 775 src/ files marked inspected by maturity-detective; the 8 failures are exactly this directory.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/build/manual-chunks.ts:1`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7165,6 +7165,7 @@ dod:
   - Register the 8 paths via add-file-inventoried so Phase 3 agents can record coverage against them, then re-run the affected Phase 3 passes over src/build/. Separately, check why Phase 1's enumeration missed the directory — if the walk filter
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-manual-chunks-phase-1-inventory-gap-the-whole`). Source: code-review finding #109, `code-review-output/code-review.db`.
+shipped_note: a inspecao rodou (o B-198 tornou o diretorio enumeravel) e ACHOU UM DEFEITO DE PRODUCAO em `sw-runtime-caching.ts`: o Workbox atende pela PRIMEIRA regra que casa, e `/__config.js` termina em `.js`, entao a regra de assets — que vinha antes — o pegava em CacheFirst por 30 dias e a regra dedicada (StaleWhileRevalidate) nunca rodava. Efeito: depois de o operador rotacionar AUTH_URL/API_URL, quem ja tinha visitado ficava com a config antiga por ate um mes, apontando para hosts que o CSP do B-131 talvez ja nao permita. O teste existente usava `.some(...)` — "alguma regra alcanca" — e por construcao nao enxerga ordem. Corrigido por ordenacao + 4 testes de primeira-que-casa, incluindo um que reprova QUALQUER regra morta; verificado no `dist/sw.js` emitido, nao so no array. `manual-chunks.ts` e `sw-bff-paths.ts` inspecionados sem achado.
 
 ## B-197 — 37 test files hold mutable module-level state, the precondition for order dependence   [x]
 
