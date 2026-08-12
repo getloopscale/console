@@ -9637,3 +9637,44 @@ dod:
 
 > Registered 2026-08-12 by the cross-validation review of B-243.
 
+## B-262 — the shared `Domain` type is missing two fields the endpoint returns   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  dashboard/src/lib/api/types.ts:371
+  The shared `Domain` declares neither `nameservers` nor `failure_mode`. `GET /api/v1/domains`
+  returns both, and `dashboard/src/pages/infra/domains.tsx` rendered both — from a LOCAL copy of
+  the interface that the page carried instead of importing the shared one.
+
+  Measured 2026-08-12, and by the compiler rather than by reading: extracting the page's read
+  into `hooks/infra/use-domains.ts` (B-244) and typing it with the shared `Domain` produced
+  three `TS2339: Property 'nameservers' does not exist on type 'Domain'` at
+  `domains.tsx:284,285,293`. The local copy carries the comment "J-11 v1.1 — backend already
+  returns these (per ADR D6 EC-2 recon)", so the divergence was known when the copy was made
+  and never reconciled.
+
+  The hook now declares `DomainRow` with the wire shape, so the page is correct and the
+  divergence is visible in one place instead of hidden in a page-local interface.
+why_now: |
+  Surfaced by the first B-244 migration. It is the reason that item's work is worth doing beyond
+  the ratchet number: a response shape living in a screen is a shape nobody reconciles, and the
+  only thing that noticed was moving it out.
+
+  Filed rather than fixed on the spot because widening a SHARED type from one caller's evidence
+  is how a type stops describing anything — the right fix reads the engine's own contract, and
+  that is a decision for whoever owns `types.ts`.
+status: triaged
+dod:
+  - the shared `Domain` matches what `GET /api/v1/domains` returns, verified against the engine's
+    contract and not against this one caller
+  - `DomainRow` in `hooks/infra/use-domains.ts` is removed in favour of it, or the reason two
+    shapes must coexist is recorded
+  - a check catches the next divergence between a page-local response shape and the shared type
+
+> Registered 2026-08-12 during the first B-244 migration, by the compiler.
+
