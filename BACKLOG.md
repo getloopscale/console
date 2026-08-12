@@ -9370,3 +9370,63 @@ dod:
 
 > Registered 2026-08-12 while allowlisting B-256 during B-228's code-quality phase.
 
+## B-258 — `arch-check` ships a script with no caller, and the skill itself reaches no consumer   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: discover-review
+severity: medium
+category: code
+evidence: |
+  .claude/skills/arch-check/scripts/emit_config.py:119
+  170 production lines + 114 test lines. `grep -n "emit_config" .claude/skills/arch-check/SKILL.md`
+  returns nothing — the SKILL invokes only `propose_rules.py` (line 71). The only references to
+  `emit_config` are its own usage string and its tests: pillar (a) of the wiring triad is absent
+  (`cycle-implement.md § Wiring triad`).
+
+  Its own docstring argues the translation step is precisely where the criterion gets lost
+  ("adopting a proposal by hand took four attempts") — and that is the step with no caller.
+
+  Same skill, wider: `arch-check` appears nowhere in `.claude/scripts/patch_install.sh`, and
+  `grep -rn "arch-check" .claude/rules/ README.md` returns nothing. A new skill (SKILL.md + 940
+  script lines + 481 test lines) that no installer ships and no cycle contract names.
+why_now: |
+  Arrived with the plugin update adopted at `2940faf5` during B-228, and found by the wiring
+  reviewer of that slice. NOT authored here — filed so it has an owner rather than being
+  mentioned in a review nobody reads again.
+status: triaged
+dod:
+  - `emit_config.py` has a caller in a real path, or is removed
+  - `arch-check` is shipped by the installer and named by a rule, or is explicitly out of scope
+    with that recorded
+
+> Registered 2026-08-12 by the wiring review of the B-228 slice.
+
+## B-259 — the plan-snapshot test's uncovered set grew from 40 to 42   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: low
+category: tests
+evidence: |
+  .claude/skills/plan-confidence/tests/test_real_plans_snapshot.py
+  Uncovered plans: 40 at `3ebd0bdf`, 42 at `90b3620b`. The two added are this slice's own
+  `release-version-detection-plan.md` and `release-version-detection-edge-cases.md`, neither
+  registered in `SNAPSHOTS` nor in `skipped_known`.
+
+  The failure is PRE-EXISTING (40 already uncovered at the baseline), so the slice did not break
+  it — it added to a list that was already unread.
+why_now: |
+  Found by the wiring review of B-228. A ratchet that only ever grows is the same shape as the
+  five in B-242..B-246: it records a population without anyone being responsible for it. Filed
+  at LOW because nothing regressed; filed at all because the slice contributed to it.
+status: triaged
+dod:
+  - the two plans added by B-228 are registered or explicitly skipped with a reason
+  - the pre-existing 40 have an owner, or the test states why the list is allowed to grow
+
+> Registered 2026-08-12 by the wiring review of the B-228 slice.
+
