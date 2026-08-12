@@ -5,7 +5,7 @@ import {
   describeStatus,
   useServiceVersions,
   type AggregateState,
-} from '@/hooks/use-service-versions';
+} from '@/hooks/overview/use-service-versions';
 
 /**
  * The sidebar footer's health indicator (M21).

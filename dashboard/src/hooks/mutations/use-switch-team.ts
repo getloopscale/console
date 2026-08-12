@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 /**
  * useSwitchTeam (T1.3 + EC-02): POST /api/v1/auth/team/switch and nuke

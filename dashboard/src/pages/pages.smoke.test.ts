@@ -19,72 +19,72 @@ import { describe, it, expect } from 'vitest';
 
 describe('pages smoke — modules compile + export named function', () => {
   it('exports OverviewPage', async () => {
-    const m = await import('./overview');
+    const m = await import('./overview/overview');
     expect(typeof m.OverviewPage).toBe('function');
   });
 
   it('exports ProjectsPage', async () => {
-    const m = await import('./projects');
+    const m = await import('./projects/projects');
     expect(typeof m.ProjectsPage).toBe('function');
   });
 
   it('exports EnvironmentsPage', async () => {
-    const m = await import('./environments');
+    const m = await import('./infra/environments');
     expect(typeof m.EnvironmentsPage).toBe('function');
   });
 
   it('exports TeamPage', async () => {
-    const m = await import('./team');
+    const m = await import('./settings/team');
     expect(typeof m.TeamPage).toBe('function');
   });
 
   it('exports BillingPage', async () => {
-    const m = await import('./billing');
+    const m = await import('./settings/billing');
     expect(typeof m.BillingPage).toBe('function');
   });
 
   it('exports SettingsPage', async () => {
-    const m = await import('./settings');
+    const m = await import('./settings/overview');
     expect(typeof m.SettingsPage).toBe('function');
   });
 
   it('exports ProfilePage', async () => {
-    const m = await import('./profile');
+    const m = await import('./settings/profile');
     expect(typeof m.ProfilePage).toBe('function');
   });
 
   it('exports DomainsPage', async () => {
-    const m = await import('./domains');
+    const m = await import('./infra/domains');
     expect(typeof m.DomainsPage).toBe('function');
   });
 
   it('exports LoginPage', async () => {
-    const m = await import('./login');
+    const m = await import('./auth/login');
     expect(typeof m.LoginPage).toBe('function');
   });
 
   it('exports RegisterPage', async () => {
-    const m = await import('./register');
+    const m = await import('./auth/register');
     expect(typeof m.RegisterPage).toBe('function');
   });
 
   it('exports VerificationPage', async () => {
-    const m = await import('./verification');
+    const m = await import('./auth/verification');
     expect(typeof m.VerificationPage).toBe('function');
   });
 
   it('exports RecoveryPage', async () => {
-    const m = await import('./recovery');
+    const m = await import('./auth/recovery');
     expect(typeof m.RecoveryPage).toBe('function');
   });
 
   it('exports DeviceSuccessPage', async () => {
-    const m = await import('./device-success');
+    const m = await import('./auth/device-success');
     expect(typeof m.DeviceSuccessPage).toBe('function');
   });
 
   it('exports ProjectDetailPage (plan v1.2 T0.3 — closes SG-06)', async () => {
-    const m = await import('./project-detail');
+    const m = await import('./projects/project-detail');
     expect(typeof m.ProjectDetailPage).toBe('function');
   });
 
@@ -94,12 +94,12 @@ describe('pages smoke — modules compile + export named function', () => {
   });
 
   it('exports DeploymentsPage (plan v1.0 T1.1 — deploy lifecycle list)', async () => {
-    const m = await import('./deployments');
+    const m = await import('./deploy/deployments');
     expect(typeof m.DeploymentsPage).toBe('function');
   });
 
   it('exports DeploymentDetailLayout (the routed tabbed detail; single-page detail deleted M19)', async () => {
-    const m = await import('./deployment-detail-layout');
+    const m = await import('./deploy/deployment-detail-layout');
     expect(typeof m.DeploymentDetailLayout).toBe('function');
   });
 
@@ -111,17 +111,17 @@ describe('pages smoke — modules compile + export named function', () => {
   // (`logs` / `sbom` / `attestation`) são exercitadas pelo e2e `deploy-timeline`, POR CLIQUE.
 
   it('exports RuntimeLogsPage (plan v1.0 T2.1 — runtime SSE viewer)', async () => {
-    const m = await import('./runtime-logs');
+    const m = await import('./deploy/runtime-logs');
     expect(typeof m.RuntimeLogsPage).toBe('function');
   });
 
   it('exports ProjectStatusPage (plan v1.0 T2.2 — 4-signal health card)', async () => {
-    const m = await import('./project-status');
+    const m = await import('./projects/project-status');
     expect(typeof m.ProjectStatusPage).toBe('function');
   });
 
   it('exports SecretsPage (plan v1.0 T3.1 — secrets CRUD)', async () => {
-    const m = await import('./secrets');
+    const m = await import('./infra/secrets');
     expect(typeof m.SecretsPage).toBe('function');
   });
 
@@ -132,17 +132,17 @@ describe('pages smoke — modules compile + export named function', () => {
   // regression coverage).
 
   it('exports ProjectConnectPage (plan v1.0 T3.3 — GitHub connect)', async () => {
-    const m = await import('./project-connect');
+    const m = await import('./projects/project-connect');
     expect(typeof m.ProjectConnectPage).toBe('function');
   });
 
   it('exports AuditPage (plan v1.0 T5.1 — audit log)', async () => {
-    const m = await import('./audit');
+    const m = await import('./settings/audit');
     expect(typeof m.AuditPage).toBe('function');
   });
 
   it('exports ProjectScalePage (post-FAANG-refactor: scale dialog → page)', async () => {
-    const m = await import('./project-scale');
+    const m = await import('./projects/project-scale');
     expect(typeof m.ProjectScalePage).toBe('function');
   });
 });

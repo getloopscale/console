@@ -84,9 +84,9 @@ func (c *StripeClient) CreateCustomer(email, accountID, name string) (*Customer,
 // CreateSubscription creates a subscription for a customer.
 func (c *StripeClient) CreateSubscription(customerID, priceID, tenantID string) (*Subscription, error) {
 	data := url.Values{
-		"customer":               {customerID},
-		"items[0][price]":        {priceID},
-		"payment_behavior":       {"default_incomplete"},
+		"customer":         {customerID},
+		"items[0][price]":  {priceID},
+		"payment_behavior": {"default_incomplete"},
 		"payment_settings[save_default_payment_method]": {"on_subscription"},
 	}
 
@@ -108,12 +108,12 @@ type CheckoutSession struct {
 // §1.4: Deterministic idempotency key prevents duplicate checkout sessions on retry.
 func (c *StripeClient) CreateCheckoutSession(customerID, priceID, successURL, cancelURL, tenantID string) (*CheckoutSession, error) {
 	data := url.Values{
-		"customer":                 {customerID},
-		"mode":                     {"subscription"},
-		"line_items[0][price]":     {priceID},
-		"line_items[0][quantity]":  {"1"},
-		"success_url":              {successURL},
-		"cancel_url":               {cancelURL},
+		"customer":                {customerID},
+		"mode":                    {"subscription"},
+		"line_items[0][price]":    {priceID},
+		"line_items[0][quantity]": {"1"},
+		"success_url":             {successURL},
+		"cancel_url":              {cancelURL},
 	}
 
 	// Scoped to a 60-second window: protects double-click (sequential POST latency
@@ -153,7 +153,7 @@ func (c *StripeClient) ReportUsage(subscriptionItemID string, quantity int64, ti
 	data := url.Values{
 		"quantity":  {fmt.Sprintf("%d", quantity)},
 		"timestamp": {fmt.Sprintf("%d", timestamp)},
-		"action":   {"increment"},
+		"action":    {"increment"},
 	}
 
 	path := fmt.Sprintf("/subscription_items/%s/usage_records", subscriptionItemID)

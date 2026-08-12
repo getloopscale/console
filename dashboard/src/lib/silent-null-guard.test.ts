@@ -40,6 +40,9 @@ interface Offender {
   url: string;
 }
 
+/** Hooks de leitura do TanStack Query que engolem falha num estado vazio. */
+const QUERY_HOOKS = ['useQuery', 'useInfiniteQuery', 'useSuspenseQuery'] as const;
+
 /** Extract the balanced `{...}` object literal passed to `useQuery(` starting at `openBrace`. */
 function objectLiteralAt(src: string, openBrace: number): string {
   let depth = 0;
@@ -61,10 +64,20 @@ function scan(): Offender[] {
 
   for (const file of files) {
     const src = readFileSync(file, 'utf8');
-    if (!src.includes('useQuery({')) continue;
+    // `useQuery`, `useInfiniteQuery` e `useSuspenseQuery` — nao so o primeiro.
+    // O guard afirmava fechar a CLASSE ("quantifica sobre o efeito, nao sobre os
+    // 62 sites conhecidos"), mas quantificava sobre a SINTAXE `useQuery({`. Um
+    // revisor achou `pages/memory/episodes.tsx:65` usando `useInfiniteQuery`
+    // sobre `cloudFetch`, sem `throwOnError` e sem marcador — o #274 completo,
+    // com branch `isError` inalcancavel e um EmptyState "No episodes yet" que
+    // diz ao operador "voce nao tem nenhum" quando a verdade e "nao consegui
+    // perguntar". O guard estava verde sobre exatamente o defeito que promete
+    // pegar, e o docblock afirmava o contrario — pior que nao ter guard, porque
+    // a auditoria seguinte le a afirmacao e nao re-mede.
+    if (!QUERY_HOOKS.some((h) => src.includes(`${h}({`))) continue;
 
-    for (const m of src.matchAll(/useQuery\(\{/g)) {
-      const block = objectLiteralAt(src, m.index + 'useQuery('.length);
+    for (const m of src.matchAll(/\b(useQuery|useInfiniteQuery|useSuspenseQuery)\(\{/g)) {
+      const block = objectLiteralAt(src, m.index + m[1].length + 1);
       // Only READ queries through the cloud clients are in scope. A mutation surfaces failure through
       // its own `isError`/`onError`, which is a different path and already works.
       if (!/\b(?:cloudFetch|engineFetch)\b/.test(block)) continue;

@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom';
 import { linkParaTracesDoPrompt } from '../traces-link';
 import { Card } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import type { LinhaDeUso } from '@/components/promptly/usage';
-import type { Dependente } from '@/components/promptly/composicao';
+import type { LinhaDeUso } from '@/pages/promptly/components/usage';
+import type { Dependente } from '@/pages/promptly/components/composicao';
 
 export interface ProducaoTabProps {
   readonly janelaDias: number;
@@ -46,26 +46,26 @@ export function ProducaoTab({
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Uso por revisão</h2>
+            <h2>Usage by revision</h2>
           </Card.Title>
           <Card.Description>
-            Janela de <strong>{janelaDias} dias</strong>, dita e não implícita: um agregado “desde
-            sempre” varre a tabela de spans do ecossistema inteiro, e uma janela que não se declara
-            faz o operador atribuir o número ao período errado.
+            A <strong>{`${janelaDias}-day`}</strong> window, stated rather than implied: an “all time”
+            aggregate scans the span table of the whole ecosystem, and a window that does not
+            declare itself makes the operator attribute the number to the wrong period.
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
           {linhas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma revisão para reportar.</p>
+            <p className="text-sm text-muted-foreground">No revisions to report.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase text-muted-foreground">
-                  <th className="pb-2 font-medium">Revisão</th>
+                  <th className="pb-2 font-medium">Revision</th>
                   <th className="pb-2 font-medium">Chamadas</th>
                   <th className="pb-2 font-medium">Tokens</th>
-                  <th className="pb-2 font-medium">Latência p50</th>
-                  <th className="pb-2 font-medium">Custo</th>
+                  <th className="pb-2 font-medium">p50 latency</th>
+                  <th className="pb-2 font-medium">Cost</th>
                 </tr>
               </thead>
               <tbody>
@@ -76,11 +76,11 @@ export function ProducaoTab({
                       // "Não consegui ler" e "não houve uso" são fatos DIFERENTES. Um zero aqui
                       // afirmaria uma medição que ninguém fez, e o operador leria "ninguém usa".
                       <td colSpan={4} className="py-1.5 text-xs text-muted-foreground">
-                        {l.razao ?? 'não foi possível ler o uso desta revisão'}
+                        {l.razao ?? 'could not read the usage of this revision'}
                       </td>
                     ) : l.estado === 'sem-chamadas' ? (
                       <td colSpan={4} className="py-1.5 text-xs text-muted-foreground">
-                        sem chamadas no período
+                        no calls in the period
                       </td>
                     ) : (
                       <>
@@ -132,13 +132,13 @@ export function ProducaoTab({
                 não se sabe se houve chamada é afirmar o que não se mediu. */}
         {linkDosTraces !== null && houveChamada ? (
           <p>
-            Quer ver cada uma delas?{' '}
+            Want to see each of them?{' '}
             <Link
               to={linkDosTraces}
-              aria-label={`Ver as execuções de ${promptName} nos traces`}
+              aria-label={`See ${promptName} runs in traces`}
               className="font-medium text-primary underline underline-offset-2"
             >
-              Ver as execuções deste prompt nos traces →
+              See this prompt runs in traces →
             </Link>
           </p>
         ) : null}
@@ -149,13 +149,13 @@ export function ProducaoTab({
             monitor cria estado persistente no workspace. `DESIGN.md § 4` — ações secundárias não
             competem com a primária. */}
         <p className="text-xs">
-          Quer ser avisado quando este número mudar?{' '}
+          Want to be told when this number changes?{' '}
           <Link
             to={`/observability/alerts?prompt=${encodeURIComponent(promptName)}`}
-            aria-label={`Definir um monitor para ${promptName}`}
+            aria-label={`Set a monitor for ${promptName}`}
             className="underline underline-offset-2"
           >
-            Definir um monitor para este prompt →
+            Set a monitor for this prompt →
           </Link>
         </p>
       </div>
@@ -163,11 +163,11 @@ export function ProducaoTab({
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Quem referencia este prompt</h2>
+            <h2>What references this prompt</h2>
           </Card.Title>
           <Card.Description>
-            Revisões de outros prompts que compõem este. Promover ou alterar aqui muda o texto que
-            elas produzem.
+            Revisions of other prompts that compose this one. Promoting or changing here changes
+            the text they produce.
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
@@ -176,14 +176,14 @@ export function ProducaoTab({
             // "ninguém" promove tranquilo; quem lê "não consegui saber", não.
             <Alert
               intent="destructive"
-              title="Não foi possível ler os dependentes"
-              description="Esta lista é a que diz quem é afetado por uma promoção. Não trate a ausência dela como ausência de dependentes."
+              title="Could not read the dependents"
+              description="This list is what tells you who is affected by a promotion. Do not read its absence as an absence of dependents."
             />
           ) : dependentesCarregando ? (
-            <p className="text-sm text-muted-foreground">Carregando…</p>
+            <p className="text-sm text-muted-foreground">Loading…</p>
           ) : dependentes.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nenhum prompt referencia este. Alterá-lo não muda o texto de mais ninguém.
+              No prompt references this one. Changing it does not change anyone else text.
             </p>
           ) : (
             <ul className="space-y-1">
@@ -200,8 +200,8 @@ export function ProducaoTab({
                       idênticas e o operador segue promovendo às cegas, só que com lista maior. */}
                   <span className="ml-2 text-xs text-muted-foreground">
                     {d.via.label !== null
-                      ? `via ${d.via.label} (move na promoção)`
-                      : 'por versão (fixa)'}
+                      ? `via ${d.via.label} (moves on promotion)`
+                      : 'by version (pinned)'}
                   </span>
                 </li>
               ))}

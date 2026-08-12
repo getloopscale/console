@@ -2,7 +2,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { AlertTriangle } from 'lucide-react';
 import { Button, Card } from '@usetheo/ui';
 import type { ReactNode } from 'react';
-import { reportError } from '@/lib/error-reporter';
+import { reportError } from '@/lib/telemetry/error-reporter';
 
 interface RouteBoundaryProps {
   children: ReactNode;

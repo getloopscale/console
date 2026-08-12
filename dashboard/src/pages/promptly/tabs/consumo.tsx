@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Button, Card } from '@usetheo/ui';
+import { copyToClipboard } from '@/lib/export/clipboard';
 import {
   INTERFACES,
   gerarTrechoDeConsumo,
   type Alvo,
   type InterfaceDeConsumo,
-} from '@/components/promptly/consumo';
+} from '@/pages/promptly/components/consumo';
 
 /**
  * M21 DoD-2 — *como consumir*, a aba de maior alcance e a mais barata.
@@ -39,13 +40,13 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Como consumir</h2>
+            <h2>How to consume</h2>
           </Card.Title>
         </Card.Header>
         <div className="p-4 pt-0">
           <p className="text-sm text-muted-foreground">
-            Não foi possível ler este prompt, e sem ele não há trecho para gerar. Recarregue — um
-            trecho montado sobre dado ausente apontaria para o lugar errado.
+            Could not read this prompt, and without it there is no snippet to generate. Reload —
+            a snippet built on missing data would point at the wrong place.
           </p>
         </div>
       </Card>
@@ -60,13 +61,13 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Como consumir</h2>
+            <h2>How to consume</h2>
           </Card.Title>
         </Card.Header>
         <div className="p-4 pt-0">
           <p className="text-sm text-muted-foreground">
-            Não foi possível ler quais ambientes este prompt serve, e sem isso o trecho apontaria
-            para uma revisão fixa em vez do ambiente. Recarregue antes de copiar.
+            Could not read which environments this prompt serves, and without that the snippet
+            would point at a fixed revision instead of the environment. Reload before copying.
           </p>
         </div>
       </Card>
@@ -74,7 +75,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
   }
 
   if (alvo === null) {
-    return <p className="text-sm text-muted-foreground">Carregando…</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   return (
@@ -82,21 +83,21 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Como consumir</h2>
+            <h2>How to consume</h2>
           </Card.Title>
           <Card.Description>
-            Cada trecho já aponta para <strong>este</strong> prompt
+            Each snippet already points at <strong>this</strong> prompt
             {alvo.label !== null ? (
               <>
                 {' '}
-                pelo ambiente <code className="font-mono text-xs">{alvo.label}</code> — ele acompanha
-                a promoção, sem você republicar nada.
+                by the <code className="font-mono text-xs">{alvo.label}</code> environment — it
+                follows the promotion, with nothing for you to republish.
                 {!alvo.ambienteEProducao ? (
                   // A aba se chama "Como consumir" e o público é quem vai colar isto num serviço.
                   // Publicar `staging` sem dizer que não é produção é deixar supor o contrário.
                   <strong>
                     {' '}
-                    Atenção: este prompt não serve produção — o trecho aponta para{' '}
+                    Careful: this prompt does not serve production — the snippet points at{' '}
                     <code className="font-mono text-xs">{alvo.label}</code>.
                   </strong>
                 ) : null}
@@ -104,8 +105,8 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
             ) : (
               <>
                 {' '}
-                pela versão <code className="font-mono text-xs">v{alvo.ultimaVersao}</code>, porque
-                nenhum ambiente aponta para ele ainda.
+                by version <code className="font-mono text-xs">v{alvo.ultimaVersao}</code>, because
+                no environment points at it yet.
               </>
             )}
           </Card.Description>
@@ -120,14 +121,17 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
                   <Button
                     variant="secondary"
                     size="sm"
-                    aria-label={`Copiar o trecho ${iface.rotulo}`}
+                    aria-label={`Copy the ${iface.rotulo} snippet`}
                     onClick={() => {
                       // `writeText` pode falhar (permissão negada, contexto inseguro). Falhar em
                       // silêncio deixaria o operador colando o que estava antes na área de
                       // transferência — e concluindo que copiou este trecho.
-                      void navigator.clipboard
-                        .writeText(trecho)
-                        .then(() => {
+                      // B-031 — mesmo motivo do live-url-hero: `navigator.clipboard`
+                      // e undefined fora de contexto seguro, e o operador via a
+                      // falha mesmo com o fallback de execCommand disponivel.
+                      void copyToClipboard(trecho)
+                        .then((ok) => {
+                          if (!ok) throw new Error('copy failed');
                           setCopiada(iface.id);
                           // Volta a "Copiar": sem isto o rótulo fica preso, e o operador não
                           // distingue "copiei agora" de "copiei há dez minutos".
@@ -140,7 +144,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
                         });
                     }}
                   >
-                    {copiada === iface.id ? 'Copiado' : 'Copiar'}
+                    {copiada === iface.id ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
                 <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">

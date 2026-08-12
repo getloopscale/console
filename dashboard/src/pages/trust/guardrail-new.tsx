@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, FlaskConical, ShieldCheck } from 'lucide-react';
 import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
 
-import { GuardrailRuleFields } from '@/components/trust/guardrail-rule-fields';
+import { GuardrailRuleFields } from '@/pages/trust/components/guardrail-rule-fields';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useInvalidateTrust } from '@/hooks/trust/use-trust';
 import {
   createGuardrail,
   serviceCode,
   serviceMessage,
   testGuardrail,
-} from '@/components/trust/trust-api';
+} from '@/hooks/trust/trust-api';
 import {
   EMPTY_DRAFT,
   cleanTerms,
@@ -26,7 +26,7 @@ import {
   type DraftField,
   type DryRunVerdict,
   type GuardrailDraft,
-} from '@/components/trust/guardrail-draft';
+} from '@/pages/trust/components/guardrail-draft';
 
 /**
  * M24 T5.1 — criar uma guardrail, com o teste como PASSAGEM OBRIGATÓRIA.
@@ -46,10 +46,10 @@ import {
  */
 export function TrustGuardrailNewPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Trust — nova guardrail'), [setPageTitle]);
+  useEffect(() => setPageTitle('Trust — new guardrail'), [setPageTitle]);
   useRequireAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const invalidarTrust = useInvalidateTrust();
 
   const [draft, setDraft] = useState<GuardrailDraft>(EMPTY_DRAFT);
   const [termsText, setTermsText] = useState('');
@@ -105,8 +105,8 @@ export function TrustGuardrailNewPage() {
       setVerdict(null);
       setTestedSpec(null);
       setError({
-        title: 'O teste não pôde ser executado',
-        description: serviceMessage(err, 'A guardrail não foi criada e nada mudou em produção.'),
+        title: 'The test could not be run',
+        description: serviceMessage(err, 'The guardrail was not created and nothing changed in production.'),
       });
     } finally {
       setBusy('idle');
@@ -118,20 +118,27 @@ export function TrustGuardrailNewPage() {
     setError(null);
     try {
       await createGuardrail(toCreateBody(current));
-      await queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/validators'] });
+      // B-052 — invalida o DOMÍNIO, não uma chave literal.
+      //
+      // Esta linha citava `['cloud', '/v1/dashboard/trust/validators']`, e no
+      // instante em que `guardrails.tsx` passou a ler pela factory ela virou uma
+      // invalidação de chave que ninguém lê: criar um guardrail deixaria de
+      // atualizar a lista. Foi o defeito de árvores disjuntas se recriando em
+      // tempo real, por migrar leitor antes de escritor.
+      invalidarTrust();
       void navigate('/trust/guardrails');
     } catch (err) {
       const code = serviceCode(err);
       setError({
         title:
           code === 'VALIDATOR_NAME_RESERVED'
-            ? 'Esse nome pertence à plataforma'
+            ? 'That name belongs to the platform'
             : code === 'CONFLICT'
-              ? 'Já existe uma guardrail com esse nome'
-              : 'A guardrail não foi criada',
+              ? 'A guardrail with that name already exists'
+              : 'The guardrail was not created',
         // A mensagem do serviço nomeia o campo e o motivo; substituí-la por texto nosso
         // faria o operador tentar de novo exatamente igual.
-        description: serviceMessage(err, 'O serviço recusou a criação e nada mudou em produção.'),
+        description: serviceMessage(err, 'The service refused the creation and nothing changed in production.'),
       });
       setBusy('idle');
     }
@@ -139,8 +146,8 @@ export function TrustGuardrailNewPage() {
 
   return (
     <PageShell
-      title="Nova guardrail"
-      description="Os termos abaixo passam a ser bloqueados nas conversas deste workspace assim que a regra for salva."
+      title="New guardrail"
+      description="The terms below start being blocked in this workspace conversations as soon as the rule is saved."
     >
       <GuardrailRuleFields
         draft={draft}
@@ -154,23 +161,23 @@ export function TrustGuardrailNewPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Teste antes de salvar</h2>
+            <h2>Test before saving</h2>
           </Card.Title>
           <Card.Description>
-            Escreva uma mensagem de exemplo e veja o que aconteceria com ela. Este passo não altera
-            nada — e é por ele que se chega ao salvar.
+            Write a sample message and see what would happen to it. This step changes nothing —
+            and it is the way through to saving.
           </Card.Description>
         </Card.Header>
 
         <Card.Body className="space-y-4">
           <FormField id="guardrail-sample">
-            <FormField.Label>Mensagem de exemplo</FormField.Label>
+            <FormField.Label>Sample message</FormField.Label>
             <FormField.Control>
               <Textarea
-                aria-label="Mensagem de exemplo"
+                aria-label="Sample message"
                 rows={2}
                 value={sample}
-                placeholder="uma mensagem que contenha um dos termos acima"
+                placeholder="a message containing one of the terms above"
                 onChange={(e) => setSample(e.target.value)}
               />
             </FormField.Control>
@@ -183,7 +190,7 @@ export function TrustGuardrailNewPage() {
               onClick={() => void onTest()}
             >
               <FlaskConical className="size-4" />
-              {busy === 'testing' ? 'Testando…' : 'Testar'}
+              {busy === 'testing' ? 'Testing…' : 'Test'}
             </Button>
 
             {/* Um botão cinza sem motivo faz o operador procurar o que não existe. Os erros por
@@ -192,7 +199,7 @@ export function TrustGuardrailNewPage() {
                 acusa nada: descreve o próximo passo. */}
             {problems.length > 0 ? (
               <p className="text-body-sm text-muted-foreground">
-                Dê um nome e ao menos um termo para poder testar.
+                Give it a name and at least one term to be able to test.
               </p>
             ) : null}
           </div>
@@ -205,7 +212,7 @@ export function TrustGuardrailNewPage() {
 
           {testedSpec !== null && !verdictIsCurrent ? (
             <p className="text-sm text-muted-foreground" role="status">
-              A regra mudou depois do teste. Teste de novo para poder salvar.
+              The rule changed after the test. Test again to be able to save.
             </p>
           ) : null}
         </Card.Body>
@@ -227,14 +234,14 @@ export function TrustGuardrailNewPage() {
               <h2>Ativar</h2>
             </Card.Title>
             <Card.Description>
-              Ao salvar, {cleanTerms(current.terms).length} termo(s) passam a valer imediatamente nas
-              conversas deste workspace.
+              On save, {cleanTerms(current.terms).length} term(s) take effect immediately in this
+              workspace conversations.
             </Card.Description>
           </Card.Header>
           <Card.Footer>
             <Button disabled={busy !== 'idle'} onClick={() => void onSave()}>
               <ShieldCheck className="size-4" />
-              {busy === 'saving' ? 'Salvando…' : 'Salvar e ativar'}
+              {busy === 'saving' ? 'Saving…' : 'Save and activate'}
             </Button>
           </Card.Footer>
         </Card>
@@ -245,7 +252,7 @@ export function TrustGuardrailNewPage() {
       <Button variant="ghost" asChild>
         <Link to="/trust/guardrails">
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Voltar para as guardrails
+          Back to guardrails
         </Link>
       </Button>
     </PageShell>

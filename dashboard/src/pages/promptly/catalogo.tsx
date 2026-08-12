@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { FileText, GitCompare, Search } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/components/promptly/promptly-api';
-import { catalogRows, maiorVersaoServida, type CatalogRow } from '@/components/promptly/projections';
+import { CATALOG_PAGE_LIMIT } from '@/hooks/promptly/promptly-api';
+import { catalogRows, maiorVersaoServida, type CatalogRow } from '@/pages/promptly/components/projections';
+import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
 
 /**
  * M13 — `/promptly/catalogo`: a lista dos prompts do workspace.
@@ -43,14 +43,14 @@ type EstadoVazio = 'falha-de-leitura' | 'catalogo-vazio' | 'filtro-sem-resultado
  * existe agora, e o recorte vive no ENDEREÇO: colar o link leva outra pessoa à mesma lista.
  */
 const RECORTES = {
-  'nao-promovidos': {
-    titulo: 'Não promovidos',
-    descricao: 'Prompts cuja última revisão nenhum label serve — escritos e fora do ar.',
+  'not-promoted': {
+    titulo: 'Not promoted',
+    descricao: 'Prompts whose latest revision no label serves — written and not live.',
     casa: (r: CatalogRow) => r.latestVersion > maiorVersaoServida(r.labels),
   },
-  'sem-ambiente': {
-    titulo: 'Sem ambiente',
-    descricao: 'Prompts que nunca foram promovidos: nenhum label aponta para eles.',
+  'no-environment': {
+    titulo: 'No environment',
+    descricao: 'Prompts that were never promoted: no label points at them.',
     casa: (r: CatalogRow) => !Array.isArray(r.labels) || r.labels.length === 0,
   },
 } as const;
@@ -85,14 +85,23 @@ function tamanhoValido(v: string | null): number {
 
 export function PromptlyCatalogoPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Catálogo de prompts'), [setPageTitle]);
+  useEffect(() => setPageTitle('Prompt catalog'), [setPageTitle]);
   useRequireAuth();
 
   // O recorte vem da URL, não do estado local: é o que torna o link do painel COLÁVEL. Um valor
   // desconhecido é ignorado (a lista inteira), nunca um erro — um endereço antigo continua abrindo.
   const [params, setParams] = useSearchParams();
+  // Os nomes ANTIGOS, em português, continuam resolvendo. O recorte vive no endereço
+  // justamente para ser colável — um link já mandado num chat não pode deixar de filtrar
+  // porque o produto mudou de idioma. Mesmo raciocínio dos redirects de rota (ADR D2), na
+  // escala menor de um parâmetro: aqui o custo de aceitar os dois é um mapa de duas linhas.
+  const ANTIGOS: Record<string, Recorte> = {
+    'nao-promovidos': 'not-promoted',
+    'sem-ambiente': 'no-environment',
+  };
   const bruto = params.get('recorte');
-  const recorte = recorteValido(bruto) ? bruto : null;
+  const normalizado = bruto !== null && bruto in ANTIGOS ? ANTIGOS[bruto] : bruto;
+  const recorte = recorteValido(normalizado) ? normalizado : null;
   const porPagina = tamanhoValido(params.get('porPagina'));
 
   // M16 — os três filtros de SERVIDOR vivem no endereço, pela mesma razão do recorte: o link é
@@ -141,12 +150,7 @@ export function PromptlyCatalogoPage() {
     setParams(atual, { replace: true });
   };
 
-  const query = useQuery({
-    // Tamanho E filtros entram na CHAVE, não só na chamada. Sem isso o React Query serve a página
-    // anterior do cache e a tela mostra o catálogo inteiro afirmando ter buscado um termo.
-    queryKey: [...CATALOG_QUERY_KEY, porPagina, busca, tag, pasta],
-    queryFn: () => fetchCatalogPage<unknown>(porPagina, { search: busca, tag, folder: pasta }),
-  });
+  const query = usePromptlyCatalog<unknown>({ search: busca, tag, folder: pasta }, porPagina);
 
   // `useMemo` sobre `query.data`, não sobre um array recriado a cada render — senão o memo do
   // filtro logo abaixo depende de uma identidade sempre nova e não memoriza nada.
@@ -212,13 +216,13 @@ export function PromptlyCatalogoPage() {
     },
     {
       key: 'latestVersion',
-      label: 'Última revisão',
+      label: 'Latest revision',
       render: (row) => <span className="font-mono text-xs text-muted-foreground">v{row.latestVersion}</span>,
     },
     {
       // A coluna que responde "isto está servindo produção?" — a pergunta que traz o operador aqui.
       key: 'labelsResumo',
-      label: 'Ambientes servidos',
+      label: 'Environments served',
       render: (row) => <span className="text-muted-foreground">{row.labelsResumo}</span>,
     },
     {
@@ -238,7 +242,7 @@ export function PromptlyCatalogoPage() {
                 key={t}
                 type="button"
                 onClick={() => { trocarParam({ tag: t }); }}
-                aria-label={`Filtrar por ${t}`}
+                aria-label={`Filter by ${t}`}
                 className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
               >
                 {t}
@@ -259,11 +263,11 @@ export function PromptlyCatalogoPage() {
             // (`name: z.string().min(1)`): sem escape, `a/b` viraria `/promptly/a/b/diff`, que não
             // casa com a rota `/promptly/:name/diff`.
             to={`/promptly/${encodeURIComponent(row.name)}/diff`}
-            aria-label={`Comparar revisões de ${row.name}`}
+            aria-label={`Compare revisions of ${row.name}`}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
           >
             <GitCompare className="h-3.5 w-3.5" aria-hidden="true" />
-            Comparar
+            Compare
           </Link>
         ) : null,
     },
@@ -271,14 +275,14 @@ export function PromptlyCatalogoPage() {
 
   return (
     <PageShell
-      title="Catálogo de prompts"
-      description="Os prompts versionados deste workspace — e qual revisão cada ambiente está servindo."
+      title="Prompt catalog"
+      description="The versioned prompts in this workspace — and which revision each environment is serving."
     >
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar o catálogo"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há prompts neste workspace."
+          title="Could not load the catalog"
+          description="The list below is empty because the read failed — this does NOT mean there are no prompts in this workspace."
           action={
             <Button variant="secondary" onClick={() => void query.refetch()}>
               Tentar novamente
@@ -292,7 +296,7 @@ export function PromptlyCatalogoPage() {
           {/* asChild → <h2>: o PageShell já rende o <h1>; pular para o h3 padrão do Card.Title
               quebraria a hierarquia de cabeçalhos (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>{recorte === null ? 'Catálogo' : RECORTES[recorte].titulo}</h2>
+            <h2>{recorte === null ? 'Catalog' : RECORTES[recorte].titulo}</h2>
           </Card.Title>
           {/* A contagem só aparece no estado ASSENTADO. Renderizá-la sempre imprimia
               "0 neste workspace" durante o carregamento e durante a falha — duas linhas abaixo de
@@ -307,10 +311,10 @@ export function PromptlyCatalogoPage() {
                 // uma página do conjunto filtrado. Dizer "neste workspace" aqui seria o limite
                 // inferior apresentado como total que o M13 existe para eliminar.
                 ? temContinuacao
-                  ? `${filtradas.length} nesta página — há mais no servidor`
+                  ? `${filtradas.length} on this page — there is more on the server`
                   : `${filtradas.length} no filtro`
                 : temContinuacao
-                  ? `${rows.length} carregados — há mais no servidor`
+                  ? `${rows.length} loaded — there is more on the server`
                   : `${rows.length} neste workspace`
               : '—'}
           </Card.Description>
@@ -324,13 +328,13 @@ export function PromptlyCatalogoPage() {
                 {recorte !== null
                   ? RECORTES[recorte].descricao
                   : tag !== ''
-                    ? `Só os prompts marcados com “${tag}”.`
+                    ? `Only prompts tagged “${tag}”.`
                     : pasta !== ''
-                      ? `Só os prompts da pasta “${pasta}/”.`
-                      : `Busca no servidor por “${busca}”.`}
+                      ? `Only prompts in the “${pasta}/” folder.`
+                      : `Server-side search for “${busca}”.`}
               </p>
               <Button variant="secondary" size="sm" onClick={limparRecorte}>
-                Ver todos
+                See all
               </Button>
             </div>
           ) : null}
@@ -345,8 +349,8 @@ export function PromptlyCatalogoPage() {
                 type="search"
                 value={rascunho}
                 onChange={(e) => { setRascunho(e.target.value); }}
-                placeholder="Buscar por nome"
-                aria-label="Filtrar prompts por nome"
+                placeholder="Search by name"
+                aria-label="Filter prompts by name"
                 className="h-9 rounded-md border border-input bg-background pl-8 pr-3 text-sm"
               />
             </div>
@@ -359,9 +363,9 @@ export function PromptlyCatalogoPage() {
                 pedia cem fixo. O controle serve ao operador; que ele também torne o critério
                 verificável é consequência, não motivo. */}
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Prompts por página</span>
+              <span>Prompts per page</span>
               <select
-                aria-label="Prompts por página"
+                aria-label="Prompts per page"
                 value={String(porPagina)}
                 onChange={(e) => escolherTamanho(e.target.value)}
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
@@ -374,7 +378,7 @@ export function PromptlyCatalogoPage() {
             {/* A saída para a autoria fica onde o operador já está olhando. Sem ela o catálogo é
                 um beco: dá para ver o que existe e não para criar nada. */}
             <Button asChild>
-              <Link to="/promptly/new">Nova revisão</Link>
+              <Link to="/promptly/new">New revision</Link>
             </Button>
           </div>
 
@@ -383,13 +387,13 @@ export function PromptlyCatalogoPage() {
               obrigatório. Quem nunca criou pasta não encontra a raiz vazia. */}
           {pasta === '' && pastas.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 pt-2">
-              <span className="text-xs text-muted-foreground">Pastas:</span>
+              <span className="text-xs text-muted-foreground">Folders:</span>
               {pastas.map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => { trocarParam({ pasta: f }); }}
-                  aria-label={`Abrir a pasta ${f}`}
+                  aria-label={`Open the ${f} folder`}
                   className="rounded-md border px-2 py-1 font-mono text-xs hover:bg-muted"
                 >
                   {f}/
@@ -403,7 +407,7 @@ export function PromptlyCatalogoPage() {
           columns={columns}
           data={filtradas}
           rowKey={(row) => row.name}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
           <VazioDoCatalogo
             estado={estadoVazio}
@@ -443,8 +447,8 @@ function VazioDoCatalogo({
     return (
       <EmptyState
         icon={FileText}
-        title="Sem dados — a leitura falhou"
-        description="Enquanto isso, não é possível saber o que existe no catálogo."
+        title="No data — the read failed"
+        description="Until then, there is no way to know what exists in the catalog."
         /* A saída existe justamente aqui. Era o único dos três estados sem ação, e é o que mais
            precisa de uma: sem ela, o operador que cai numa falha transitória só pode recarregar a
            página inteira. */
@@ -461,7 +465,7 @@ function VazioDoCatalogo({
     return (
       <EmptyState
         icon={Search}
-        title={`Nenhum prompt casa com “${termo}”`}
+        title={`No prompt matches “${termo}”`}
         description={
           // M16 — o texto anterior dizia "nenhum dos prompts CARREGADOS casa … o filtro não os
           // alcança". Era verdade enquanto o filtro rodava aqui; agora ele roda no servidor, e a
@@ -469,8 +473,8 @@ function VazioDoCatalogo({
           // significa hoje é outra coisa, e é ela que o operador precisa saber: o servidor achou
           // MAIS do que coube nesta página.
           temContinuacao
-            ? 'O servidor achou mais do que coube nesta página. Refine o termo ou peça uma página maior.'
-            : 'A busca rodou no workspace inteiro, não só nesta página. Limpe o filtro para ver a lista completa.'
+            ? 'The server found more than fit on this page. Refine the term or ask for a larger page.'
+            : 'The search ran across the whole workspace, not just this page. Clear the filter to see the full list.'
         }
         action={
           <Button variant="secondary" onClick={onLimpar}>
@@ -484,11 +488,11 @@ function VazioDoCatalogo({
   return (
     <EmptyState
       icon={FileText}
-      title="Nenhum prompt neste workspace"
-      description="Crie a primeira revisão aqui mesmo — ela passa a valer no runtime sem redeploy."
+      title="No prompts in this workspace"
+      description="Create the first revision right here — it takes effect at runtime with no redeploy."
       action={
         <Button asChild>
-          <Link to="/promptly/new">Criar o primeiro prompt</Link>
+          <Link to="/promptly/new">Create the first prompt</Link>
         </Button>
       }
     />

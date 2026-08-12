@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { Badge, Button, Card } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 import { ExpandableText } from '@/pages/memory/row-cells';
 
 /**

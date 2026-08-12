@@ -10,14 +10,37 @@ import (
 	"net/http"
 	"time"
 
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/ratelimit"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/ratelimit"
 )
 
 // SessionTokenHandler exchanges Kratos session cookies for JWT tokens.
+// verifiableAddress / authenticationMethod / identityResponse are the ONLY
+// identity fields that cross to the browser. They mirror the dashboard's
+// `Session` type (dashboard/src/lib/api/types.ts) — anything the dashboard does
+// not read is deliberately absent, not merely unused.
+type verifiableAddress struct {
+	Value    string `json:"value"`
+	Verified bool   `json:"verified"`
+	Via      string `json:"via"`
+}
+
+type authenticationMethod struct {
+	Method   string `json:"method"`
+	Provider string `json:"provider,omitempty"`
+}
+
+type identityResponse struct {
+	ID                    string                 `json:"id"`
+	Email                 string                 `json:"email"`
+	Name                  string                 `json:"name"`
+	VerifiableAddresses   []verifiableAddress    `json:"verifiable_addresses,omitempty"`
+	AuthenticationMethods []authenticationMethod `json:"authentication_methods,omitempty"`
+}
+
 type SessionTokenHandler struct {
 	issuer            *theojwt.SessionTokenIssuer
 	tenantProvisioner *auth.TenantProvisioner
@@ -92,6 +115,11 @@ func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only the fields the dashboard reads are decoded. Ory returns a great deal
+	// more — devices[].ip_address, recovery_addresses, schema_url — and this
+	// endpoint exists so the browser never sees any of it. Decoding narrowly is
+	// what makes the omission structural rather than a habit: a field that is
+	// not parsed cannot be forwarded by accident later.
 	var session struct {
 		Active   bool `json:"active"`
 		Identity struct {
@@ -100,7 +128,9 @@ func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 				Email string `json:"email"`
 				Name  string `json:"name"`
 			} `json:"traits"`
+			VerifiableAddresses []verifiableAddress `json:"verifiable_addresses"`
 		} `json:"identity"`
+		AuthenticationMethods []authenticationMethod `json:"authentication_methods"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil || !session.Active {
 		// #330: distinta da anterior — aqui o provedor ACEITOU a requisicao e
@@ -146,10 +176,21 @@ func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The identity travels with the token so the dashboard never calls Kratos
+	// itself. The exchange already fetched the session server-side; handing back
+	// this subset removes the browser's only reason to hold an Ory session
+	// response, and with it devices[].ip_address and recovery_addresses.
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"access_token": token,
 		"token_type":   "Bearer",
 		"expires_in":   expiresIn,
+		"identity": identityResponse{
+			ID:                    session.Identity.ID,
+			Email:                 session.Identity.Traits.Email,
+			Name:                  session.Identity.Traits.Name,
+			VerifiableAddresses:   session.Identity.VerifiableAddresses,
+			AuthenticationMethods: session.AuthenticationMethods,
+		},
 	})
 }
 

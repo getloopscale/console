@@ -18,7 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // Plan 3 of dashboard-memory-section-roadmap.md (T3.4).
@@ -46,6 +46,10 @@ type MemoryWebhooksHandler struct {
 }
 
 // NewMemoryWebhooksHandler creates the handler. logger may be nil.
+// capMemoryWebhooks é o teto defensivo desta lista (B-114). O `LIMIT` da query é `capMemoryWebhooks + 1`,
+// para que o handler saiba distinguir "exatamente 100" de "mais de 100".
+const capMemoryWebhooks = 100
+
 func NewMemoryWebhooksHandler(db *sql.DB, logger *slog.Logger) *MemoryWebhooksHandler {
 	if logger == nil {
 		logger = slog.Default()
@@ -158,7 +162,7 @@ func (h *MemoryWebhooksHandler) List(w http.ResponseWriter, r *http.Request) {
 		FROM memory_webhooks
 		WHERE subject = $1 AND tenant_id = $2 AND revoked_at IS NULL
 		ORDER BY created_at DESC
-		LIMIT 100`
+		LIMIT 101`
 
 	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID)
 	if err != nil {
@@ -184,7 +188,8 @@ func (h *MemoryWebhooksHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"webhooks": out})
+	out, temMais := truncar(out, capMemoryWebhooks)
+	writeJSON(w, http.StatusOK, map[string]any{"webhooks": out, "has_more": temMais})
 }
 
 // Delete soft-deletes the webhook. Cross-tenant attempts → 404 (D5).

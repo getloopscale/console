@@ -10,12 +10,12 @@ This cycle exercises the **released** delivery the way a user meets it, and turn
 
 That placement is the whole design. Before this cycle existed, `cycle-release` flipped the ROADMAP checkbox itself, at tag-cut — so `[x]` meant *"we shipped it"*. It now means *"we shipped it and watched it work."* The flip moved here (`cycle-release § 7.5` → this cycle's `flip` phase) precisely so the claim and the evidence cannot drift apart.
 
-The cycle produces an **acceptance record** per milestone, and a **verdict** that `cycle-roadmap` consumes.
+The cycle produces an **acceptance record** per milestone, and a **verdict** that `cycle-maintenance` consumes.
 
 ## Pre-conditions
 
 - `cycle-release` emitted `RELEASED` for the milestone — tag cut, GitHub release published.
-- The released delivery is reachable: a deployed URL, an installed binary, a published package, or a running service.
+- The released delivery is reachable: a deployed URL, an installed binary, a published package, a running service, or — for internal packages — a build produced from the released tag in a clean checkout (see § Target kinds).
 - The milestone declares `**Definition of done (all must hold):**` bullets in `ROADMAP.md`. These are the acceptance criteria — this cycle does not invent its own.
 - The milestone's checkbox is still `[ ]`.
 
@@ -58,6 +58,13 @@ The instrument changes with the delivery; the rigor does not. Exercising a *prox
 | CLI | `Bash` | Install the published artifact and run the documented commands from a clean directory |
 | Library / SDK | `Bash` | Consume the published package in a throwaway project, following the README verbatim |
 | HTTP API / service | `Bash` | Call the deployed endpoints with real payloads, including the documented error cases |
+| **Internal / private package** (monorepo, never published to a public registry) | `Bash` | Build from the **released tag** in a clean checkout, then consume it the way its real consumer does — import the built package, run its binary, start its service. Never the dirty working tree. |
+
+**On "released" when nothing is published.** Most internal work never reaches a public registry or a public URL, and reading this cycle as "only validate published artifacts" would make it unreachable for exactly the projects that need it most. The distinction that matters is not *public vs private* — it is **the artifact vs the working tree**.
+
+A working tree carries uncommitted edits, local config, and a dev server that behaves nothing like the built output. A build from the released tag carries none of that, and reproduces what the consumer receives. So for an internal package the released delivery is: check out the tag (or a clean worktree at that tag), build, and consume the result. That is a real acceptance run.
+
+What is still NOT acceptance: `npm run dev` against your working tree, a mocked backend, or a staging clone with different configuration.
 
 When a criterion cannot be exercised with any available instrument, its status is `not_exercised` — never `passed`.
 
@@ -103,6 +110,17 @@ When a criterion cannot be exercised with any available instrument, its status i
 ## Output
 
 - `knowledge-base/acceptance/{milestone-id}-{YYYY-MM-DD}.md` — the acceptance record: target, criteria, per-criterion result, evidence paths, defects, computed verdict.
+
+  The record MUST carry the verdict in its frontmatter as `verdict: <TOKEN>`. This is not cosmetic: `cycle-goal`'s Stop-hook gate reads that line off disk to decide whether a session may end. A record whose verdict lives only in prose is invisible to the gate, and the milestone will read as never accepted.
+
+  ```yaml
+  ---
+  milestone_id: M2
+  verdict: ACCEPTED        # or ACCEPTED_WITH_CAVEATS | REJECTED | NOT_VALIDATED
+  target: https://app.example.com
+  date: YYYY-MM-DD
+  ---
+  ```
 - `knowledge-base/acceptance/evidence/` — screenshots, console dumps, network logs, command transcripts cited by the record.
 - `knowledge-base/roadmap-runs/{milestone-id}-{date}.md` — updated with the acceptance verdict when the flip happens.
 
@@ -113,7 +131,7 @@ The record is the artifact an auditor reads to answer "was M3 ever actually used
 - Schema for cycle rules: `rules/cycle-rule-schema.md`
 - Skill implementing this cycle: `skills/acceptance/SKILL.md`
 - Upstream cycle (must have emitted `RELEASED`): `rules/cycle-release.md`
-- Macro loop that consumes this verdict: `rules/cycle-roadmap.md`
+- Macro loop that consumes this verdict: `rules/cycle-maintenance.md`
 - Checkbox-flip script reused from the release slice: `skills/release/scripts/flip_milestone_checkbox.py`
 - Session-binding skill whose goal terminates on this cycle's verdict: `skills/cycle-goal/SKILL.md`
 - Sibling honesty gate over sustained use (consumes acceptance evidence): `rules/dogfood-golden-rule.md`

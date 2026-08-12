@@ -1,0 +1,29 @@
+{
+  // O escopo de tipos de `e2e/`. Existe porque a ausência dele deixou passar um bug.
+  //
+  // O `tsconfig.json` da raiz declara `"include": ["src"]`, então `npm run typecheck`
+  // NUNCA olhou para os specs do Playwright. Em 2026-08-10 isso cobrou: o commit
+  // `b423ae99` moveu `components/lens/lens-capabilities.ts` para `components/layout/`, e
+  // `observability-screens.spec.ts` continuou importando o caminho antigo. Nada acusou —
+  // typecheck verde, lint verde, a suíte de unidade verde — e o job `e2e-ui` do CI morria
+  // com "Cannot find package", derrubando as 26 suítes de jornada **antes do primeiro teste
+  // rodar**. Três runs seguidos vermelhos, atribuídos a outra coisa.
+  //
+  // Um diretório fora do escopo do verificador de tipos é um diretório onde refactors
+  // quebram em silêncio. `npm run typecheck` agora inclui este projeto.
+  //
+  // Sobre o alias `@/…`: NÃO use dentro de `e2e/`. O Playwright resolve o import pelo Node
+  // antes de qualquer mapeamento de `paths` chegar a valer, e o erro que ele produz não diz
+  // isso — diz "Cannot find package", que parece dependência faltando. Import relativo
+  // resolve, não precisa de configuração, e não tem esse modo de falha.
+  //
+  // O import em si vale defender: o spec percorre as telas de observabilidade a partir da
+  // MESMA lista que a aplicação usa. Duplicá-la aqui faria o teste seguir verde quando
+  // alguém acrescentasse uma tela — exatamente o caso que ele existe para pegar.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["."]
+}

@@ -6,7 +6,7 @@ package storage
 import (
 	"context"
 
-	"github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
 )
 
 // PromMeter is the MVP Meter: it increments the Prometheus counter only.

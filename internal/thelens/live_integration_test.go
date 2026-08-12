@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/thelens"
+	"github.com/usetheoai/theo-cloud/internal/thelens"
 )
 
 func TestLive_ModelB_MintAndIngest(t *testing.T) {

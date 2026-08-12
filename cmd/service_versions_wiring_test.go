@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/config"
+	"github.com/usetheoai/theo-cloud/internal/config"
 )
 
 // M21 F-test-2 — the composition root is the one place the status panel is

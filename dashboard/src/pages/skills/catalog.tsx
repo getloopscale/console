@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { LayoutGrid } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { catalogCards, categoryChips, type CatalogSkill } from '@/components/skills/catalog';
-import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/components/skills/paging';
-import { fetchSkills } from '@/components/skills/skills-api';
+import { catalogCards, categoryChips, type CatalogSkill } from '@/pages/skills/components/catalog';
+import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
+import { useSkillsCatalog } from '@/hooks/skills/use-skills';
 
 /**
  * M33 — `/skills/catalog`: ver o que existe sem saber o que procurar.
@@ -42,10 +41,11 @@ export function SkillsCatalogPage() {
   const [filtro, setFiltro] = useState('');
   const [categoria, setCategoria] = useState<string | null>(null);
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills', 'catalogo', tokenAtual ?? 'primeira'] as const,
-    queryFn: () => fetchSkills<SkillsPayload>(PAGE_LIMIT, tokenAtual),
-  });
+  // B-052 — `overview` e `catalog` faziam a MESMA chamada com chaves
+  // diferentes: o mesmo catalogo em duas entradas de cache que nunca se
+  // invalidavam juntas. E nenhuma das duas carregava o limite, que e a
+  // armadilha que `trust` tinha entre 200 e 100.
+  const query = useSkillsCatalog<SkillsPayload>(PAGE_LIMIT, tokenAtual);
 
   const pagina = useMemo(
     () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),

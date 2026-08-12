@@ -294,16 +294,29 @@ describe('mocks/handlers — full API coverage', () => {
   // Billing
   // ==========================================================================
 
+  // O caminho e `/v1/` (API cloud), NAO `/api/v1/` (engine). Este teste afirmava
+  // o segundo e passava verde — testando o mock contra ele mesmo, enquanto a
+  // aplicacao chamava um caminho que nao existia no mock e caia num 500 em dev.
+  //
+  // As chaves de `usage` sao as REAIS do billing.go, nao o vocabulario da maquete
+  // ('Edge Requests', 'Fast Data Transfer'). O `overview.tsx:84` documenta que a
+  // tela le as reais; o mock e o teste falavam a outra lingua, e o resultado era
+  // quatro barras de uso mostrando numeros de fallback plausiveis.
   it('test_billing_get_returns_plan_and_usage', async () => {
-    const res = await call('GET', '/api/v1/billing');
+    const res = await call('GET', '/v1/billing');
     const body = await res.json();
     expect(body.plan).toBe('pro');
-    expect(body.usage['Edge Requests']).toBeDefined();
+    // As quatro chaves que `overview.tsx` de fato le.
+    for (const chave of ['projects', 'builds_per_month', 'environments', 'seats']) {
+      expect(body.usage[chave], `usage['${chave}'] ausente — a barra correspondente cai no fallback`).toBeDefined();
+    }
     expect(body.plan_cap.max_projects).toBe(10);
+    // Exercita o caminho POPULADO do card "Plan"; sem isto so o "—" era testado.
+    expect(body.plan_price.amount_minor).toBe(2000);
   });
 
   it('test_billing_portal_returns_stripe_url', async () => {
-    const res = await call('POST', '/api/v1/billing/portal');
+    const res = await call('POST', '/v1/billing/portal');
     const body = await res.json();
     expect(body.url).toContain('stripe.com');
   });

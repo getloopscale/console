@@ -60,3 +60,64 @@ describe('manualChunks vendor split', () => {
     expect(manualChunks('/x/src/app/main.tsx')).toBeUndefined();
   });
 });
+
+/**
+ * B-097 — a familia lazy-only, com sosias.
+ *
+ * `LAZY_ONLY_RE` entrou sem teste algum, enquanto o bloco irmao `FORCE_GRAPH_RE`
+ * — mesmo mecanismo, mesmo arquivo — e testado com positivos E sosias desde
+ * sempre. A disciplina existia e foi abandonada na lista nova.
+ *
+ * O custo era latente: nenhum dos sosias esta instalado hoje, entao nada quebrou.
+ * Latente e o pior tipo de defeito de build — aparece meses depois como um chunk
+ * que cresceu sem motivo aparente, e ninguem liga uma coisa a outra.
+ */
+describe('LAZY_ONLY_RE — a familia so alcancada por rota lazy (B-097)', () => {
+  it('ejeta do vendor os membros reais da familia', () => {
+    const membros = [
+      '@tiptap/core', 'prosemirror-model', 'tiptap-markdown', 'markdown-it',
+      'react-markdown', 'remark-gfm', 'rehype-raw', 'micromark', 'mdast-util-to-hast',
+      'hast-util-to-jsx-runtime', 'unist-util-visit', 'unified', 'vfile', 'bail',
+      'trough', 'zwitch', 'ccount', 'devlop', 'fault', 'mdurl',
+      'react-syntax-highlighter', 'refractor', 'lowlight', 'highlight.js', 'prismjs',
+    ];
+    for (const pkg of membros) {
+      expect(
+        manualChunks(`/x/node_modules/${pkg}/index.js`),
+        `${pkg} deveria ficar com o consumidor lazy, nao no vendor eager`,
+      ).toBeUndefined();
+    }
+  });
+
+  it('NAO ejeta sosias — o teste que a lista nao tinha', () => {
+    // Cada um destes casava a lista anterior por prefixo solto. Nenhum esta
+    // instalado hoje; se um deles entrar como dependencia, sai do vendor sem que
+    // ninguem peca — e o bundle eager encolhe errado, que e dificil de rastrear.
+    // CORRECAO DO PROPRIO TESTE: a primeira versao listava `unified-engine`,
+    // `bail-out` e `trough-lite` como sosias. Estao ERRADOS — o hifen e a
+    // convencao de IRMAO no ecossistema unified, e a medicao provou: exigir `/`
+    // deixou de ejetar 31 pacotes reais (`micromark-util-*`, `vfile-message`,
+    // `character-entities-legacy`) e estourou o orcamento do vendor em 1,45 kB.
+    //
+    // Sosia de verdade e o que continua o nome SEM separador.
+    const sosias = [
+      'ccounter',         // 'ccount' + 'er', sem hifen
+      'highlightXjs',     // 'highlight.js' com o ponto nao escapado
+      'remarkable',       // 'remark-' exige o hifen; 'remarkable' nao tem
+      'refractored',      // 'refractor' + 'ed'
+      'unifiedx',         // 'unified' + 'x'
+      'devlopment',       // 'devlop' + 'ment'
+    ];
+    for (const pkg of sosias) {
+      expect(
+        manualChunks(`/x/node_modules/${pkg}/index.js`),
+        `${pkg} nao e da familia e foi ejetado do vendor — prefixo sem ancora`,
+      ).toBe('vendor');
+    }
+  });
+
+  it('o escopo @tiptap so casa o escopo, nao um pacote que comece com o nome', () => {
+    expect(manualChunks('/x/node_modules/@tiptap/starter-kit/index.js')).toBeUndefined();
+    expect(manualChunks('/x/node_modules/@tiptapfake/index.js')).toBe('vendor');
+  });
+});

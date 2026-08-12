@@ -35,11 +35,11 @@ const promptlyDb: {
       updatedAt: '2026-08-01T10:00:00Z',
     },
     { name: 'despedida', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-07-30T09:00:00Z' },
-    // M20 — a composição. `atendimento` referencia `politica`, e é o par que torna o DoD-2 e o
+    // M20 — a composição. `atendimento` referencia `policy`, e é o par que torna o DoD-2 e o
     // DoD-4 exercitáveis: sem um prompt que de fato compõe, o alternador de textos nunca aparece e
     // a lista de dependentes é sempre vazia — dois caminhos que passariam por "verdes" sem nunca
     // terem sido percorridos.
-    { name: 'politica', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-03T09:00:00Z' },
+    { name: 'policy', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-03T09:00:00Z' },
     { name: 'atendimento', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-03T10:00:00Z' },
     // 30 revisões: o único cenário em que o defeito #364 é observável. Com 3 revisões a página
     // contém tudo e a janela errada passa despercebida — foi assim que ele escapou.
@@ -53,24 +53,24 @@ const promptlyDb: {
   ],
   revisions: {
     saudacao: [
-      { version: 1, content: 'Olá, {{nome}}. Como posso ajudar?', createdAt: '2026-07-28T10:00:00Z' },
-      { version: 2, content: 'Oi, {{nome}}! Em que posso ajudar hoje?', createdAt: '2026-07-30T10:00:00Z' },
-      { version: 3, content: 'Olá {{nome}}, sou o assistente. Como ajudo?', createdAt: '2026-08-01T10:00:00Z' },
+      { version: 1, content: 'Hello, {{name}}. How can I help?', createdAt: '2026-07-28T10:00:00Z' },
+      { version: 2, content: 'Hi, {{name}}! What can I help you with today?', createdAt: '2026-07-30T10:00:00Z' },
+      { version: 3, content: 'Hello {{name}}, I am the assistant. How can I help?', createdAt: '2026-08-01T10:00:00Z' },
     ],
-    despedida: [{ version: 1, content: 'Até logo, {{nome}}.', createdAt: '2026-07-30T09:00:00Z' }],
-    politica: [
-      { version: 1, content: 'Seja sempre cordial e nunca prometa prazo.', createdAt: '2026-08-03T09:00:00Z' },
+    despedida: [{ version: 1, content: 'See you, {{name}}.', createdAt: '2026-07-30T09:00:00Z' }],
+    policy: [
+      { version: 1, content: 'Always be courteous and never promise a deadline.', createdAt: '2026-08-03T09:00:00Z' },
     ],
     atendimento: [
       {
         version: 1,
-        content: 'Preâmbulo: @@@promptly:name=politica|version=1@@@\n\nAgora responda a {{pergunta}}.',
+        content: 'Preamble: @@@promptly:name=policy|version=1@@@\n\nNow answer {{question}}.',
         createdAt: '2026-08-03T10:00:00Z',
       },
     ],
     longo: Array.from({ length: 30 }, (_, i) => ({
       version: i + 1,
-      content: `revisao numero ${i + 1}`,
+      content: `revision number ${i + 1}`,
       createdAt: '2026-08-02T10:00:00Z',
     })),
   },
@@ -337,7 +337,7 @@ function registerPromptlyRoutes(base: string) {
     if (usoIndisponivel()) {
       // O estado que o DoD-3 exige que a tela saiba distinguir de "ninguém usou".
       return Response.json(
-        { code: 'PROMPTLY_USAGE_UNAVAILABLE', message: 'não consegui ler o uso deste prompt' },
+        { code: 'PROMPTLY_USAGE_UNAVAILABLE', message: 'could not read this prompt usage' },
         { status: 502 },
       );
     }
@@ -394,7 +394,7 @@ function registerPromptlyRoutes(base: string) {
       return Response.json(
         {
           error: 'label_required',
-          message: `rollback de "${nome}" precisa do label a reverter — existentes: ${entrada.labels.map((l) => l.label).join(', ')}`,
+          message: `rollback of "${nome}" needs the label to roll back — existing: ${entrada.labels.map((l) => l.label).join(', ')}`,
           availableLabels: entrada.labels.map((l) => l.label),
         },
         { status: 400 },
@@ -428,7 +428,7 @@ function registerPromptlyRoutes(base: string) {
       return Response.json(
         {
           error: 'promotion_blocked',
-          message: `a promoção exige score ≥ ${politica.minScore} no dataset ${politica.datasetId}; a melhor execução desta revisão obteve 0.41`,
+          message: `promotion requires score ≥ ${politica.minScore} on dataset ${politica.datasetId}; the best run of this revision scored 0.41`,
           required: politica.minScore,
           actual: 0.41,
         },

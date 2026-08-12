@@ -6,8 +6,8 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockEvents = vi.fn();
-vi.mock('@/components/trust/trust-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/trust/trust-api')>();
+vi.mock('@/hooks/trust/trust-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/trust/trust-api')>();
   return { ...actual, fetchEnforcementEvents: (...a: unknown[]) => mockEvents(...a) };
 });
 
@@ -58,7 +58,7 @@ describe('TrustEnforcementPage', () => {
     expect(await screen.findByText('credential-mask')).toBeInTheDocument();
     // A contagem é o resumo que o operador lê antes da tabela; ela distingue "houve registro"
     // de "houve BLOQUEIO", que não são a mesma coisa (um `allow` também é registrado).
-    expect(screen.getByText(/1 bloqueio\(s\) entre 2 registro\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/1 block\(s\) among 2 record\(s\)/)).toBeInTheDocument();
   });
 
   it('quando a leitura FALHA, não afirma que nada foi bloqueado', async () => {
@@ -66,11 +66,11 @@ describe('TrustEnforcementPage', () => {
     render(<TrustEnforcementPage />);
 
     // O aviso é obrigatório: sem ele, o vazio abaixo seria lido como boa notícia.
-    expect(await screen.findByText('Não foi possível carregar a auditoria')).toBeInTheDocument();
-    expect(screen.getByText('Sem dados — a leitura falhou')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load the audit trail')).toBeInTheDocument();
+    expect(screen.getByText('No data — the read failed')).toBeInTheDocument();
 
     // E o texto de ausência NÃO pode aparecer — é ele que afirmaria o que a tela não sabe.
-    expect(screen.queryByText('Nenhuma ação de enforcement registrada')).not.toBeInTheDocument();
+    expect(screen.queryByText('No enforcement action recorded')).not.toBeInTheDocument();
     expect(screen.queryByText(/Nenhuma mensagem foi bloqueada ou reescrita/)).not.toBeInTheDocument();
   });
 
@@ -80,8 +80,8 @@ describe('TrustEnforcementPage', () => {
     mockEvents.mockResolvedValue({ events: [] });
     render(<TrustEnforcementPage />);
 
-    expect(await screen.findByText('Nenhuma ação de enforcement registrada')).toBeInTheDocument();
-    expect(screen.queryByText('Não foi possível carregar a auditoria')).not.toBeInTheDocument();
-    expect(screen.queryByText('Sem dados — a leitura falhou')).not.toBeInTheDocument();
+    expect(await screen.findByText('No enforcement action recorded')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load the audit trail')).not.toBeInTheDocument();
+    expect(screen.queryByText('No data — the read failed')).not.toBeInTheDocument();
   });
 });

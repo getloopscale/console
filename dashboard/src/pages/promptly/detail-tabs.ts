@@ -23,26 +23,26 @@ export const ABAS: readonly Aba[] = [
   {
     id: 'conteudo',
     sufixo: '',
-    rotulo: 'Conteúdo',
-    pergunta: 'O que este prompt diz',
+    rotulo: 'Content',
+    pergunta: 'What this prompt says',
   },
   {
     id: 'config',
     sufixo: 'config',
     rotulo: 'Config',
-    pergunta: 'Com que afinação ele roda',
+    pergunta: 'What tuning it runs with',
   },
   {
     id: 'producao',
-    sufixo: 'producao',
-    rotulo: 'Uso em produção',
-    pergunta: 'Quem o usou, e quanto custou',
+    sufixo: 'production',
+    rotulo: 'Production usage',
+    pergunta: 'Who used it, and what it cost',
   },
   {
     id: 'consumo',
-    sufixo: 'consumo',
-    rotulo: 'Como consumir',
-    pergunta: 'Como eu chamo isto do meu código',
+    sufixo: 'consumption',
+    rotulo: 'How to consume',
+    pergunta: 'How do I call this from my code',
   },
 ];
 

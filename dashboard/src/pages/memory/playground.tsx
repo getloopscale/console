@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ReflectCard } from '@/pages/memory/reflect-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * Plan theo-memory-dashboard-full-integration, T3.1 (ADR D5).
@@ -281,4 +281,3 @@ export function PlaygroundPage() {
 }
 
 // Alias for the page-suffix naming convention used by other memory pages.
-export const MemoryPlaygroundPage = PlaygroundPage;

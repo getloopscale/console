@@ -25,8 +25,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/routes"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )

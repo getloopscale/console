@@ -24,7 +24,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
 )
 
 const (

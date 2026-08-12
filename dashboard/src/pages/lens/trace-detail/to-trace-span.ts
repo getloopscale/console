@@ -1,5 +1,5 @@
 import type { TraceSpan } from '@usetheo/ui';
-import { isSpanError } from '@/lib/span-status';
+import { isSpanError } from '@/pages/lens/span-status';
 import type { TraceSpanNode } from './helpers';
 
 /**

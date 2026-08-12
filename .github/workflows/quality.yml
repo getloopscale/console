@@ -65,19 +65,27 @@ jobs:
       # local que so o CI expoe. Vale registrar: validar localmente reduz o ciclo, nao
       # substitui o ambiente limpo.
       - name: Configure private module access (theo-contracts)
+        # DUAS orgs de proposito. A org foi renomeada `usetheodev` -> `usetheoai`, e o
+        # go.mod ja aponta para o caminho novo (`github.com/usetheoai/theo-contracts`).
+        # O GitHub mantem redirect do caminho antigo, entao ele continua resolvendo — mas
+        # o `insteadOf` casa por PREFIXO DE STRING, nao segue redirect: com so a regra de
+        # `usetheodev/`, o fetch do caminho novo saia sem token e morria em
+        # "could not read Username". Nenhum run de CI tinha exercitado isso: os 6 runs
+        # verdes mais recentes sao anteriores ao rename.
         run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
           git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
       - name: Build
         env:
-          GOPRIVATE: github.com/usetheodev/*
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
         run: go build ./...
 
       - name: Test (race detector)
         env:
-          GOPRIVATE: github.com/usetheodev/*
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
         # `-race` nao e luxo num control plane: ele serve requisicoes HTTP concorrentes sobre
         # estado compartilhado (contas, projetos, billing). Suite single-thread verde nao prova
         # ausencia de corrida — prova que ninguem a exercitou.
@@ -90,7 +98,7 @@ jobs:
       # O servico sobe so aqui; o teste cria e derruba o proprio schema temporario.
       - name: Test (integration — Postgres real)
         env:
-          GOPRIVATE: github.com/usetheodev/*
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
           AUTH_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/theo_test?sslmode=disable
           # Sem isto o teste daria `t.Skip` caso a variavel nao chegasse — e um skip e verde. Com
           # isto, a ausencia da variavel FALHA o job em vez de fingir que o portao rodou.
@@ -98,6 +106,14 @@ jobs:
         # O `grep` nao e zelo: sem ele, remover `-tags=integration` ou acrescentar um `-run` que nao
         # casa devolve `ok … [no tests to run]` com EXIT 0 — o job fica verde e o portao nao rodou.
         # A saida e a unica prova de que o teste executou de fato.
+        #
+        # `shell: bash` NAO e cosmetico: o shell default de `run:` no GitHub Actions e
+        # `bash -e {0}`, SEM `pipefail`. Com `go test | tee`, o exit code visto pelo job e o
+        # do `tee` — sempre 0. Um revisor reproduziu: `--- FAIL` no log e o step verde. O
+        # `grep` guardava contra "no tests to run", nao contra teste FALHANDO; bastava o
+        # teste nomeado imprimir PASS em algum ponto. `shell: bash` adiciona `-o pipefail` e
+        # e o que faz a falha chegar ao job.
+        shell: bash
         run: |
           go test -tags=integration -count=1 -timeout 3m -v ./internal/auth/... | tee /tmp/integ.log
           grep -q 'PASS: TestIntegracao_OComandoDeRegistroEValidoNoPostgres' /tmp/integ.log \
@@ -105,7 +121,7 @@ jobs:
 
       - name: Vet
         env:
-          GOPRIVATE: github.com/usetheodev/*
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
         run: go vet ./...
 
       - name: Lint
@@ -150,8 +166,87 @@ jobs:
       - name: Build (inclui typecheck via tsc -b)
         run: npm run build
 
+      # B-101/e2e — `tsc -b` acima constrói SÓ o projeto raiz, cujo `include` é `["src"]`.
+      # `e2e/` ficava fora de qualquer verificação de tipos, e isso cobrou: `b423ae99` moveu
+      # `components/lens/lens-capabilities.ts` e `observability-screens.spec.ts` seguiu
+      # importando o caminho antigo. Tipos verdes, lint verde, 2764 testes verdes — e o job
+      # `e2e-ui` morrendo com "Cannot find package", que parece dependência faltando. O
+      # Playwright falha o MÓDULO no carregamento, então as 26 suítes de jornada não rodavam.
+      #
+      # Passo separado, e não `include: ["src","e2e"]` na raiz: o `include` da raiz é o que o
+      # build compila, e ampliá-lo para conseguir uma verificação mudaria o artefato de
+      # carona. Este passo faz uma coisa só, e é barato — `e2e/` tem 26 arquivos.
+      - name: Typecheck e2e (fora do escopo do build)
+        run: npx tsc --noEmit -p e2e/tsconfig.json
+
       - name: Lint
         run: npm run lint
+
+      # B-087 — este gate existia como script npm desde que a camada de mocks foi
+      # contida em src/, e NUNCA rodou em CI. Ele faz grep no dist/ recem-buildado
+      # para provar que `src/lib/mocks` foi tree-shaken do bundle de producao — o
+      # invariante que justifica manter 3.9k LOC de mock dentro de src/ em vez de
+      # num pacote separado. A auditoria confirmou que a contencao FUNCIONA hoje
+      # (0 bytes de mock no dist), mas um invariante que ninguem executa e
+      # documentacao, nao gate: qualquer import estatico futuro o quebraria em
+      # silencio ate alguem auditar de novo.
+      #
+      # Reusa o dist/ do passo Build acima — nao rebuilda.
+      # B-022/B-035 — o orcamento de bundle existia e nao valia nada: tres das nove
+      # entradas apontavam para chunks que o manual-chunks.ts nao emite mais
+      # (theo-ui, radix, lucide), e o glob do TOTAL era `dist/assets/*.js`, que
+      # somava os 129 chunks — inclusive os lazy que o usuario nunca baixa no
+      # primeiro paint.
+      #
+      # CORRECAO de 2026-08-07: este comentario dizia que as entradas obsoletas
+      # produziam "um verde que nao significa nada". Um revisor testou o
+      # mecanismo em diretorio isolado e o `size-limit` FALHA ALTO num glob sem
+      # correspondencia ("Size Limit can't find files at ...", exit 1) — ele
+      # nunca passa por apontar para arquivo inexistente. O defeito real era
+      # outro, e mais simples: este passo e NOVO neste diff, entao a config
+      # obsoleta nunca chegou a rodar em CI. Nao produzia verde falso; nao
+      # produzia nada. O reancoramento seguia necessario — sem ele o passo novo
+      # nasceria vermelho —, mas a justificativa escrita atribuia a ferramenta um
+      # comportamento que ela nao tem.
+      #
+      # Reancorado nos chunks reais e no conjunto EAGER (os 4 com modulepreload
+      # em dist/index.html), com os limites nos valores MEDIDOS. Isso trava a
+      # divida onde ela esta hoje; derruba-la e o trabalho de B-021/B-073, que
+      # devem tirar ~200 kB do vendor.
+      - name: Bundle budget (size-limit)
+        run: npx size-limit
+
+      - name: Tree-shake check (mocks fora do bundle de producao)
+        # O predicado ANTERIOR procurava a string `lib/mocks` no dist. Com
+        # `sourcemap: false` (vite.config.ts) e minificacao, um caminho de modulo
+        # nunca sobrevive ao bundle: o grep nao podia casar NEM quando os mocks
+        # estavam la. Verificado por dois revisores independentes, que injetaram
+        # `import * as m from './lib/mocks'` em main.tsx, rebuildaram, e viram o
+        # passo imprimir PASS com os mocks DENTRO do bundle.
+        #
+        # O docblock acima condena essa exata classe de defeito uma linha antes
+        # de reintroduzi-la — o que diz algo sobre revisar o proprio gate com o
+        # mesmo rigor com que se revisa o codigo que ele guarda.
+        #
+        # Agora procura um SENTINELA: um literal de string em `src/lib/mocks/fixtures.ts`,
+        # o modulo mais profundo da cadeia `index -> handlers -> fixtures`. Literal
+        # sobrevive a minificacao; caminho de modulo nao. Ele e consumido por um
+        # efeito colateral de modulo, de proposito — um const so exportado seria
+        # descartado pelo minificador e o gate voltaria a ser tautologia por um
+        # caminho novo.
+        #
+        # POR QUE no modulo mais profundo e nao no barrel: com o sentinela em
+        # `index.ts`, o gate provava que o BARREL entrou no bundle, nao que nenhum
+        # mock entrou — um `import { projects } from './lib/mocks/fixtures'`
+        # arrastaria 376 linhas de dados sem acionar nada. Verificado por sonda nos
+        # quatro estados: build normal PASS; import do barrel, de fixtures e de
+        # handlers, os tres FAIL.
+        run: |
+          if grep -q '__theo_mocks_present_in_bundle__' dist/assets/*.js; then
+            echo "FAIL: chunk de mocks vazou para o bundle de producao"
+            exit 1
+          fi
+          echo "PASS: mocks tree-shaken do bundle de producao"
 
       # theo-cloud#276 — the dashboard suite (247 files / 1925 tests) had NEVER run in CI. No workflow
       # invoked vitest at all; the job name was honest about doing only build+lint, and nobody wired

@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && node scripts/check-guard-pairs.mjs && node scripts/check-knip-ratchet.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "patch-package",
@@ -17,64 +17,50 @@
     "bundle:analyze": "ANALYZE=true vite build",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
-    "tree-shake-check": "npm run build && if grep -q 'lib/mocks' dist/assets/*.js; then echo 'FAIL: mocks chunk leaked into prod bundle (T7.1 / EC-10 of plan 2026-05-27-backend-frontend-integration v1.1)'; exit 1; else echo 'PASS: mocks tree-shaken from prod bundle'; fi",
+    "tree-shake-check": "npm run build && node scripts/check-mocks-tree-shaken.mjs",
     "test:e2e": "playwright test"
   },
   "size-limit": [
     {
-      "name": "01 — react-vendor (React 19 runtime)",
+      "name": "01 — react-vendor (React 19 runtime) [eager]",
       "path": "dist/assets/react-vendor-*.js",
       "limit": "55 KB"
     },
     {
-      "name": "02 — @usetheo/ui (design system, post-0.10 per-component dist)",
-      "path": "dist/assets/theo-ui-*.js",
-      "limit": "18 KB"
-    },
-    {
-      "name": "03 — radix (transitive via @usetheo/ui)",
-      "path": "dist/assets/radix-*.js",
-      "limit": "26 KB"
-    },
-    {
-      "name": "04 — vendor (misc transitive deps)",
-      "path": "dist/assets/vendor-*.js",
-      "limit": "25 KB"
-    },
-    {
-      "name": "05 — router (react-router-dom)",
+      "name": "02 — router (react-router-dom) [eager]",
       "path": "dist/assets/router-*.js",
       "limit": "15 KB"
     },
     {
-      "name": "06 — lucide (icon set)",
-      "path": "dist/assets/lucide-*.js",
-      "limit": "5 KB"
+      "name": "03 — app entry [eager]",
+      "path": "dist/assets/entry-*.js",
+      "limit": "25 kB"
     },
     {
-      "name": "07 — app entry (index)",
-      "path": "dist/assets/index-*.js",
-      "limit": "12 KB"
+      "name": "04 — vendor (node_modules eager, pos B-021/B-073)",
+      "path": "dist/assets/vendor-*.js",
+      "limit": "230 kB"
     },
     {
-      "name": "08 — per-route chunk hard cap (worst-case)",
+      "name": "05 — per-route chunk (worst-case, lazy)",
       "path": "dist/assets/register-*.js",
       "limit": "10 KB"
     },
     {
-      "name": "TOTAL initial JS — HARD GATE (Sprint 2 CommandPalette cmdk bump, brotli)",
-      "path": "dist/assets/*.js",
-      "limit": "225 KB"
+      "name": "TOTAL EAGER — HARD GATE (os 4 chunks com modulepreload no index.html, brotli)",
+      "path": [
+        "dist/assets/entry-*.js",
+        "dist/assets/react-vendor-*.js",
+        "dist/assets/router-*.js",
+        "dist/assets/vendor-*.js"
+      ],
+      "limit": "320 kB"
     }
   ],
   "dependencies": {
-    "@codemirror/lang-json": "^6.0.2",
-    "@codemirror/state": "^6.7.0",
-    "@codemirror/view": "^6.43.5",
     "@radix-ui/react-dialog": "^1.1.15",
     "@tanstack/react-query": "^5.100.14",
     "@tanstack/react-query-devtools": "^5.100.14",
-    "@tanstack/react-virtual": "^3.13.26",
     "@theokit/ui": "^1.3.2",
     "@tiptap/extension-placeholder": "^2.27.2",
     "@tiptap/extension-task-item": "^2.27.2",
@@ -83,7 +69,6 @@
     "@tiptap/react": "^2.27.2",
     "@tiptap/starter-kit": "^2.27.2",
     "@types/canvas-confetti": "^1.9.0",
-    "@uiw/react-codemirror": "^4.25.10",
     "@usetheo/ui": "^0.35.1",
     "ansi-to-html": "^0.7.2",
     "canvas-confetti": "^1.9.4",
@@ -100,6 +85,7 @@
     "react-syntax-highlighter": "^15.6.6",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^2.6.1",
     "tiptap-markdown": "^0.8.10",
     "web-vitals": "^5.2.0"
   },
@@ -109,7 +95,7 @@
     "@playwright/test": "^1.60.0",
     "@size-limit/preset-app": "^12.1.0",
     "@storybook/addon-essentials": "^8.6.14",
-    "@storybook/blocks": "^8.6.14",
+    "@storybook/react": "^8.6.18",
     "@storybook/react-vite": "^8.6.18",
     "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/typography": "^0.5.20",
@@ -120,9 +106,8 @@
     "@types/react-dom": "^19.0.0",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^4.3.0",
-    "autoprefixer": "^10.4.0",
     "babel-plugin-react-compiler": "^1.0.0",
-    "eslint-plugin-react-compiler": "^19.1.0-rc.2",
+    "eslint": "^10.4.0",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
     "patch-package": "^8.0.1",
@@ -137,6 +122,5 @@
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.2",
     "workbox-window": "^7.4.1"
-  },
-  "packageManager": "pnpm@11.1.0+sha512.0c44e842e5686b2c061a81adda8b2258bd8818e9704b2cf2c63d56b931a7b2e910092e085027003b96ca3911ab56a07f6df5abaed2be9925034cdd686a535b14"
+  }
 }

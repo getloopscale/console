@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 // optimistic UI hid the failure). Plain semantic tests can't catch this — only
 // a string literal assertion on the path can.
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: '',
   AUTH_URL: '',
   ENGINE_URL: '',
@@ -18,10 +18,11 @@ vi.mock('@/lib/config', () => ({
 }));
 
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 
+import { queryKeys } from '@/lib/api/query-keys';
 import { useInviteMember, useRemoveMember, useUpdateMemberRole } from './use-team';
 
 function makeClient() {
@@ -121,5 +122,72 @@ describe('use-team mutations — path canonicalization (T0.1)', () => {
     const useTeamModule = String.raw`${useInviteMember.toString()}${useRemoveMember.toString()}${useUpdateMemberRole.toString()}`;
     expect(useTeamModule).not.toContain('/api/v1/team/members');
     expect(useTeamModule).toContain('/api/v1/teams/members');
+  });
+});
+
+
+/**
+ * B-060 — o caminho de escrita do time invalida a lista.
+ *
+ * Mesmo defeito que B-017 corrigiu em domains, encontrado ao tentar fechar este
+ * item: `team.tsx` lia a lista com `useEngineApi('/api/v1/teams/members')` —
+ * chave `['engine', ...]` — enquanto `useInviteMember` e `useRemoveMember`
+ * invalidavam `['team']`. Arvores disjuntas: a invalidacao rodava e nao
+ * alcancava nada, entao convidar ou remover um membro nunca atualizava a tabela.
+ *
+ * Por isso este item NAO foi fechado junto com B-059, embora tivesse a mesma
+ * forma: ligar o sheet ao hook sem unificar a hierarquia produziria um convite
+ * que continua sem efeito visivel, com aparencia de corrigido.
+ *
+ * Reusa os helpers e o mock de fronteira do bloco acima de proposito — sao a
+ * mesma unidade sob teste.
+ */
+describe('caminho de escrita do time invalida a lista (B-060)', () => {
+  beforeEach(() => {
+    mockEngineFetch.mockReset();
+    mockEngineFetch.mockResolvedValue({ id: 'm1', email: 'a@b.com', role: 'member' });
+  });
+
+  /** Semeia a lista exatamente com a chave que team.tsx usa para ler. */
+  function seedList(qc: QueryClient) {
+    const key = queryKeys.team.list();
+    qc.setQueryData(key, { members: [] });
+    expect(qc.getQueryState(key)?.isInvalidated).toBe(false);
+    return key;
+  }
+
+  it('useInviteMember invalida a lista apos o convite', async () => {
+    const qc = makeClient();
+    const key = seedList(qc);
+    const { result } = renderHook(() => useInviteMember(), { wrapper: wrap(qc) });
+    await result.current.mutateAsync({ email: 'a@b.com', role: 'member' });
+    await waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
+  });
+
+  it('useRemoveMember invalida a lista', async () => {
+    const qc = makeClient();
+    const key = seedList(qc);
+    const { result } = renderHook(() => useRemoveMember(), { wrapper: wrap(qc) });
+    await result.current.mutateAsync('m1');
+    await waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
+  });
+
+  it('a chave LEGADA da lista nao era alcancada — a regressao que isto guarda', async () => {
+    const qc = makeClient();
+    const legado = ['engine', '/api/v1/teams/members'] as const;
+    qc.setQueryData(legado, { members: [] });
+    const { result } = renderHook(() => useInviteMember(), { wrapper: wrap(qc) });
+    await result.current.mutateAsync({ email: 'a@b.com', role: 'member' });
+    // Era assim que team.tsx lia a lista antes de B-060.
+    expect(qc.getQueryState(legado)?.isInvalidated).toBe(false);
+  });
+
+  it('nao alcanca um recurso vizinho — a hierarquia delimita o raio', async () => {
+    const qc = makeClient();
+    const projects = queryKeys.projects.list();
+    qc.setQueryData(projects, []);
+    const { result } = renderHook(() => useInviteMember(), { wrapper: wrap(qc) });
+    await result.current.mutateAsync({ email: 'a@b.com', role: 'member' });
+    expect(qc.getQueryState(projects)?.isInvalidated).toBe(false);
   });
 });

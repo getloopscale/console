@@ -30,9 +30,9 @@ import (
 	"sync"
 	"time"
 
-	mww "github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
-	"github.com/usetheodev/theo-cloud/internal/metrics"
-	"github.com/usetheodev/theo-cloud/internal/safehttp"
+	mww "github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/safehttp"
 )
 
 const (

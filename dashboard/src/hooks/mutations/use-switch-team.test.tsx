@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: '',
   AUTH_URL: '',
   ENGINE_URL: '',
@@ -11,7 +11,7 @@ vi.mock('@/lib/config', () => ({
 }));
 
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 

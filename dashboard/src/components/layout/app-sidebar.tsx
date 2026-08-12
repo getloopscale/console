@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 import { Input, Sidebar } from '@usetheo/ui';
 import { SystemStatusIndicator } from './system-status-indicator';
-import type { Session } from '@/lib/auth';
-import { TeamSwitcher } from '@/components/team/team-switcher';
+import type { Session } from '@/lib/auth/session';
+import { TeamSwitcher } from '@/components/layout/team-switcher';
 import { useOnboardingState } from '@/hooks/use-onboarding-state';
-import { reportEvent } from '@/lib/rum';
+import { reportEvent } from '@/lib/telemetry/rum';
 import {
   MENUS,
   resolveActiveMenu,
@@ -190,7 +190,10 @@ export function AppSidebar({ session }: AppSidebarProps) {
                 icon={Icon}
                 active={isActive(item.path)}
                 onClick={() => handleItemClick(item)}
-                title={resolvePlaceholders(item.label, resolved.projectName)}
+                title={
+                  resolvePlaceholders(item.label, resolved.projectName) +
+                  (item.comingSoon ? ' — coming soon' : '')
+                }
               >
                 {/* Single child wrapper — Sidebar.Item composite renders children
                  * as a single block; passing two siblings (label + chevron) let
@@ -199,6 +202,18 @@ export function AppSidebar({ session }: AppSidebarProps) {
                  * chevron pinned right via justify-between. */}
                 <span className="flex w-full items-center justify-between gap-2">
                   <span className="truncate">{item.label}</span>
+                  {/* O selo e visual E textual: `aria-hidden` aqui deixaria quem usa
+                   * leitor de tela com uma entrada indistinguivel das prontas. O
+                   * nome acessivel vem do `title` acima, que ja carrega
+                   * "— coming soon"; este span so evita a repeticao em voz alta. */}
+                  {item.comingSoon && (
+                    <span
+                      className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+                      aria-hidden="true"
+                    >
+                      Soon
+                    </span>
+                  )}
                   {item.drillsInto && (
                     <ChevronRight
                       className="size-3.5 shrink-0 text-muted-foreground"

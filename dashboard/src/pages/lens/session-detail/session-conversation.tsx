@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { traceTreeQueryKey, fetchTrace } from '@/hooks/lens/use-trace';
 import { Link } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { IOCards } from '@usetheo/ui';
 
-import { cloudFetch } from '@/lib/api';
-import { shortId } from '@/lib/format';
-import type { TraceSpanNode } from '@/lib/trace-layout';
-import { Markdown } from '../trace-detail/markdown';
+import { shortId } from '@/lib/formatting/format';
+import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
+import { Markdown } from '@/pages/lens/components/markdown';
 import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
 
 /**
@@ -24,6 +24,40 @@ import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } f
 
 /** ADR-3 — cap the eager per-trace fetches; beyond it, link to the full traces list. */
 export const CONVERSATION_TURN_CAP = 50;
+
+/**
+ * B-056 — quantos turnos a conversa busca de uma vez.
+ *
+ * ## O defeito
+ *
+ * O componente disparava um GET de arvore por turno, ate 50, todos no mount.
+ * Cinquenta requests paralelos e cinquenta resolucoes de tenant no BFF para
+ * pintar uma tela que a pessoa le de cima para baixo — e que na maioria das
+ * sessoes ela abandona no quinto turno. O trabalho dos turnos 11 a 50 e feito
+ * para ser jogado fora, e e o pico de concorrencia que atrasa o primeiro turno,
+ * justamente o unico que alguem sempre le.
+ *
+ * ## Por que nao o endpoint em lote
+ *
+ * O DoD do item pedia um read em lote no BFF (`?ids=a,b,c`). Fica registrado
+ * como adiado, e a razao e medida, nao preferencia: `internal/routes/
+ * lens_dashboard.go:370` proxia `GetTrace(ctx, id)` um a um para o theo-lens, e
+ * o theo-lens nao expoe leitura em lote. Um `?ids=` no BFF trocaria 50 requests
+ * do browser por 1 — ganho real em conexoes e em resolucao de tenant — mas
+ * manteria os 50 upstream e continuaria BAIXANDO as 50 arvores, inclusive as que
+ * ninguem le. Corrige a contagem, nao o volume.
+ *
+ * Buscar sob demanda corrige os dois eixos e nao depende de mudanca em outro
+ * dominio. Quando o lote existir, os dois se somam em vez de competir.
+ *
+ * ## O numero
+ *
+ * 10 e escolha: cobre a conversa inicial inteira na maioria das sessoes sem
+ * pedir nada que va para o lixo. Se a medicao mostrar que a maioria clica em
+ * "show more" na primeira interacao, o numero sobe; o que nao volta e o pico de
+ * 50 no mount.
+ */
+export const CONVERSATION_TURNS_PER_PAGE = 10;
 
 const renderMarkdown = (text: string) => <Markdown source={text} />;
 
@@ -84,19 +118,28 @@ export function SessionConversation({ sessionId, traces }: { sessionId: string; 
   const capped = ordered.slice(0, CONVERSATION_TURN_CAP);
   const overflow = ordered.length - capped.length;
 
+  // B-056 — so os turnos pedidos sao buscados. `useQueries` sobre a janela, nao
+  // sobre `capped`: um `enabled: false` ainda ocuparia um slot de query e faria
+  // o hook crescer com a colecao, que e exatamente o que o item mede.
+  const [shown, setShown] = useState(CONVERSATION_TURNS_PER_PAGE);
+  const janela = capped.slice(0, shown);
+  const restantes = capped.length - janela.length;
+
   const results = useQueries({
-    queries: capped.map((t) => ({
-      queryKey: ['cloud', '/v1/dashboard/lens/traces', t.traceId, 'tree'] as const,
-      queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(t.traceId)}`),
+    queries: janela.map((t) => ({
+      queryKey: traceTreeQueryKey(t.traceId),
+      // throwOnError: false DELIBERADO — um turno que falha mostra
+      // "(could not load this turn)" e os outros renderizam. Ver use-trace.ts.
+      queryFn: () => fetchTrace(t.traceId, { throwOnError: false }),
     })),
   });
 
   const treeByTraceId = new Map<string, TraceSpanNode | null>();
-  capped.forEach((t, i) => {
+  janela.forEach((t, i) => {
     const r = results[i];
     if (r && !r.isPending) treeByTraceId.set(t.traceId, r.data ?? null);
   });
-  const turns = toConversationTurns(capped, treeByTraceId);
+  const turns = toConversationTurns(janela, treeByTraceId);
 
   return (
     // Flows in the app shell's single scroll container (DashboardLayout <main>) — no nested scroll region.
@@ -148,6 +191,17 @@ export function SessionConversation({ sessionId, traces }: { sessionId: string; 
           </div>
         );
       })}
+      {restantes > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShown((n) => n + CONVERSATION_TURNS_PER_PAGE)}
+          className="block text-sm font-medium text-primary underline underline-offset-4"
+          data-testid="load-more-turns"
+        >
+          Show {Math.min(restantes, CONVERSATION_TURNS_PER_PAGE)} more turn
+          {Math.min(restantes, CONVERSATION_TURNS_PER_PAGE) === 1 ? '' : 's'} ({restantes} remaining)
+        </button>
+      ) : null}
       {overflow > 0 ? (
         <Link
           to={`/observability/traces?session=${encodeURIComponent(sessionId)}`}

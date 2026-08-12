@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { DataTable } from '@usetheo/ui';
 
 import { render, screen } from '@/test/render';
-import { formatCost, formatDuration, formatTokens } from '@/lib/format';
+import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
 import { tracesColumns, type Trace } from './columns';
 
 /**

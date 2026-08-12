@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, Histogram, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetch } from '@/lib/api';
-import { formatDuration } from '@/lib/format';
+import { cloudFetch } from '@/lib/http/api';
+import { formatDuration } from '@/lib/formatting/format';
 import type { Trace } from '../traces/columns';
 
 /**
@@ -28,11 +28,25 @@ export function durationsFromTraces(traces: Trace[]): number[] {
 /** How many equal-width bins the duration histogram uses (Histogram degrades gracefully below this). */
 const DURATION_BIN_COUNT = 12;
 
+/**
+ * B-024 (classe) — o histograma le uma AMOSTRA de traces, e traces crescem sem
+ * parar. Sem teto o componente baixava a lista inteira para derivar 12 barras.
+ *
+ * 500 e o suficiente para a forma da distribuicao estabilizar num histograma de
+ * 12 bins. O titulo diz o tamanho da amostra: um histograma sobre amostra sem
+ * declarar o n convida a leitura errada.
+ */
+const DURATION_SAMPLE = 500;
+
 export function DurationHistogram() {
   // The current-view traces (the board's default window). Reuses the shared traces read — no new endpoint.
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/traces', 'dashboards-duration'] as const,
-    queryFn: () => cloudFetch<TracesResult>('/v1/dashboard/lens/traces', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<TracesResult>(
+        `/v1/dashboard/lens/traces?limit=${DURATION_SAMPLE}`,
+        {},
+        { throwOnError: true },
+      ),
   });
 
   if (query.isPending) {
@@ -59,6 +73,21 @@ export function DurationHistogram() {
           binCount={DURATION_BIN_COUNT}
           valueFormatter={(ms) => formatDuration(ms)}
         />
+        {durations.length === DURATION_SAMPLE ? (
+          /*
+           * B-024 (classe) — a leitura tem teto (ver DURATION_SAMPLE). Um
+           * histograma sobre amostra sem declarar o n convida a leitura errada:
+           * quem olha a distribuição assume que ela cobre tudo.
+           *
+           * O aviso vive AQUI e não no `title` porque o title alimenta o nome
+           * acessível do gráfico — a primeira tentativa enfiou a amostra ali e
+           * renomeou o elemento para leitores de tela. O texto é um irmão, não
+           * um pedaço do rótulo.
+           */
+          <p className="pt-2 text-body-sm text-muted-foreground">
+            Based on the {DURATION_SAMPLE} most recent traces.
+          </p>
+        ) : null}
       </Card.Body>
     </Card>
   );

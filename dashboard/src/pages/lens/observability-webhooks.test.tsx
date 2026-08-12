@@ -12,19 +12,20 @@ vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
 }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   cloudFetch: (...a: unknown[]) => mockCloudFetch(...a),
   engineFetch: (...a: unknown[]) => mockCloudFetch(...a),
 }));
 
 import { WorkspaceWebhooksPage } from '@/pages/settings/webhooks';
+import { isPath } from '@/test/url';
 
 describe('M86 — webhooks surface inside observability', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('renders the webhooks CRUD (list) against /v1/settings/webhooks/*', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
-      if (url === '/v1/settings/webhooks/list')
+      if (isPath(url, '/v1/settings/webhooks/list'))
         return Promise.resolve({ webhooks: [{ id: 'wwh-1', url: 'https://hook.example/x', label: 'prod-hook', events: ['alert.threshold_breached'] }] });
       return Promise.resolve({ deliveries: [] });
     });
@@ -56,7 +57,7 @@ describe('M86 — webhooks surface inside observability', () => {
   // M91 — the delete (revoke) mutation in the OBSERVABILITY context: confirm-phrase → DELETE.
   it('M91 — delete confirms via the phrase gate then DELETEs /v1/settings/webhooks/{id}', async () => {
     mockCloudFetch.mockImplementation((url: string) =>
-      url === '/v1/settings/webhooks/list'
+      isPath(url, '/v1/settings/webhooks/list')
         ? Promise.resolve({ webhooks: [{ id: 'wwh-1', url: 'https://hook.example/x', label: 'prod-hook', events: ['alert.threshold_breached'], created_at: new Date().toISOString() }] })
         : Promise.resolve(null),
     );
@@ -78,7 +79,7 @@ describe('M86 — webhooks surface inside observability', () => {
     // leave the webhook listed — never optimistically remove a row whose deletion did not persist.
     mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
       if (opts?.method === 'DELETE') return Promise.reject(new Error('backend 502'));
-      if (url === '/v1/settings/webhooks/list')
+      if (isPath(url, '/v1/settings/webhooks/list'))
         return Promise.resolve({ webhooks: [{ id: 'wwh-1', url: 'https://hook.example/x', label: 'prod-hook', events: ['alert.threshold_breached'], created_at: new Date().toISOString() }] });
       return Promise.resolve(null);
     });

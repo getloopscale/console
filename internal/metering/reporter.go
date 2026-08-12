@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/billing"
+	"github.com/usetheoai/theo-cloud/internal/billing"
 )
 
 // Reporter sends unreported usage records to Stripe.
@@ -92,15 +92,30 @@ func (r *Reporter) ReportPending() error {
 		return err
 	}
 
-	var reported, failed, skipped int
+	var reported, failed, skipped, stalled int
 	for _, p := range batch {
 		// The Stripe metered API needs the subscription ITEM id (si_xxx). If it is
 		// not yet known (backfills on the next subscription.updated), skip with a
 		// visible WARN rather than reporting against the wrong id (find_data_001).
 		if p.itemID == "" {
-			r.logger.Warn("skipping usage report — no stripe_subscription_item_id yet",
-				"id", p.id, "tenant", p.tenantID, "metric", p.metric)
-			skipped++
+			// A espera é legítima enquanto o evento ainda pode chegar. Passado o prazo,
+			// ela é um travamento — e o WARN de antes não distinguia os dois, então se
+			// repetia de hora em hora, para sempre, sem levar ninguém a agir.
+			//
+			// Medido em 2026-08-11: o único escritor deste campo é o tratador de eventos
+			// do Stripe (`internal/billing/webhook.go`), e no app-dev ele recusava todos
+			// os eventos por falta do segredo que os verifica. A espera era permanente.
+			switch ClassifyPendingItem(p.createdAt, time.Now()) {
+			case Stalled:
+				stalled++
+				r.logger.Error("usage cannot be billed — "+Stalled.Explain(),
+					"id", p.id, "tenant", p.tenantID, "metric", p.metric,
+					"pending_since", p.createdAt.Format(time.RFC3339))
+			default:
+				skipped++
+				r.logger.Warn("usage report waiting — "+AwaitingBackfill.Explain(),
+					"id", p.id, "tenant", p.tenantID, "metric", p.metric)
+			}
 			continue
 		}
 		// Use the record's created_at (deterministic) as the usage timestamp so
@@ -123,8 +138,12 @@ func (r *Reporter) ReportPending() error {
 		return fmt.Errorf("commit reporter tx: %w", err)
 	}
 
-	if reported > 0 || failed > 0 || skipped > 0 {
-		r.logger.Info("usage reporting complete", "reported", reported, "failed", failed, "skipped", skipped)
+	// `stalled` entra no resumo porque um consumo travado é o único desses contadores
+	// que significa dinheiro que ninguém vai cobrar. Deixá-lo fora do resumo repetiria,
+	// em escala menor, o erro que este trabalho corrige: o número existir e não aparecer.
+	if reported > 0 || failed > 0 || skipped > 0 || stalled > 0 {
+		r.logger.Info("usage reporting complete",
+			"reported", reported, "failed", failed, "skipped", skipped, "stalled", stalled)
 	}
 	return nil
 }

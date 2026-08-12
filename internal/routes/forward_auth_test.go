@@ -18,7 +18,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // stubMinter is a test double for the per-tenant key broker.

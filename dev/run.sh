@@ -11,7 +11,7 @@ ROOT="$(cd "${DEV_DIR}/.." && pwd)"
 COMPOSE_FILE="${ROOT}/docker-compose.dev.yaml"
 BIN_DIR="${DEV_DIR}/bin"
 
-THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../../theo-data/theo-memory}"
+THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../theo-memory}"
 export THEMORY_MASTER_KEY="${THEMORY_MASTER_KEY:-dev-master-key}"
 export DEV_ORIGIN_PORT="${DEV_ORIGIN_PORT:-8088}"
 

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Crown, Loader2 } from 'lucide-react';
+import { Crown } from 'lucide-react';
 import {
   Button,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { Link } from 'react-router-dom';
 
@@ -59,22 +59,19 @@ export function PlanLimitUpgradeModal() {
     `You've reached your ${currentPlan} plan limit for ${resourceLabel}. Upgrade to add more.`;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title className="inline-flex items-center gap-2">
-            <Crown className="size-5 text-warning" aria-hidden="true" />
-            Plan limit reached
-          </Dialog.Title>
-          <Dialog.Description>{message}</Dialog.Description>
-        </Dialog.Header>
-
-        <Alert
-          intent="info"
-          description="Upgrade unlocks higher limits, advanced features, and priority support. You can cancel anytime."
-        />
-
-        <Dialog.Footer>
+    // Sem `size`: o default `md` é `max-w-lg`, a mesma largura herdada antes.
+    <AppModal
+      open={open}
+      onClose={() => setOpen(false)}
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Crown className="size-5 text-warning" aria-hidden="true" />
+          Plan limit reached
+        </span>
+      }
+      description={message}
+      footer={
+        <>
           <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
             Not now
           </Button>
@@ -83,11 +80,13 @@ export function PlanLimitUpgradeModal() {
               Upgrade plan
             </Link>
           </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+        </>
+      }
+    >
+      <Alert
+        intent="info"
+        description="Upgrade unlocks higher limits, advanced features, and priority support. You can cancel anytime."
+      />
+    </AppModal>
   );
 }
-
-// Loader2 re-exported for callers that wrap this modal.
-export { Loader2 };

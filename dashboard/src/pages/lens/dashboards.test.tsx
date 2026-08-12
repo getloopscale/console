@@ -3,10 +3,11 @@ import { userEvent } from '@testing-library/user-event';
 
 import { render, screen, within } from '@/test/render';
 import { LensDashboardsPage } from './dashboards';
+import { isPath } from '@/test/url';
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
@@ -41,9 +42,9 @@ function withRoutes(
 ) {
   mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
     const method = init?.method ?? 'GET';
-    if (url.endsWith('/dashboards') && method === 'POST') return Promise.resolve().then(() => ({ ...BOARD }));
+    if (isPath(url, '/v1/dashboard/lens/dashboards') && method === 'POST') return Promise.resolve().then(() => ({ ...BOARD }));
     if (/\/dashboards\/[^/?]+$/.test(url) && method === 'PUT') return Promise.resolve().then(() => ({ ...BOARD }));
-    if (url.endsWith('/dashboards')) {
+    if (isPath(url, '/v1/dashboard/lens/dashboards')) {
       if (opts.listReject) return Promise.resolve().then(() => { throw opts.listReject; });
       return Promise.resolve({ dashboards: opts.boards ?? [] });
     }

@@ -1,0 +1,278 @@
+agent: review-modal-primitive-consolidation-domain-frontend
+review_target: main..HEAD for plan modal-primitive-consolidation (commits 59c4866b, 18017351, a8124007, 26c7976b)
+domain: frontend
+domain_specific_patterns_checked:
+  - "a11y: accessible name of the dialog (Radix Title -> <h2>, aria-labelledby)"
+  - "a11y: decorative icons inside the title carry aria-hidden"
+  - "a11y: initial focus on Cancel (cancelRef) in destructive confirmations"
+  - "a11y/HTML: Radix Description renders <p> — block children produce invalid nesting"
+  - "visual: Dialog.Body (min-h-0 flex-1 overflow-y-auto) removal vs AppModal children wrapper"
+  - "visual: JSX whitespace preserved when multiline title/description were folded into props"
+  - "Rule 9 (Don't Reinvent): the stated justification for hand-rolling a Radix wrapper"
+
+method: |
+  Read app-modal.tsx (HEAD) and the deleted ui/dialog.tsx (git show 43387f1e).
+  Diffed all 17 migrated call sites against 43387f1e.
+  MEASURED with vitest + jsdom: rendered CancelBuildDialog / RollbackDialog /
+  PromoteToProductionDialog / ConfirmDialog / DeleteEnvironmentDialog and dumped
+  the real DOM text, the <h2> accessible name, document.activeElement and React's
+  console.error stream. The throwaway test file was deleted after the run
+  (git status clean of dashboard/ changes).
+  Inspected the INSTALLED dependency at node_modules/@usetheo/ui/dist/index.js.
+
+findings:
+  - id: F-dom-1
+    severity: HIGH
+    file: dashboard/src/pages/deploy/components/promote-to-production-dialog.tsx
+    line: 162
+    plan_ref: "Phase 2 — migrar os 14 call sites restantes; Global DoD 'paridade visual'"
+    domain_anchor: "WAI-ARIA dialog contract — the accessible name is the Title subtree text (app-modal.tsx:84-86 renders it into RadixDialog.Title)"
+    summary: >
+      The migration lost the JSX-significant whitespace around {sha}, corrupting BOTH the
+      dialog's accessible name and its body copy. The screen reader announces
+      "Promote abcdef1to production"; the visible description reads
+      "This will make abcdef1the production deploy of web". This is the one modal in the
+      set whose accessible NAME is damaged, not just its prose — it is the production
+      promotion confirmation.
+    evidence: |
+      Before (43387f1e:promote-to-production-dialog.tsx:162-172) — newline between the
+      expression and the following word, which JSX collapses to a single space:
+        <Dialog.Title className="inline-flex items-center gap-2">
+          <ArrowUpToLine className="size-5 text-primary" aria-hidden="true" />
+          Promote {sha} to production
+        </Dialog.Title>
+        <Dialog.Description>
+          This will make <span className="font-mono">{sha}</span> the
+          production deploy of{' '}
+
+      After (HEAD:162-163) — the space is gone:
+        title={<span className="inline-flex items-center gap-2"><ArrowUpToLine className="size-5 text-primary" aria-hidden="true" />Promote {sha}to production</span>}
+        description={<>This will make <span className="font-mono">{sha}</span>the
+              production deploy of{' '}<span className="font-mono">{projectName}</span>. …
+
+      MEASURED (vitest + jsdom, commit_sha "abcdef1234567890", environment "production"):
+        accessible-name="Promote abcdef1to production"
+        <h2> "Promote abcdef1to production"
+        <p>  "This will make abcdef1the production deploy of web. Visitors will see …"
+    recommended_action: >
+      Restore the spaces: `Promote {sha} to production` and `<span …>{sha}</span> the`.
+      Then add a rendered-text assertion (not a source grep) for the three deploy
+      confirmations — the existing modal-primitive.test.ts quantifies over structure and
+      is blind to this class entirely.
+
+  - id: F-dom-2
+    severity: MEDIUM
+    file: dashboard/src/pages/deploy/components/rollback-dialog.tsx
+    line: 139
+    plan_ref: "Phase 2 — migrar os 14 call sites restantes"
+    domain_anchor: "JSX whitespace semantics — a newline adjacent to a tag is trimmed, a newline between text is collapsed to one space"
+    summary: >
+      Same whitespace loss in the rollback confirmation's description: the environment
+      name is glued to the next word. The user is asked to confirm a destructive rollback
+      while reading "current release in productionwith the build from commit abcdef1".
+    evidence: |
+      Before (43387f1e:rollback-dialog.tsx:143):
+        This will replace the current release in <span className="font-mono">{targetBuild.environment}</span> with the build from commit <span className="font-mono">{sha}</span>.
+      After (HEAD:139):
+        description={<>This will replace the current release in <span className="font-mono">{targetBuild.environment}</span>with the build from commit <span className="font-mono">{sha}</span>.</>}
+                                                                                                                          ^ space removed
+      MEASURED (vitest + jsdom):
+        <p> "This will replace the current release in productionwith the build from commit abcdef1."
+    recommended_action: "Re-insert the space before `with`."
+
+  - id: F-dom-3
+    severity: MEDIUM
+    file: dashboard/src/pages/deploy/components/cancel-build-dialog.tsx
+    line: 62
+    plan_ref: "Phase 2 — migrar os 14 call sites restantes"
+    domain_anchor: "JSX whitespace semantics"
+    summary: >
+      Same defect in the cancel-build confirmation: "The active release in productionis
+      unaffected." The `{' '}` before the <span> survived the fold; the newline after the
+      closing </span> did not.
+    evidence: |
+      Before (43387f1e:cancel-build-dialog.tsx:66-67):
+        discarded. The active release in{' '}
+        <span className="font-mono">{build.environment}</span> is unaffected.
+      After (HEAD:61-62):
+        description={<>This stops the build at the current step. Any partial work is
+              discarded. The active release in{' '}<span className="font-mono">{build.environment}</span>is unaffected.</>}
+      MEASURED (vitest + jsdom):
+        <p> "This stops the build at the current step. Any partial work is discarded. The active release in productionis unaffected."
+    recommended_action: >
+      Re-insert the space. All three of F-dom-1/2/3 come from one automated fold
+      (dashboard/migrar-modal.mjs, untracked at the start of this branch) — worth a single
+      sweep over every `title=`/`description=` the script rewrote rather than three patches.
+
+  - id: F-dom-4
+    severity: MEDIUM
+    file: dashboard/src/components/ui/app-modal.tsx
+    line: 87
+    plan_ref: "Global DoD — `components/ui/app-modal.tsx` é o único primitivo de modal"
+    domain_anchor: "HTML content model — <p> may contain phrasing content only; Radix renders Description as <p>"
+    summary: >
+      `description` is typed `ReactNode` and rendered straight into `RadixDialog.Description`,
+      which is a `<p>`. Seven live call sites pass a `<div>` with `<p>` children into it,
+      producing `<p><div><p>…</p></p>` — React logs a hydration-class error and a real
+      browser's parser auto-closes the outer `<p>`, detaching the rest of the copy from the
+      element `aria-describedby` points at. HONEST SCOPE: this is NOT introduced by this
+      migration (the deleted `Dialog.Description` was the same `RadixDialog.Description`).
+      It is raised here because the plan makes `AppModal` the single door, its new guard
+      (`modal-primitive.test.ts`) does not look at this, and the prop's `ReactNode` type
+      actively invites it.
+    evidence: |
+      app-modal.tsx:87
+        <RadixDialog.Description className="text-sm text-muted-foreground">{description}</RadixDialog.Description>
+
+      Call sites passing block content (all reach AppModal via ConfirmDialog):
+        dashboard/src/pages/memory/webhooks.tsx:229
+        dashboard/src/pages/memory/webhooks.tsx:388
+        dashboard/src/pages/memory/skills.tsx:304
+        dashboard/src/pages/settings/webhooks.tsx:260
+        dashboard/src/pages/settings/components/api-key-dialogs.tsx:57
+        dashboard/src/pages/settings/components/api-key-dialogs.tsx:374
+        dashboard/src/pages/projects/components/scale-confirm-dialog.tsx:67
+
+      MEASURED (vitest + jsdom, ConfirmDialog with the memory/webhooks.tsx:229 shape):
+        aria-describedby -> <p>
+        descEl.outerHTML="<p id=\"radix-_r_5_\" class=\"text-sm text-muted-foreground\"><div class=\"space-y-2 text-sm\"><p>Permanently removed.</p><p class=\"text-muted-foreground\">This cannot be undone.</p></div></p>"
+        react console.error: "In HTML, %s cannot be a descendant of <%s>. This will cause a hydration error."
+        react console.error: "<%s> cannot contain a nested %s."
+    recommended_action: >
+      Give AppModal an escape hatch that is honest about the content model — e.g. render
+      Description `asChild` over a `<div>` when the caller needs block content, or accept
+      `descriptionAs`. Whatever the fix, add the case to `modal-primitive.test.ts`: it is
+      exactly the "quantify over the construct" style that file already argues for.
+
+  - id: F-dom-5
+    severity: MEDIUM
+    file: dashboard/src/components/ui/app-modal.tsx
+    line: 12
+    plan_ref: "Plan § Baseline / ADR — 'Why not the @usetheo/ui Dialog?'"
+    domain_anchor: "Unbreakable Rule 9 (Don't Reinvent) + Rule 3 (honesty) — a hand-rolled wrapper needs a justification that is still true"
+    summary: >
+      The doc-comment that survives this consolidation — and that the plan quotes as the
+      reason the dashboard hand-rolls a Radix wrapper at all — describes a bug in
+      `@usetheo/ui@0.28.2`. The INSTALLED version is `0.35.1` (declared `^0.35.1` since
+      2026-08-04, e165688a), and in it `Dialog` and `Sheet` are distinct objects with
+      distinct Content components; `Dialog.Content` is centered. The stated justification
+      for the primitive no longer describes the dependency the app ships with.
+      This does not make the consolidation wrong (one primitive still beats two) — it makes
+      the surviving primitive's rationale unverified, and the migration re-published it.
+    evidence: |
+      app-modal.tsx:12-17 (HEAD):
+        * Why not the `@usetheo/ui` `Dialog`? In `@usetheo/ui@0.28.2` both `Dialog` and `Sheet`
+        * are the SAME object (`DialogPrimitive.Root`), and `Sheet.Content = <drawer>` runs after
+        * `Dialog.Content = <centered>`, clobbering it …
+
+      dashboard/package.json:72  "@usetheo/ui": "^0.35.1"
+      node -e require('@usetheo/ui/package.json').version  ->  0.35.1
+
+      node_modules/@usetheo/ui/dist/index.js:1732-1743 — Dialog is Root7 + Content3
+        var Root7 = (props) => jsx(DialogPrimitive.Root, {...props});
+        var Dialog = Object.assign(Root7, { …, Content: Content3, … });
+      node_modules/@usetheo/ui/dist/index.js:3069-3081 — Sheet is a DIFFERENT object
+        var Root23 = (props) => jsx(DialogPrimitive.Root, {...props});
+        var Sheet = Object.assign(Root23, { …, Content: Content10, … });
+      node_modules/@usetheo/ui/dist/index.js:1658-1668 — Content3 is CENTERED, not a drawer
+        "-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 z-50 w-full max-w-lg"
+    recommended_action: >
+      Re-measure the claim against 0.35.1 and rewrite the comment to say what is true today.
+      If the library Dialog now serves, that is a separate backlog item (delete a local
+      primitive), not a change to make inside this migration. What must not survive is a
+      doc that cites a version the repo stopped using five months of releases ago.
+
+  - id: F-dom-6
+    severity: LOW
+    file: dashboard/src/components/ui/modal-primitive.test.ts
+    line: 49
+    plan_ref: "Global DoD — 'um primitivo de modal, e só um'"
+    domain_anchor: "The guard quantifies over `from '@radix-ui/react-dialog'` importers, by its own stated design"
+    summary: >
+      Two production modals are not modelled by the guard because they never import Radix
+      directly — they use `@usetheo/ui`'s `Dialog`. The guard's message ("Mais de um arquivo
+      de produção compõe @radix-ui/react-dialog") is accurate; the plan's headline claim
+      ("um primitivo de modal") is broader than what is enforced. Pre-existing (both files
+      already imported `@usetheo/ui` at 43387f1e) and, per F-dom-5, no longer a rendering
+      hazard — so LOW, recorded so the claim is not read as stronger than the gate.
+    evidence: |
+      dashboard/src/components/command/command-palette.tsx:2       import { Dialog } from '@usetheo/ui';
+      dashboard/src/pages/infra/components/domain-troubleshoot-sheet.tsx:1  import { Card, Dialog } from '@usetheo/ui';
+      Both identical at 43387f1e — not introduced by this branch.
+      modal-primitive.test.ts:47-56 (HEAD), filter at :49 —
+        .filter((f) => /from '@radix-ui\/react-dialog'/.test(readFileSync(f, 'utf8')))
+      i.e. it quantifies over Radix importers only, by design; a modal built on the
+      library's own Dialog is outside what it can see.
+    recommended_action: >
+      Either extend the guard to also count `Dialog`/`Sheet` imported from `@usetheo/ui` in
+      production files, or narrow the prose in the plan/DoD to what the guard actually
+      asserts. Do not silently leave the two readings apart.
+
+verified_clean:
+  - axis: "1 — accessible name / decorative icons in `title`"
+    verdict: "INFO: no issues found, except F-dom-1"
+    evidence: |
+      Every icon folded into a `title` prop carries aria-hidden="true":
+        components/dialogs/redeploy-dialog.tsx:69          <RefreshCw … aria-hidden="true" />
+        components/dialogs/plan-limit-upgrade-modal.tsx:70 <Crown … aria-hidden="true" />
+        pages/deploy/components/cancel-build-dialog.tsx:60 <XCircle … aria-hidden="true" />
+        pages/deploy/components/rollback-dialog.tsx:138    <Undo2 … aria-hidden="true" />
+        pages/deploy/components/promote-to-production-dialog.tsx:162 <ArrowUpToLine … aria-hidden="true" />
+        pages/infra/components/promote-dialog.tsx:182      <Rocket … aria-hidden="true" />
+        pages/infra/components/delete-environment-dialog.tsx:137 <Trash2 … aria-hidden="true" />
+      The `<span className="inline-flex …">` wrapper does not participate in name
+      computation, so wrapping does not degrade it — the icon was already INSIDE
+      `Dialog.Title` before the migration. MEASURED accessible names:
+        "Cancel build abcdef1"   (clean)
+        "Rollback to abcdef1"    (clean)
+        "Promote abcdef1to production"  (F-dom-1)
+
+  - axis: "2 — cancelRef initial focus survived the migration"
+    verdict: "INFO: no issues found"
+    evidence: |
+      confirm-dialog.tsx:52 (cancelRef) → :90 (<Button ref={cancelRef}> inside `footer`).
+      The ref is NOT dangling: `@usetheo/ui` Button is a ForwardRefExoticComponent
+      (node_modules/@usetheo/ui/dist/components/primitives/button/button.d.ts:24).
+      The setTimeout(…, 0) in the effect still runs after Radix FocusScope's mount
+      autofocus, so Cancel wins.
+      MEASURED (vitest + jsdom, 50ms after render):
+        ConfirmDialog            activeElement=<button> text="Cancel"
+        DeleteEnvironmentDialog  activeElement=<button> text="Cancel"
+      (delete-environment-dialog.tsx:75 / :89-95 / :140 — same shape, also verified.)
+      Not covered by any committed test, though: the two new closure tests in
+      confirm-dialog.test.tsx assert ESC and the X button, never the initial focus.
+
+  - axis: "3 — `description` semantics"
+    verdict: "See F-dom-4 (pre-existing, not a regression of this branch)"
+    evidence: |
+      No call site migrated by THIS branch passes block elements into an AppModal
+      `description` — all 17 use inline `<>…</>` with text and `<span>`. The seven
+      offenders reach AppModal through ConfirmDialog and predate the migration.
+
+  - axis: "4 — Dialog.Body removal did not cost scroll"
+    verdict: "INFO: no issues found"
+    evidence: |
+      Deleted ui/dialog.tsx (43387f1e:62) —
+        function Body({className, ...props}) { return <div className={twMerge('min-h-0 flex-1 overflow-y-auto', className)} …/> }
+      app-modal.tsx:90 —
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      Identical class list, and both sit as a direct child of the same
+      `flex … flex-col … overflow-hidden` Content, so `flex-1`/`min-h-0` resolve the same.
+      All 7 `Dialog.Body` usages at 43387f1e were bare (`<Dialog.Body>` with no className),
+      so nothing was merged in and dropped:
+        pages/lens/traces/saved-views.tsx:140
+        pages/memory/skills.tsx:270
+        pages/memory/webhooks.tsx:501
+        pages/settings/components/api-key-dialogs.tsx:167, :324
+        pages/settings/webhooks.tsx:402, :474
+      Call sites that had NO Dialog.Body (cancel-build, rollback, promote, bulk-delete, …)
+      GAIN a scroll region they did not have — an improvement, not a regression: previously
+      overflow was clipped by `overflow-hidden` on Content.
+      One deliberate delta, already measured and accepted by the plan's ADR (plan lines
+      181-204): Content gap went 3 → 4 for the 16 call sites that used the old default.
+      Not re-raised here.
+
+notes:
+  - "The agent definition names `findings/domain-frontend.yml`; this run was instructed to write `domain-frontend.yaml`. Written as instructed — flagging the mismatch so the consolidator does not read an empty directory."
+  - "Empirical claims above were produced by a temporary vitest file under dashboard/src, run and then deleted. This review left no change in dashboard/."
+  - "During the run, a SIBLING review agent left an uncommitted edit in dashboard/src/components/ui/modal-primitive.test.ts (alias-resolving `nomeLocalDoPrimitivo` + a `varridos >= 20` vacuity guard). Not mine, not touched, and it does not affect any finding here — it hardens tests 2 and 3, while F-dom-6 is about the Radix-importer filter in test 1. All line numbers cited above are against HEAD, not the dirty tree."

@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
-import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
-import { formatNumber } from '@/lib/format';
+import { cloudFetch } from '@/lib/http/api';
+import { formatNumber } from '@/lib/formatting/format';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * M44 — /lens/agents. Read-only derived agent catalog (`GET /v1/dashboard/lens/agents`, M32).
@@ -30,7 +31,7 @@ export function LensAgentsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/agents'] as const,
-    queryFn: () => cloudFetch<AgentsResult>('/v1/dashboard/lens/agents', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<AgentsResult>(`/v1/dashboard/lens/agents?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
 
   const columns: DataTableColumn<Agent>[] = [

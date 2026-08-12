@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useTrace } from '@/hooks/lens/use-trace';
+import { flattenAll, flattenVisible } from './helpers';
 import {
   Button,
   Card,
@@ -14,14 +15,12 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
-import { cloudFetch } from '@/lib/api';
 
-import { flattenAll, flattenVisible, type TraceSpanNode } from './helpers';
 import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';
 import { SpanDetail } from './span-detail';
 import { toTraceSpan } from './to-trace-span';
 import { traceSummary } from './summary';
-import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/format';
+import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/formatting/format';
 
 /**
  * M47/M48/M58 — the trace-detail view composition root. Fetches the reconstructed span tree from the
@@ -33,7 +32,7 @@ import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/fo
  *
  * The pure helpers + `TraceSpanNode` live in `./helpers`; the presentational tree/detail components
  * live in `./tree`. The old `../trace-detail.tsx` is now a D1 re-export shim so existing imports
- * (`trace-detail.test.tsx`, `compare.tsx`, `compare-core.ts`, `playground.tsx`) keep resolving.
+ * (`trace-detail.test.tsx`, `compare.tsx`, `playground.tsx`) keep resolving.
  */
 
 /** One segment of the Tree ⇄ Transcript ⇄ Graph view toggle. */
@@ -53,10 +52,7 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   const isTranscript = view === 'transcript';
   const isGraph = view === 'graph';
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', traceId, 'tree'] as const,
-    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`, {}, { throwOnError: true }),
-  });
+  const query = useTrace(traceId);
 
   const root = query.data;
 

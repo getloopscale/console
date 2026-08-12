@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // AuthzMCPResolvePath is the internal endpoint the Theo MCP Gateway's BrokerResolver

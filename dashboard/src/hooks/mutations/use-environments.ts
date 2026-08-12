@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
+import type { Environment } from '@/lib/api/types';
 import { queryKeys } from '@/lib/api/query-keys';
 
 /**
@@ -63,7 +64,7 @@ export function useCreateEnvironment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: string; project: string; protected?: boolean }) =>
-      engineFetch('/api/v1/environments', {
+      engineFetch<Environment>('/api/v1/environments', {
         method: 'POST',
         body: JSON.stringify(input),
       }),

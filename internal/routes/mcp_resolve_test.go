@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 func authzReturning(owns bool, err error) AccountTenantAuthorizer {

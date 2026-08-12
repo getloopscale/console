@@ -14,12 +14,13 @@ import {
   Sheet,
   Timestamp,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * J-16 Settings › Webhooks — registration-only v0.1.
@@ -114,7 +115,7 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
 
   const list = useQuery({
     queryKey: LIST_KEY,
-    queryFn: () => cloudFetch<ListResult>('/v1/settings/webhooks/list', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<ListResult>(`/v1/settings/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -390,16 +391,16 @@ function SecretShownOnceDialog({
   onClose: () => void;
 }) {
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Webhook created</Dialog.Title>
-          <Dialog.Description>
-            Copy the signing secret now — it will not be shown again.
-          </Dialog.Description>
-        </Dialog.Header>
-        <Dialog.Body>
-          <div className="space-y-3">
+    <AppModal
+      open={true}
+      onClose={onClose}
+      title={<>Webhook created</>}
+      description={<>Copy the signing secret now — it will not be shown again.</>}
+      footer={<><Button type="button" onClick={onClose}>
+            Done
+          </Button></>}
+    >
+      <div className="space-y-3">
             <div>
               <span className="text-sm font-medium block mb-1">Label</span>
               <p className="text-sm">{created.label}</p>
@@ -419,14 +420,7 @@ function SecretShownOnceDialog({
               description="This secret verifies that delivered events came from Theo. It cannot be recovered — if you lose it, delete the webhook and create a new one."
             />
           </div>
-        </Dialog.Body>
-        <Dialog.Footer>
-          <Button type="button" onClick={onClose}>
-            Done
-          </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }
 
@@ -464,14 +458,18 @@ function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, ev
   const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Add webhook</Dialog.Title>
-          <Dialog.Description>{description}</Dialog.Description>
-        </Dialog.Header>
-        <Dialog.Body>
-          <form id="add-workspace-webhook-form" className="space-y-4" onSubmit={submit}>
+    <AppModal
+      open={open}
+      onClose={handleClose}
+      title={<>Add webhook</>}
+      description={<>{description}</>}
+      footer={<><Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Button><Button type="submit" form="add-workspace-webhook-form" disabled={submitDisabled}>
+            {submitting ? 'Adding…' : 'Add webhook'}
+          </Button></>}
+    >
+      <form id="add-workspace-webhook-form" className="space-y-4" onSubmit={submit}>
             <div>
               <label htmlFor="wwh-url" className="text-sm font-medium block mb-1">
                 URL
@@ -518,16 +516,6 @@ function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, ev
               </div>
             </fieldset>
           </form>
-        </Dialog.Body>
-        <Dialog.Footer>
-          <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button type="submit" form="add-workspace-webhook-form" disabled={submitDisabled}>
-            {submitting ? 'Adding…' : 'Add webhook'}
-          </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }

@@ -1,14 +1,13 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useTrace } from '@/hooks/lens/use-trace';
 import { EmptyState, PageShell, TraceCompare } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
-import { formatCost } from '@/lib/format';
-import { type TraceSpanNode } from './trace-detail';
+import { formatCost } from '@/lib/formatting/format';
+import { type TraceSpanNode } from './trace-detail/helpers';
 import { toTraceSpan } from './trace-detail/to-trace-span';
 
 /**
@@ -27,11 +26,7 @@ interface LaneData {
 }
 
 function useLane(id: string | undefined): LaneData {
-  const treeQ = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', id, 'tree'] as const,
-    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(id!)}`, {}, { throwOnError: true }),
-    enabled: !!id,
-  });
+  const treeQ = useTrace(id, { enabled: !!id });
   // O fetch de `/cost` por lane foi REMOVIDO aqui (#274). Ele existia "so a future richer lane can use
   // it" — resultado descartado, nenhum consumidor: duas requisições por comparação, custeadas em
   // latência e em quota do BFF, para alimentar ninguém. A escada de parcimônia responde no primeiro

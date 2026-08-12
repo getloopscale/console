@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSession, type Session } from '@/lib/auth';
-import { exchangeSessionToken, hasValidToken, sessionDefinitivelyExpired } from '@/lib/api';
+import { getSession, type Session } from '@/lib/auth/session';
+import { exchangeSessionToken, hasValidToken, sessionDefinitivelyExpired } from '@/lib/http/api';
+import { takePendingAttempt } from '@/hooks/auth/auth-attempt';
+import { reportEvent, viewportBucket } from '@/lib/telemetry/rum';
 
 /** Check Kratos session + exchange for JWT. Redirects to /login if not authenticated. */
 export function useRequireAuth(): Session | null {
@@ -18,6 +20,36 @@ export function useRequireAuth(): Session | null {
         return;
       }
       setSession(s);
+
+      /**
+       * B-096 — o desfecho da tentativa de login, do outro lado da navegacao.
+       *
+       * `auth.method.success` estava declarado desde 2026-05-29 e nunca era
+       * emitido: o login usa `form.submit()` (exigencia do Kratos para o
+       * redirect OIDC), a pagina navega, e o correlation_id vivia num useRef.
+       * Media-se quem TENTOU entrar e ninguem que ENTROU.
+       *
+       * Este e o ponto certo porque e a primeira coisa que roda com sessao
+       * confirmada, independente da rota de destino — o Kratos manda para `/`,
+       * para `?return_to=`, ou para onde o OIDC decidir. E vem DEPOIS da guarda
+       * `if (!s)`: emitir antes dela contaria uma sessao invalida como login bem
+       * sucedido, que e o pior erro possivel nesta metrica.
+       *
+       * `takePendingAttempt` e de leitura unica, entao os outros renders
+       * autenticados (todo F5, toda navegacao) nao encontram nada e nao emitem.
+       */
+      const tentativa = takePendingAttempt();
+      if (tentativa) {
+        reportEvent('auth.method.success', {
+          v: 1,
+          method: tentativa.method,
+          correlation_id: tentativa.correlation_id,
+          latency_ms: Math.max(0, Date.now() - tentativa.started_at),
+          viewport_bucket: viewportBucket(),
+          timestamp: Date.now(),
+        });
+      }
+
       // Defer the JWT exchange so the shell paints at session-detect
       // (one RTT, not two). But watch the resolution: a stale Kratos
       // cookie returns `false` here, and without redirecting to /login

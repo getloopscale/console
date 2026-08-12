@@ -19,12 +19,8 @@ import type {
   BuildAttestation,
   BuildListResponse,
   BuildSBOM,
-  Domain,
-  DomainListResponse,
   Environment,
   EnvironmentListResponse,
-  Preview,
-  PreviewListResponse,
   Project,
   ProjectConnection,
   ProjectListResponse,
@@ -39,12 +35,10 @@ import type {
 import {
   auditEntriesFixture,
   buildsFixture,
-  domainsFixture,
   environmentsFixture,
   makeProject,
   makeProjectConnection,
   makeProjectStatus,
-  previewsFixture,
   projectsFixture,
   secretsFixture,
   teamMembersFixture,
@@ -56,8 +50,11 @@ import { registerRoute } from './server';
 import { registerSSE } from './sse';
 import { registerTrustHandlers } from './trust-handlers';
 import { registerLensHandlers } from './lens-handlers';
+import { registerOverviewHandlers } from './overview-handlers';
 import { registerSkillsDistributionHandlers, registerSkillsHandlers } from './skills-handlers';
 import { registerPromptlyHandlers } from './promptly-handlers';
+import { registerDomainHandlers, resetDomainMocks } from './domain-handlers';
+import { registerPreviewHandlers, resetPreviewMocks } from './preview-handlers';
 
 /**
  * Cursor da sequência de `/connect` (ver a rota lá embaixo, issue #378).
@@ -78,8 +75,6 @@ const db = {
   secrets: [...secretsFixture] as Secret[],
   members: [...teamMembersFixture] as TeamMember[],
   environments: [...environmentsFixture] as Environment[],
-  domains: [...domainsFixture] as Domain[],
-  previews: [...previewsFixture] as Preview[],
 };
 
 function err(code: string, message: string, status: number): Response {
@@ -261,6 +256,34 @@ function registerProjectHandlers() {
 // ============================================================================
 
 function registerBuildHandlers() {
+  // ORDEM IMPORTA: esta rota vem ANTES de `/api/v1/builds/{id}`. O matcher e
+  // primeiro-que-casa (server.ts:97) e nao prefere segmento literal sobre
+  // parametro — registrada depois, ela era engolida pelo `{id}`, que respondia
+  // `Build "stats" not found` com 404. Medido no navegador antes de mover.
+  // Serie diaria de deploys que alimenta o painel "DEPLOY ACTIVITY" do Overview.
+  // Tambem nao tinha mock — era o terceiro endpoint da tela inicial a falhar em
+  // dev, e o unico que sobrou depois de corrigir billing e status/versions.
+  //
+  // A serie e DENSA e com zeros no meio de proposito: o componente preenche
+  // buracos server-side, e uma serie sem dia vazio nao exercitaria isso.
+  registerRoute('GET', '/api/v1/builds/stats', async (req) => {
+    const janela = new URL(req.url).searchParams.get('window') ?? '7d';
+    const dias = janela === '90d' ? 90 : janela === '30d' ? 30 : 7;
+    const contagens = [3, 0, 5, 2, 0, 8, 1];
+    const by_day = Array.from({ length: dias }, (_, i) => {
+      const d = new Date(Date.UTC(2026, 7, 7) - (dias - 1 - i) * 86_400_000);
+      return { date: d.toISOString().slice(0, 10), count: contagens[i % contagens.length] };
+    });
+    const total = by_day.reduce((s, d) => s + d.count, 0);
+    return Response.json({
+      window_days: dias,
+      timezone: 'UTC',
+      by_day,
+      last_7d_count: by_day.slice(-7).reduce((s, d) => s + d.count, 0),
+      total_count: total,
+    });
+  });
+
   registerRoute('GET', '/api/v1/builds/{id}', async (_req, { id }) => {
     const build = db.builds.find((b) => b.build_id === id);
     if (!build) return err('NOT_FOUND', `Build "${id}" not found`, 404);
@@ -566,105 +589,6 @@ function registerEnvironmentHandlers() {
 // Domains
 // ============================================================================
 
-function registerDomainHandlers() {
-  registerRoute('GET', '/api/v1/domains', async () => {
-    const body: DomainListResponse = { domains: db.domains, total: db.domains.length };
-    return Response.json(body);
-  });
-
-  registerRoute('GET', '/api/v1/domains/{domain}', async (_req, { domain }) => {
-    const d = db.domains.find((x) => x.domain === domain);
-    if (!d) return err('NOT_FOUND', `Domain "${domain}" not found`, 404);
-    return Response.json(d);
-  });
-
-  registerRoute('POST', '/api/v1/domains', async (req) => {
-    const body = (await req.json()) as {
-      domain?: string;
-      project?: string;
-      app?: string;
-      environment?: string;
-    };
-    if (!body.domain) return err('INVALID_INPUT', 'domain required', 400);
-    if (db.domains.find((d) => d.domain === body.domain)) {
-      return err('CONFLICT', `Domain "${body.domain}" already exists`, 409);
-    }
-    const domain: Domain = {
-      id: `dom-${Date.now()}`,
-      domain: body.domain,
-      project: body.project ?? '',
-      app: body.app ?? '',
-      environment: body.environment ?? 'production',
-      status: 'pending_verification',
-      cname_target: `${body.project ?? 'app'}.theo.app`,
-      created_at: new Date().toISOString(),
-      verification: {
-        txt_name: `_theo.${body.domain}`,
-        txt_value: `verify=${Math.random().toString(36).slice(2, 18)}`,
-      },
-    };
-    db.domains.push(domain);
-    return Response.json(domain, { status: 201 });
-  });
-
-  registerRoute('POST', '/api/v1/domains/{domain}/verify', async (_req, { domain }) => {
-    const d = db.domains.find((x) => x.domain === domain);
-    if (!d) return err('NOT_FOUND', `Domain "${domain}" not found`, 404);
-    d.status = 'verified';
-    d.verified_at = new Date().toISOString();
-    delete d.verification;
-    return Response.json(d);
-  });
-
-  registerRoute('DELETE', '/api/v1/domains/{domain}', async (_req, { domain }) => {
-    const i = db.domains.findIndex((x) => x.domain === domain);
-    if (i < 0) return err('NOT_FOUND', `Domain "${domain}" not found`, 404);
-    db.domains.splice(i, 1);
-    return new Response(null, { status: 204 });
-  });
-}
-
-// ============================================================================
-// Previews
-// ============================================================================
-
-function registerPreviewHandlers() {
-  registerRoute('GET', '/api/v1/projects/{project}/previews', async (_req, { project }) => {
-    const previews = db.previews.filter((p) => p.project === project);
-    const body: PreviewListResponse = { previews, total: previews.length };
-    return Response.json(body);
-  });
-
-  registerRoute('GET', '/api/v1/projects/{project}/previews/{id}', async (_req, { id }) => {
-    const preview = db.previews.find((p) => p.id === id);
-    if (!preview) return err('NOT_FOUND', `Preview "${id}" not found`, 404);
-    return Response.json(preview);
-  });
-
-  registerRoute('POST', '/api/v1/projects/{project}/previews', async (req, { project }) => {
-    const body = (await req.json()) as { branch?: string; commit_sha?: string };
-    if (!body.branch) return err('INVALID_INPUT', 'branch required', 400);
-    const preview: Preview = {
-      id: `prv-${Date.now()}`,
-      project,
-      branch: body.branch,
-      url: `https://${body.branch.replace(/\W/g, '-')}.preview.acme.com`,
-      status: 'creating',
-      created_by: 'demo@usetheo.dev',
-      created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    db.previews.push(preview);
-    return Response.json(preview, { status: 201 });
-  });
-
-  registerRoute('DELETE', '/api/v1/projects/{project}/previews/{id}', async (_req, { id }) => {
-    const i = db.previews.findIndex((p) => p.id === id);
-    if (i < 0) return err('NOT_FOUND', `Preview "${id}" not found`, 404);
-    db.previews.splice(i, 1);
-    return new Response(null, { status: 204 });
-  });
-}
 
 // ============================================================================
 // Audit log
@@ -688,19 +612,38 @@ function registerAuditHandlers() {
 // ============================================================================
 
 function registerBillingHandlers() {
-  registerRoute('GET', '/api/v1/billing', async () => {
+  // CAMINHO CORRIGIDO em 2026-08-07: estas rotas estavam sob `/api/v1/`, que e o
+  // prefixo do ENGINE. Billing e da API CLOUD, e o dashboard sempre chamou
+  // `/v1/billing` (billing.tsx:94,143 e overview.tsx:57). O mock existia e nunca
+  // casou com nada — em dev sem backend, as tres telas caiam num 500 do proxy.
+  //
+  // Verificado antes de mover: `grep -rn "api/v1/billing"` fora de mocks/ nao
+  // retorna consumidor algum. Nao ha rota a preservar.
+  registerRoute('GET', '/v1/billing', async () => {
     const body: BillingResponse = {
       plan: 'pro',
       team: 'acme',
       period_start: '2026-05-01T00:00:00Z',
       period_end: '2026-05-31T23:59:59Z',
+      // CHAVES REAIS do billing.go (getLimitsForPlan / getUsageForTenant). As
+      // anteriores — 'Fast Data Transfer', 'Edge Requests', 'Build Minutes' — eram
+      // o vocabulario da MAQUETE, e `overview.tsx:84` diz isso com todas as
+      // letras: "bind to the REAL /v1/billing.usage keys, NOT the Vercel-mockup
+      // vocabulary that never populated".
+      //
+      // O mock descrevia uma API que o backend nao produz, entao as quatro barras
+      // de uso do Overview caiam no fallback e mostravam 0/2, 0/100, 0/1, 0/1 —
+      // numeros plausiveis, o que e pior que numeros obviamente errados.
       usage: {
-        'Fast Data Transfer': { used: 412, limit: 1000 },
-        'Fast Origin Transfer': { used: 87, limit: 250 },
-        'Edge Requests': { used: 1_240_000, limit: 10_000_000 },
-        'Build Minutes': { used: 145, limit: 400 },
-        'Concurrent Builds': { used: 2, limit: 4 },
+        projects: { used: 4, limit: 10 },
+        builds_per_month: { used: 145, limit: 1000 },
+        environments: { used: 2, limit: 3 },
+        seats: { used: 3, limit: 10 },
       },
+      // Exercita o caminho POPULADO do card "Plan". Omitir era valido — o codigo
+      // renderiza "—" honesto quando a API nao manda (enterprise / plano ainda
+      // nao persistido) —, mas em dev so o caminho nulo era exercitado.
+      plan_price: { amount_minor: 2000, currency: 'USD', interval: 'month' },
       plan_cap: {
         max_projects: 10,
         max_environments: 3,
@@ -712,7 +655,7 @@ function registerBillingHandlers() {
     return Response.json(body);
   });
 
-  registerRoute('POST', '/api/v1/billing/portal', async () => {
+  registerRoute('POST', '/v1/billing/portal', async () => {
     return Response.json({ url: 'https://billing.stripe.com/p/mock_session' });
   });
 }
@@ -741,6 +684,37 @@ function registerTenantHandlers() {
 // ============================================================================
 
 function registerSystemHandlers() {
+  // O relatorio de versoes que alimenta o ponto de status no rodape da barra
+  // lateral. Era o unico endpoint da tela inicial sem mock — em dev sem backend
+  // o rodape mostrava "Status unavailable", que e honesto mas inutil.
+  //
+  // Os dados exercitam a AGREGACAO de proposito, em vez de pintar tudo de verde:
+  // ha um servico `ok`, um `not_deployed` e um `unreachable`. Por ADR D9 a
+  // agregacao e por ALLOWLIST — verde exige prova —, entao esta combinacao
+  // resulta em `degraded`, e quem desenvolve ve o estado intermediario em vez de
+  // um verde que nao testa nada.
+  registerRoute('GET', '/v1/dashboard/status/versions', async () =>
+    Response.json({
+      collected_at: '2026-08-07T12:00:00Z',
+      services: [
+        {
+          name: 'theo-engine',
+          state: 'ok',
+          checked_at: '2026-08-07T12:00:00Z',
+          version: 'v0.85.0',
+          built_at: '2026-08-05T18:00:00Z',
+        },
+        { name: 'theo-storage', state: 'not_deployed', checked_at: '2026-08-07T12:00:00Z' },
+        {
+          name: 'theo-lens',
+          state: 'unreachable',
+          checked_at: '2026-08-07T12:00:00Z',
+          reason: 'dial tcp: connection refused (mock)',
+        },
+      ],
+    }),
+  );
+
   registerRoute('GET', '/api/v1/health', async () => Response.json({ ok: true }));
   registerRoute('GET', '/api/v1/health/deep', async () =>
     Response.json({ ok: true, postgres: 'ok', argocd: 'ok' }),
@@ -782,6 +756,9 @@ export function registerAllMockHandlers(): void {
   // M142 — sem este registro a tela de consumo por end-user sobe VAZIA no e2e, e um portão que
   // só afirma heading fica verde nela.
   registerLensHandlers();
+  // B-112 — os quatro agregados de capacidade que nenhum mock servia. Sem eles, metade dos cards
+  // da Overview de plataforma diz "couldn't load" no unico ambiente onde alguem valida telas.
+  registerOverviewHandlers();
 }
 
 /** Test-only: reset the in-memory DB to initial fixture state. */
@@ -791,7 +768,7 @@ export function resetMockDB(): void {
   db.secrets = [...secretsFixture];
   db.members = [...teamMembersFixture];
   db.environments = [...environmentsFixture];
-  db.domains = [...domainsFixture];
-  db.previews = [...previewsFixture];
+  resetDomainMocks();
+  resetPreviewMocks();
   installed = false;
 }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -25,8 +25,8 @@ const mockComments = vi.fn();
 const mockAddComment = vi.fn();
 const mockResolvido = vi.fn();
 const mockDependentes = vi.fn();
-vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
+vi.mock('@/hooks/promptly/promptly-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/promptly/promptly-api')>();
   return {
     ...actual,
     fetchRevisions: (...a: unknown[]) => mockRevisions(...a),
@@ -112,7 +112,7 @@ describe('PromptDetailPage — a intenção da revisão (M17)', () => {
     render(<PromptDetailPage />);
 
     await screen.findByText('v3');
-    expect(screen.getByText(/sem descrição/i)).toBeInTheDocument();
+    expect(screen.getByText(/no description/i)).toBeInTheDocument();
   });
 
   it('a config aparece, e temperature 0 e mostrada como 0', async () => {
@@ -149,7 +149,7 @@ describe('PromptDetailPage — uso por revisão (M15)', () => {
     render(<PromptDetailPage />);
 
     await screen.findByText('v3');
-    expect(await screen.findByText(/7 dias/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Usage \(7 days\)/)).toBeInTheDocument();
   });
 
   it('leitura que FALHA nao vira zero — diz que nao conseguiu ler (DoD-3)', async () => {
@@ -161,7 +161,7 @@ describe('PromptDetailPage — uso por revisão (M15)', () => {
 
     await screen.findByText('v3');
     // Uma mensagem por revisão — a falha é da leitura inteira, não de uma linha.
-    expect((await screen.findAllByText(/não consegui ler o uso/i)).length).toBe(2);
+    expect((await screen.findAllByText(/could not read this prompt usage/i)).length).toBe(2);
     // O oráculo que importa: nenhum zero renderizado sobre a falha.
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
@@ -172,7 +172,7 @@ describe('PromptDetailPage — uso por revisão (M15)', () => {
     render(<PromptDetailPage />);
 
     await screen.findByText('v3');
-    expect((await screen.findAllByText(/sem chamadas/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/no calls/i)).length).toBeGreaterThan(0);
   });
 
   it('custo ausente fica vazio COM RAZAO, nunca estimado (DoD-4)', async () => {
@@ -185,7 +185,7 @@ describe('PromptDetailPage — uso por revisão (M15)', () => {
     render(<PromptDetailPage />);
 
     expect(await screen.findByText('5')).toBeInTheDocument();
-    expect(await screen.findByText(/não reportou custo/i)).toBeInTheDocument();
+    expect(await screen.findByText(/reported no cost/i)).toBeInTheDocument();
   });
 
   it('declara a condicao de atribuicao por trace (ADR-1) em vez de deixar inferir', async () => {
@@ -200,7 +200,7 @@ describe('PromptDetailPage — uso por revisão (M15)', () => {
     render(<PromptDetailPage />);
 
     await screen.findByText('9');
-    expect(await screen.findByText(/mesmo trace/i)).toBeInTheDocument();
+    expect(await screen.findByText(/same trace/i)).toBeInTheDocument();
   });
 });
 
@@ -259,7 +259,7 @@ describe('PromptDetailPage', () => {
 
     render(<PromptDetailPage />);
 
-    expect(await screen.findByText(/até a v30/i)).toBeInTheDocument();
+    expect(await screen.findByText(/up to v30/i)).toBeInTheDocument();
   });
 
   it('mostra a revisão que cada ambiente serve HOJE', async () => {
@@ -274,10 +274,10 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promote prod to the latest revision, v3/i }));
 
-    expect(await screen.findByText(/deixa de servir a v1/i)).toBeInTheDocument();
-    expect(screen.getByText(/passa a servir a v3/i)).toBeInTheDocument();
+    expect(await screen.findByText(/stops serving v1/i)).toBeInTheDocument();
+    expect(screen.getByText(/starts serving v3/i)).toBeInTheDocument();
   });
 
   it('mostra a POLÍTICA vigente antes do ato — e "livre" quando não há regra', async () => {
@@ -286,9 +286,9 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promote prod to the latest revision, v3/i }));
 
-    expect(await screen.findByText(/promoção é livre/i)).toBeInTheDocument();
+    expect(await screen.findByText(/promotion is unrestricted/i)).toBeInTheDocument();
   });
 
   it('quando HÁ política, a confirmação exibe a regra que pode barrar a promoção', async () => {
@@ -296,29 +296,29 @@ describe('PromptDetailPage', () => {
     mockPolicy.mockResolvedValue({ datasetId: 'ds-1', minScore: 0.8 });
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promote prod to the latest revision, v3/i }));
 
-    expect(await screen.findByText(/score mínimo de 0\.8/i)).toBeInTheDocument();
+    expect(await screen.findByText(/minimum score of 0\.8/i)).toBeInTheDocument();
   });
 
   it('a recusa da política chega à tela com a MENSAGEM do serviço, não "erro genérico"', async () => {
-    const { ApiError } = await import('@/lib/api');
+    const { ApiError } = await import('@/lib/http/api');
     const user = userEvent.setup();
     mockPromote.mockRejectedValue(
       new ApiError(409, {
         error: 'promotion_blocked',
-        message: 'a promoção exige score ≥ 0.8; a melhor execução obteve 0.41',
+        message: 'promotion requires score ≥ 0.8; the best run of this revision scored 0.41',
         required: 0.8,
         actual: 0.41,
       }),
     );
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promote prod to the latest revision, v3/i }));
     await user.type(await screen.findByRole('textbox'), 'prod');
-    await user.click(screen.getByRole('button', { name: /^Promover$/i }));
+    await user.click(screen.getByRole('button', { name: /^Promote$/i }));
 
-    expect(await screen.findByText(/melhor execução obteve 0\.41/i)).toBeInTheDocument();
+    expect(await screen.findByText(/best run of this revision scored 0\.41/)).toBeInTheDocument();
   });
 
   it('a promoção só é emitida depois da confirmação digitada', async () => {
@@ -327,11 +327,11 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promote prod to the latest revision, v3/i }));
     expect(mockPromote).not.toHaveBeenCalled();
 
     await user.type(await screen.findByRole('textbox'), 'prod');
-    await user.click(screen.getByRole('button', { name: /^Promover$/i }));
+    await user.click(screen.getByRole('button', { name: /^Promote$/i }));
 
     expect(mockPromote).toHaveBeenCalledWith('saudacao', 'prod', 3);
   });
@@ -341,8 +341,8 @@ describe('PromptDetailPage', () => {
 
     render(<PromptDetailPage />);
 
-    expect(await screen.findByText(/Não foi possível carregar as revisões/i)).toBeInTheDocument();
-    expect(screen.queryByText(/ainda não tem revisões publicadas/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Could not load the revisions/i)).toBeInTheDocument();
+    expect(screen.queryByText(/has no published revisions yet/i)).not.toBeInTheDocument();
   });
 
   it('sem os labels, a tela diz que a leitura falhou em vez de oferecer promoção às cegas', async () => {
@@ -352,7 +352,7 @@ describe('PromptDetailPage', () => {
 
     render(<PromptDetailPage />);
 
-    expect(await screen.findByText(/Não foi possível carregar os labels/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Could not load the environment labels/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Promover prod/i })).not.toBeInTheDocument();
   });
 });
@@ -377,7 +377,7 @@ describe('M12 — ler a revisão INTEIRA (BLOCKER 3)', () => {
   });
 
   it('detail_shows_the_variables_the_service_declares', async () => {
-    mockRevisions.mockResolvedValue([{ version: 1, content: 'Olá {{nome}}', createdAt: '2026-07-28T10:00:00Z', variables: ['nome'] }]);
+    mockRevisions.mockResolvedValue([{ version: 1, content: 'Hello {{name}}', createdAt: '2026-07-28T10:00:00Z', variables: ['nome'] }]);
     render(<PromptDetailPage />);
 
     expect(await screen.findByText('nome')).toBeInTheDocument();
@@ -385,11 +385,11 @@ describe('M12 — ler a revisão INTEIRA (BLOCKER 3)', () => {
 
   it('detail_shows_no_variables_when_the_service_declares_none', async () => {
     // A metade que dá valor à anterior: sem `variables` no corpo, a tela não inventa nenhuma —
-    // é a invariante central do M12 ("nunca adivinhadas do texto"), e o texto TEM {{nome}}.
-    mockRevisions.mockResolvedValue([{ version: 1, content: 'Olá {{nome}}', createdAt: '2026-07-28T10:00:00Z' }]);
+    // é a invariante central do M12 ("nunca adivinhadas do texto"), e o texto TEM {{name}}.
+    mockRevisions.mockResolvedValue([{ version: 1, content: 'Hello {{name}}', createdAt: '2026-07-28T10:00:00Z' }]);
     render(<PromptDetailPage />);
 
-    expect(await screen.findByText(/Olá \{\{nome\}\}/)).toBeInTheDocument();
+    expect(await screen.findByText(/Hello \{\{name\}\}/)).toBeInTheDocument();
     expect(screen.queryByText('nome')).not.toBeInTheDocument();
   });
 });
@@ -397,10 +397,10 @@ describe('M12 — ler a revisão INTEIRA (BLOCKER 3)', () => {
 describe('M12 — reverter pela tela (BLOCKER 2)', () => {
   it('rollback_dialog_names_the_new_revision_it_creates', async () => {
     render(<PromptDetailPage />);
-    await userEvent.click(await screen.findByLabelText('Reverter para a revisão v1'));
+    await userEvent.click(await screen.findByLabelText('Roll back to revision v1'));
 
     // O diálogo nomeia a revisão CRIADA (v4 = última v3 + 1) e não diz "volta para".
-    expect(await screen.findByText(/cria a revisão v4/i)).toBeInTheDocument();
+    expect(await screen.findByText(/creates revision v4/i)).toBeInTheDocument();
     expect(screen.queryByText(/volta para/i)).not.toBeInTheDocument();
   });
 
@@ -411,11 +411,11 @@ describe('M12 — reverter pela tela (BLOCKER 2)', () => {
     mockRollback.mockResolvedValue({ version: 4, labelsMoved: [], currentLabels: [] });
     render(<PromptDetailPage />);
 
-    await userEvent.click(await screen.findByLabelText('Reverter para a revisão v1'));
+    await userEvent.click(await screen.findByLabelText('Roll back to revision v1'));
     await userEvent.type(await screen.findByRole('textbox'), 'saudacao');
-    await userEvent.click(screen.getByRole('button', { name: /^reverter$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^roll back$/i }));
 
-    expect(await screen.findByText(/nenhum label foi movido/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no label was moved/i)).toBeInTheDocument();
     expect(screen.queryByText(/revertido com sucesso/i)).not.toBeInTheDocument();
   });
 
@@ -425,11 +425,11 @@ describe('M12 — reverter pela tela (BLOCKER 2)', () => {
     mockRollback.mockResolvedValue({ version: 4, labelsMoved: ['prod'], currentLabels: [{ label: 'prod', version: 4 }] });
     render(<PromptDetailPage />);
 
-    await userEvent.click(await screen.findByLabelText('Reverter para a revisão v1'));
+    await userEvent.click(await screen.findByLabelText('Roll back to revision v1'));
     await userEvent.type(await screen.findByRole('textbox'), 'saudacao');
-    await userEvent.click(screen.getByRole('button', { name: /^reverter$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^roll back$/i }));
 
-    expect(await screen.findByText(/prod passou a apontar/i)).toBeInTheDocument();
+    expect(await screen.findByText(/prod now points at it/i)).toBeInTheDocument();
   });
 });
 
@@ -444,11 +444,11 @@ describe('M12 — a promoção também não vaza detalhe interno (F-arch-3)', ()
     );
     render(<PromptDetailPage />);
 
-    await userEvent.click(await screen.findByLabelText('Promover prod para a revisão v3'));
+    await userEvent.click(await screen.findByLabelText('Promote prod to revision v3'));
     await userEvent.type(await screen.findByRole('textbox'), 'prod');
-    await userEvent.click(screen.getByRole('button', { name: /^promover$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^promote$/i }));
 
-    expect(await screen.findByText(/não respondeu/i)).toBeInTheDocument();
+    expect(await screen.findByText(/did not respond/i)).toBeInTheDocument();
     expect(screen.queryByText(/10\.0\.0\.4/)).not.toBeInTheDocument();
   });
 
@@ -460,9 +460,9 @@ describe('M12 — a promoção também não vaza detalhe interno (F-arch-3)', ()
     );
     render(<PromptDetailPage />);
 
-    await userEvent.click(await screen.findByLabelText('Promover prod para a revisão v3'));
+    await userEvent.click(await screen.findByLabelText('Promote prod to revision v3'));
     await userEvent.type(await screen.findByRole('textbox'), 'prod');
-    await userEvent.click(screen.getByRole('button', { name: /^promover$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^promote$/i }));
 
     expect(await screen.findByText(/score ≥ 0.8/)).toBeInTheDocument();
   });
@@ -519,7 +519,7 @@ describe('PromptDetailPage — tags (M16)', () => {
 
     render(<PromptDetailPage />);
 
-    expect(await screen.findByText(/nenhuma tag/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no tags/i)).toBeInTheDocument();
   });
 
   it('marcar uma tag pela tela chama o servico com o conjunto INTEIRO', async () => {
@@ -529,7 +529,7 @@ describe('PromptDetailPage — tags (M16)', () => {
     render(<PromptDetailPage />);
     await screen.findByText('suporte');
 
-    await userEvent.type(screen.getByLabelText(/nova tag/i), 'campanha');
+    await userEvent.type(screen.getByLabelText(/new tag/i), 'campanha');
     await userEvent.click(screen.getByRole('button', { name: /marcar/i }));
 
     await vi.waitFor(() =>
@@ -543,7 +543,7 @@ describe('PromptDetailPage — tags (M16)', () => {
     render(<PromptDetailPage />);
     await screen.findByText('campanha');
 
-    await userEvent.click(screen.getByRole('button', { name: /remover a tag campanha/i }));
+    await userEvent.click(screen.getByRole('button', { name: /remove the campanha tag/i }));
 
     await vi.waitFor(() => expect(mockSetTags).toHaveBeenCalledWith('saudacao', ['suporte']));
   });
@@ -558,7 +558,7 @@ describe('PromptDetailPage — tags (M16)', () => {
     render(<PromptDetailPage />);
     await screen.findByText('suporte');
 
-    await userEvent.type(screen.getByLabelText(/nova tag/i), 'demais');
+    await userEvent.type(screen.getByLabelText(/new tag/i), 'demais');
     await userEvent.click(screen.getByRole('button', { name: /marcar/i }));
 
     expect(await screen.findByText(/no maximo 16 tags/i)).toBeInTheDocument();
@@ -589,16 +589,16 @@ describe('PromptDetailPage — discussão da revisão (M18)', () => {
 
     render(<PromptDetailPage />);
 
-    expect(await screen.findByText(/nenhum comentário/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no comments/i)).toBeInTheDocument();
   });
 
   it('comentar pela tela manda o corpo e RELE a discussao', async () => {
     mockComments.mockResolvedValue([]);
     mockAddComment.mockResolvedValue({ name: 'saudacao', version: 3 });
     render(<PromptDetailPage />);
-    await screen.findByText(/nenhum comentário/i);
+    await screen.findByText(/no comments/i);
 
-    await userEvent.type(screen.getByLabelText(/comentar esta revisão/i), 'por que a v3?');
+    await userEvent.type(screen.getByLabelText(/comment on this revision/i), 'por que a v3?');
     await userEvent.click(screen.getByRole('button', { name: /comentar/i }));
 
     await vi.waitFor(() =>
@@ -617,9 +617,9 @@ describe('PromptDetailPage — discussão da revisão (M18)', () => {
       }),
     );
     render(<PromptDetailPage />);
-    await screen.findByText(/nenhum comentário/i);
+    await screen.findByText(/no comments/i);
 
-    await userEvent.type(screen.getByLabelText(/comentar esta revisão/i), 'colei algo');
+    await userEvent.type(screen.getByLabelText(/comment on this revision/i), 'colei algo');
     await userEvent.click(screen.getByRole('button', { name: /comentar/i }));
 
     expect(await screen.findByText(/chave da plataforma/i)).toBeInTheDocument();
@@ -634,9 +634,9 @@ describe('PromptDetailPage — discussão da revisão (M18)', () => {
     render(<PromptDetailPage />);
     await screen.findByText(/não promova: quebra o tom/);
 
-    await userEvent.click(screen.getAllByRole('button', { name: /promover/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /promote/i })[0]);
 
-    expect(await screen.findByText(/comentário/i)).toBeInTheDocument();
+    expect(await screen.findByText(/comment/i)).toBeInTheDocument();
   });
 });
 
@@ -656,22 +656,22 @@ describe('M20 — composição na tela', () => {
     render(<PromptDetailPage />);
     expect(await screen.findByText(/Tags/)).toBeInTheDocument();
 
-    expect(screen.queryByRole('button', { name: /Como foi escrito/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /As written/ })).not.toBeInTheDocument();
     expect(mockResolvido).not.toHaveBeenCalled();
   });
 
   it('prompt_que_compoe_alterna_entre_o_escrito_e_o_resolvido', async () => {
     mockPrompt.mockResolvedValue({
       version: 3,
-      content: 'Antes @@@promptly:name=politica|version=1@@@ depois',
+      content: 'Antes @@@promptly:name=policy|version=1@@@ depois',
     });
     mockResolvido.mockResolvedValue({ resolvedContent: 'Antes SEJA CORDIAL depois' });
 
     render(<PromptDetailPage />);
-    const botao = await screen.findByRole('button', { name: /Resolvido/ });
+    const botao = await screen.findByRole('button', { name: /Resolved/ });
 
     // Começa em "como foi escrito": o marcador é visível, e é isso que torna a composição depurável.
-    expect(screen.getByText(/@@@promptly:name=politica/)).toBeInTheDocument();
+    expect(screen.getByText(/@@@promptly:name=policy/)).toBeInTheDocument();
     // E não pagou a resolução ainda — ela só acontece quando o operador PEDE.
     expect(mockResolvido).not.toHaveBeenCalled();
 
@@ -685,14 +685,14 @@ describe('M20 — composição na tela', () => {
     // marcadores literais achando ver a composição, e concluiria que ela não funciona.
     mockPrompt.mockResolvedValue({
       version: 3,
-      content: 'Antes @@@promptly:name=politica|version=1@@@ depois',
+      content: 'Antes @@@promptly:name=policy|version=1@@@ depois',
     });
     mockResolvido.mockRejectedValue(new ApiError(500, 'falhou'));
 
     render(<PromptDetailPage />);
-    await userEvent.click(await screen.findByRole('button', { name: /Resolvido/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Resolved/ }));
 
-    expect(await screen.findByText(/Não foi possível resolver a composição/)).toBeInTheDocument();
+    expect(await screen.findByText(/Could not resolve the composition/)).toBeInTheDocument();
   });
 
   it('lista_quem_referencia_dizendo_a_versao', async () => {
@@ -701,7 +701,7 @@ describe('M20 — composição na tela', () => {
     // é o caminho do usuário; renderizar a raiz e procurar o cartão testaria a tela errada.
     mockDependentes.mockResolvedValue([{ name: 'atendimento', version: 4, via: { version: 3, label: null } }]);
 
-    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/production'] });
 
     expect(await screen.findByRole('link', { name: 'atendimento' })).toBeInTheDocument();
     expect(screen.getByText('v4')).toBeInTheDocument();
@@ -712,9 +712,9 @@ describe('M20 — composição na tela', () => {
     // consegui saber", não. Colapsar as duas é o defeito que o CLAUDE.md deste repo nomeia.
     mockDependentes.mockRejectedValue(new ApiError(500, 'falhou'));
 
-    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/production'] });
 
-    expect(await screen.findByText(/Não foi possível ler os dependentes/)).toBeInTheDocument();
+    expect(await screen.findByText(/Could not read the dependents/)).toBeInTheDocument();
     expect(screen.queryByText(/Nenhum prompt referencia este/)).not.toBeInTheDocument();
   });
 });
@@ -733,20 +733,20 @@ describe('M21 — as quatro abas', () => {
     // não ter abas.
     render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao'] });
 
-    expect(await screen.findByRole('heading', { name: 'Revisões' })).toBeInTheDocument();
-    const aba = screen.getByRole('link', { name: 'Conteúdo' });
+    expect(await screen.findByRole('heading', { name: 'Revisions' })).toBeInTheDocument();
+    const aba = screen.getByRole('link', { name: 'Content' });
     expect(aba).toHaveAttribute('aria-current', 'page');
   });
 
   it('cada rota marca a SUA aba, e só ela', async () => {
-    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumption'] });
 
-    expect(await screen.findByRole('link', { name: 'Como consumir' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'How to consume' })).toHaveAttribute(
       'aria-current',
       'page',
     );
     // O controle: as outras três não podem estar marcadas ao mesmo tempo.
-    for (const rotulo of ['Conteúdo', 'Config', 'Uso em produção']) {
+    for (const rotulo of ['Content', 'Config', 'Production usage']) {
       expect(screen.getByRole('link', { name: rotulo })).not.toHaveAttribute('aria-current');
     }
   });
@@ -755,11 +755,11 @@ describe('M21 — as quatro abas', () => {
     // Sem esta asserção, um recorte que renderizasse tudo em toda aba passaria nos testes acima —
     // e a tela continuaria sendo o scroll único, só que com uma barra decorativa em cima.
     render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao'] });
-    await screen.findByRole('heading', { name: 'Revisões' });
+    await screen.findByRole('heading', { name: 'Revisions' });
 
-    expect(screen.queryByRole('heading', { name: 'Como consumir' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Uso por revisão' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Afinação/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'How to consume' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Usage by revision' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Tuning/ })).not.toBeInTheDocument();
   });
 
   it('DoD-3 — a AÇÃO de promover existe em todas as abas, não só o cartão', async () => {
@@ -772,27 +772,27 @@ describe('M21 — as quatro abas', () => {
     for (const rota of [
       '/promptly/saudacao',
       '/promptly/saudacao/config',
-      '/promptly/saudacao/producao',
-      '/promptly/saudacao/consumo',
+      '/promptly/saudacao/production',
+      '/promptly/saudacao/consumption',
     ]) {
       const { unmount } = render(<PromptDetailPage />, { initialEntries: [rota] });
-      expect(await screen.findByRole('heading', { name: 'Ambientes' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Environments' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Tags' })).toBeInTheDocument();
       // `prod → v1` com a última em v3: a ação de promover para v3 tem de estar à mão.
       expect(
-        await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/ }),
+        await screen.findByRole('button', { name: /Promote prod to the latest revision, v3/ }),
       ).toBeInTheDocument();
       // E etiquetar também — o campo de tag é o oráculo do outro metade do DoD-3.
-      expect(screen.getByRole('textbox', { name: 'Nova tag' })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'New tag' })).toBeInTheDocument();
       unmount();
     }
   });
 
   it('a promoção pelo cartão de Ambientes abre a confirmação com a revisão certa', async () => {
     // Sem isto, um botão que não abrisse nada passaria no teste acima.
-    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumption'] });
     await userEvent.click(
-      await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/ }),
+      await screen.findByRole('button', { name: /Promote prod to the latest revision, v3/ }),
     );
 
     // A confirmação nomeia a revisão que DEIXA de servir — a garantia herdada do M12/M18. A
@@ -807,18 +807,18 @@ describe('M21 — as quatro abas', () => {
     // O CONTROLE. Sem ele, um botão que aparecesse sempre passaria nos dois testes acima — e
     // ofereceria promover para a revisão que o ambiente já serve, que é um ato sem efeito.
     mockLabels.mockResolvedValue([{ label: 'prod', version: 3 }]);
-    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/production'] });
 
-    expect(await screen.findByRole('heading', { name: 'Ambientes' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Environments' })).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Promover prod para a última revisão/ }),
     ).not.toBeInTheDocument();
   });
 
   it('a aba de consumo entrega os três trechos, apontando para ESTE prompt', async () => {
-    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumption'] });
 
-    expect(await screen.findByRole('heading', { name: 'Como consumir' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'How to consume' })).toBeInTheDocument();
     for (const rotulo of ['SDK (TypeScript)', 'REST (curl)', 'MCP']) {
       expect(screen.getByRole('heading', { name: rotulo })).toBeInTheDocument();
     }
@@ -832,7 +832,7 @@ describe('M21 — as quatro abas', () => {
     mockPrompt.mockResolvedValue({ version: 3, content: 'sem config', modelConfig: null, variables: [] });
     render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/config'] });
 
-    expect(await screen.findByText(/não declara afinação/)).toBeInTheDocument();
-    expect(screen.getByText(/Nenhuma variável/)).toBeInTheDocument();
+    expect(await screen.findByText(/declares no tuning/)).toBeInTheDocument();
+    expect(screen.getByText(/No variables/)).toBeInTheDocument();
   });
 });

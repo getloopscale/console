@@ -25,6 +25,78 @@
  */
 const FORCE_GRAPH_RE = /node_modules\/(react-force-graph|force-graph|d3-|d3\/)/;
 
+/**
+ * B-021/B-073 — familias PESADAS consumidas por UMA rota lazy cada.
+ *
+ * Elas caiam no `vendor` pela regra final (`node_modules/` → 'vendor'), e o
+ * `vendor` tem `<link rel=modulepreload>` no index.html: todo visitante baixava
+ * o editor TipTap, o pipeline de markdown e o realce de sintaxe no primeiro
+ * paint, incluindo quem so abre a lista de deployments. Medido antes desta
+ * mudanca: vendor = 397.11 kB brotli, ~53% dele destas tres familias.
+ *
+ * O mecanismo aqui e o MESMO ja provado para force-graph acima — devolver
+ * `undefined` e deixar o Rollup manter cada familia no chunk dinamico do seu
+ * consumidor, que ja e `React.lazy`. Nao e um chunk dedicado: um chunk eager
+ * dedicado reintroduziria a fronteira circular que a nota F-fe-1 documenta.
+ *
+ * Criterio para entrar nesta lista: a familia so e alcancada por rota lazy. Por
+ * isso `cmdk` NAO entra — o CommandPalette vive no layout e e eager.
+ */
+// B-097 — ANCORADO. A lista anterior era interpolada crua, entao cada entrada
+// virava um prefixo solto: `unified` casava `unified-engine`, `bail` casava
+// `bail-out`, `ccount` casava `ccounter`, e `highlight.js` casava `highlightXjs`
+// porque o ponto nao estava escapado. Nove sosias de dez eram ejetados do vendor.
+//
+// Nenhum deles esta instalado hoje, entao o impacto era LATENTE — e latente e o
+// pior tipo: aparece meses depois, como um chunk que cresceu sem motivo aparente.
+//
+// A ancoragem usa a estrutura real de `node_modules/`: um nome de pacote e sempre
+// seguido de `/`. Familias de prefixo (`remark-`, `hast-`) mantem o hifen, que ja
+// e ancora suficiente — `remark-` nao casa `remarkable`.
+const NOMES_EXATOS = [
+  '@tiptap', 'tiptap-markdown', 'markdown-it', 'linkifyit', 'mdurl',
+  'orderedmap', 'rope-sequence', 'w3c-keyname',
+  'react-markdown', 'micromark', 'unified', 'vfile', 'bail', 'trough',
+  'property-information', 'space-separated-tokens', 'comma-separated-tokens',
+  'character-entities', 'decode-named-character-reference', 'trim-lines',
+  'zwitch', 'longest-streak', 'ccount', 'markdown-table', 'devlop',
+  'is-plain-obj', 'html-void-elements', 'stringify-entities',
+  'react-syntax-highlighter', 'refractor', 'lowlight', 'highlight.js', 'prismjs',
+  'hastscript', 'parse-entities', 'fault',
+  // B-030 — `canvas-confetti` dispara UMA vez na vida de um projeto, e a maioria
+  // das sessoes nunca o ve. Ligar a celebracao o trouxe para o vendor eager
+  // (305.85 -> 309.49 kB): 3,6 kB baixados em toda visita por uma animacao de
+  // um segundo. O import dinamico no hook NAO bastou — esta config manda todo
+  // node_modules para o vendor, entao o pacote precisa ser ejetado aqui tambem.
+  // Medido: as duas coisas juntas e que tiram o peso do caminho critico.
+  'canvas-confetti',
+];
+
+/** Familias cujo hifen final ja ancora: `remark-` nunca casa `remarkable`. */
+const FAMILIAS_PREFIXO = ['prosemirror-', 'remark-', 'rehype-', 'mdast-', 'hast-', 'unist-'];
+
+const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const LAZY_ONLY_RE = new RegExp(
+  'node_modules/(' +
+    [
+      // Ancora: `/` (fim do nome do pacote) OU `-` (irmao da familia).
+      //
+      // O `-` NAO e frouxidao, e o que distingue familia de sosia. Medido: exigir
+      // so `/` deixou de ejetar 31 pacotes REAIS — `micromark-util-*` (20 deles),
+      // `character-entities-legacy`, `vfile-message`, `markdown-it-task-lists` — e
+      // o vendor eager cresceu 1,45 kB, estourando o orcamento. Sao irmaos
+      // legitimos, publicados com hifen pela convencao do ecossistema unified.
+      //
+      // E `ccounter` continua fora, porque nao ha hifen depois de `ccount`. Era
+      // esse o defeito original: prefixo SEM ancora nenhuma casava os dois.
+      ...NOMES_EXATOS.map((n) => `${escapar(n)}[/-]`),
+      // Familia: o hifen final e a ancora.
+      ...FAMILIAS_PREFIXO.map((f) => escapar(f)),
+    ].join('|') +
+    ')',
+);
+
 export function manualChunks(id: string): string | undefined {
   // NOTE (F-fe-1): @usetheo/ui / @radix-ui / lucide are NOT given dedicated chunks.
   // @usetheo/ui re-exports Radix + utility deps that ALSO live in `vendor`, forming
@@ -35,6 +107,9 @@ export function manualChunks(id: string): string | undefined {
   // Force-graph/d3 family: keep OUT of every eager vendor chunk (F-fe-1 TDZ). Let
   // it ride the lazy `graph` chunk via Rollup's default dynamic-import splitting.
   if (FORCE_GRAPH_RE.test(id)) return undefined;
+  // B-021/B-073 — mesma tecnica, outro motivo: nao e TDZ, e peso. Cada familia
+  // desce para o chunk dinamico do consumidor lazy em vez de pesar no preload.
+  if (LAZY_ONLY_RE.test(id)) return undefined;
   if (
     id.includes('node_modules/react/') ||
     id.includes('node_modules/react-dom/') ||

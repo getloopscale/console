@@ -3,7 +3,7 @@ import { render, screen } from '@/test/render';
 import { userEvent } from '@testing-library/user-event';
 
 const mockReportError = vi.fn();
-vi.mock('@/lib/error-reporter', () => ({
+vi.mock('@/lib/telemetry/error-reporter', () => ({
   reportError: (error: Error, info: { componentStack?: string; routePath?: string }) =>
     mockReportError(error, info),
 }));

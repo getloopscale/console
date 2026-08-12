@@ -1,0 +1,261 @@
+agent: review-modal-primitive-consolidation-architecture
+review_target: 59c4866b~1..HEAD (59c4866b, 18017351, a8124007, 26c7976b, 4e48b7fb) for plan modal-primitive-consolidation
+plan: .claude/knowledge-base/plans/modal-primitive-consolidation-plan.md
+rules_read:
+  - .claude/rules/architecture.md
+  - .claude/rules/parsimony-ladder.md
+  - dashboard/docs/adr/0001-eixo-de-organizacao-e-regra-de-residencia.md
+  - .claude/rules/cycle-implement.md (quality gates section)
+patterns_skills: "none — `.claude/skills/*-patterns/` does not resolve in this repo (plan § Prior Art records the same)"
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: dashboard/src/components/ui/app-modal.tsx
+    line: 91
+    plan_ref: "D1 Consequences / Unresolved Question Q1"
+    summary: >-
+      The surviving primitive splits the form owner (`children`) from its submit control
+      (`footer`) as DOM siblings, and the prop that creates the hazard documents none of it.
+      The migration answered with detection (a repo-wide regex guard) instead of prevention
+      (an affordance on the primitive), so the next author meets the same trap.
+    evidence: |
+      `app-modal.tsx:90-91` — `children` and `footer` are siblings; a `<form>` in the body
+      cannot own a `type="submit"` in the footer without the native `form="id"` attribute:
+      ```tsx
+      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      {footer ? <div className="flex items-center justify-end gap-2">{footer}</div> : null}
+      ```
+      `app-modal.tsx:45-46` — the whole contract the call site must honour, at the API surface:
+      ```ts
+      /** Footer actions (e.g. Cancel + primary). Omitted → no footer region. */
+      readonly footer?: ReactNode;
+      ```
+      The constraint is written down only in a different file, inside a test:
+      `modal-primitive.test.ts:113-116` — "O `AppModal` renderiza o `footer` FORA do container
+      dos children. […] a tela renderiza IDÊNTICA e o clique não faz nada." and
+      `modal-primitive.test.ts:118-120` — "Foi o defeito mais caro desta migração."
+      This is a real defect class, already hit once during the migration (the plan's Global DoD
+      § "revisão visual" records `delete-environment` failing with "Number of calls: 0").
+    recommended_action: >-
+      Move the contract to the API surface and close the affordance gap: add
+      `readonly formId?: string` to `AppModalProps`, have `AppModal` inject `form={formId}` into
+      the footer region (or render the footer inside a `<form id={formId}>` it owns), and state
+      the sibling-DOM constraint in the `footer` JSDoc. A primitive that makes the correct wiring
+      the default removes the class; a guard only reports it.
+
+  - id: F-arch-2
+    severity: MEDIUM
+    file: dashboard/src/components/ui/modal-primitive.test.ts
+    line: 132
+    plan_ref: "D2 (compartilhados são a referência que o resto copia) + Global DoD § 'o que a amostra NÃO cobriu'"
+    summary: >-
+      All three guard assertions are gated on the literal string `<AppModal` appearing in the
+      file, so they only see DIRECT call sites. Any modal reached through the shared-wrapper
+      layer — the exact layer D2 calls "a referência que o resto do produto copia" — is
+      structurally invisible to the guard that replaced the visual review.
+    evidence: |
+      The same file-level gate opens two of the three assertions:
+      ```ts
+      modal-primitive.test.ts:89    if (!src.includes('<AppModal')) continue;
+      modal-primitive.test.ts:132   if (!src.includes('<AppModal')) continue;
+      ```
+      Today `footer` is declared in exactly one place, so nothing escapes yet:
+      `grep -rn "readonly footer|footer\?:" dashboard/src/components` → one hit,
+      `components/ui/app-modal.tsx:46`.
+      But the guard's own header argues against name-based checks ("Um teste que procurasse
+      `ui/dialog.tsx` verificaria a FORMA", `modal-primitive.test.ts:23-27`) and then gates
+      itself on a form — the literal tag name — for the assertion whose failure mode is silent.
+      The first shared modal that forwards `footer?: ReactNode` to `AppModal` takes all of its
+      call sites out of coverage, and nothing fails when that happens.
+    recommended_action: >-
+      Resolve the gate transitively instead of lexically: build the set of files that reach
+      `AppModal` through imports (one pass over `from '@/components/ui/app-modal'` plus the
+      components that re-expose a `footer` prop), and scan that closure. Cheaper interim
+      alternative: assert that `footer?: ReactNode` is declared ONLY in `app-modal.tsx`, which
+      turns the current accident into a checked invariant and fails loudly the day it changes.
+
+  - id: F-arch-3
+    severity: MEDIUM
+    file: dashboard/src/components/ui/app-modal.tsx
+    line: 77
+    plan_ref: "D4 — 'A migração preserva aparência: mesma largura efetiva, mesmo overlay, mesmo comportamento de foco'"
+    summary: >-
+      The two primitives were treated as equivalent modulo WIDTH, and only width was mapped.
+      They also differ in panel gap (`gap-3` → `gap-4`) and in whether the body gets a scroll
+      container — and the second difference applies to 12 of the 17 migrated files. D4's paridade
+      claim is therefore broader than what was actually verified.
+    evidence: |
+      Old primitive (`git show 59c4866b~1:dashboard/src/components/ui/dialog.tsx:37`):
+      ```
+      '… -translate-y-1/2 flex-col gap-3 overflow-hidden rounded-2xl …'
+      ```
+      Surviving primitive (`app-modal.tsx:77`):
+      ```
+      '… -translate-y-1/2 flex-col gap-4 overflow-hidden rounded-2xl …'
+      ```
+      The scroll container was OPT-IN before (`Dialog.Body`, old `dialog.tsx:61`
+      `'min-h-0 flex-1 overflow-y-auto'`) and is now unconditional (`app-modal.tsx:90`).
+      Measured over the 17 files that imported `ui/dialog` at 59c4866b~1: **12 used no
+      `Dialog.Body` at all** (confirm-dialog, plan-limit-upgrade-modal, redeploy-dialog,
+      cancel-build, promote-to-production, rollback, delete-environment, delete-secret,
+      promote, rotate-secret, bulk-delete-projects, graphrag) and **1 of the 17** carried an
+      explicit `gap-4` (`confirm-dialog.tsx`, old `Dialog.Content className="max-w-md gap-4"`).
+      That the gap difference is real and already bit someone is independently attested by a
+      call site that PRE-dates this migration: `pages/rag/wiki-search.tsx:71` passes
+      `contentClassName="gap-3"` — an escape hatch spent restoring the old primitive's spacing.
+      The plan's migration map (§ T2.1 Evidence) has exactly three rows, all about `max-w-*`.
+    recommended_action: >-
+      Either narrow the D4 claim in the plan to what was verified ("same effective width, same
+      overlay, same focus behaviour — panel gap and body overflow intentionally converge on the
+      AppModal box model"), or produce the second mapping row-by-row the way the width map was
+      produced. Do not leave a paridade claim that the diff contradicts on 16 of 17 files.
+
+  - id: F-arch-4
+    severity: LOW
+    file: dashboard/src/components/ui/modal-primitive.test.ts
+    line: 38
+    plan_ref: "T3.1 (o guard que substitui a amostra)"
+    summary: >-
+      The new guard is the fifth bespoke source-tree walker in this repo, and it is the only one
+      whose definition of "production file" disagrees with the other four — it keeps
+      `*.stories.tsx` in scope and drops `mocks/` and `vendor/`. Five walkers that disagree mean
+      five different answers to "what is production code" inside one codebase.
+    evidence: |
+      New walker (`modal-primitive.test.ts:36-44`):
+      ```ts
+      if (entrada === 'node_modules' || entrada === 'vendor' || entrada === 'mocks') continue;
+      … else if (/\.tsx?$/.test(entrada) && !/\.(test|spec)\.tsx?$/.test(entrada)) out.push(caminho);
+      ```
+      Four pre-existing siblings, each with its own `function arquivos(dir, out)`:
+      - `src/lib/residence-rule.test.ts:97` — excludes `test|spec|stories`
+      - `src/lib/data-access-layer.test.ts:62` — excludes `test|spec`
+      - `src/lib/cache-policy.test.ts:49` — excludes `test|spec`
+      - `src/lib/parent-barrel-import.test.ts:44` — excludes nothing
+      Only the new one skips directories, and only the new one treats a Storybook story as
+      production. Two stories exist today (`components/layout/team-switcher.stories.tsx`,
+      `pages/projects/components/project-health-card.stories.tsx`); neither imports
+      `@radix-ui/react-dialog`, so no false positive fires yet — a story that composes the
+      dialog to document it would be reported as "a second modal primitive".
+      Honest scoping: the duplication is PRE-EXISTING; this commit adds the fifth copy and the
+      first divergent ignore-set, it did not start the pattern.
+    recommended_action: >-
+      Extract one `listarArquivosDeProducao()` into `src/test/` (next to `arvore-estavel.ts`,
+      which is already the shared home for suite-wide helpers) and have the new guard consume it.
+      Per Rule 12, the duplicated knowledge here is the DEFINITION of "production file", not the
+      four lines of recursion — and it is already inconsistent across five copies.
+
+  - id: F-arch-5
+    severity: LOW
+    file: dashboard/src/components/ui/modal-primitive.test.ts
+    line: 5
+    plan_ref: "T3.1 · ADR-0001 § D5 item 2"
+    summary: >-
+      A repo-wide architectural fitness function was placed in `components/ui/`, while the
+      repository's eleven sibling guards — and the precedent ADR-0001 § D5 explicitly names —
+      live in `src/lib/`. The file is co-located with the primitive it protects but quantifies
+      over the entire tree, so its blast radius and its address disagree.
+    evidence: |
+      ```ts
+      modal-primitive.test.ts:5    const SRC = resolve(__dirname, '../..');   // = src/
+      ```
+      Siblings of the same class, all under `src/lib/`: `residence-rule.test.ts`,
+      `data-access-layer.test.ts`, `cache-policy.test.ts`, `parent-barrel-import.test.ts`,
+      `adr-nomenclature.test.ts`, `query-key-convergence.test.ts`, `deprecation-marker.test.ts`,
+      `env-terminology.test.ts`, `request-ceiling.test.ts`, `url-state-convention.test.ts`,
+      `test-only-module-guard.test.ts`.
+      ADR-0001 § D5 item 2 names the convention by name: "O repositório já tem esse padrão
+      funcionando em `src/lib/test-only-module-guard.test.ts`", and § Referências repeats it as
+      "Precedente de verificação por teste".
+      No import edge is created (the guard reads from disk via `node:fs`), so this is
+      navigability, not dependency direction — which is why it is LOW and not higher.
+    recommended_action: >-
+      Move it to `src/lib/modal-primitive.test.ts` to join the eleven guards of its class, or —
+      if co-location with the primitive is the deliberate call — record that choice in one line
+      inside the file's header, so the next person adding a fitness function knows there are two
+      sanctioned homes and which one applies.
+
+  - id: F-arch-6
+    severity: INFO
+    file: dashboard/src/components/dialogs/confirm-dialog.tsx
+    line: 18
+    plan_ref: "Baseline Context § Architecture boundaries affected"
+    summary: >-
+      Dependency direction — no issues found. No ascending edge was introduced; every migrated
+      module imports strictly downward, and the consolidation removes a peer from the primitive
+      layer rather than adding one.
+    evidence: |
+      Measured, not assumed:
+      ```
+      grep -rnE "from '(@/pages|\.\./.*pages)" --include='*.ts' --include='*.tsx' \
+           dashboard/src/{components,hooks,lib}   →  0 matches
+      ```
+      The three shared modals import only downward or sideways-within-layer:
+      `confirm-dialog.tsx:18` → `@/components/ui/app-modal`;
+      `redeploy-dialog.tsx:6-9` → `ui/app-modal`, `ui/alert-guard`, `hooks/mutations/use-redeploy`,
+      `lib/api/types`.
+      `app-modal.tsx:1-4` imports only `react`, `@radix-ui/react-dialog`, `lucide-react`,
+      `tailwind-merge` — a true leaf, so no cycle is reachable through the primitive.
+      The eslint layer bans (`eslint.config.js:157-179`, B-070) still apply unchanged to every
+      file touched, and `dashboard/eslint.config.js` was modified in this range only to add
+      Node globals for `scripts/**` and to lower two entries of the LoC ratchet.
+
+  - id: F-arch-7
+    severity: INFO
+    file: dashboard/src/components/ui/app-modal.tsx
+    line: 55
+    plan_ref: "Goal · Coverage Matrix row 2 (4 portas de entrada → 1)"
+    summary: >-
+      Fan-in — no issues found, and the generic >5-importer heuristic is reported here as NOT
+      applicable rather than mechanically flagged. `AppModal` now has 30 production importers;
+      for a UI primitive that number IS the objective of the plan, not a god-object signal.
+    evidence: |
+      ```
+      grep -rl "components/ui/app-modal" dashboard/src --include='*.ts*' | grep -v '\.test\.' | wc -l  → 30
+      ```
+      `app-modal.tsx` is 104 LoC, exports one component plus its props/size types, holds no
+      state, performs no I/O, and has a single reason to change (how a centered modal is
+      composed). High fan-in on a leaf with one responsibility is centralization, which is what
+      SRP and § 3 of `rules/architecture.md` ask for — a second primitive with 17 importers was
+      the defect.
+
+  - id: F-arch-8
+    severity: INFO
+    file: dashboard/src/components/ui/modal-primitive.test.ts
+    line: 34
+    plan_ref: "Global DoD"
+    summary: >-
+      Naming and module hygiene — no issues found across the changed set. Files kebab-case,
+      components PascalCase, size tokens UPPER_SNAKE (`SIZE_MAX_WIDTH`), ES modules only, and
+      the diff introduces no `any` and no `console.log`.
+    evidence: |
+      ```
+      git diff 59c4866b~1..HEAD -- dashboard/src | grep -nE '^\+.*(: any|console\.log)'  → no matches
+      ```
+      New file is `components/ui/modal-primitive.test.ts` (kebab-case, `<name>.test.<ext>` per
+      `rules/architecture.md § 5` and the repo's co-located convention);
+      `app-modal.tsx:27` `const SIZE_MAX_WIDTH: Record<AppModalSize, string>`;
+      `app-modal.tsx:55` `export function AppModal(`.
+      Parsimony ladder (`rules/parsimony-ladder.md`): rung 4 was honoured — the migration adds no
+      dependency and consolidates onto what was already installed (plan § Dependencies), and
+      rung 1 is what deleting the second primitive implements.
+
+  - id: F-arch-9
+    severity: INFO
+    file: dashboard/src/lib/http/list-ceiling.ts
+    line: 1
+    plan_ref: "Baseline Context § Files that will be touched (does not list these files)"
+    summary: >-
+      Diff cohesion — commit 26c7976b edits six symbols in `hooks/` and `lib/http/` that appear
+      in no task of this plan. Recorded as INFO, not as scope creep: the edit was forced by a
+      `/code-quality` FAIL_HARD on the current tree, and the commit message declares the
+      deviation and the reasoning instead of hiding it.
+    evidence: |
+      Files outside the plan's touch table, changed in 26c7976b:
+      `hooks/lens/use-datasets.ts`, `hooks/lens/use-trace.ts`, `hooks/promptly/promptly-api.ts`,
+      `hooks/promptly/use-promptly.ts`, `hooks/rag/use-collections.ts`,
+      `lib/http/list-ceiling.ts`.
+      The commit body states the cause and separates the three natures of the finding:
+      "/code-quality reprovou FAIL_HARD com `dead_code_unallowlisted_typescript`. Nenhum dos seis
+      vem do plano de modais — sao residuo do trabalho anterior da camada de dados".
+      Architecturally the change is subtractive and direction-preserving (three constants lost
+      only the `export` keyword and remain used in-file), so it opens no boundary.

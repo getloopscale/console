@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { useDebouncedValue } from '@/hooks/memory/use-debounced-value';
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, History, Search, X } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ScopeSelect } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * episodes-gateway-dashboard — /memory/episodes.
@@ -52,14 +53,12 @@ export function EpisodesPage() {
   // Session-separation (2026-07-23): '' = Global tier; a session id switches the
   // temporal log to that session's working memory (SESSION scope at the provider).
   const [session, setSession] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [asOfLocal, setAsOfLocal] = useState('');
 
-  // Debounce the text filter so each keystroke does not refetch.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(queryText.trim()), 350);
-    return () => clearTimeout(t);
-  }, [queryText]);
+  // B-050 — este useEffect + setTimeout era a terceira copia manual do mesmo
+  // debounce no repo, com 350ms contra os 300ms de traces.tsx. A divergencia nao
+  // vinha de decisao: vinha de cada tela reimplementar. Agora usa o hook unico.
+  const debouncedQuery = useDebouncedValue(queryText.trim());
 
   const asOf = toIsoInstant(asOfLocal);
 
@@ -79,7 +78,16 @@ export function EpisodesPage() {
       if (debouncedQuery) params.set('q', debouncedQuery);
       if (asOf) params.set('asOf', asOf);
       if (pageParam) params.set('after', pageParam);
-      return cloudFetch<EpisodesPage>(`/v1/dashboard/memory/episodes?${params.toString()}`);
+      // throwOnError para que uma falha vire `query.isError` em vez de uma lista
+      // vazia. Sem isso o `cloudFetch` devolvia `null`, o branch de erro logo
+      // abaixo era INALCANCAVEL, e a tela dizia "No episodes yet" — ou seja,
+      // "voce nao tem nenhum" quando a verdade era "nao consegui perguntar".
+      // Mesmo padrao ja usado na pagina irma `entities.tsx:100`.
+      return cloudFetch<EpisodesPage>(
+        `/v1/dashboard/memory/episodes?${params.toString()}`,
+        undefined,
+        { throwOnError: true },
+      );
     },
     getNextPageParam: (last) => last?.nextCursor ?? undefined,
   });
@@ -88,8 +96,9 @@ export function EpisodesPage() {
   const filtersActive = debouncedQuery !== '' || asOf !== '';
 
   const clearFilters = () => {
+    // `debouncedQuery` deriva de `queryText`, entao limpar a fonte basta — nao ha
+    // mais um segundo estado para manter em sincronia (era essa a duplicacao).
     setQueryText('');
-    setDebouncedQuery('');
     setAsOfLocal('');
   };
 
@@ -168,7 +177,7 @@ export function EpisodesPage() {
 
       {query.isLoading ? (
         <p className="text-muted-foreground mt-6 text-sm">Loading episodes…</p>
-      ) : items.length === 0 ? (
+      ) : query.isError ? null : items.length === 0 ? (
         <div className="mt-6">
           <EmptyState
             icon={History}

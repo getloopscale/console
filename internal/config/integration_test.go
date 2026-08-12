@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/config"
+	"github.com/usetheoai/theo-cloud/internal/config"
 )
 
 // #334: uma integracao some da borda quando falta configuracao, e o servico sobe

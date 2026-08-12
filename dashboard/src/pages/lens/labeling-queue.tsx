@@ -1,4 +1,4 @@
-import { lensErrorMessage } from '../../lib/lens-error';
+import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -8,8 +8,8 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { shortId } from '@/lib/format';
-import { cloudFetch } from '@/lib/api';
+import { shortId } from '@/lib/formatting/format';
+import { cloudFetch } from '@/lib/http/api';
 import { SCORE_CONFIGS } from './labeling-queue/score-configs';
 import { ResolveForm } from './labeling-queue/resolve-form';
 import { prefillValues, toResolveBody, type AnnotationValues } from './labeling-queue/to-resolve-body';

@@ -11,8 +11,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 });
 
 const mockRevisions = vi.fn();
-vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
+vi.mock('@/hooks/promptly/promptly-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/promptly/promptly-api')>();
   return { ...actual, fetchRevisions: (...a: unknown[]) => mockRevisions(...a) };
 });
 
@@ -76,7 +76,7 @@ describe('M12 — a tela de comparar', () => {
     expect(await screen.findByTestId('promptly-diff')).toBeInTheDocument();
 
     // Agora sim: escolher v1 × v3 é o que prova a cópia, e o select é o caminho do operador.
-    fireEvent.change(screen.getByLabelText('Revisão anterior'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Previous revision'), { target: { value: '1' } });
 
     expect(await screen.findByTestId('promptly-diff-identical')).toBeInTheDocument();
   });
@@ -88,7 +88,7 @@ describe('M12 — a tela de comparar', () => {
     mockRevisions.mockRejectedValue(new Error('upstream'));
     render(<PromptlyDiffPage />);
 
-    expect(await screen.findByText(/sem dados para comparar — a leitura falhou/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no data to compare — the read failed/i)).toBeInTheDocument();
     expect(screen.queryByTestId('promptly-diff-identical')).not.toBeInTheDocument();
     expect(screen.queryByTestId('promptly-diff')).not.toBeInTheDocument();
   });
@@ -159,6 +159,6 @@ describe('diff — o PORQUÊ de cada lado (M17 DoD-1)', () => {
     render(<PromptlyDiffPage />);
 
     expect(await screen.findByText('só a v2 tem')).toBeInTheDocument();
-    expect(screen.getByText(/sem descrição/i)).toBeInTheDocument();
+    expect(screen.getByText(/no description/i)).toBeInTheDocument();
   });
 });

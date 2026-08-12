@@ -1,14 +1,12 @@
 import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useTrace } from '@/hooks/lens/use-trace';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Button, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
-import type { TraceSpanNode } from '@/lib/trace-layout';
-import { AskThread } from '@/components/lens/ask-thread';
+import { AskThread } from '@/pages/lens/components/ask-thread';
 
 /**
  * M61 — /observability/ask. The Ask copilot as a persistent conversation **docked to the open trace**
@@ -27,11 +25,7 @@ export function LensAskPage() {
   const spanId = params.get('spanId') ?? undefined;
 
   // Reused M58 trace fetch (Rule 9 — no new endpoint) → the span tree for the entity map.
-  const tree = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', traceId] as const,
-    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`, {}, { throwOnError: true }),
-    enabled: traceId !== '',
-  });
+  const tree = useTrace(traceId, { enabled: traceId !== '' });
 
   return (
     <PageShell title="Ask" description="Ask the copilot about the open trace — a grounded conversation.">

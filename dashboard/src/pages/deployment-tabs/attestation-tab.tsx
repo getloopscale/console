@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Badge, Card, EmptyState } from '@usetheo/ui';
-import { engineFetch } from '@/lib/api';
-import { formatDate } from '@/lib/format';
+import { engineFetch } from '@/lib/http/api';
+import { formatDate } from '@/lib/formatting/format';
 import type { BuildAttestation } from '@/lib/api/types';
 
 /**

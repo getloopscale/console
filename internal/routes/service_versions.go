@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/serviceversions"
+	"github.com/usetheoai/theo-cloud/internal/serviceversions"
 )
 
 // VersionCollector is the fan-out this BFF needs, declared on the consumer side so

@@ -26,32 +26,32 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/billing"
-	"github.com/usetheodev/theo-cloud/internal/config"
-	"github.com/usetheodev/theo-cloud/internal/consent"
-	"github.com/usetheodev/theo-cloud/internal/deploy_event_enqueuer"
-	"github.com/usetheodev/theo-cloud/internal/lens_alert_evaluator"
-	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
-	"github.com/usetheodev/theo-cloud/internal/metering"
-	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
-	"github.com/usetheodev/theo-cloud/internal/normalize"
-	"github.com/usetheodev/theo-cloud/internal/promptly"
-	"github.com/usetheodev/theo-cloud/internal/rag"
-	"github.com/usetheodev/theo-cloud/internal/ratelimit"
-	"github.com/usetheodev/theo-cloud/internal/routes"
-	"github.com/usetheodev/theo-cloud/internal/serviceversions"
-	"github.com/usetheodev/theo-cloud/internal/skills"
-	"github.com/usetheodev/theo-cloud/internal/storage"
-	"github.com/usetheodev/theo-cloud/internal/storageproxy"
-	"github.com/usetheodev/theo-cloud/internal/thelens"
-	"github.com/usetheodev/theo-cloud/internal/themory"
-	"github.com/usetheodev/theo-cloud/internal/tracing"
-	"github.com/usetheodev/theo-cloud/internal/trust"
-	"github.com/usetheodev/theo-cloud/internal/version"
-	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/billing"
+	"github.com/usetheoai/theo-cloud/internal/config"
+	"github.com/usetheoai/theo-cloud/internal/consent"
+	"github.com/usetheoai/theo-cloud/internal/deploy_event_enqueuer"
+	"github.com/usetheoai/theo-cloud/internal/lens_alert_evaluator"
+	"github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
+	"github.com/usetheoai/theo-cloud/internal/metering"
+	cloudmetrics "github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/normalize"
+	"github.com/usetheoai/theo-cloud/internal/promptly"
+	"github.com/usetheoai/theo-cloud/internal/rag"
+	"github.com/usetheoai/theo-cloud/internal/ratelimit"
+	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/serviceversions"
+	"github.com/usetheoai/theo-cloud/internal/skills"
+	"github.com/usetheoai/theo-cloud/internal/storage"
+	"github.com/usetheoai/theo-cloud/internal/storageproxy"
+	"github.com/usetheoai/theo-cloud/internal/thelens"
+	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/usetheoai/theo-cloud/internal/tracing"
+	"github.com/usetheoai/theo-cloud/internal/trust"
+	"github.com/usetheoai/theo-cloud/internal/version"
+	"github.com/usetheoai/theo-cloud/internal/workspace_webhook_worker"
 )
 
 // buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler + its broker
@@ -210,7 +210,25 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 // these targets live, so every probe would fail and the UI would read the security
 // guard as "the service is down". otelhttp keeps the most diagnostic call in the
 // system visible in theo-lens.
-func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, requireJWT func(http.Handler) http.Handler) {
+// fleetRefreshInterval — de quanto em quanto tempo a frota e' re-sondada SEM humano
+// (theo-workspace#37).
+//
+// 60s e' o compromisso declarado no ADR 0010: sondar a frota com teto global de 3s
+// custa, no pior caso, 3s a cada minuto, e um scrape de 15s ve dado com no maximo 60s
+// de idade — resolucao suficiente para "a frota esta' servindo a revisao publicada?",
+// que e' a pergunta, e nao para deteccao sub-minuto, que nao e'.
+//
+// Envelope, nao gosto: mais curto multiplica o fan-out sem responder nada novo (o
+// deploy que se quer observar leva minutos); mais longo faz a metrica atrasar em
+// relacao ao painel, e duas leituras do mesmo fato discordando e' o defeito que o #37
+// existe para fechar.
+const fleetRefreshInterval = 60 * time.Second
+
+// DEVOLVE o coletor DECORADO para que o refresher periodico use exatamente o mesmo
+// caminho que o painel — inclusive a linha do proprio gateway, que so o decorator
+// acrescenta. Um refresher ligado ao coletor cru publicaria uma frota com um alvo a
+// menos que o JSON, e o censo do Prometheus discordaria do censo do painel por um.
+func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, requireJWT func(http.Handler) http.Handler) serviceversions.Collectable {
 	versionHTTP := &http.Client{
 		Timeout:   10 * time.Second, // last-resort ceiling, never the policy (D1)
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
@@ -266,6 +284,7 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 		collector, version.Read(), time.Now, observe,
 	)
 	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(selfAware, logger), requireJWT)
+	return selfAware
 }
 
 // mountRagDashboard registers the /v1/dashboard/rag BFF route group. M17 shipped it
@@ -426,14 +445,31 @@ func main() {
 	var billingHandler *routes.BillingHandler
 	var billingProvisioner *billing.Provisioner
 
-	if cfg.StripeAPIKey.Value() != "" {
+	// A prontidão é avaliada ANTES de qualquer coisa ser construída, e a decisão sai daqui
+	// em vez de estar embutida numa condição.
+	//
+	// Medido em 2026-08-11: a condição anterior olhava só a chave de API, e o segredo do
+	// webhook entrava sem ser verificado. Com ele ausente, o processo registrava
+	// "billing enabled" enquanto TODO evento de pagamento era recusado por VerifySignature
+	// — que recusa segredo vazio, corretamente. Nada inseguro aconteceu; o que se perdeu foi
+	// a verdade, e a afirmação falsa é o que impediu alguém de agir durante 20 horas.
+	billingReadiness := billing.AssessReadiness(cfg.StripeAPIKey.Value(), cfg.StripeWebhookSecret.Value())
+	switch {
+	case billingReadiness.Ready():
 		stripeClient = billing.NewStripeClient(cfg.StripeAPIKey.Value())
 		webhookHandler = billing.NewWebhookHandler(db, cfg.StripeWebhookSecret.Value(), billing.LoadPlanConfig(), logger)
 		billingProvisioner = billing.NewProvisioner(db, stripeClient, logger)
 		billingHandler = routes.NewBillingHandler(db, stripeClient, webhookHandler, billingProvisioner, cfg.BillingReturnURL)
 		logger.Info("billing enabled")
-	} else {
-		logger.Warn("STRIPE_API_KEY not set — billing endpoints disabled")
+	case billingReadiness.Partial():
+		// Metade configurada é o estado perigoso: parece pronto e não está. Erro, e não
+		// aviso — um aviso rola para fora da janela de log e ninguém age.
+		logger.Error("billing NOT enabled — "+billingReadiness.Explain(),
+			"missing", billingReadiness.Missing)
+	default:
+		// Ausência total é uma escolha válida: o hermético roda assim de propósito, e
+		// dizer isso é diferente de mentir sobre estar pronto.
+		logger.Info("billing not configured in this environment")
 	}
 
 	// Universal JWT auth middleware (RSA + HMAC — one path for all)
@@ -1075,7 +1111,7 @@ func main() {
 	// O corpo passa a nomear integracao desligada, reusando o mesmo config.MissingSettings do
 	// boot (#334). Reportada, NUNCA gatilho de reprovacao: sao opcionais por ambiente, e reprovar
 	// por causa delas derrubaria o container em toda topologia que nao as configura.
-	r.Get("/health", routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
+	livenessHandler := routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
 		return map[string][]string{
 			"skills": config.MissingSettings(
 				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
@@ -1090,13 +1126,13 @@ func main() {
 				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
 			),
 		}
-	}).ServeHTTP)
+	})
 
 	// /ready — READINESS. Mesma sonda, pergunta diferente: "consigo servir AGORA?". Reprova com
 	// a dependencia fora, para que o trafego seja retirado desta instancia. O /health acima
 	// NUNCA reprova por dependencia: liveness reprovada MATA o processo, e reiniciar nao
 	// conserta um banco fora (LT-038 do theo-trust, LT-040/LT-041 do promptly).
-	r.Get("/ready", routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
+	readinessHandler := routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
 		return map[string][]string{
 			"skills": config.MissingSettings(
 				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
@@ -1111,7 +1147,25 @@ func main() {
 				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
 			),
 		}
-	}).ServeHTTP)
+	})
+
+	// B-124 — the ecosystem's canonical names for these two answers
+	// (theo-contracts/httpsurface, D5), mounted alongside the unversioned pair.
+	//
+	// This service was inconsistent with itself: `/v1/version` below is versioned
+	// while these two were not, and all three are unauthenticated and consumed by
+	// infrastructure. That split was two decisions made at different times.
+	//
+	// SAME handlers, not copies. A second implementation drifts, and what drifts
+	// quietly is the degraded-detection — the half that keeps traffic off an
+	// instance that cannot serve.
+	//
+	// The unversioned pair stays: container probes and the load balancer point at
+	// it today. Additive by contract; removal is its own item after a deadline.
+	r.Get("/health", livenessHandler.ServeHTTP)
+	r.Get("/v1/health", livenessHandler.ServeHTTP)
+	r.Get("/ready", readinessHandler.ServeHTTP)
+	r.Get("/v1/health/ready", readinessHandler.ServeHTTP)
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
@@ -1515,7 +1569,7 @@ func main() {
 	}
 	// M21: the sidebar's status dot stops being a JSX literal and starts deriving
 	// from a real probe of each data-plane service's /v1/version.
-	mountServiceVersions(r, cfg, logger, requireJWT)
+	fleetCollector := mountServiceVersions(r, cfg, logger, requireJWT)
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for
@@ -1784,6 +1838,23 @@ func main() {
 
 	// Start metering scheduler (background goroutines)
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+
+	// theo-workspace#37 — a frota passa a ser sondada SEM humano autenticado.
+	//
+	// Ate aqui `Collect` so era disparado pelo handler de
+	// `/v1/dashboard/status/versions`, que exige Bearer. Logo a metrica de frota —
+	// servida sem auth em `/metrics` justamente para ser lida por programa — so
+	// refletia a realidade depois que alguem abria o painel, e voltava a
+	// `not_collected` a cada restart. Nenhum guard, nenhum alerta e nenhum
+	// reconciliador conseguia perguntar "qual e' o estado da frota AGORA".
+	//
+	// Compartilha o `schedulerCtx` com os demais workers: um refresher que sobrevive
+	// ao SIGTERM segura o shutdown e sonda uma frota que ninguem mais observa.
+	//
+	// SEM guarda `db != nil` — de proposito, ao contrario dos workers abaixo. Esta
+	// coleta nao toca o banco, e um deploy sem Postgres e' exatamente quando saber o
+	// estado da frota importa mais.
+	go serviceversions.Refresh(schedulerCtx, fleetCollector, fleetRefreshInterval)
 	if db != nil && stripeClient != nil {
 		reporter := metering.NewReporter(db, stripeClient, logger)
 		reconciler := metering.NewReconciler(db, logger)

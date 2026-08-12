@@ -12,7 +12,8 @@ import { manualChunks } from './src/build/manual-chunks';
 // single source of truth shared by navigateFallbackDenylist + the NetworkOnly
 // runtimeCaching predicate, so a BFF navigation path can never be added to one and
 // forgotten in the other (the recurring #112/#203 bug class).
-import { BFF_NAVIGATION_DENYLIST, BFF_NAVIGATION_REGEXP } from './src/build/sw-bff-paths';
+import { BFF_NAVIGATION_DENYLIST } from './src/build/sw-bff-paths';
+import { SW_RUNTIME_CACHING } from './src/build/sw-runtime-caching';
 
 /**
  * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
@@ -64,7 +65,25 @@ export default defineConfig(({ mode }) => ({
     devCspRelax(),
     // T0.2: React Compiler (auto-memoization). React 19 GA, babel-plugin@1.0.
     // Auto-memoiza components + hooks sem useMemo/useCallback/memo() manuais.
-    // Build-time only, zero runtime overhead. Existing 6 manual memos convivem.
+    //
+    // MEDIDO em 2026-08-08 (B-075), porque "zero runtime overhead" era afirmacao
+    // e nao numero — e ela estava ERRADA:
+    //
+    //   memoizacao:  170 de 207 componentes .tsx (rodando o babel-plugin sobre
+    //                cada arquivo e procurando `useMemoCache` na saida)
+    //   bundle:      306,47 kB com · 301,00 kB sem  ->  +5,5 kB EAGER
+    //   build:       34,0s com · 22,7s sem          ->  +50%
+    //
+    // Os 5,5 kB sao o codigo de memoizacao emitido nos componentes; o helper
+    // `useMemoCache` vem do proprio React 19 (nao ha dependencia de
+    // `react-compiler-runtime`). Entao ha custo de runtime em BYTES, ainda que
+    // nao em trabalho por render.
+    //
+    // A decisao de manter esta no ADR-0012. O comentario anterior dizia "zero
+    // runtime overhead" — quem lesse isso ao caçar bytes descartaria este
+    // plugin da lista de suspeitos sem medir.
+    //
+    // Os 6 memos manuais existentes convivem.
     react({
       babel: {
         plugins: [
@@ -145,45 +164,7 @@ export default defineConfig(({ mode }) => ({
         // outage). Mirror in runtimeCaching below as NetworkOnly so the
         // path never enters any cache, even after warmup.
         navigateFallbackDenylist: [...BFF_NAVIGATION_DENYLIST],
-        runtimeCaching: [
-          // Auth/session — NetworkOnly (no fallback, no cache).
-          // urlPattern MUST be a RegExp value, not a function referencing the
-          // isBffNavigationPath import — Workbox stringifies the pattern into sw.js
-          // without bundling imports, so a function form emits an undefined identifier
-          // → "ReferenceError: isBffNavigationPath is not defined" that crashes ALL SW
-          // routing (uploads included). BFF_NAVIGATION_REGEXP is the self-contained,
-          // single-source union of the denylist (see src/build/sw-bff-paths.ts).
-          {
-            urlPattern: BFF_NAVIGATION_REGEXP,
-            handler: 'NetworkOnly',
-          },
-          // Generic API — NetworkFirst with 3s timeout, cache fallback.
-          {
-            urlPattern: /\/api\/v1\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'theo-api',
-              networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 },
-            },
-          },
-          // Static assets — CacheFirst, 30 days.
-          {
-            urlPattern: /\.(js|css|woff2?|svg|png|webp)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'theo-assets',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          // Runtime config — StaleWhileRevalidate (rarely changes but must
-          // refresh eventually after rotation).
-          {
-            urlPattern: /\/__config\.js$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'theo-config' },
-          },
-        ],
+        runtimeCaching: [...SW_RUNTIME_CACHING],
         // skipWaiting + clientsClaim: new SW activates immediately em next
         // page load. Without these, SW waits all tabs close → SPA user com
         // tab aberta nunca recebe update.
@@ -240,6 +221,25 @@ export default defineConfig(({ mode }) => ({
         // react-force-graph-2d + d3 family still lands in the app-wide `vendor` chunk;
         // true route-isolation needs dedicated work (non-blocking perf hygiene).
         manualChunks,
+        // B-022 — o entry ganha nome PROPRIO (`app-*`) em vez do `index-*` padrao.
+        //
+        // O motivo e concreto: 15 chunks lazy tambem se chamam `index-*` (todo
+        // modulo `.../index.tsx` vira um), entao o glob `dist/assets/index-*.js`
+        // do orcamento de bundle somava o entry MAIS quatorze chunks que o
+        // usuario nunca baixa no primeiro paint. A entrada chamada "app entry"
+        // media 69 kB quando o entry tem 23. Um nome distinto e o que torna o
+        // glob capaz de dizer a verdade.
+        //
+        // `app-` NAO era distinto o bastante, e a primeira tentativa repetiu o
+        // defeito que corrigia. Trocar `entryFileNames` sem trocar
+        // `chunkFileNames` deixa qualquer chunk cujo nome comece com "app"
+        // dentro do glob: `components/ui/app-modal.tsx` vira `app-modal-*.js`,
+        // um chunk LAZY somado no orcamento EAGER. Medido no HEAD: o gate passava
+        // com 0,48 kB de folga contando 2,1 kB que nao pertencem ali — passar por
+        // pouco somando o arquivo errado nao e passar.
+        //
+        // `entry-` nao colide: nenhum modulo em src/ comeca com "entry".
+        entryFileNames: 'assets/entry-[hash].js',
       },
     },
   },

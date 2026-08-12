@@ -15,7 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // LensSavedViewsHandler — theo-lens M52. A per-tenant store of saved trace-list filter combinations
@@ -109,17 +109,23 @@ func (h *LensSavedViewsHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // List serves GET /v1/dashboard/lens/saved-views — the caller's saved views (scoped to subject+tenant).
+// capSavedViews é o teto defensivo desta lista. O `LIMIT` da query é `capSavedViews + 1`.
+const capSavedViews = 100
+
 func (h *LensSavedViewsHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
 		return
 	}
+	// B-114 — pede UMA a mais do que devolve. Se o banco entregar `capSavedViews + 1`, havia mais
+	// do que cabe, e a resposta diz isso em `has_more`. Cortar em `capSavedViews` no SQL tornaria
+	// "exatamente 100" e "mais de 100" indistinguíveis.
 	const q = `SELECT id, name, query_string, created_at
 		FROM lens_saved_views
 		WHERE subject = $1 AND tenant_id = $2
 		ORDER BY created_at DESC
-		LIMIT 100`
+		LIMIT 101`
 	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID)
 	if err != nil {
 		h.logger.Warn("lens saved views list: query failed", "error", err)
@@ -136,7 +142,8 @@ func (h *LensSavedViewsHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"saved_views": out})
+	out, temMais := truncar(out, capSavedViews)
+	writeJSON(w, http.StatusOK, map[string]any{"saved_views": out, "has_more": temMais})
 }
 
 // Delete serves DELETE /v1/dashboard/lens/saved-views/{id}. A cross-tenant / non-existent row collapses

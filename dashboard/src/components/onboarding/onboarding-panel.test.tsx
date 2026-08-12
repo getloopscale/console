@@ -6,7 +6,7 @@ const mockUseOnboardingState = vi.fn();
 vi.mock('@/hooks/use-onboarding-state', () => ({
   useOnboardingState: () => mockUseOnboardingState(),
 }));
-vi.mock('@/lib/rum', () => ({ reportEvent: vi.fn() }));
+vi.mock('@/lib/telemetry/rum', () => ({ reportEvent: vi.fn() }));
 
 import { OnboardingPanel } from './onboarding-panel';
 

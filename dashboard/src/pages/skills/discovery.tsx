@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import {
   Badge,
@@ -16,8 +15,9 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { discoveryRows, type DiscoveryRow, type RetrievePayload } from '@/components/skills/discovery';
-import { promotionRefusal, retrieveSkills } from '@/components/skills/skills-api';
+import { discoveryRows, type DiscoveryRow, type RetrievePayload } from '@/pages/skills/components/discovery';
+import { promotionRefusal } from '@/hooks/skills/skills-api';
+import { useSkillsDiscovery } from '@/hooks/skills/use-skills';
 
 /**
  * M31 — `/skills/discovery`: a razão de existir do produto, finalmente com tela.
@@ -45,14 +45,16 @@ export function SkillsDiscoveryPage() {
   const [incluirRascunhos, setIncluirRascunhos] = useState(false);
   const [incluirDescontinuadas, setIncluirDescontinuadas] = useState(false);
 
-  const busca = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills:retrieve', consulta, incluirRascunhos, incluirDescontinuadas] as const,
-    queryFn: () => retrieveSkills<RetrievePayload>(consulta, TOP_K, incluirRascunhos, incluirDescontinuadas),
-    enabled: consulta !== '',
-    // Uma consulta que não casa com nada é uma RESPOSTA, não uma falha: repetir não muda o
-    // resultado e só gasta a paciência de quem espera.
-    retry: false,
-  });
+  // B-052 — a chave literal citava o caminho do endpoint. Na factory ela e
+  // `skills.discovery(...)`, entao uma invalidacao de `skills.all` alcanca a
+  // busca junto do catalogo — antes eram ilhas separadas.
+  const busca = useSkillsDiscovery<RetrievePayload>(
+    consulta,
+    TOP_K,
+    incluirRascunhos,
+    incluirDescontinuadas,
+    consulta !== '',
+  );
 
   const linhas = discoveryRows(busca.data);
   const falhou = Boolean(busca.error);

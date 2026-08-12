@@ -72,7 +72,7 @@ run.sh) is extended to build the rag image + mint the rag platform-admin.
     environment:
       PORT: "8080"
       THEORAG_PG_URI: postgres://therag:therag@pg-rag:5432/therag
-      THEORAG_ADMIN_BOOTSTRAP_TOKEN: ${THEORAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
+      THEORAG_ADMIN_BOOTSTRAP_TOKEN: ${THEORAG_ADMIN_BOOTSTRAP_TOKEN:?defina com >= 32 chars — sem default}
       THEORAG_REQUIRE_CREDENTIAL: "true"     # M13 fail-closed — the direct-to-service 401 proof (D4)
       OPENAI_API_KEY: dummy-key-for-mock
       OPENAI_BASE_URL: http://mock-openai:11434/v1

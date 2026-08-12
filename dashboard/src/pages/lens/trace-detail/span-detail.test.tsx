@@ -5,7 +5,7 @@ import { render, screen } from '@/test/render';
 import { SpanDetail } from './span-detail';
 import type { TraceSpanNode } from './helpers';
 
-vi.mock('@/lib/api', () => ({ cloudFetch: vi.fn(() => Promise.resolve({})) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: vi.fn(() => Promise.resolve({})) }));
 
 /** An LLM span carrying real token + cost fields (M15 TokenCostBreakdown adoption). */
 function llmSpan(overrides: Partial<TraceSpanNode> = {}): TraceSpanNode {

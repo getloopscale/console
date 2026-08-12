@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { Card } from '@usetheo/ui';
-import { useDeployment } from '@/hooks/use-deployment';
-import { BuildTimelineLive } from '@/components/deploy/build-timeline-live';
+import { useDeployment } from '@/hooks/deploy/use-deployment';
+import { BuildTimelineLive } from '@/pages/deploy/components/build-timeline-live';
 
 /**
  * TimelineTab — Plan J-17 T5.3.

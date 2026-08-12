@@ -5,6 +5,26 @@
 // renders as if connected to a real customer account — useful for visual
 // validation, demos, and offline development.
 
+/**
+ * Sentinela de contencao — mora AQUI, no modulo mais profundo e mais pesado.
+ *
+ * O gate de CI ("Tree-shake check") procura este literal no `dist/`. Ele comecou
+ * em `index.ts`, e uma revisao apontou o limite disso: provava que o BARREL
+ * entrou no bundle, nao que nenhum mock entrou. Um
+ * `import { projects } from './lib/mocks/fixtures'` arrastaria estas 376 linhas
+ * de dados sem acionar nada.
+ *
+ * Descendo para ca, os tres caminhos de entrada passam pelo sentinela, porque a
+ * cadeia e `index -> handlers -> fixtures`. Nenhum import de mock alcanca o
+ * bundle sem trazer esta string junto.
+ *
+ * O efeito colateral de modulo e deliberado: um `const` exportado e nao
+ * consumido seria descartado pelo minificador, e o gate voltaria a ser
+ * tautologia por um caminho novo. A atribuicao e o que garante a presenca.
+ */
+export const MOCKS_BUNDLE_SENTINEL = '__theo_mocks_present_in_bundle__';
+(globalThis as Record<string, unknown>).__theoMocks = MOCKS_BUNDLE_SENTINEL;
+
 import type {
   AuditEntry,
   Build,

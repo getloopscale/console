@@ -1,23 +1,24 @@
+import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { MarkdownView } from '@/components/common/markdown-view';
-import { KbEditor } from '@/components/rag/kb-editor';
-import { DocThemeToggle } from '@/components/rag/doc-theme-toggle';
-import { TagChip } from '@/components/rag/tag-chip';
-import { TagInput } from '@/components/rag/tag-input';
-import { useDocTheme } from '@/hooks/use-doc-theme';
+import { MarkdownView } from '@/pages/rag/components/markdown-view';
+import { KbEditor } from '@/pages/rag/components/kb-editor';
+import { DocThemeToggle } from '@/pages/rag/components/doc-theme-toggle';
+import { TagChip } from '@/pages/rag/components/tag-chip';
+import { TagInput } from '@/pages/rag/components/tag-input';
+import { useDocTheme } from '@/hooks/rag/use-doc-theme';
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
 import { WikiSearch } from './wiki-search';
 import { WikiBrowser } from './wiki-browser';
 import { WIKI_FOLDER_MARKER, type WikiEntry } from './wiki-entries';
-import { NewFolderDialog } from '../new-folder-dialog';
+import { NewFolderDialog } from '@/components/dialogs/new-folder-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * Open Wiki — /rag/wiki. A single folder-browser (like /workspaces) over per-tenant
@@ -27,10 +28,6 @@ import { cloudFetch } from '@/lib/api';
  * path; a "folder" is a path prefix (empty folders carry a hidden `.keep` marker).
  */
 
-interface Collection {
-  id: string;
-  name?: string;
-}
 interface OkfMeta {
   type?: string;
   title?: string;
@@ -92,10 +89,7 @@ export function RagWikiPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
 
   const pagesQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', collectionID] as const,

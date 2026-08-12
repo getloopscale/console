@@ -27,7 +27,7 @@ vi.mock('@/hooks/use-auth', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-projects', () => ({
+vi.mock('@/hooks/projects/use-projects', () => ({
   useProjects: () => ({
     projects: [{ name: 'acme-web', apps: [], last_deploy: '2026-05-26T06:42:00Z', environment: 'production' }],
     loading: false,
@@ -39,15 +39,15 @@ vi.mock('@/hooks/use-api', () => ({
   useEngineApi: () => ({ data: null, loading: false, error: false }),
 }));
 
-vi.mock('@/hooks/use-deployments', () => ({
+vi.mock('@/hooks/projects/use-deployments', () => ({
   useDeployments: () => ({ builds: [], loading: false, error: false }),
 }));
 
-vi.mock('@/hooks/use-secrets', () => ({
+vi.mock('@/hooks/infra/use-secrets', () => ({
   useSecrets: () => ({ secrets: [], loading: false, error: false, refetch: () => {} }),
 }));
 
-vi.mock('@/hooks/use-whoami', () => ({
+vi.mock('@/hooks/settings/use-whoami', () => ({
   useWhoami: () => ({
     whoami: { user_id: 'm', email: 'demo@usetheo.dev', team_id: 't', team_slug: 'acme', teams: [{ id: 't', slug: 'acme', role: 'owner' }] },
     loading: false,
@@ -55,10 +55,10 @@ vi.mock('@/hooks/use-whoami', () => ({
   }),
 }));
 
-import { ProjectsPage } from '@/pages/projects';
-import { ProjectDetailPage } from '@/pages/project-detail';
-import { SecretsPage } from '@/pages/secrets';
-import { TeamPage } from '@/pages/team';
+import { ProjectsPage } from '@/pages/projects/projects';
+import { ProjectDetailPage } from '@/pages/projects/project-detail';
+import { SecretsPage } from '@/pages/infra/secrets';
+import { TeamPage } from '@/pages/settings/team';
 
 describe('A11y semantic skeleton — every page', () => {
   it('projects_page_has_accessible_primary_action', () => {

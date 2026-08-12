@@ -1,5 +1,5 @@
 import type { SessionTraceItem } from '@usetheo/ui';
-import { isSpanError } from '@/lib/span-status';
+import { isSpanError } from '@/pages/lens/span-status';
 import type { Trace } from '../traces/columns';
 
 /**

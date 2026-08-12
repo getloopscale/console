@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTrustEnforcement } from '@/hooks/trust/use-trust';
+import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   Badge,
@@ -14,13 +15,11 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchEnforcementEvents } from '@/components/trust/trust-api';
 import {
   blockedCount,
   enforcementRows,
-  type EnforcementPayload,
   type EnforcementRow,
-} from '@/components/trust/enforcement-rows';
+} from '@/pages/trust/components/enforcement-rows';
 
 /**
  * M24 T7.1 — `/trust/enforcement`: o que a proteção de fato barrou.
@@ -48,10 +47,10 @@ export function TrustEnforcementPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
-  const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchEnforcementEvents<EnforcementPayload>(PAGE_LIMIT),
-  });
+  // B-052 — o limite entra na chave. `QUERY_KEY` era fixa, entao pedir uma
+  // janela diferente serviria o cache da anterior — menos linhas do que se
+  // pediu, em silencio.
+  const query = useTrustEnforcement(PAGE_LIMIT);
 
   const rows = enforcementRows(query.data);
   const failed = Boolean(query.error);
@@ -59,7 +58,7 @@ export function TrustEnforcementPage() {
   const columns: DataTableColumn<EnforcementRow>[] = [
     {
       key: 'decision',
-      label: 'Decisão',
+      label: 'Decision',
       // Badge rotulado: a decisão é o dado mais lido da tabela e não pode depender só de cor.
       render: (row) => (
         <Badge
@@ -94,7 +93,7 @@ export function TrustEnforcementPage() {
     },
     {
       key: 'createdAt',
-      label: 'Quando',
+      label: 'When',
       align: 'right',
       // Data legível — o ISO cru obriga o operador a converter de cabeça justamente no
       // momento em que ele está investigando um incidente.
@@ -106,9 +105,9 @@ export function TrustEnforcementPage() {
   return (
     <PageShell
       title="Enforcement"
-      description="Cada linha é uma vez em que a proteção agiu numa conversa deste workspace."
+      description="Each row is one time the protection acted on a conversation in this workspace."
       primaryAction={{
-        label: 'Atualizar',
+        label: 'Refresh',
         icon: RefreshCw,
         onClick: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
       }}
@@ -116,8 +115,8 @@ export function TrustEnforcementPage() {
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar a auditoria"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que nada foi bloqueado."
+          title="Could not load the audit trail"
+          description="The list below is empty because the read failed — this does NOT mean nothing was blocked."
         />
       ) : null}
 
@@ -125,10 +124,10 @@ export function TrustEnforcementPage() {
         <Card.Header>
           {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>Ações registradas</h2>
+            <h2>Recorded actions</h2>
           </Card.Title>
           <Card.Description>
-            {blockedCount(rows)} bloqueio(s) entre {rows.length} registro(s).
+            {blockedCount(rows)} block(s) among {rows.length} record(s).
           </Card.Description>
         </Card.Header>
 
@@ -136,15 +135,15 @@ export function TrustEnforcementPage() {
           columns={columns}
           data={rows}
           rowKey={(row) => row.key}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
             <EmptyState
               icon={ShieldCheck}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma ação de enforcement registrada'}
+              title={failed ? 'No data — the read failed' : 'No enforcement action recorded'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que foi barrado.'
-                  : `Nenhuma mensagem foi bloqueada ou reescrita nas últimas ${PAGE_LIMIT} ocorrências.`
+                  ? 'Try again in a moment. Until then, there is no way to know what was stopped.'
+                  : `No message was blocked or rewritten in the last ${PAGE_LIMIT} occurrences.`
               }
             />
           }

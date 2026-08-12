@@ -71,10 +71,25 @@ export interface App {
 
 export interface Project {
   name: string;
+  /**
+   * @deprecated B-063 — forma legada. O backend passou a emitir `apps_count` e
+   * `latest_framework` via LATERAL join (T2.1), e as duas paginas que liam
+   * `apps` ja usam os campos novos com este array apenas como fallback
+   * (`projects.tsx:89-90`). Sunset: remover quando a engine confirmar que
+   * nenhuma resposta em producao ainda traz `apps[]` — a confirmacao e do
+   * backend, nao deste repo.
+   */
   apps?: App[];
   last_deploy?: string | null;     // ISO timestamp; null if never deployed
   last_deploy_status?: ProjectStatus;
-  environment?: string;            // legacy singular (pre-M2); kept for backward compat
+  /**
+   * @deprecated B-063 — singular legado, anterior ao M2. Substituido pela
+   * familia `*_env_count`. Sobrevive como ultimo elo da cadeia de fallback de
+   * quatro niveis em `projects.tsx:174` e `project-detail.tsx:182`. Sunset:
+   * remover junto com o ultimo `?? (p.environment ? 1 : 0)`, o que exige
+   * confirmar com a engine que `active_env_count` chega sempre.
+   */
+  environment?: string;
   // T2.1 + ADR D2 (plan 2026-06-08-dashboard-screens-review-fixes):
   // per-project total env count, derived server-side via LEFT JOIN
   // LATERAL on environment_targets. The dashboard /projects table
@@ -315,9 +330,18 @@ export interface Environment {
   status?: string;
   // M2 v1.2 (2026-06-07): per-(project, env) tuple. Empty string =
   // legacy production entry (ADR D2 backward compat).
+  //
+  // legacy-value-ok (B-063): o campo NAO esta depreciado — o que e legado e o
+  // VALOR vazio, que ADR D2 mantem significando "pertence a todo projeto".
+  // Anotar @deprecated aqui afirmaria que o campo vai sair, e ele nao vai.
   project?: string;
-  // Legacy counter — kept for backward compat with v1.0 dashboard
-  // surfaces that displayed an aggregate project count per env.
+  /**
+   * @deprecated B-063 — contador agregado de projetos por ambiente, mantido para
+   * as telas do dashboard v1.0. Nenhuma tela atual o lê: `grep -rn '\.projects'
+   * src/pages` não retorna consumidor. Sunset: remover quando o backend parar de
+   * emiti-lo, ou na próxima mudança que toque este tipo — o que vier primeiro.
+   * Enquanto estiver aqui, um campo que ninguém lê convida a ser lido por engano.
+   */
   projects?: number;
   protected?: boolean;
   domain?: string;
@@ -656,6 +680,39 @@ export interface BillingResponse {
   period_start?: string;
   period_end?: string;
   plan_cap?: BillingPlanCap;
+  /**
+   * Preço recorrente do plano. OMITIDO pela API para enterprise e para planos
+   * ainda não persistidos — o card "Plan" do Overview renderiza "—" honesto
+   * nesse caso, nunca um zero fabricado.
+   *
+   * Estava ausente deste espelho enquanto `use-overview-kpis.ts` já o lia por uma
+   * interface local (`BillingShape`). Um campo que a API manda, a tela lê e o
+   * contrato não declara é drift silencioso: o `tsc` não protege o que não
+   * conhece, e a próxima mudança de forma passa sem ninguém notar.
+   */
+  plan_price?: BillingPlanPrice;
+  /**
+   * Identificador da assinatura no Stripe. OMITIDO enquanto nao ha assinatura.
+   *
+   * B-047 — mesmo drift que `plan_price` documenta logo acima, e a prova de que
+   * o padrao se repete: `pages/settings/billing.tsx` declarava uma interface
+   * LOCAL de mesmo nome (`BillingResponse`) so para poder ler este campo, e a
+   * espera pos-checkout inteira depende dele. Duas interfaces homonimas com
+   * formatos diferentes e pior que uma incompleta: o import certo passa a ser
+   * sorte.
+   *
+   * A deteccao usa `subscription_id` e nao o rotulo do plano porque comparar
+   * rotulos falha quando a base e o alvo coincidem — alguem no Pro que cancela e
+   * recompra Pro. O id do Stripe e unico por sessao de checkout, entao qualquer
+   * compra produz diferenca.
+   */
+  subscription_id?: string;
+}
+
+export interface BillingPlanPrice {
+  amount_minor: number;
+  currency: string;
+  interval: string;
 }
 
 export interface BillingUsageMetric {
@@ -693,7 +750,13 @@ export interface AuditEntry {
   correlation_id?: string;
   metadata?: Record<string, unknown>;
 
-  // Legacy aliases — backend MAY add these later for richer UX.
+  /**
+   * @deprecated B-063 — aliases legados do wire de auditoria. Os consumidores
+   * DEVEM ler os campos canônicos acima (`event_id`, `occurred_at`, `actor`);
+   * estes existem só para backends que ainda os emitem. Sunset: remover quando
+   * a engine parar de emitir qualquer um deles — verificável por uma resposta
+   * de `/v1/dashboard/audit` sem estes campos.
+   */
   id?: string;
   ts?: string;
   actor_email?: string;
@@ -756,4 +819,43 @@ export interface Invoice {
   period_start: string;
   period_end: string;
   hosted_invoice_url: string;
+}
+
+// ---------------------------------------------------------------------------
+// Sessao Kratos.
+//
+// Estes tres tipos moravam em `src/lib/auth.ts`. Foram movidos para ca porque
+// `dev-mocks.ts` precisa do `Session` e `auth.ts` precisa das funcoes de
+// `dev-mocks` — o import de tipo de volta fechava o ciclo
+// `api.ts -> dev-mocks.ts -> auth.ts` que o madge reportava (B-039).
+//
+// Este modulo e a ACL de tipos do backend e nao importa nada, entao e o unico
+// destino que nao pode reintroduzir o ciclo. `auth.ts` re-exporta os tres, de
+// modo que `@/lib/auth` continua sendo a superficie publica para os ~10
+// consumidores existentes.
+// ---------------------------------------------------------------------------
+
+export interface VerifiableAddress {
+  value: string;
+  verified: boolean;
+  via: string;
+}
+
+export interface AuthenticationMethod {
+  method: string;
+  provider?: string;
+  completed_at?: string;
+}
+
+export interface Session {
+  active: boolean;
+  identity: {
+    id: string;
+    traits: {
+      email: string;
+      name?: string;
+    };
+    verifiable_addresses?: VerifiableAddress[];
+  };
+  authentication_methods?: AuthenticationMethod[];
 }

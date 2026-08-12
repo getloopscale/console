@@ -1,8 +1,8 @@
 import { Badge, Card } from '@usetheo/ui';
 
-import { formatCost, formatDuration, formatTokens } from '@/lib/format';
-import type { TraceSpanNode } from '@/lib/trace-layout';
-import { durationMs } from '../trace-detail';
+import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
+import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
+import { durationMs } from '../trace-detail/helpers';
 
 /**
  * M62 P2 — the read-only baseline column: the ORIGINAL span rendered next to the editable variants

@@ -15,7 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // LensDashboardsHandler — theo-lens M66. A per-WORKSPACE store of custom dashboards for the
@@ -45,6 +45,10 @@ var dashboardWidgetMetrics = map[string]bool{
 }
 
 // NewLensDashboardsHandler constructs the handler over the shared engine DB.
+// capLensDashboards é o teto defensivo desta lista (B-114). O `LIMIT` da query é `capLensDashboards + 1`,
+// para que o handler saiba distinguir "exatamente 100" de "mais de 100".
+const capLensDashboards = 100
+
 func NewLensDashboardsHandler(db *sql.DB, logger *slog.Logger) *LensDashboardsHandler {
 	if logger == nil {
 		logger = slog.Default()
@@ -180,7 +184,7 @@ func (h *LensDashboardsHandler) List(w http.ResponseWriter, r *http.Request) {
 		FROM lens_dashboards
 		WHERE tenant_id = $1
 		ORDER BY created_at DESC
-		LIMIT 100`
+		LIMIT 101`
 	rows, err := h.db.QueryContext(r.Context(), q, user.TenantID)
 	if err != nil {
 		h.logger.Warn("lens dashboards list: query failed", "error", err)
@@ -199,7 +203,8 @@ func (h *LensDashboardsHandler) List(w http.ResponseWriter, r *http.Request) {
 		v.Config = json.RawMessage(config)
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"dashboards": out})
+	out, temMais := truncar(out, capLensDashboards)
+	writeJSON(w, http.StatusOK, map[string]any{"dashboards": out, "has_more": temMais})
 }
 
 // Get serves GET /v1/dashboard/lens/dashboards/{id}. A cross-tenant / non-existent id → 404 (never 403).

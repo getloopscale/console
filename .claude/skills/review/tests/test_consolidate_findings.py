@@ -119,3 +119,63 @@ def test_report_markdown_written(tmp_path: Path) -> None:
     content = output.read_text(encoding="utf-8")
     assert "LOW" in content
     assert "F-1" in content
+
+
+def _escrever_yaml(findings_dir: Path, name: str, findings: list[dict], sufixo: str) -> Path:
+    """Igual a `_write_findings`, mas com a extensão escolhida pelo chamador."""
+    import yaml
+    findings_dir.mkdir(parents=True, exist_ok=True)
+    path = findings_dir / f"{name}{sufixo}"
+    path.write_text(yaml.safe_dump({"agent": name, "findings": findings}), encoding="utf-8")
+    return path
+
+
+def test_agente_que_gravou_yaml_nao_e_descartado_em_silencio(tmp_path: Path) -> None:
+    """A regressão de 2026-08-10: o laço varria só `*.yml`.
+
+    Num run real de `/review`, dois dos cinco agentes gravaram `.yaml` sem gêmeo —
+    `domain-frontend`, que carregava o único achado HIGH de acessibilidade, e
+    `cross-validation`, o pilar inteiro. Os dois seriam **descartados sem uma linha de
+    aviso**, e o relatório sairia dizendo "5 agentes" com os achados de três.
+
+    É o pior modo de falha que um agregador tem: ele transforma *ausência de achado* em
+    *ausência de problema*, e o veredito sai verde por falta de entrada em vez de por
+    ausência de defeito. Nada no relatório denunciava — foi um dos agentes que notou, ao
+    reparar que o próprio arquivo tinha extensão diferente da dos irmãos.
+    """
+    findings_dir = tmp_path / "findings"
+    _escrever_yaml(findings_dir, "arquitetura", [], ".yml")
+    _escrever_yaml(
+        findings_dir,
+        "domain-frontend",
+        [{"id": "F-1", "severity": "BLOCKER", "file": "a.tsx", "summary": "o achado que sumia"}],
+        ".yaml",
+    )
+
+    rc, data = _run(findings_dir, tmp_path / "report.md", coverage=1.0)
+
+    assert data["agents_count"] == 2, "um agente `.yaml` não foi lido"
+    assert data["total_findings"] == 1, "o achado do agente `.yaml` sumiu"
+    assert data["verdict"] == "NEEDS_FIXES", (
+        "veredito verde por FALTA DE ENTRADA, não por ausência de defeito — "
+        "exatamente o silêncio que esta regressão produzia"
+    )
+    assert rc != 0
+
+
+def test_agente_com_as_duas_extensoes_nao_e_contado_em_dobro(tmp_path: Path) -> None:
+    """A contraparte do conserto acima, e o risco que ele introduz.
+
+    Três agentes daquele mesmo run gravaram `.yml` E `.yaml` com conteúdo idêntico. Ler as
+    duas extensões sem deduplicar contaria cada achado desses agentes DUAS vezes — e um
+    relatório que infla contagem é tão pouco confiável quanto um que a esconde.
+    """
+    findings_dir = tmp_path / "findings"
+    achado = [{"id": "F-1", "severity": "HIGH", "file": "a.tsx", "summary": "um só"}]
+    _escrever_yaml(findings_dir, "testes", achado, ".yml")
+    _escrever_yaml(findings_dir, "testes", achado, ".yaml")
+
+    _, data = _run(findings_dir, tmp_path / "report.md", coverage=1.0)
+
+    assert data["agents_count"] == 1
+    assert data["total_findings"] == 1, "o mesmo agente foi contado duas vezes"

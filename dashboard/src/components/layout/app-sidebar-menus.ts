@@ -1,10 +1,11 @@
 import type { ElementType } from 'react';
-import { LENS_SIDEBAR_GROUPS } from '@/components/lens/lens-capabilities';
+import { LENS_SIDEBAR_GROUPS } from '@/components/layout/lens-capabilities';
 import {
   Activity,
   Bell,
   BookOpen,
   Boxes,
+  Database,
   Brain,
   FilePlus,
   FileText,
@@ -55,6 +56,21 @@ export interface MenuItem {
    * referenced submenu (Vercel drill-down pattern). The route is also
    * navigated so URL stays in sync. */
   drillsInto?: string;
+  /**
+   * Marca a capacidade como ANUNCIADA e ainda não construída. A entrada continua
+   * navegável — a rota renderiza `SubPagePlaceholder`, que diz o que a tela fará
+   * e o que dá para fazer hoje.
+   *
+   * Existe porque o padrão anterior (entrada normal + página placeholder) só
+   * revela o estado DEPOIS do clique. Para uma lista de capacidades de topo isso
+   * é caro: quem avalia o produto conta o que está pronto pelo menu, e uma
+   * entrada indistinguível das outras infla essa conta. O marcador é a diferença
+   * entre anunciar um roadmap e afirmar uma entrega.
+   *
+   * O rótulo é anunciado por leitor de tela junto do nome — um selo só visual
+   * reintroduziria a mesma mentira para quem não o vê.
+   */
+  comingSoon?: boolean;
 }
 
 export interface MenuGroup {
@@ -119,6 +135,17 @@ export const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
           { label: 'Knowledge Base', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
+          // Databases — ANUNCIADA, nao entregue. `theo-db` existe como produto
+          // (extensao PostgreSQL) e nao tem superficie alguma no dashboard: nem
+          // rota, nem endpoint, nem comando de CLI que a tela pudesse oferecer.
+          // Por isso o placeholder NAO sugere comando — inventar um seria pior
+          // que omitir.
+          //
+          // PLACEHOLDER · revisar ate 2026-11-07. Na revisao, ou vira
+          // implementacao ou sai JUNTO com a rota: uma entrada de menu sem data
+          // vira promessa para quem le o menu, que e o defeito que o marcador
+          // `comingSoon` existe para evitar.
+          { label: 'Databases', path: '/databases', icon: Database, comingSoon: true },
           { label: 'Workspace', path: '/workspaces', icon: FolderTree },
           { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
           // M23 — a capacidade trust. Sem esta entrada as rotas /trust existem e ninguém as
@@ -169,8 +196,18 @@ export const MENUS: Record<string, MenuDefinition> = {
         title: 'Workspace',
         items: [
           { label: 'General', path: '/settings', icon: Settings },
-          { label: 'Members', path: '/settings/members', icon: Users },
-          { label: 'Billing', path: '/settings/billing', icon: Receipt },
+          // B-076 — apontam para as telas REAIS, nao para os placeholders de
+          // `/settings/members` e `/settings/billing`.
+          //
+          // Medido em 2026-08-08: o menu tinha DUAS entradas 'Billing' — uma
+          // para `/billing`, que funciona, e outra para `/settings/billing`,
+          // que renderiza "ainda nao construida". E 'Members' levava a um
+          // placeholder enquanto 'Team' (no menu principal) ja mostrava a
+          // mesma coisa funcionando. Quem clicava nao tinha como saber qual
+          // das duas era a real, e metade das vezes concluia que a
+          // funcionalidade nao existe.
+          { label: 'Members', path: '/team', icon: Users },
+          { label: 'Billing', path: '/billing', icon: Receipt },
         ],
       },
       {
@@ -178,12 +215,12 @@ export const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'API Tokens', path: '/settings/tokens', icon: Key },
           { label: 'Webhooks', path: '/settings/webhooks', icon: Webhook },
-          { label: 'Notifications', path: '/settings/notifications', icon: Bell },
+          { label: 'Notifications', path: '/settings/notifications', icon: Bell, comingSoon: true },
         ],
       },
       {
         items: [
-          { label: 'Danger Zone', path: '/settings/danger', icon: ShieldAlert },
+          { label: 'Danger Zone', path: '/settings/danger', icon: ShieldAlert, comingSoon: true },
         ],
       },
     ],
@@ -197,13 +234,13 @@ export const MENUS: Record<string, MenuDefinition> = {
         title: 'Personal',
         items: [
           { label: 'Account', path: '/profile', icon: User },
-          { label: 'Security', path: '/profile/security', icon: Lock },
-          { label: 'Sessions', path: '/profile/sessions', icon: Link2 },
+          { label: 'Security', path: '/profile/security', icon: Lock, comingSoon: true },
+          { label: 'Sessions', path: '/profile/sessions', icon: Link2, comingSoon: true },
         ],
       },
       {
         items: [
-          { label: 'Danger Zone', path: '/profile/danger', icon: ShieldAlert },
+          { label: 'Danger Zone', path: '/profile/danger', icon: ShieldAlert, comingSoon: true },
         ],
       },
     ],
@@ -311,11 +348,11 @@ export const MENUS: Record<string, MenuDefinition> = {
           // M13: o catálogo saiu da raiz e ganhou endereço próprio. Sem esta entrada ele só seria
           // alcançável pelo botão do painel — e um item de menu é o caminho de volta que todo
           // formulário precisa ter.
-          { label: 'Catálogo', path: '/promptly/catalogo', icon: List },
+          { label: 'Catalog', path: '/promptly/catalog', icon: List },
           // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
           // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe
           // (o catálogo oferece o atalho de comparar em cada linha desde o M13).
-          { label: 'Nova revisão', path: '/promptly/new', icon: FilePlus },
+          { label: 'New revision', path: '/promptly/new', icon: FilePlus },
           // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
           // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe.
         ],

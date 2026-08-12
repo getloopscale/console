@@ -5,7 +5,7 @@ import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
 // react-resizable-panels needs a real ResizeObserver + measured sizes; mock it at the boundary so we
 // test OUR wiring (a tree Panel, a detail Panel, a resize handle), not the library. The drag is the
@@ -16,7 +16,8 @@ vi.mock('react-resizable-panels', () => ({
   PanelResizeHandle: (props: Record<string, unknown>) => <div role="separator" {...props} />,
 }));
 
-import { LensTraceDetail, durationMs, prettyValue, asChat, computeBarLayout } from './trace-detail';
+import { LensTraceDetail } from './trace-detail/index';
+import { durationMs, prettyValue, asChat, computeBarLayout } from './trace-detail/helpers';
 import { ancestors } from './trace-detail/breadcrumb';
 
 /**

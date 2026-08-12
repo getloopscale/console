@@ -8,8 +8,8 @@ import {
   type TrafficBucket,
   type LatencyBucket,
   type ModelBucket,
-} from '@/components/lens/lens-series';
-import { formatNumber, formatDuration, formatCost } from '@/lib/format';
+} from '@/pages/lens/components/lens-series';
+import { formatNumber, formatDuration, formatCost } from '@/lib/formatting/format';
 
 /**
  * M66 — the pure widget model for custom dashboards. A board is an ordered list of widgets; each

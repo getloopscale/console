@@ -6,7 +6,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
 )
 
 // TestAddStorageBytes_PrometheusCounter proves the exported metrics hook

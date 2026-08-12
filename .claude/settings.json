@@ -13,7 +13,8 @@
       "Read",
       "Glob",
       "Grep",
-      "Bash"
+      "Bash",
+      "Bash(*)"
     ],
     "ask": [
     ],

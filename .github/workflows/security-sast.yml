@@ -42,13 +42,14 @@ jobs:
       # parece. Mesmo mecanismo do job de build.
       - name: Configure private module access (theo-contracts)
         run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
           git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
       - name: gosec
         env:
-          GOPRIVATE: github.com/usetheodev/*
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
         run: |
           set -euo pipefail
           go install github.com/securego/gosec/v2/cmd/gosec@v2.22.9

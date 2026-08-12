@@ -17,7 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // J-16 Settings — customer-facing workspace/deploy webhook registrations. A
@@ -42,6 +42,10 @@ type WorkspaceWebhooksHandler struct {
 }
 
 // NewWorkspaceWebhooksHandler creates the handler. logger may be nil.
+// capWorkspaceWebhooks é o teto defensivo desta lista (B-114). O `LIMIT` da query é `capWorkspaceWebhooks + 1`,
+// para que o handler saiba distinguir "exatamente 100" de "mais de 100".
+const capWorkspaceWebhooks = 100
+
 func NewWorkspaceWebhooksHandler(db *sql.DB, logger *slog.Logger) *WorkspaceWebhooksHandler {
 	if logger == nil {
 		logger = slog.Default()
@@ -153,7 +157,7 @@ func (h *WorkspaceWebhooksHandler) List(w http.ResponseWriter, r *http.Request) 
 		FROM workspace_webhooks
 		WHERE subject = $1 AND tenant_id = $2 AND revoked_at IS NULL
 		ORDER BY created_at DESC
-		LIMIT 100`
+		LIMIT 101`
 
 	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID)
 	if err != nil {
@@ -179,7 +183,8 @@ func (h *WorkspaceWebhooksHandler) List(w http.ResponseWriter, r *http.Request) 
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"webhooks": out})
+	out, temMais := truncar(out, capWorkspaceWebhooks)
+	writeJSON(w, http.StatusOK, map[string]any{"webhooks": out, "has_more": temMais})
 }
 
 // Delete soft-deletes the webhook. Cross-tenant / non-existent / already-revoked

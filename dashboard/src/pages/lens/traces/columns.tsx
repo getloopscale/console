@@ -1,33 +1,24 @@
 import { Badge, Button, Checkbox, CopyButton, StatusDot, type DataTableColumn } from '@usetheo/ui';
 import { Sparkles } from 'lucide-react';
 
-import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
-import { isSpanError } from '@/lib/span-status';
-import { nsToIso } from '../traces';
+import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/formatting/format';
+import { isSpanError } from '@/pages/lens/span-status';
+import { nsToIso } from './helpers';
 
 /**
  * One traces-list row as the read API returns it. Declares the fields the list item carries today —
  * the M49/M52 identity/status fields PLUS the latency/tokens/cost fields proven on the wire by
- * `ExportTrace` (`src/lib/traces-export.ts` — the read API's `traceListItemSchema`) and surfaced as
+ * `ExportTrace` (`src/pages/lens/traces-export.ts` — the read API's `traceListItemSchema`) and surfaced as
  * columns in M59 P1. `input/output preview` and `tags` are NOT on the list wire (see the plan's
  * Unresolved Questions Q1/Q2) — no column fabricates them.
  */
-export interface Trace {
-  traceId: string;
-  name?: string;
-  status?: string;
-  statusCode?: string;
-  model?: string;
-  startTimeUnixNano?: string;
-  // M59 P1 — consensus-spine numeric fields (all optional; absent → em-dash, never fabricated).
-  durationMs?: number;
-  costUsd?: number;
-  totalTokens?: number;
-  sessionId?: string;
-  // M78 — per-trace count of machine evaluations (from the list read's `evaluationsCount`, O(1) subquery;
-  // omitted when 0). Makes scored traces findable in the list without opening each one.
-  evaluationsCount?: number;
-}
+// B-012 — a FORMA de um trace mudou de casa: ela é o tipo de fio da listagem,
+// e mora com quem a busca (`hooks/lens/traces-api.ts`). Reexportada aqui porque
+// seis arquivos já a importavam deste módulo, e mover o tipo não é motivo para
+// tocar em seis arquivos.
+export type { Trace } from '@/hooks/lens/traces-api';
+import type { Trace } from '@/hooks/lens/traces-api';
+
 
 /** Handles the column cells need from the orchestrating page (M59 P0/P1 + M61 onAsk). */
 export interface TracesColumnsOptions {

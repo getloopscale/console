@@ -8,14 +8,17 @@
 
 ```bash
 # Auto-runnable in CI (no infra setup beyond npm install):
-npm test                          # 200+ vitest tests (handlers + pages + journeys + a11y)
+npm test                          # 2923 vitest tests (handlers + pages + journeys + a11y)
 npm run build                     # tsc + vite build (catches type + bundle errors)
-npm run size                      # size-limit cap (180 KB brotli)
+npm run size                      # size-limit: 6 per-chunk caps, 655 kB total (95 kB eager)
 
 # Requires extra setup (see sections below):
 npm run test:e2e                  # Playwright browser-runtime journeys
-npm run test:lighthouse           # Lighthouse CI against dev server with mocks
-npm run test:visual               # Visual regression (vendor TBD)
+# npm run test:lighthouse         # NOT a script. lighthouserc.json exists; run it with
+#                                 # `npx @lhci/cli autorun` against the dev server.
+# npm run test:visual             # NOT a script and no vendor chosen. Listed here as a gap,
+#                                 # not as an instruction — the previous version read as an
+#                                 # available command and failed for anyone who tried it.
 ```
 
 ## 1. Vitest acceptance (auto in CI)

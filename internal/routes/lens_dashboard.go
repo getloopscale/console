@@ -14,8 +14,8 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/thelens"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/thelens"
 )
 
 // LensDataClient is the theo-lens proxy the dashboard BFF depends on (DIP — a stub satisfies it

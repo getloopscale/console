@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ProjectStatusDetail } from '@/lib/api/types';
-import { engineFetch, ApiError } from '@/lib/api';
+import { engineFetch, ApiError } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 
 /**

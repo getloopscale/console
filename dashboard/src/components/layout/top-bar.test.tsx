@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { render, screen } from '@/test/render';
 
 const mockUseProjects = vi.fn();
-vi.mock('@/hooks/use-projects', () => ({
+vi.mock('@/hooks/projects/use-projects', () => ({
   useProjects: () => mockUseProjects(),
 }));
 

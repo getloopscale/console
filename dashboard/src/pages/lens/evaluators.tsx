@@ -16,14 +16,14 @@ import {
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
-import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 import { TrendChart } from '@usetheo/ui';
-import { scoresToSeries, type ScoreBucket } from '@/components/lens/lens-series';
+import { scoresToSeries, type ScoreBucket } from '@/pages/lens/components/lens-series';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * M44 — /lens/evaluators. List / create / run / delete online evaluators via the read+write

@@ -38,10 +38,10 @@ async function cleanup(page: Page) {
   const row = page.getByRole('row').filter({ hasText: NAME });
   if ((await row.count()) === 0) return;
 
-  await row.getByRole('button', { name: /remover/i }).click();
+  await row.getByRole('button', { name: /remove/i }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill(NAME);
-  await dialog.getByRole('button', { name: /remover guardrail/i }).click();
+  await dialog.getByRole('button', { name: /remove guardrail/i }).click();
   await expect(page.getByRole('row').filter({ hasText: NAME })).toHaveCount(0);
 }
 
@@ -58,33 +58,33 @@ test.describe('M24 — operar guardrails pelo dashboard', () => {
 
     // E não oferecem remoção: a ação não existe nessas linhas (ADR D2).
     const platformRow = page.getByRole('row').filter({ hasText: 'credential-mask' });
-    await expect(platformRow.getByRole('button', { name: /remover/i })).toHaveCount(0);
+    await expect(platformRow.getByRole('button', { name: /remove/i })).toHaveCount(0);
   });
 
   test('não há caminho para salvar sem antes testar', async ({ page }) => {
     await page.goto('/trust/guardrails/new');
 
-    await page.getByLabel('Nome').fill(NAME);
-    await page.getByLabel('Termos a bloquear').fill(TERM);
+    await page.getByLabel('Name').fill(NAME);
+    await page.getByLabel('Terms to block').fill(TERM);
 
     // A asserção que define o milestone: com rascunho válido e sem dry-run, o caminho de
     // gravação não existe. Nem desabilitado — ausente.
-    await expect(page.getByRole('button', { name: /salvar/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /save/i })).toHaveCount(0);
   });
 
   test('criar → testar → salvar → aparecer → remover → sumir', async ({ page }) => {
     await page.goto('/trust/guardrails/new');
 
-    await page.getByLabel('Nome').fill(NAME);
-    await page.getByLabel('Termos a bloquear').fill(TERM);
+    await page.getByLabel('Name').fill(NAME);
+    await page.getByLabel('Terms to block').fill(TERM);
 
     // Dry-run com uma amostra que a regra alcança: o veredito deve dizer que bloquearia.
-    await page.getByLabel('Mensagem de exemplo').fill(`uma mensagem com ${TERM} dentro`);
-    await page.getByRole('button', { name: /^testar$/i }).click();
-    await expect(page.getByText(/seria bloqueada/i)).toBeVisible();
+    await page.getByLabel('Sample message').fill(`uma mensagem com ${TERM} dentro`);
+    await page.getByRole('button', { name: /^test$/i }).click();
+    await expect(page.getByText(/would be blocked/i)).toBeVisible();
 
     // Só agora o caminho de salvar existe.
-    await page.getByRole('button', { name: /salvar e ativar/i }).click();
+    await page.getByRole('button', { name: /save and activate/i }).click();
 
     // Aparece no catálogo, marcada como do workspace.
     await expect(page.getByRole('heading', { name: /guardrails/i })).toBeVisible();
@@ -94,9 +94,9 @@ test.describe('M24 — operar guardrails pelo dashboard', () => {
 
     // Remoção exige a frase digitada — agora pelo ConfirmDialog canônico do dashboard,
     // o mesmo de `domains`/`previews` (DESIGN.md § 2.2).
-    await row.getByRole('button', { name: /remover/i }).click();
+    await row.getByRole('button', { name: /remove/i }).click();
     const dialog = page.getByRole('dialog');
-    const confirm = dialog.getByRole('button', { name: /remover guardrail/i });
+    const confirm = dialog.getByRole('button', { name: /remove guardrail/i });
     await expect(confirm).toBeDisabled();
 
     await dialog.getByRole('textbox').fill(NAME);
@@ -110,7 +110,7 @@ test.describe('M24 — operar guardrails pelo dashboard', () => {
     await page.goto('/trust/enforcement');
 
     await expect(page.getByRole('heading', { name: /enforcement/i })).toBeVisible();
-    await expect(page.getByText('Bloqueado').first()).toBeVisible();
+    await expect(page.getByText('Blocked').first()).toBeVisible();
     // O marcador redigido é o que se vê; conteúdo bruto nunca chega a esta tela.
     await expect(page.getByText('sk_live_***')).toBeVisible();
   });

@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 import { fireEvent } from '@testing-library/react';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
 }));
 
 const mockCreate = vi.fn();
-vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
+vi.mock('@/hooks/promptly/promptly-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/promptly/promptly-api')>();
   return { ...actual, createRevision: (...a: unknown[]) => mockCreate(...a) };
 });
 
@@ -34,10 +34,10 @@ describe('M12 — a tela de criar revisão', () => {
   it('create_form_shows_rendered_preview_before_save', async () => {
     render(<PromptlyCreatePage />);
 
-    await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'boas-vindas');
+    await userEvent.type(await screen.findByLabelText('Prompt name'), 'boas-vindas');
     // `userEvent.type` trata `{` como descritor de tecla — `{{nome}}` viraria `{nome}}`. Para
     // texto de template, `fireEvent.change` é o que entrega os caracteres literais.
-    fireEvent.change(screen.getByLabelText('Texto do prompt'), { target: { value: 'Olá {{nome}}!' } });
+    fireEvent.change(screen.getByLabelText('Prompt text'), { target: { value: 'Olá {{nome}}!' } });
 
     // O marcador PERMANECE enquanto o campo está vazio — apagá-lo esconderia o buraco que o
     // modelo receberia.
@@ -58,14 +58,14 @@ describe('M12 — a tela de criar revisão', () => {
       }),
     );
     render(<PromptlyCreatePage />);
-    await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'malformado');
-    fireEvent.change(screen.getByLabelText('Texto do prompt'), { target: { value: 'Olá {{ nome' } });
+    await userEvent.type(await screen.findByLabelText('Prompt name'), 'malformado');
+    fireEvent.change(screen.getByLabelText('Prompt text'), { target: { value: 'Olá {{ nome' } });
     // M17 — a descrição passou a ser obrigatória NESTA tela (ADR-3). Sem ela a validação
     // barra a submissão e este teste mediria a recusa nova em vez do que veio medir.
-    fireEvent.change(screen.getByLabelText('Por que esta revisão existe'), {
+    fireEvent.change(screen.getByLabelText('Why this revision exists'), {
       target: { value: 'motivo do teste' },
     });
-    await userEvent.click(screen.getByRole('button', { name: /criar revisão/i }));
+    await userEvent.click(screen.getByRole('button', { name: /create revision/i }));
     expect(await screen.findByText(/unbalanced or malformed braces/i)).toBeInTheDocument();
   });
 
@@ -75,23 +75,23 @@ describe('M12 — a tela de criar revisão', () => {
       new ApiError(502, { message: 'dial tcp 10.0.0.4:8080: connect: refused' }),
     );
     render(<PromptlyCreatePage />);
-    await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'x');
-    fireEvent.change(screen.getByLabelText('Texto do prompt'), { target: { value: 'y' } });
+    await userEvent.type(await screen.findByLabelText('Prompt name'), 'x');
+    fireEvent.change(screen.getByLabelText('Prompt text'), { target: { value: 'y' } });
     // M17 — a descrição passou a ser obrigatória NESTA tela (ADR-3). Sem ela a validação
     // barra a submissão e este teste mediria a recusa nova em vez do que veio medir.
-    fireEvent.change(screen.getByLabelText('Por que esta revisão existe'), {
+    fireEvent.change(screen.getByLabelText('Why this revision exists'), {
       target: { value: 'motivo do teste' },
     });
-    await userEvent.click(screen.getByRole('button', { name: /criar revisão/i }));
-    expect(await screen.findByText(/não foi possível/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /create revision/i }));
+    expect(await screen.findByText(/could not/i)).toBeInTheDocument();
     expect(screen.queryByText(/10\.0\.0\.4/)).not.toBeInTheDocument();
   });
 
   it('create_form_blocks_submit_while_the_name_is_invalid', async () => {
     render(<PromptlyCreatePage />);
 
-    await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'time/saudacao');
-    expect(screen.getByRole('button', { name: /criar revisão/i })).toBeDisabled();
+    await userEvent.type(await screen.findByLabelText('Prompt name'), 'time/saudacao');
+    expect(screen.getByRole('button', { name: /create revision/i })).toBeDisabled();
     expect(mockCreate).not.toHaveBeenCalled();
   });
 });

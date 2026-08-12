@@ -63,7 +63,7 @@ test.describe('M142 — o consumo por end-user alcançado pelo produto', () => {
     // afirmar "existe em algum lugar" nunca foi o que este critério pede.
     await expect(
       page.locator('table').filter({ hasNot: page.locator('[data-slot="trend-chart"]') })
-        .getByText(/não atribuído/i).first(),
+        .getByText(/unattributed/i).first(),
     ).toBeVisible();
 
     // M144 — o GRÁFICO, e a lacuna nele. DUAS afirmações, porque a primeira sozinha mente.
@@ -101,7 +101,7 @@ test.describe('M142 — o consumo por end-user alcançado pelo produto', () => {
     await expect(celulasDe(graficos.nth(1)).filter({ hasText: /^360$/ })).toHaveCount(1);
     await expect(celulasDe(primeiro).filter({ hasText: /^\$2\.50$/ })).toHaveCount(1);
 
-    await expect(page.getByText(/não foi possível carregar/i)).toHaveCount(0);
+    await expect(page.getByText(/could not load/i)).toHaveCount(0);
     expect(erros, `erros não capturados na página: ${erros.join('; ')}`).toHaveLength(0);
   });
 });

@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
 import { ChunksPanel } from './chunks-panel';
 

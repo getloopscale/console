@@ -12,7 +12,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	mww "github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
+	mww "github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
 )
 
 // Real-Postgres tests for the NEW worker logic — the lease claim, the

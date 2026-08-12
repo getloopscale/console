@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/promptly"
-	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/promptly"
+	"github.com/usetheoai/theo-cloud/internal/routes"
 )
 
 // M11 T3.1 — the promptly ForwardAuth WIRING: the generic ForwardAuthHandler

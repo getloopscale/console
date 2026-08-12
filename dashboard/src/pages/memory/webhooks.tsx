@@ -15,12 +15,13 @@ import {
   Timestamp,
   useToast,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * Plan 3 of dashboard-memory-section-roadmap.md, T3.7.
@@ -101,7 +102,7 @@ export function WebhooksPage() {
     // throwOnError so a failed fetch is query.isError, not an empty list rendered
     // as "no webhooks" (theo-cloud#250).
     queryFn: () =>
-      cloudFetch<ListResult>('/v1/dashboard/memory/webhooks/list', {}, { throwOnError: true }),
+      cloudFetch<ListResult>(`/v1/dashboard/memory/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -491,14 +492,18 @@ function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDia
   const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Add webhook</Dialog.Title>
-          <Dialog.Description>Register a URL to be notified when memory events occur.</Dialog.Description>
-        </Dialog.Header>
-        <Dialog.Body>
-          <form id="add-webhook-form" className="space-y-4" onSubmit={submit}>
+    <AppModal
+      open={open}
+      onClose={handleClose}
+      title={<>Add webhook</>}
+      description={<>Register a URL to be notified when memory events occur.</>}
+      footer={<><Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Button><Button type="submit" form="add-webhook-form" disabled={submitDisabled}>
+            {submitting ? 'Adding…' : 'Add webhook'}
+          </Button></>}
+    >
+      <form id="add-webhook-form" className="space-y-4" onSubmit={submit}>
             <div>
               <label htmlFor="wh-url" className="text-sm font-medium block mb-1">
                 URL
@@ -545,16 +550,6 @@ function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDia
               </div>
             </fieldset>
           </form>
-        </Dialog.Body>
-        <Dialog.Footer>
-          <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button type="submit" form="add-webhook-form" disabled={submitDisabled}>
-            {submitting ? 'Adding…' : 'Add webhook'}
-          </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }

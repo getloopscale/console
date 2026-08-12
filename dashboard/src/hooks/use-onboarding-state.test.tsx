@@ -6,13 +6,13 @@ const mockUseProjects = vi.fn();
 const mockUseEngineApi = vi.fn();
 const mockUseDeployments = vi.fn();
 
-vi.mock('@/hooks/use-whoami', () => ({ useWhoami: () => mockUseWhoami() }));
-vi.mock('@/hooks/use-projects', () => ({ useProjects: () => mockUseProjects() }));
+vi.mock('@/hooks/settings/use-whoami', () => ({ useWhoami: () => mockUseWhoami() }));
+vi.mock('@/hooks/projects/use-projects', () => ({ useProjects: () => mockUseProjects() }));
 vi.mock('@/hooks/use-api', () => ({
   useEngineApi: (path: string) => mockUseEngineApi(path),
   useCloudApi: () => ({ data: null, loading: false, error: false }),
 }));
-vi.mock('@/hooks/use-deployments', () => ({
+vi.mock('@/hooks/projects/use-deployments', () => ({
   useDeployments: () => mockUseDeployments(),
 }));
 
@@ -25,7 +25,7 @@ beforeEach(() => {
   mockUseEngineApi.mockReset();
   mockUseDeployments.mockReset();
   mockUseWhoami.mockReturnValue({ whoami: null, loading: false, error: false });
-  mockUseProjects.mockReturnValue({ projects: [], loading: false });
+  mockUseProjects.mockReturnValue({ projects: [], total: 0, loading: false, error: false });
   mockUseEngineApi.mockReturnValue({ data: { domains: [] }, loading: false, error: false });
   mockUseDeployments.mockReturnValue({ builds: [], loading: false, error: false });
 });
@@ -186,5 +186,51 @@ describe('useOnboardingState (Sprint 3 T3.1)', () => {
     const { result } = renderHook(() => useOnboardingState());
     expect(result.current.state.steps.deploy_succeeded).toBe(true);
     expect(result.current.state.steps.cli_installed).toBe(true);
+  });
+});
+
+
+/**
+ * B-094 — o painel nao afirma o negativo a partir de ausencia de dado.
+ *
+ * `logged_in: !!whoami` e `project_initialized: projects.length > 0` derivam de
+ * leituras que podem falhar. Quando falham, os dois viram `false` — e o painel
+ * dizia a um usuario logado que ele precisa entrar, e a quem tem projetos que
+ * precisa criar um.
+ *
+ * E a classe do #274 no lugar mais caro: o onboarding e a primeira coisa que um
+ * usuario novo le. "Nao consegui saber" e um estado diferente de "nao foi
+ * feito", e so um dos dois justifica pedir acao.
+ */
+describe('onboarding com fonte indisponivel (B-094)', () => {
+  it('nao aparece quando a leitura de whoami falhou', () => {
+    mockUseWhoami.mockReturnValue({ whoami: null, loading: false, error: true });
+    const { result } = renderHook(() => useOnboardingState());
+    expect(result.current.fonteIndisponivel).toBe(true);
+    expect(
+      result.current.isVisible,
+        'O painel apareceu com a leitura de whoami falhando — ele diria "faca login" a alguem que ja esta logado, porque `logged_in` deriva de `!!whoami`.',
+    ).toBe(false);
+  });
+
+  it('nao aparece quando a leitura de projetos falhou', () => {
+    mockUseProjects.mockReturnValue({ projects: [], total: 0, loading: false, error: true });
+    const { result } = renderHook(() => useOnboardingState());
+    expect(result.current.fonteIndisponivel).toBe(true);
+    expect(
+      result.current.isVisible,
+      'O painel apareceu com a leitura de projetos falhando — ele diria "crie um projeto" a quem talvez ja tenha varios.',
+    ).toBe(false);
+  });
+
+  it('aparece normalmente quando as leituras funcionam e ha passos pendentes', () => {
+    mockUseWhoami.mockReturnValue({ whoami: { user_id: 'u1' }, loading: false, error: false });
+    mockUseProjects.mockReturnValue({ projects: [], total: 0, loading: false, error: false });
+    const { result } = renderHook(() => useOnboardingState());
+    expect(result.current.fonteIndisponivel).toBe(false);
+    expect(
+      result.current.isVisible,
+      'O guarda do lado oposto: esconder o painel quando as leituras funcionam tiraria o onboarding de quem de fato precisa dele.',
+    ).toBe(true);
   });
 });
