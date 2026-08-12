@@ -26,6 +26,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { formatDate, shortId } from '@/lib/formatting/format';
 import { cloudFetch } from '@/lib/http/api';
+import { useEvaluators } from '@/hooks/lens/use-evaluators';
 import { alertSeverity } from './alerts';
 import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
@@ -43,13 +44,6 @@ interface Monitor {
 }
 interface MonitorsResult {
   monitors: Monitor[];
-}
-interface Evaluator {
-  id: string;
-  name: string;
-}
-interface EvaluatorsResult {
-  evaluators: Evaluator[];
 }
 
 /**
@@ -147,11 +141,7 @@ export function LensMonitorsPage() {
   });
   // #179 — the evaluator is chosen from the workspace's evaluators (by name), not typed as a raw id
   // the Evaluators screen never surfaced. value = id, label = name.
-  const evaluatorsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
-    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators', {}, { throwOnError: true }),
-    retry: false,
-  });
+  const evaluatorsQuery = useEvaluators({ retry: false });
   const evaluators = evaluatorsQuery.data?.evaluators ?? [];
   const evaluatorName = (id?: string) => evaluators.find((e) => e.id === id)?.name ?? (id ? shortId(id) : '—');
 

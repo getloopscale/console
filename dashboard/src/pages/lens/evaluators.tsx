@@ -24,6 +24,7 @@ import { scoresToSeries, type ScoreBucket } from '@/pages/lens/components/lens-s
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
+import { useEvaluators, type Evaluator } from '@/hooks/lens/use-evaluators';
 
 /**
  * M44 — /lens/evaluators. List / create / run / delete online evaluators via the read+write
@@ -31,15 +32,6 @@ import { cloudFetch } from '@/lib/http/api';
  * create body matches theo-lens: {name, kind:"rule"|"llm_judge", config:{predicate}|{prompt,model}}.
  */
 
-interface Evaluator {
-  id: string;
-  name: string;
-  kind?: string;
-  enabled?: boolean;
-  // The evaluator's rule config — passed through verbatim from theo-lens (BFF `json.RawMessage`).
-  // rule → { predicate }; llm_judge → { prompt, model }. Optional/loose since it's an upstream shape.
-  config?: { predicate?: string; prompt?: string; model?: string };
-}
 
 /** A short, one-line summary of an evaluator's rule for the list column. */
 function ruleSummary(ev: Evaluator): string {
@@ -58,9 +50,6 @@ interface RunJob {
   errors: number;
   truncated: boolean;
   errorMessage?: string;
-}
-interface EvaluatorsResult {
-  evaluators: Evaluator[];
 }
 
 // M90 — score-over-time range presets (theo-lens whitelist) + the BFF response shape.
@@ -125,10 +114,7 @@ export function LensEvaluatorsPage() {
       ? { name: name.trim(), kind, config: { predicate: predicate.trim() } }
       : { name: name.trim(), kind, config: { prompt: prompt.trim(), model: model.trim() } };
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
-    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators', {}, { throwOnError: true }),
-  });
+  const query = useEvaluators();
 
   // M90 — score-over-time: a range-selectable per-evaluator mean trend (theo-lens
   // GET /v1/metrics/scores via the BFF). Range drives the server-side bucketing.

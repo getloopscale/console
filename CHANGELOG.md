@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the evaluators list is described in one place instead of two. The monitors screen carried its own narrower copy of the same payload — enough for the picker it renders, and silently out of date the moment the backend adds a field the other screen needs. Nothing changes on screen (B-244).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** a note you write on a trace is no longer lost in silence. If the server refused it, the box cleared anyway and the note was gone — no error, no draft to recover, nothing to retry. Adding and removing tags had the same gap: the tag simply did not appear, or reappeared on the next read, which looks like the product undoing what you just did (B-244, B-235).
