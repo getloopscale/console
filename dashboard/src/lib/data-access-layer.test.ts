@@ -69,7 +69,19 @@ exatamente a classe "grep casa prosa".
 // deployment-tabs 2, workspace 2.
 //
 // SÓ DESCE.
-const TETO_PAGINAS_COM_TRANSPORTE = 52;
+// 50 desde 2026-08-12, com as duas abas de cadeia de suprimentos
+// (`deployment-tabs/{sbom,attestation}-tab.tsx`) lendo por
+// `hooks/deploy/use-build-artifacts.ts`. Elas não faziam apenas transporte na
+// camada de interface: rodavam `useEffect` + `useState` + flag `cancelled` — um
+// SEGUNDO mecanismo de busca ao lado do react-query, sem cache e sem dedup, com
+// cancelamento reimplementado por aba.
+//
+// A migração também separou dois estados que dividiam título: uma leitura que
+// FALHA dizia "No SBOM for this build". Para artefato de cadeia de suprimentos as
+// duas conclusões são opostas — "este build subiu sem proveniência" é achado de
+// conformidade; "não consegui ler a proveniência" é retry. Nenhuma das duas abas
+// tinha teste; agora têm seis.
+const TETO_PAGINAS_COM_TRANSPORTE = 50;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

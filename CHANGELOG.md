@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** a build whose SBOM or signature cannot be read no longer says the build has none. For a supply-chain artifact the two are opposite conclusions — "this build shipped without provenance" is something to act on, "I could not read the provenance" is something to retry — and they shared a heading. Both tabs also stop re-fetching every time you switch to them (B-244).
 - **theo-cloud/dashboard:** a test that could only pass when another test ran before it now passes on its own. Nothing was wrong with the screen it covers — the test harness had a mechanism switched off that the browser has on, so it reported a defect the product does not have (B-240).
 
 ### Changed
