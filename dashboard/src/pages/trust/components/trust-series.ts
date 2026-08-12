@@ -31,7 +31,7 @@ export type {
  */
 
 /** Um balde da série temporal devolvida por `GET /v1/trends`. */
-export interface TrendBucket {
+interface TrendBucket {
   readonly bucket?: string;
   readonly total?: number;
   readonly [k: string]: unknown;

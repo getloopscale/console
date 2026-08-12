@@ -7,7 +7,7 @@
 import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/http/config';
 export const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;
 
-export interface FlowNode {
+interface FlowNode {
   type: string;
   group: string;
   attributes: {

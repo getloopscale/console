@@ -20,14 +20,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/http/api';
 
-export interface MetricsRangeDataPoint {
+interface MetricsRangeDataPoint {
   /** Unix timestamp (seconds). */
   t: number;
   /** Metric scalar value. */
   v: number;
 }
 
-export type MetricsRangeStatus =
+type MetricsRangeStatus =
   | 'ok'
   | 'collecting'
   | 'prometheus_unreachable'

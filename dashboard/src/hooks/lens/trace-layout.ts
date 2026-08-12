@@ -284,7 +284,7 @@ export function aggregateCost(node: TraceSpanNode): number {
 // ---- M58 T4.1 — reader-mode Transcript row model ----
 
 /** Per-row micro-stats surfaced by the Transcript feed. Missing inputs collapse to 0/null, never NaN. */
-export interface TranscriptRowStats {
+interface TranscriptRowStats {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;

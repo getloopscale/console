@@ -3,7 +3,7 @@ import { isCategoricalConfig, isContinuousConfig } from '@usetheo/ui';
 import type { ScoreConfig } from './score-configs';
 
 /** The controlled value held per config, keyed by `ScoreConfig.key`. */
-export type AnnotationValue = string | number | null | undefined;
+type AnnotationValue = string | number | null | undefined;
 export type AnnotationValues = Record<string, AnnotationValue>;
 
 /** The resolve endpoint body — unchanged backend contract ({label, score?, note?}). */

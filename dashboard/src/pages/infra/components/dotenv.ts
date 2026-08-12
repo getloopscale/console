@@ -15,14 +15,14 @@
  * NEVER mutates the input file; pure function.
  */
 
-export interface DotenvEntry {
+interface DotenvEntry {
   key: string;
   value: string;
   /** 1-based line number in the source file. */
   line: number;
 }
 
-export interface DotenvWarning {
+interface DotenvWarning {
   line: number;
   message: string;
 }

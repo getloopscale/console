@@ -181,7 +181,7 @@ export function resumoCatalogo(linhas: readonly CatalogRow[], temContinuacao: bo
 }
 
 /** Uma revisão como o serviço a devolve (`/revisions`) — inclui o `content` integral. */
-export interface Revision {
+interface Revision {
   readonly version: number;
   readonly content: string;
   readonly createdAt: string;

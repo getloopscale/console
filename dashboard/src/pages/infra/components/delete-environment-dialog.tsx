@@ -14,7 +14,7 @@ import { useDeleteEnvironment } from '@/hooks/mutations/use-environments';
  * v1.0: pure UX surface (we don't yet have GET /environments/:name/cascade-preview);
  * caller can pass placeholder counts. v1.1 future: live GET pre-flight.
  */
-export interface CascadePayload {
+interface CascadePayload {
   workloads?: number;
   secrets?: number;
   domains?: number;

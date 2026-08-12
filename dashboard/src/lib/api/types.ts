@@ -40,7 +40,7 @@ export interface Whoami {
   teams?: WhoamiTeam[];
 }
 
-export interface WhoamiTeam {
+interface WhoamiTeam {
   id: string;
   slug: string;
   role: string;
@@ -56,7 +56,7 @@ export interface TeamSwitchInput {
 
 /** Single app within a project (server/worker/frontend).
  * @see api/internal/routes/projects.go:AppInput */
-export interface App {
+interface App {
   name: string;
   type?: string;             // "server" | "worker" | "frontend"
   port?: number;
@@ -162,7 +162,7 @@ export interface Project {
 // (no active production release). The dashboard renders a distinct
 // "Preview" badge — never "Live" with a contradictory "URL PENDING"
 // hint. Backend mapper is `pkg/enforcement.MapProjectStatus`.
-export type ProjectStatus = 'live' | 'building' | 'failed' | 'idle' | 'queued' | 'preview';
+type ProjectStatus = 'live' | 'building' | 'failed' | 'idle' | 'queued' | 'preview';
 
 export interface ProjectListResponse {
   projects: Project[];
@@ -237,7 +237,7 @@ export function normalizeBuildStatus(s: string | undefined | null): BuildStatus 
 }
 
 /** @see api/internal/routes/builds.go:BuildAppInfo / BuildCallbackApp */
-export interface BuildApp {
+interface BuildApp {
   name: string;
   image_digest: string;
   url?: string;
@@ -276,7 +276,7 @@ export interface BuildSBOM {
   apps: AppSBOMSummary[];
 }
 
-export interface AppSBOMSummary {
+interface AppSBOMSummary {
   app_name: string;
   sbom_format?: string;       // "cyclonedx-json"
   component_count?: number;
@@ -390,12 +390,12 @@ export type DomainStatus =
   | 'failed'
   | 'removing';
 
-export interface DomainTLS {
+interface DomainTLS {
   status: 'pending' | 'issued' | 'expired' | 'renewing';
   expires_at?: string;
 }
 
-export interface DomainVerification {
+interface DomainVerification {
   txt_name: string;
   txt_value: string;
 }
@@ -481,7 +481,7 @@ export interface Preview {
   expires_at: string;          // TTL deadline
 }
 
-export type PreviewStatus = 'creating' | 'active' | 'expiring' | 'failed' | 'deleting' | 'deleted';
+type PreviewStatus = 'creating' | 'active' | 'expiring' | 'failed' | 'deleting' | 'deleted';
 
 export interface PreviewListResponse {
   previews: Preview[];
@@ -582,7 +582,7 @@ export interface ScaleInput {
   memory?: number; // HPA memory_target [10, 90]
 }
 
-export interface ScaleAutoscaling {
+interface ScaleAutoscaling {
   min: number;
   max: number;
   cpu_target: number;
@@ -709,18 +709,18 @@ export interface BillingResponse {
   subscription_id?: string;
 }
 
-export interface BillingPlanPrice {
+interface BillingPlanPrice {
   amount_minor: number;
   currency: string;
   interval: string;
 }
 
-export interface BillingUsageMetric {
+interface BillingUsageMetric {
   used: number;
   limit: number | null;       // null = unlimited (Enterprise)
 }
 
-export interface BillingPlanCap {
+interface BillingPlanCap {
   max_projects: number | null;
   max_environments: number | null;
   max_builds_per_month: number | null;
@@ -764,7 +764,7 @@ export interface AuditEntry {
   severity?: AuditSeverity;
 }
 
-export type AuditActorKind = 'user' | 'system' | 'admin' | 'api';
+type AuditActorKind = 'user' | 'system' | 'admin' | 'api';
 export type AuditSeverity = 'info' | 'warning' | 'critical';
 
 export interface AuditListResponse {

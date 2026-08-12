@@ -18,7 +18,7 @@ import { labelRows } from '@/pages/promptly/components/projections';
  */
 
 /** O payload que a tela pede de `GET /v1/prompts/{name}`. */
-export interface PromptDoDetalhe {
+interface PromptDoDetalhe {
   version?: number;
   content?: string;
   modelConfig?: { model?: string; temperature?: number; maxTokens?: number } | null;

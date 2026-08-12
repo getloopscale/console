@@ -41,7 +41,7 @@ export type DeploymentStatus =
   | 'cancelled'
   | 'unknown';
 
-export interface DeploymentBuildError {
+interface DeploymentBuildError {
   step_name: string;
   error_class: ErrorClass;
   error_message: string;

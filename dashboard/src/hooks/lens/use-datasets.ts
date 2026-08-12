@@ -18,7 +18,7 @@ import { cloudFetch } from '@/lib/http/api';
  * Uma tela que mostra "nenhum dataset" com o serviço fora leva o operador a
  * recriar o que já existe.
  */
-export interface Dataset {
+interface Dataset {
   id: string;
   name: string;
   createdAt?: string;

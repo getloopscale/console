@@ -31,7 +31,7 @@ import { cloudFetch } from '@/lib/http/api';
  * mostra "nenhuma coleção" quando o serviço está fora leva o operador a criar
  * uma coleção que já existe.
  */
-export interface Collection {
+interface Collection {
   id: string;
   name: string | null;
   created_at?: string;

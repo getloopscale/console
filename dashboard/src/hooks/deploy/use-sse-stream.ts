@@ -34,7 +34,7 @@ import { credentialIsSuspect, shouldReopen, type StreamEndReason } from './strea
  * pelo qual ele existia, descrevendo um risco que já tinha sido fechado logo abaixo dele.
  * Ver `fetch-event-source.ts § abrir` e o ADR-0009.
  */
-export interface SSEStreamEvent<T = unknown> {
+interface SSEStreamEvent<T = unknown> {
   id: string;
   type: string;
   data: T;

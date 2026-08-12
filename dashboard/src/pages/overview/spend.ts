@@ -20,7 +20,7 @@
  * esquecê-lo na tela exija uma decisão em vez de um descuido.
  */
 
-export interface ModelSpend {
+interface ModelSpend {
   readonly model: string;
   readonly costUsd: number;
 }

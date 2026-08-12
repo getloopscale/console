@@ -11,7 +11,7 @@
  */
 
 // Discriminator literals — keep in sync with pkg/events/deployment.go.
-export type SSEEventType =
+type SSEEventType =
   | 'build.started'
   | 'build.succeeded'
   | 'build.failed'

@@ -11,7 +11,7 @@
  */
 import { Globe, GitBranch } from 'lucide-react';
 
-export type EnvKind = 'permanent' | 'preview';
+type EnvKind = 'permanent' | 'preview';
 
 export interface EnvKindBadgeProps {
   kind: EnvKind;
