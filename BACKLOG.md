@@ -8847,6 +8847,36 @@ dod:
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
 
+remeasured: |
+  2026-08-12 — o item mede a coisa errada, e a diferença é de quase 2x.
+
+  A catraca congela ARQUIVOS que usam a forma `queryBy…`. O defeito que ela descreve é uma
+  propriedade de cada ASSERÇÃO: a forma só prova algo quando o elemento consultado existe no
+  caso que passa. Medido sobre os 373 arquivos de teste:
+
+    327  asserções de ausência
+    211  ANCORADAS — o mesmo seletor é asserido presente em algum caso, logo podem falhar
+    116  SEM ÂNCORA, em 58 arquivos   <- o defeito
+
+  Mesma forma do B-243 uma catraca ao lado: o número conta uma grafia, não o defeito.
+
+  FEITO NESTA FATIA (3 asserções, 13 -> 10 em dois arquivos), cada uma provada apagando a
+  guarda e vendo o teste ficar VERMELHO — não pela suíte verde:
+    - `promptly/detail.test.tsx` — três headings asseridos AUSENTES da aba de conteúdo, nenhum
+      asserido presente em aba alguma. Renomear "Usage by revision" matava a detecção de
+      vazamento em silêncio.
+    - `promptly/detail.test.tsx` — "has no published revisions yet" sem par.
+    - `promptly/catalogo.test.tsx` — "no prompts in this workspace" existe em produção só dentro
+      do alerta de leitura falha, que nenhum caso afirmava.
+
+  A catraca ganhou a métrica afiada ao lado da de arquivo (congelada em 116, com auto-teste),
+  porque ancorar uma asserção NÃO tira o arquivo da contagem antiga: sem isso um dia de
+  correções legítimas se reporta como zero progresso.
+
+  RESTA: 113 asserções sem âncora. Cada uma tem de ser lida — a heurística erra nos dois
+  sentidos e serve para dimensionar, não para reescrever em massa. Um sweep mecânico aqui
+  produziria exatamente o enfraquecimento silencioso que esta catraca existe para impedir.
+
 ## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [ ]
 
 domain: frontend-dashboard
