@@ -9072,3 +9072,43 @@ dod:
 > Registered 2026-08-12 mid-session, after restoring the three files with
 > `git restore --source=HEAD`. Suite back to 35 passed.
 
+## B-251 — the languages config documents a format its own parser rejects   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  .claude/rules/code-quality-languages.txt:11
+  The header says "one language identifier per line" and lists the examples to uncomment as
+  bare identifiers (`# go`, `# typescript`). The parser
+  (`.claude/skills/code-quality/scripts/_shared.py`, `load_languages_config`) requires four
+  pipe-separated fields:
+
+      LANGUAGE | MANIFEST-MARKER | STATUS | NOTES
+
+  Uncommenting a documented example — the happy path for anyone enabling a language — raises
+  `malformed line`. The file already carries an inline note recording this contradiction,
+  written 2026-08-06 by whoever hit it, who declined to fix the header because it "was not
+  theirs to rewrite".
+
+  Measured 2026-08-12: zero commented pipe-form examples in
+  `.claude/rules/code-quality-languages.txt` AND zero in the kit's shipped
+  `.claude/skills/code-quality/defaults/languages.txt`.
+why_now: |
+  The plugin update adopted at `2940faf5` ships a test that encodes the requirement —
+  `test_the_shipped_template_parses_when_you_follow_its_own_instructions` — and it is RED out of
+  the box against both files. The inline note was the right instinct and the wrong remedy: a
+  comment describing a trap keeps the trap. A test does not.
+status: triaged
+dod:
+  - `code-quality` suite fully green
+  - the commented examples in `rules/code-quality-languages.txt` are in the format the parser
+    accepts, so uncommenting one works
+  - the header no longer describes a format that raises
+  - the 2026-08-06 inline note is replaced by the fix it was standing in for, not merely deleted
+
+> Registered 2026-08-12 while adopting the plugin update, during B-228's code-quality phase.
+
