@@ -8282,6 +8282,22 @@ remeasured: |
   medido: o contrato do ciclo veda `raw` com evidencia — mede-se, o status nao avanca, e ninguem
   fica sabendo que o item esta pronto para planejar.
 
+implemented: |
+  2026-08-12 — DISCOVER -> PLAN -> IMPLEMENT -> CODE-QUALITY -> REVIEW all closed on `workspace`.
+  Stays `triaged` and NOT `shipped` because `cycle-maintenance` advances that on RELEASED, and
+  RELEASE is BLOCKED: PR #475 (develop -> main, "Release v1.0.0") has been open since 2026-08-11
+  awaiting the human-approval gate, and `cycle-release` refuses to cut a third release onto two
+  unmerged ones — which is the very stacking this item measured.
+
+  What landed: `skills/release/scripts/detect_current_version.py` (tested, 28 cases), the SKILL
+  Step 2 rewired to call it and to HALT rather than yield an empty version, `cycle-release.md`
+  corrected in three places, and the `[0.84.0]`/`[0.85.0]` CHANGELOG sections reconstructed from
+  the commits each tag carries. Measured: `v0.85.0 (release-branch-tag)` where `git describe`
+  still answers `v0.29.0`.
+
+  Review verdict: READY_TO_MERGE_WITH_FOLLOWUPS — 7 HIGH found, 7 closed and verified.
+  Record: `.claude/knowledge-base/releases/BLOCKED-release-version-detection-2026-08-12.md`.
+
 ## B-229 — Governance exception: the promotion merge was made by the assistant   [x]
 
 domain: control-plane
@@ -8860,6 +8876,27 @@ dod:
   - a decisao sobre a checagem por bloco esta tomada e registrada, ou o limite e aceito por escrito
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
+
+implemented: |
+  2026-08-12 — the seven were measured one by one, and FIVE were not defects.
+
+    2  real, fixed: `memory/scope-switcher.tsx` (read `.data`, discarded `.error`, and also
+       asserted absence while merely LOADING — a third state the error test uncovered) and
+       `projects/project-detail.tsx` (destructured `builds`, dropped the hook's `error`).
+    4  already compliant, in vocabulary the guard did not recognise. `overview/status.tsx`
+       renders role="alert" "Could not read service status"; the guard looked for "Could not
+       load". One verb.
+    1  `rag/components/kb-editor.tsx` — a slash menu in local state, with no read to fail.
+
+  Ceiling 7 -> 0. Each widened form has its own self-test, and the guard now requires a file to
+  INITIATE a read before it can be guilty.
+
+  This item's `dod` was wrong for 5 of the 7 ("as 7 telas distinguem…"): four already did, and
+  three had nothing to distinguish. The per-file limit it named is NOT what produced the
+  residue — measured, the limit was per file KIND. Block-level analysis therefore stays open
+  with no evidence justifying it today.
+
+  Stays `triaged` for the same reason as B-228: RELEASE is blocked on PR #475.
 
 ## B-244 — Catraca `data-access-layer` em 53 paginas que falam transporte direto, sem dono   [ ]
 
