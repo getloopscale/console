@@ -491,6 +491,33 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     await waitFor(() => expect(listUrls().some((u) => u.includes('status=error') && u.includes('model=claude-opus-4-8'))).toBe(true));
   });
 
+  it('applying a view REPLACES the filters that were active, not merges with them', async () => {
+    // B-240 — the contract `applyView` documents ("aplicar uma visão salva É trocar todos os
+    // filtros", ADR-0010) and the path that carried it out did not agree.
+    //
+    // The page READS its filters through nuqs (`useQueryState('status')`, `('model')`, …) and
+    // keys the traces query on them. `applyView` WROTE through react-router's
+    // `setSearchParams`. Whether the read observes that write depends on nuqs's internal
+    // state, which a neighbouring test happens to prime — so the sibling case below passed in
+    // file order and failed alone, and the file failed under shuffle.
+    //
+    // This case pins the contract from the other side: start filtered by session, apply a view
+    // that does not carry `session`, and the session filter must be GONE from the request.
+    m52Mock({ views: [{ id: 'lsv-1', name: 'errored opus', query_string: '?status=error&model=claude-opus-4-8' }] });
+    render(<LensTracesPage />, { initialEntries: ['/observability/traces?session=sess-old'] });
+    await screen.findByText('tr_1');
+
+    await userEvent.click(await screen.findByRole('button', { name: /apply view errored opus/i }));
+
+    await waitFor(() =>
+      expect(
+        listUrls().some(
+          (u) => u.includes('status=error') && u.includes('model=claude-opus-4-8') && !u.includes('session_id=sess-old'),
+        ),
+      ).toBe(true),
+    );
+  });
+
   it('saves the current filter combination as a named view (POST name + query_string)', async () => {
     m52Mock({});
     render(<LensTracesPage />, { initialEntries: ['/observability/traces?status=error'] });
