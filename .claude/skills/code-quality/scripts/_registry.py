@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -23,6 +25,15 @@ from scripts._shared import write_atomic
 
 _CACHE_DIR_ENV = "CODE_QUALITY_CACHE_DIR"
 _CACHE_TTL_SECONDS = 24 * 3600  # 24h per thresholds default
+
+# Stamped into every cache file and checked on read. Bump it whenever a resolver's
+# semantics change, so answers produced by the previous semantics are discarded rather
+# than served as fact.
+#
+# B-254: fixing B-252 appeared to do nothing, because `encoding/json` was already cached
+# as `exists: false` with 24h to live and short-circuited before reaching the corrected
+# resolver. A fix that cannot be observed is indistinguishable from one that does not work.
+CACHE_SCHEMA = "go-module-graph+prefix-walk+stdlib-v2"
 _HTTP_TIMEOUT_SECONDS = 5
 _USER_AGENT = "code-quality-skill/0.1 (audit only)"
 
@@ -55,6 +66,10 @@ def _load_cache(ecosystem: str) -> dict[str, Any]:
             pass
         return {}
     if not isinstance(data, dict):
+        return {}
+    if data.get("_schema") != CACHE_SCHEMA:
+        # B-254 — written by resolver semantics that no longer apply. Discarding is the
+        # only safe reading: the entries may be answers to a question we no longer ask.
         return {}
     return data
 
@@ -90,6 +105,7 @@ def _cache_set(ecosystem: str, key: str, exists: bool | None) -> None:
     if exists is None:
         return
     cache = _load_cache(ecosystem)
+    cache["_schema"] = CACHE_SCHEMA
     cache[key] = {"exists": exists, "ts": _now()}
     _save_cache(ecosystem, cache)
 
@@ -191,25 +207,128 @@ def _go_proxy_encode(module: str) -> str:
     return "".join(out)
 
 
+@lru_cache(maxsize=1)
+def _stdlib_packages() -> frozenset[str]:
+    """The standard library, from `go list std` — the only source that cannot drift.
+
+    The previous guard treated "has no slash" as "is stdlib". Measured with `go list std`:
+    322 of the 362 stdlib packages DO contain a slash (`net/http`, `encoding/json`,
+    `log/slog`, `go/ast`, …), so all of them were sent to the proxy, which does not index
+    the standard library, and every one came back 404 = "fabricated" (B-252).
+
+    A hand-kept list would go stale every Go release; asking the toolchain does not.
+    Returns an empty set when `go` is unavailable, which downgrades this to the old
+    behaviour rather than crashing an audit of a repo that has no Go at all.
+    """
+    try:
+        proc = subprocess.run(
+            ["go", "list", "std"], capture_output=True, text=True, check=False, timeout=60
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return frozenset()
+    if proc.returncode != 0:
+        return frozenset()
+    return frozenset(line.strip() for line in proc.stdout.splitlines() if line.strip())
+
+
+@lru_cache(maxsize=1)
+def _module_graph() -> frozenset[str]:
+    """Every module the current build resolves, from `go list -m all`.
+
+    This is the authoritative answer and the proxy is not. It covers what the public proxy
+    structurally cannot:
+
+      - PRIVATE modules (`github.com/usetheoai/theo-contracts`), which 404 forever;
+      - `replace` directives pointing at a local path or a fork;
+      - vendored trees.
+
+    Reporting a private dependency as fabricated would give every company with private
+    modules HARD findings on its own compiling code (B-252).
+
+    Returns an empty set when `go` is unavailable or the directory is not a module, which
+    simply falls through to the proxy rather than failing the audit.
+    """
+    try:
+        proc = subprocess.run(
+            ["go", "list", "-m", "all"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return frozenset()
+    if proc.returncode != 0:
+        return frozenset()
+    # Each line is `module/path v1.2.3` (or `module/path v1 => replacement`).
+    return frozenset(
+        line.split()[0] for line in proc.stdout.splitlines() if line.strip() and " " in line
+    )
+
+
+def _resolved_by_module_graph(import_path: str) -> bool:
+    """Is this import a package of some module the build already resolves?"""
+    graph = _module_graph()
+    if not graph:
+        return False
+    return any(
+        import_path == module or import_path.startswith(f"{module}/") for module in graph
+    )
+
+
+def _module_path_candidates(import_path: str) -> list[str]:
+    """Module paths to try for an import, longest first.
+
+    An import path is not necessarily a module path: `github.com/go-chi/chi/v5/middleware`
+    is a real package whose MODULE is `github.com/go-chi/chi/v5`. The proxy only answers
+    for modules, so resolution walks up the way `go mod` does.
+
+    The floor is TWO segments, not three. How many segments a module path has is
+    host-dependent and cannot be decided syntactically: `go.opentelemetry.io/otel` and
+    `gopkg.in/yaml.v2` are two, `github.com/owner/repo` is three. Flooring at three made
+    every otel import unresolvable. One extra 404 is cheap; a wrong floor is a false HARD
+    finding. A single segment is a host, never a module, and is not asked for.
+    """
+    parts = import_path.split("/")
+    return ["/".join(parts[:i]) for i in range(len(parts), 1, -1)]
+
+
 def module_exists_on_go_proxy(import_path: str) -> bool | None:
-    """Go proxy. Returns None for stdlib paths (no slash) since stdlib isn't in proxy."""
+    """Does this Go import resolve — as stdlib, or as a package of some real module?
+
+    Returns True when it resolves, False when every candidate module path is absent, and
+    None when the proxy could not answer (EC-2: an outage must never read as fabricated).
+    """
     cached = _cache_get("go", import_path)
     if cached is not None:
         return cached
-    if "/" not in import_path:
-        # stdlib package — proxy doesn't index it. Treat as True (exists) to avoid FP.
+    if "/" not in import_path or import_path in _stdlib_packages():
+        # Stdlib — the proxy does not index it. No network call: asking would 404 and the
+        # answer would be wrong, which is exactly how B-252 happened.
         _cache_set("go", import_path, True)
         return True
-    encoded = _go_proxy_encode(import_path)
-    data, status = _http_get_json(f"https://proxy.golang.org/{encoded}/@v/list")
-    if status == 200:
-        result = True
-    elif status in (404, 410):
-        result = False
-    else:
+    if _resolved_by_module_graph(import_path):
+        # The build already resolves it. Authoritative, offline, and true for private
+        # modules the public proxy will never answer for.
+        _cache_set("go", import_path, True)
+        return True
+
+    saw_ambiguous = False
+    for candidate in _module_path_candidates(import_path):
+        encoded = _go_proxy_encode(candidate)
+        _data, status = _http_get_json(f"https://proxy.golang.org/{encoded}/@v/list")
+        if status == 200:
+            _cache_set("go", import_path, True)
+            return True
+        if status not in (404, 410):
+            saw_ambiguous = True
+
+    if saw_ambiguous:
+        # At least one lookup failed for a reason other than absence. Reporting False here
+        # would turn a registry outage into a HARD "fabricated" finding.
         return None
-    _cache_set("go", import_path, result)
-    return result
+    _cache_set("go", import_path, False)
+    return False
 
 
 __all__ = [
