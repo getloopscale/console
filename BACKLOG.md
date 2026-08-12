@@ -9184,3 +9184,36 @@ dod:
 
 > Registered 2026-08-12 during B-228's code-quality phase.
 
+## B-254 — the registry cache has no version, so a detector fix does not invalidate its own bad answers   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  .claude/skills/code-quality/scripts/_registry.py:73
+  `_cache_get` keys only on (ecosystem, name) with a 24h TTL. Nothing records WHICH lookup
+  semantics produced the entry, so an entry written by a buggy resolver is served to the fixed
+  one as if it were fact.
+
+  Measured 2026-08-12, immediately after fixing B-252: `/code-quality` still reported the same
+  787 fabrications. `~/.cache/code-quality/registry/go.json` held 208 entries, 105 of them
+  `exists: false` — including `encoding/json`, `crypto/rand`, `crypto/sha256`, `encoding/hex`.
+  The fix was correct and invisible: every one of those imports short-circuits at the cache
+  before reaching the corrected resolver.
+why_now: |
+  Found while verifying the B-252 fix, which appeared not to work. This is the failure mode that
+  makes a detector fix untrustworthy: the author fixes the logic, re-runs, sees no change, and
+  either reverts a correct fix or spends the next hour looking in the wrong place. It also means
+  any machine that ran the broken detector keeps reporting broken results for 24h after
+  upgrading.
+status: triaged
+dod:
+  - the cache records the resolver semantics that produced it, and a change to them discards it
+  - a poisoned cache cannot mask a corrected resolver in a subsequent run
+  - the TTL behaviour is unchanged for entries whose semantics still match
+
+> Registered 2026-08-12 while verifying B-252, which it silently blocked.
+
