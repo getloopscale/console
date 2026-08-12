@@ -71,12 +71,15 @@ const SRC = resolve(__dirname, '../..');
  * ~11 closed so far destroy user input rather than misreport state, and both were found by
  * migrating rather than by anyone reporting them.
  *
+ * 26 with `lens/monitors.tsx`, whose create had the same shape as its neighbour's — a third form
+ * cleared on a refusal. Three of ~13 now, all found the same way.
+ *
  * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
  * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 28;
+const CEILING_WITHOUT_CONTRACT = 26;
 
 /**
  * The corpus may not shrink silently.

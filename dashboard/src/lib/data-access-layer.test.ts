@@ -154,7 +154,11 @@ exatamente a classe "grep casa prosa".
 // `ScoreBucket` também mudou de casa: cinco módulos o leem, e a forma passou a morar com o endpoint
 // que a devolve — o hook não PODE importar de `pages/` (regra de camada do B-070), e um tipo de
 // resposta morando lá é exatamente a inversão que essa regra existe para pegar.
-const TETO_PAGINAS_COM_TRANSPORTE = 40;
+// 39 desde 2026-08-12, com `lens/monitors.tsx`. Criar um monitor tinha a mesma forma do criar
+// avaliador ao lado: recusa resolvia `null`, o `onSuccess` disparava e o handler limpava o
+// avaliador, o operador, o limiar e o diálogo. O formulário ia embora por um monitor que nunca foi
+// criado. Limpar passou a acontecer só no SUCESSO, no ponto de uso.
+const TETO_PAGINAS_COM_TRANSPORTE = 39;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

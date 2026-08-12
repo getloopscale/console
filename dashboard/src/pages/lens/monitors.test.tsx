@@ -130,6 +130,9 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/monitors/gd_1',
       expect.objectContaining({ method: 'DELETE' }),
+      // B-244/B-235 — o contrato de erro. Sem ele a confirmação fechava e o monitor voltava na
+      // leitura seguinte: o produto desfazendo a ação do usuário.
+      { throwOnError: true },
     );
   });
 });

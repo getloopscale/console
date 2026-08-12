@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import {
@@ -25,10 +24,17 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { formatDate, shortId } from '@/lib/formatting/format';
-import { cloudFetch } from '@/lib/http/api';
 import { useEvaluators } from '@/hooks/lens/use-evaluators';
+import {
+  useMonitors,
+  useAlertRules,
+  useMonitorBreaches,
+  useCreateMonitor,
+  useDeleteMonitor,
+  type Monitor,
+  type MonitorRule,
+} from '@/hooks/lens/use-monitors';
 import { alertSeverity } from './alerts';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * M44 — /lens/monitors. List / create / delete monitors via the read+write lens management BFF
@@ -36,15 +42,6 @@ import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
  * {evaluatorId, operator:"lt"|"lte"|"gt"|"gte"|"eq"|"label_eq", threshold?}.
  */
 
-interface Monitor {
-  id: string;
-  evaluatorId?: string;
-  operator?: string;
-  threshold?: number;
-}
-interface MonitorsResult {
-  monitors: Monitor[];
-}
 
 /**
  * theo-cloud#259 — the slice of an alert rule this screen needs to show a monitor's live state.
@@ -54,16 +51,6 @@ interface MonitorsResult {
  * `stale` is derived server-side — the rule is enabled but has gone unevaluated for several ticks —
  * and the client cannot compute it, because the cadence is not published.
  */
-interface MonitorRule {
-  monitor_id?: string;
-  enabled: boolean;
-  status: string;
-  stale: boolean;
-  last_evaluated_at: string | null;
-}
-interface AlertRulesResult {
-  alert_rules: MonitorRule[];
-}
 
 /** What the Status cell renders for one monitor. */
 interface MonitorState {
@@ -110,7 +97,6 @@ export function LensMonitorsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Monitors'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const [evaluatorId, setEvaluatorId] = useState('');
   // Create is a centered modal (AppModal), consistent with the rest of the dashboard — replaces the
@@ -134,11 +120,7 @@ export function LensMonitorsPage() {
   //
   // The comment two blocks down already spelled this rule out; these two queries simply did not
   // follow it. Same movement as #250 did for Memories.
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/monitors'] as const,
-    queryFn: () => cloudFetch<MonitorsResult>(`/v1/dashboard/lens/monitors?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-    retry: false,
-  });
+  const query = useMonitors();
   // #179 — the evaluator is chosen from the workspace's evaluators (by name), not typed as a raw id
   // the Evaluators screen never surfaced. value = id, label = name.
   const evaluatorsQuery = useEvaluators({ retry: false });
@@ -154,11 +136,7 @@ export function LensMonitorsPage() {
   // "Not monitored" — the screen would assert, from an outage, that nothing is watching. That is the
   // precise failure the Unknown state exists to prevent, and it survived the unit tests because the
   // mock throws where the real client returns null. Found by driving the live stack (#259).
-  const rulesQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/alert-rules'] as const,
-    queryFn: () => cloudFetch<AlertRulesResult>('/v1/dashboard/lens/alert-rules', {}, { throwOnError: true }),
-    retry: false,
-  });
+  const rulesQuery = useAlertRules();
   // Last rule wins per monitor. Two rules on one monitor is legal and rare; picking one arbitrarily is
   // honest only because every state below is derived from the rule shown — never merged across rules.
   const ruleByMonitor = new Map<string, MonitorRule>();
@@ -174,35 +152,20 @@ export function LensMonitorsPage() {
       : `Traces failing ${evaluatorName(g.evaluatorId)} ${OP_SYMBOL[g.operator ?? ''] ?? g.operator ?? ''} ${g.threshold ?? ''}`.trim();
 
   // M77 — the breaches read (flag-only: `{ traceIds }`) for the open guard. Fetched on demand only.
-  const breachesQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/monitors', activeMonitor?.id, 'breaches'] as const,
-    queryFn: () =>
-      cloudFetch<{ traceIds: string[] }>(`/v1/dashboard/lens/monitors/${encodeURIComponent(activeMonitor!.id)}/breaches`, {}, { throwOnError: true }),
-    enabled: activeMonitor !== null,
-  });
+  const breachesQuery = useMonitorBreaches(activeMonitor?.id ?? null);
   const breachTraceIds = breachesQuery.data?.traceIds ?? [];
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/monitors'] });
+  const create = useCreateMonitor();
 
-  const create = useMutation({
-    mutationFn: (input: { evaluatorId: string; operator: string; threshold?: number }) =>
-      cloudFetch<Monitor>('/v1/dashboard/lens/monitors', {
-        method: 'POST',
-        body: JSON.stringify(
-          // omit threshold entirely for a label match (no fabricated 0)
-          input.threshold === undefined
-            ? { evaluatorId: input.evaluatorId, operator: input.operator }
-            : { evaluatorId: input.evaluatorId, operator: input.operator, threshold: input.threshold },
-        ),
-      }),
-    onSuccess: () => {
-      setEvaluatorId('');
-      setOperator('gte');
-      setThreshold('');
-      setCreateOpen(false);
-      invalidate();
-    },
-  });
+  // Limpar o formulário só no SUCESSO. Antes isto vivia no `onSuccess` da mutação, que disparava
+  // mesmo quando o servidor recusava — o usuário perdia o que havia preenchido para um monitor que
+  // nunca foi criado (B-235).
+  const resetCreateForm = () => {
+    setEvaluatorId('');
+    setOperator('gte');
+    setThreshold('');
+    setCreateOpen(false);
+  };
 
   // Reset the create form + clear any error, then close the modal (every close path).
   const closeCreate = () => {
@@ -219,20 +182,13 @@ export function LensMonitorsPage() {
     if (needsThreshold) {
       const t = Number(threshold);
       if (threshold.trim() === '' || Number.isNaN(t)) return;
-      create.mutate({ evaluatorId, operator, threshold: t });
+      create.mutate({ evaluatorId, operator, threshold: t }, { onSuccess: resetCreateForm });
     } else {
-      create.mutate({ evaluatorId, operator }); // label_eq — no threshold
+      create.mutate({ evaluatorId, operator }, { onSuccess: resetCreateForm }); // label_eq — no threshold
     }
   };
 
-  const remove = useMutation({
-    mutationFn: (g: Monitor) =>
-      cloudFetch<null>(`/v1/dashboard/lens/monitors/${encodeURIComponent(g.id)}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
+  const remove = useDeleteMonitor();
 
   const columns: DataTableColumn<Monitor>[] = [
     {
@@ -430,7 +386,12 @@ export function LensMonitorsPage() {
           cancelLabel="Cancel"
           intent="destructive"
           loading={remove.isPending}
-          onConfirm={() => remove.mutate(pendingDelete)}
+          onConfirm={async () => {
+            // `mutateAsync`: o `ConfirmDialog` dá `await` no `onConfirm` e só assim uma recusa o
+            // mantém aberto com o motivo (B-105).
+            await remove.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+          }}
         />
       ) : null}
 

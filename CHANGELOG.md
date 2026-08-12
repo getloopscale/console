@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** creating a monitor the server refuses no longer clears the form. The evaluator, the operator and the threshold were all wiped and the dialog closed, for a monitor that was never created. Deleting one had the opposite symptom: the confirmation closed and the monitor came back on the next read (B-244, B-235).
+
+### Fixed
+
 - **theo-cloud/dashboard:** creating an evaluator that the server refuses no longer wipes the form. Every field you had filled in — name, rule, prompt, model — was cleared and the dialog closed, for something that was never created, with no error and nothing to recover. Deleting one had the familiar opposite symptom: the confirmation closed and the evaluator came back on the next read (B-244, B-235).
 
 ### Changed
