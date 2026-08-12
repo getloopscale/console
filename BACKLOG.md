@@ -9312,3 +9312,44 @@ dod:
 
 > Registered 2026-08-12, surfaced by the B-255 fix during B-228's code-quality phase.
 
+## B-257 — the allowlist format is documented with four fields and parsed with six   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  .claude/rules/code-quality-allowlist.txt:11
+  #   IDENTIFIER | FILE:LINE | SUNSET (YYYY-MM-DD) | RATIONALE
+
+  .claude/rules/code-quality-golden-rule.md:106
+  | Entry format | `IDENTIFIER | FILE:LINE | SUNSET (YYYY-MM-DD) | RATIONALE` |
+
+  .claude/skills/code-quality/scripts/_shared.py:247
+  Format: ECOSYSTEM|FILE-PATH|FINDING-TYPE|SYMBOL-OR-LINE|REASON|SUNSET-DATE
+
+  Two documents say four fields; the parser requires six, and the six do not even overlap with
+  the four (no `IDENTIFIER` field exists — it is `ECOSYSTEM` + `FINDING-TYPE`, and the symbol is
+  its own column). Measured 2026-08-12: writing 21 entries in the documented format produced
+  `allowlist_malformed_entry` — a HARD finding that ABORTS allowlist processing, so a single
+  mistyped entry silently disables every other exemption in the file.
+
+  The six-field form matches the `allowlist_key` the detectors already build
+  (`go|{file}|dead_code|{symbol}`), so the parser is right and both documents are wrong.
+why_now: |
+  Third instance of the same class in one session (B-251 was the languages config, B-252 the
+  stdlib guess). The pattern is consistent: a document describes a format, the code implements
+  another, and the contradiction is only discovered by someone following the document and being
+  refused. Here it is worse than usual, because the failure mode is a HARD finding that turns
+  OFF the whole allowlist rather than rejecting one line.
+status: triaged
+dod:
+  - the allowlist header and `code-quality-golden-rule.md § 4` both state the six-field format
+  - a test asserts an entry written from the documentation parses
+  - a malformed entry rejects that ENTRY, or the abort-everything behaviour is stated
+    deliberately in the golden rule rather than being a side effect
+
+> Registered 2026-08-12 while allowlisting B-256 during B-228's code-quality phase.
+
