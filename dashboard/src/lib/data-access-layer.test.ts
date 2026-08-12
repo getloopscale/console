@@ -121,7 +121,19 @@ exatamente a classe "grep casa prosa".
 //
 // A chave do detalhe passou a DERIVAR da chave da lista. Montada nos dois lugares, o acordo entre
 // elas era coincidência: invalidar a lista sem alcançar o detalhe aberto mostra item já removido.
-const TETO_PAGINAS_COM_TRANSPORTE = 44;
+// 42 desde 2026-08-12, com `lens/{agents,usage-by-user}.tsx`.
+//
+// A `usage-by-user` é a que valeu o trabalho: `days`, `page` e `withSeries` TÊM de estar na chave
+// de cache, senão o react-query responde uma pergunta de 30 dias com a resposta de 7 e a tela
+// afirma um período que não está mostrando. Esse acordo entre a URL e a chave vinha mantido à mão
+// nos dois lugares — dura enquanto uma pessoa cuida dos dois, e quebra no primeiro filtro que
+// alguém acrescenta à URL e esquece na chave. Agora saem dos mesmos argumentos.
+//
+// Duas correções minhas no caminho, ambas pegas pelo `tsc`: inventei a forma de `UsageRow` e depois
+// a de `PontoDaSerie`, em vez de ler as reais. É a armadilha que o `DomainRow` já havia registrado
+// — adotar uma forma adivinhada apaga em silêncio campos que a UI renderiza — e o compilador foi a
+// única razão de custar minutos em vez de dados sumindo do gráfico.
+const TETO_PAGINAS_COM_TRANSPORTE = 42;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

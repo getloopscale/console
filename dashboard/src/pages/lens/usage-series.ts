@@ -1,4 +1,5 @@
 import type { TrendPoint } from '@usetheo/ui';
+import type { PontoDaSerie } from '@/hooks/lens/use-usage-by-user';
 
 /**
  * M144 — a densificação da série de consumo.
@@ -44,14 +45,9 @@ export function janelaDaSerie(
 }
 
 /** Um ponto como o serviço o devolve (`usageByUserSeriesPointSchema` do theo-lens). */
-export interface PontoDaSerie {
-  periodStart: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
-  costUsd: number;
-}
+// B-244 — a forma do ponto passou a morar com o ENDPOINT que a devolve
+// (`hooks/lens/use-usage-by-user.ts`). Esta aritmética é consumidora dela, não dona.
+export type { PontoDaSerie };
 
 /** Os campos plotáveis. `tokens` é derivado — entrada + saída, como a coluna da tabela. */
 export type CampoPlotavel = keyof Omit<PontoDaSerie, 'periodStart'> | 'tokens';

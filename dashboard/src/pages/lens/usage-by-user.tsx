@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { parseAsInteger, useQueryState } from 'nuqs';
 import { Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
 import { TrendChart, type TrendSeries } from '@usetheo/ui';
-import { densificar, janelaDaSerie, type CampoPlotavel, type PontoDaSerie } from '@/pages/lens/usage-series';
+import { densificar, janelaDaSerie, type CampoPlotavel } from '@/pages/lens/usage-series';
 import { resumirConsumo } from '@/pages/lens/usage-summary';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { ApiError, cloudFetch } from '@/lib/http/api';
+import { ApiError } from '@/lib/http/api';
+import { useUsageByUser, type UsageRow } from '@/hooks/lens/use-usage-by-user';
 import { usePaginacao } from '@/lib/pagination';
 import { Pager } from '@/components/pager';
 import { formatCost, formatNumber, shortId } from '@/lib/formatting/format';
@@ -36,23 +36,6 @@ import { formatCost, formatNumber, shortId } from '@/lib/formatting/format';
  *     um erro" jogaria as duas conquistas fora no último metro.
  */
 
-interface UsageRow {
-  userId: string;
-  /** M144 — presente só quando a chamada pediu `bucket=day`. */
-  series?: PontoDaSerie[];
-  spans: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
-  costUsd: number;
-}
-interface UsageResult {
-  users: UsageRow[];
-  unpricedSpans: number;
-  totalUsers: number;
-  windowDays: number;
-}
 
 /** Janelas oferecidas. O teto de 365 é o do serviço, que RECUSA acima dele (M140). */
 const JANELAS = [7, 30, 90, 365] as const;
@@ -148,17 +131,7 @@ export function LensUsageByUserPage() {
   // fora dele devolveria 400 e a tabela morreria junto com o gráfico.
   const comSerie = cabeSerie(days);
 
-  const query = useQuery({
-    // `days` e `page` FAZEM parte da chave: sem eles o cache devolve a resposta da janela anterior
-    // e a tela mente sobre o período que está mostrando.
-    queryKey: ['cloud', '/v1/dashboard/lens/usage-by-user', days, page, comSerie] as const,
-    queryFn: () =>
-      cloudFetch<UsageResult>(
-        `/v1/dashboard/lens/usage-by-user?days=${days}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}${comSerie ? '&bucket=day' : ''}`,
-        {},
-        { throwOnError: true },
-      ),
-  });
+  const query = useUsageByUser({ days, page, pageSize: PAGE_SIZE, withSeries: comSerie });
 
   const users = query.data?.users ?? [];
   const total = query.data?.totalUsers ?? 0;

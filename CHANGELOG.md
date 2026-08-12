@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the per-user usage report can no longer answer a question about one period with the numbers from another. The window, the page and whether daily detail was requested all decide which cached answer is reused, and that agreement was maintained by hand in two separate places — it held only while one person edited both. Nothing changes on screen today; what changes is that adding a filter can no longer silently leave the cache out of step with what the page says it is showing (B-244).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** creating a dataset the server refuses no longer looks like it worked. The dialog closed and the field cleared either way, so you left believing you had created something that was never there — and the list, on reload, simply did not show it, which reads as "it disappeared" rather than "it was never created". Removing an item from a dataset had the same gap with the opposite symptom: the row vanished from the screen and came back on the next read (B-244, B-235).
