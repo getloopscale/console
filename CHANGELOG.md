@@ -328,6 +328,43 @@
 - **A redação de segredos da configuração ganhou o teste que provava não existir.** O tipo que impede uma credencial de aparecer num log, num `%v` ou num corpo JSON tinha quatro métodos e **nenhum teste** — eles são chamados pelo próprio runtime da linguagem, nunca por código nosso, e por isso a auditoria de código morto os apontava como candidatos a remoção. A leitura correta do achado não era apagá-los: era que apagar qualquer um faria o segredo voltar a serializar em claro **sem nenhum teste ficando vermelho**. Agora há teste para as seis rotas de formatação, para JSON solto e dentro de struct, e para o caminho de texto; verificado quebrando a redação de propósito e confirmando que a suíte acusa o vazamento.
 - **O token de sessão deixou de viajar na URL do stream de sinais, e a mesma exposição foi registrada onde ainda existe.** O consumidor de status em tempo real havia sido unificado numa primitiva que autentica pondo o JWT na query string; a versão anterior usava cookie. Como o token em questão **é o mesmo bearer que autentica toda a API** — não um token efêmero e escopado —, pô-lo numa URL o entrega a quatro lugares onde uma credencial não deveria estar: log de acesso do servidor, log de proxy, histórico do navegador e cabeçalho `Referer`. A unificação foi revertida e o ponto do código passa a explicar por quê, para que ninguém a refaça sem ler. A mesma exposição **continua existindo em quatro outros streams** (logs de build, deploy, timeline e lista de deployments) e está registrada como `B-088` com as três saídas conhecidas e o custo de cada uma — a razão técnica original é legítima (o `EventSource` do navegador não aceita cabeçalhos), o que faltava era a decisão consciente sobre o preço dela.
 
+## [0.85.0] - 2026-08-05
+
+> Reconstructed on 2026-08-12 from the eight commits the `v0.85.0` tag carries
+> (`git log v0.84.0..v0.85.0`). No section was written when this version was cut: `CHANGELOG.md`
+> is byte-identical at `v0.83.1` and `v0.85.0`, so two releases shipped eighteen commits without
+> recording one line. The entries below describe what those commits changed, written now rather
+> than at the time — see B-228 for the detection defect that let a release be cut without its
+> section.
+
+### Added
+
+- **From a prompt revision you can now reach the calls that resolved it.** The revision tab offers a path into the trace explorer, already filtered to that revision, so answering "what actually happened on these calls?" no longer means rebuilding the filter by hand and hoping it matches. The link asserts on the destination rather than on its own address: a path that points somewhere empty is the failure this was built to avoid.
+
+### Fixed
+
+- **The MODEL column can be hidden, like every other column.** It was the one column the view encoder refused to toggle, so a saved view that hid it came back showing it. Views saved before this change are unaffected — an older saved view simply decodes with MODEL visible, exactly as it was saved.
+- **A missing prompt name no longer takes the whole screen down.** The helper that builds the path raised an exception for a known, ordinary state — a revision without a name — and the only caller invokes it inside the rendered output, so the detail screen was replaced by "This page crashed" with a Retry that crashed again. An absent name is now an absent link, and the rest of the screen stays.
+- **The invitation to inspect calls stopped appearing when there are no calls to inspect.** "Want to see what happened on these calls?" was rendered unconditionally — including directly under "no revisions to report" and under "usage could not be read" — so it pointed at a number that was not on screen.
+
+## [0.84.0] - 2026-08-05
+
+> Reconstructed on 2026-08-12 from the ten commits the `v0.84.0` tag carries
+> (`git log v0.83.1..v0.84.0`), for the same reason recorded above.
+
+### Added
+
+- **An alert can be created from the prompt itself, not just from the alerts screen.** The prompt tab offers the path, and the alert form opens already knowing which prompt and which metric it is about. Creating a monitor for "this prompt stopped being used" no longer means leaving the prompt, finding the alerts screen and re-selecting what you were already looking at. The backend for prompt-scoped rules shipped in `0.83.0`; this is the screen that reaches it.
+- **The alert form shows the current measured value for the metric you picked**, so a threshold can be set against what the prompt actually does rather than against a guess.
+
+### Fixed
+
+- **The alert form now says which field is missing.** Three of its four fields failed silently: the submit button disabled itself and named nothing, so the only way to find the empty field was to try each one.
+- **The measured value shown while setting a threshold now uses the rule's own window.** It was fixed at 24 hours regardless — so choosing "last 7 days" showed a 24-hour number, the threshold was sized against it, and the rule then measured roughly seven times as much and fired on its first evaluation. That is precisely the badly-calibrated alert this screen exists to prevent.
+- **A validation error from the service reaches the screen as itself.** A rejected field was announced as "check your access to this workspace" — a permissions problem — sending the operator to investigate the wrong thing entirely.
+- **A rule that has not been evaluated yet says so, instead of reporting "0 resolutions".** A response without the usage figures rendered "Today: undefined resolutions" in one place and an asserted zero in another; absent is not zero, and for a rule that watches for a drop to zero the difference is the whole point.
+- **The internal quality gate audits this repository again.** Neither Go nor TypeScript was enabled, so the gate ran, found nothing, and reported success over a codebase it had not examined.
+
 ## [0.83.1] - 2026-08-05
 
 ### Fixed
@@ -1918,3 +1955,18 @@
   caused by the extraction; the Go module + the dashboard BUILD are GREEN. Tracked for
   separate J-19 completion.
 
+
+---
+
+### Tags that predate this file's discipline
+
+Recorded once, explicitly, so the gap is a stated fact rather than something a reader has to
+notice. These tags exist in the repository and have no section here, and none can be honestly
+reconstructed now:
+
+`v0.10.0` · `v0.11.0` · `v0.12.0` · `v0.13.0` · `v0.69.5`
+
+The first four predate the adoption of Keep a Changelog in this repository. `v0.69.5` is a patch
+cut between two documented releases whose contents were folded into the sections around it.
+Writing entries for them today would mean inventing them, which is worse than the absence — so
+the absence is named instead. Every tag from `v0.82.0` onward has a section (see B-228).
