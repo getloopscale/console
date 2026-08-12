@@ -10647,3 +10647,61 @@ dod:
 status: triaged
 
 > Registrado 2026-08-12 ao desbloquear o publish.
+
+## B-274 — O `cosign verify` do reusable espera a identidade do CHAMADOR, mas quem assina é ele mesmo   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  job 94267780065, tag v1.0.2, passo `Verify the signature (identity-pinned)`:
+
+    expected SAN value to match regex
+      "^https://github\.com/usetheoai/theo-cloud/\.github/workflows/build-publish\.yml@"
+    got
+      "https://github.com/usetheoai/theo/.github/workflows/build-publish.yml@d1f3c947..."
+
+  O reusable deriva a identidade ESPERADA do repositório CHAMADOR (`IDENTITY_REPO:
+  usetheoai/theo-cloud`), mas a credencial keyless que o Fulcio emite carrega o workflow que
+  REALMENTE executa — que, num reusable cross-repo, é o do repositório CHAMADO.
+
+  Enquanto o `build-publish.yml` era uma cópia dentro deste repo, os dois coincidiam. Deixaram de
+  coincidir em `03195817`, e ninguém soube por seis dias porque o publish estava morto (B-270).
+
+  TERCEIRA consequência do mesmo commit, junto com o contrato de inputs (B-270) e a decisão do
+  trivyignore (B-272). Adotar o reusable compartilhado foi certo; o que faltou foi conferir o que
+  a cópia carregava de específico deste repo.
+o_que_isto_NAO_e: |
+  NÃO é assinatura inválida, e a diferença importa para quem for consumir a imagem.
+
+  As imagens da v1.0.2 FORAM construídas e publicadas, com SBOM e proveniência:
+
+    ghcr.io/usetheoai/theo-cloud:1.0.2, :1.0, :latest
+    digest sha256:c3a730e9058db5903c27fd2ae616f2e7deacc961f7cf79ba4401d0fb35059b23
+    --attest type=provenance,mode=max  --attest type=sbom
+    --build-arg VERSION=v1.0.2 --build-arg GIT_SHA=08285fee...
+
+  Elas estão assinadas por `usetheoai/theo/.github/workflows/build-publish.yml`, que é o workflow
+  que de fato as construiu. A assinatura confere; o que não confere é a EXPECTATIVA de quem a
+  identidade deveria ser — e essa expectativa está velha.
+
+  Isto separa a v1.0.2 das duas anteriores de forma material: a v1.0.0 e a v1.0.1 não têm imagem
+  nenhuma; a v1.0.2 tem imagem assinada cuja verificação de identidade aponta para o lugar errado.
+why_now: |
+  Bloqueou a conclusão do publish da tag v1.0.2 em 2026-08-12, depois de o B-270, o B-272, o B-273
+  e o CVE-2026-46600 já terem sido corrigidos.
+dod:
+  - o reusable calcula a identidade esperada a partir de ONDE ELE VIVE, não de quem o chama —
+    ou aceita as duas, se um caller vendorizado ainda existir em algum repo
+  - o blast radius é avaliado: todo repo que chama o reusable com `verify: true` está nesta
+    situação hoje, e provavelmente nenhum notou
+  - a v1.0.2 é re-verificada com a identidade correta antes de qualquer afirmação de que ela está
+    assinada e verificada
+  - NÃO resolver desligando `verify:` — um verify que não roda é a classe de defeito que esta
+    sessão inteira documentou
+status: triaged
+
+> Registrado 2026-08-12 ao concluir o release da v1.0.2.
