@@ -9908,3 +9908,111 @@ dod:
 
 > Registered 2026-08-12 while migrating settings for B-244.
 
+
+## B-265 — "Delete Account" and "Delete Workspace" send DIFFERENT ids to the same endpoint   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  dashboard/src/pages/settings/profile.tsx:41
+    await deleteTenant.mutateAsync(session.identity.id);
+
+  dashboard/src/pages/settings/overview.tsx:39
+    await deleteTenant.mutateAsync(whoami.team_id);
+
+  Both call `useDeleteTenant`, which issues `DELETE /api/v1/tenants/{id}`
+  (`dashboard/src/hooks/settings/use-delete-tenant.ts:25`). They pass two DIFFERENT values, so at
+  most one of them is right.
+
+  A KRATOS IDENTITY ID IS NOT A TENANT ID, and this repo proves it rather than assuming it:
+
+    internal/routes/session_token.go:153
+      tid, aid, _, tErr := h.tenantProvisioner.EnsureTenant(r.Context(), session.Identity.ID, ...)
+      tenantID = tid
+
+    internal/routes/session_token.go:188
+      "identity": identityResponse{ ID: session.Identity.ID, ... }
+
+  `session.Identity.ID` is the INPUT to `EnsureTenant`; `tenantID` is a DIFFERENT value it
+  RETURNS. What the dashboard receives as `identity.id` is the input, never the tenant. The
+  dashboard's own types keep them apart too — `Whoami` carries `user_id` AND `team_id` as
+  distinct fields (`dashboard/src/lib/api/types.ts:35,38`).
+why_now: |
+  PRE-EXISTING — `session.identity.id` has been the argument since 801d1190, and B-264 preserved
+  it verbatim while fixing a different defect in the same handler. What changed is the
+  CONSEQUENCE. Until B-264, a refused delete resolved `null` and both screens reported success
+  silently, so a wrong id looked exactly like a right one. Now a refusal stays on screen with its
+  reason — which makes this newly visible to the user, and newly diagnosable.
+
+  Found by an adversarial review of the B-244/B-264 migrations on 2026-08-12, not by a user
+  report.
+honest_limit: |
+  The handler for `DELETE /engine/api/v1/tenants/{id}` lives in the `theo` engine repo, which is
+  NOT checked out here. I could not execute it, so I cannot say which of the two screens is
+  wrong — only that they disagree and that this repo's own token exchange says an identity id is
+  not a tenant id.
+
+  If the engine keys on tenant id, /settings/profile's "Delete Account" has never deleted
+  anything and now shows an error where it used to show silence. If it keys on identity id,
+  /settings "Delete Workspace" is the broken one. Either way one of the product's two most
+  destructive buttons is wired to the wrong resource.
+dod:
+  - the engine handler is read and the id it keys on is recorded in this block
+  - both screens pass that id, from a single named source rather than two ad-hoc fields
+  - a test fails if the two screens ever pass different values again
+  - the fix does NOT widen `useDeleteTenant` to accept either — a hook that takes "whichever id
+    you have" is how the two drifted apart in the first place
+
+> Registered 2026-08-12 by an adversarial review of the B-244 / B-264 migrations.
+
+## B-266 — ADR-0006 is cited as done; none of the three things it decided exist   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium
+category: contract
+evidence: |
+  dashboard/docs/adr/0006-camada-de-acesso-a-dados-e-factory-de-query-key.md:2
+    status: proposed
+
+  It decided option 2, three concrete artifacts (§ Decisao):
+
+    1. `src/lib/api/keys.ts` exposing `cloudKey(path, ...)` / `engineKey(path, ...)`
+    2. an ESLint `no-restricted-syntax` rule banning an ARRAY LITERAL as `queryKey`/`mutationKey`
+       — the ADR calls this "a acao prioritaria: e a que fecha o buraco de invalidacao"
+    3. `features/<f>/api/` + `features/<f>/hooks/` per feature
+
+  VERIFIED ABSENT on 2026-08-12:
+    ls dashboard/src/features            -> no such directory
+    ls dashboard/src/lib/api/keys.ts     -> no such file
+    grep no-restricted-syntax eslint.config.* -> no match
+
+  Meanwhile the ADR is cited in five places as if it governed live code
+  (`hooks/settings/use-api-keys.ts:17`, `hooks/infra/use-domains.ts`, `lib/data-access-layer.test.ts:19,199,215`),
+  and `hooks/deploy/use-build-artifacts.ts:25` uses exactly the array-literal-spread form rule (2)
+  was written to forbid.
+why_now: |
+  Found by an adversarial review of the B-244 migrations on 2026-08-12. The migrations are real
+  improvement — pages stopped choosing URL, cache key and error policy — but they implement a
+  DIFFERENT structure from the one the ADR decided, while citing it. `data-access-layer.test.ts:19`
+  already says the ADR "nunca foi executado"; the citations elsewhere do not.
+
+  This is the same defect class as B-246 (234 ADR citations resolving to nothing), one level up:
+  there the pointer did not resolve, here it resolves to a decision nobody executed. A citation
+  that reads as governance and is actually aspiration makes the next person believe a constraint
+  is enforced when nothing enforces it.
+dod:
+  - each of the three artifacts is either built or explicitly dropped by superseding the ADR
+  - the ADR leaves `proposed` — `accepted` if executed, `superseded`/`rejected` with the reason if
+    the structure that actually emerged is the one we want
+  - no docblock cites ADR-0006 as the authority for a structure that does not exist
+  - if the ESLint rule is built, it lands with the array-literal keys already migrated — turning it
+    on first would fail the codebase that motivated it
+
+> Registered 2026-08-12 by an adversarial review of the B-244 migrations.

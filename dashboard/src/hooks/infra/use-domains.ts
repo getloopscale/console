@@ -11,8 +11,14 @@ import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
  * the narrower shape would have silently deleted two fields the UI renders.
  *
  * Declared here rather than in the page: the shape of a response is knowledge about the
- * ENDPOINT, and the endpoint is this layer's subject (ADR-0006). A page that owns it is a page
- * that has to be edited when the backend changes.
+ * ENDPOINT, and the endpoint is this hook's subject. A page that owns it is a page that has to be
+ * edited when the backend changes.
+ *
+ * This is NOT the layer ADR-0006 decided, and saying so matters — an earlier draft of this
+ * docblock cited the ADR as though it were. ADR-0006 is still `proposed` and chose `features/<f>/
+ * api/`, a `lib/api/keys.ts` exposing `cloudKey`/`engineKey`, and an ESLint rule banning
+ * array-literal query keys. None of the three exist (B-266). What moved here is transport and
+ * response shape, one endpoint at a time.
  *
  * Reconciling this with `@/lib/api/types` is real work and belongs to whoever owns that type —
  * filed rather than done here, because widening a shared type from one caller's evidence is how
