@@ -8922,3 +8922,114 @@ dod:
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
 
+## B-247 — `check_evidence_pointers` reads every dotfile-directory path as fabricated   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  .claude/skills/discover-confidence/scripts/check_evidence_pointers.py:30
+  CODE_POINTER_RE = re.compile(
+      r"\b((?:[A-Za-z0-9_.\-]+/)+[A-Za-z0-9_.\-]+\.[A-Za-z0-9]{1,10}):(\d+)(?::\d+)?\b"
+  )
+
+  The leading `\b` sits between the `.` and the first letter of a dotfile directory, so the
+  capture drops the dot. Measured 2026-08-12:
+
+    '.claude/rules/cycle-release.md:28'  ->  captured as 'claude/rules/cycle-release.md'
+    '.github/workflows/ci.yml:12'        ->  captured as 'github/workflows/ci.yml'
+    'src/lib/http/api.ts:305'            ->  captured correctly
+
+  The truncated path never resolves from the project root, so the pointer is reported
+  `missing_file` and the opportunity is capped `INVALID` by `fabricated_evidence` — the harshest
+  cap in the system, applied to a pointer that is correct and resolves on disk.
+why_now: |
+  Measured while running `/discover-confidence` on the B-228 opportunity, which necessarily cites
+  `.claude/skills/release/SKILL.md:67` — the file the finding is about. The gate returned INVALID
+  with `fabricated_evidence` against two pointers that both exist. Any opportunity about this
+  ecosystem's OWN tooling is unscoreable until this is fixed, which is why it is filed rather
+  than worked around by re-writing the pointer into a form the regex happens to accept.
+status: triaged
+dod:
+  - a pointer into a dotfile directory (`.claude/…`, `.github/…`) resolves and is counted
+  - a regression test asserts the capture keeps the leading dot, and fails on the current regex
+  - prose that is not a path (`step 3:12`, `Ratio 4:1`) is still not mistaken for a pointer
+
+> Registered 2026-08-12 while running `/discover-confidence` for B-228 (slug: `release-version-detection`).
+
+## B-248 — the discover-confidence fixture cites standalone-layout paths, so its own suite is red   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: tests
+evidence: |
+  .claude/skills/discover-confidence/fixtures/good-opportunity.md:24
+  The canonical "a good opportunity scores SHIPPABLE" fixture cites four pointers in the
+  STANDALONE layout, with no `.claude/` prefix:
+
+    rules/cycle-discover.md:20
+    rules/cycle-discover.md:150
+    skills/discover-confidence/scripts/check_corner_coverage.py:78
+    skills/discover-confidence/scripts/check_evidence_pointers.py:95
+
+  Measured 2026-08-12: none of the four resolves from this repository's root; all four resolve
+  under `.claude/`. `test_run_opportunity_score.py::test_good_opportunity_scores_shippable`
+  therefore gets `fabricated_evidence`, verdict INVALID, exit 1 — and asserts exit 0.
+
+  PRE-EXISTING, not a regression: reproduced with the B-247 fix stashed
+  (`git stash push -- check_evidence_pointers.py` -> same single failure).
+why_now: |
+  Found while running the discover-confidence suite for the B-247 fix. This repository is a
+  PLUGIN INSTALL (`knowledge-base-location.md`: the ecosystem lives at `<project>/.claude/`),
+  and the fixture was written for the standalone layout where `skills/` and `rules/` sit at the
+  root. The skill's own definition of a passing opportunity has therefore never passed here.
+status: triaged
+dod:
+  - `python3 -m pytest tests/ -q` under `.claude/skills/discover-confidence/` is fully green
+  - the fixture's pointers resolve in the layout this repository actually uses
+  - the consequence is recorded: this repo's copy of the fixture is layout-specific, and the
+    kit's own standalone repository keeps its own copy
+
+> Registered 2026-08-12 while fixing B-247. Depends on B-247 — the `.claude/`-prefixed pointers
+> the fix needs are exactly the ones the old regex truncated.
+
+## B-249 — `_count_question_bullets` counts fewer bullets than its own docstring promises   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  .claude/skills/plan-confidence/scripts/check_drawbacks_section.py:95
+  """Count `- Q\d` style bullets OR `- ...` non-empty bullets in Unresolved Questions."""
+  return len(re.findall(r"^\s*[-*]\s+(Q\d+|[A-Z])", section, re.MULTILINE))
+
+  The docstring promises "OR any non-empty bullet"; the pattern requires the first character
+  after the dash to be an uppercase letter or `Q<digits>`. Measured 2026-08-12 on the B-228 plan:
+  three bullets opening with `**` (bold) counted as ZERO, so
+  `soft_floor_unresolved_questions_section_missing` fired against a section with three real
+  questions in it. Rewriting them as `- Q1 — **…**` lifted the plan from 89 to 93.2 with no
+  change to their content.
+
+  Same blind spot for a bullet opening with a backtick, a digit, or a lowercase word.
+why_now: |
+  Cost a scoring cycle while running /plan-confidence for B-228. It is low severity because the
+  workaround is trivial once you read the regex — but that is exactly the problem: the author is
+  told the section is missing when it is present, and the only way to find out why is to open the
+  checker.
+status: triaged
+dod:
+  - a bullet opening with bold, a backtick, a digit or a lowercase word is counted
+  - a genuinely empty bullet (`-` alone) is still NOT counted
+  - the docstring and the pattern agree, whichever way the disagreement is resolved
+
+> Registered 2026-08-12 while running /plan-confidence for B-228.
+

@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/internal tooling:** citing a file inside a dot-directory as evidence no longer marks that evidence as invented. `.claude/rules/x.md:28` was being read as `claude/rules/x.md:28`, a path that resolves nowhere, so the harshest failure in the review system fired against pointers that were correct — and any finding about the project's own tooling was unreviewable (B-247).
+- **theo-cloud/internal tooling:** the reference example of a well-formed finding now passes its own check. It pointed at files using a layout this repository does not use, so the check that proves the system accepts good work had never once passed here (B-248).
+
 ### Changed
 
 - **theo-cloud/internal tooling:** the backlog verifier now refuses an item whose checkbox contradicts its status. The two had drifted apart 41 times: work that shipped still showed an unticked box, and — the direction that misleads — ten items nobody had measured showed a ticked one, so a whole programme read as delivered to anyone skimming the list (B-242..B-246).
