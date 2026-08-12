@@ -9112,3 +9112,75 @@ dod:
 
 > Registered 2026-08-12 while adopting the plugin update, during B-228's code-quality phase.
 
+## B-252 — `symbol_fabrication_go` calls half the Go standard library fabricated   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: high
+category: contract
+evidence: |
+  .claude/skills/code-quality/scripts/_registry.py:199
+  if "/" not in import_path:
+      # stdlib package — proxy doesn't index it. Treat as True (exists) to avoid FP.
+
+  The guard is right in intent and wrong in one line: it treats "has no slash" as "is stdlib".
+  Measured 2026-08-12 with `go list std`: 362 stdlib packages, of which **238 contain a slash**
+  (`net/http`, `encoding/json`, `log/slog`, `database/sql`, `os/signal`, `go/ast`,
+  `path/filepath`, `net/http/httptest`, …). Every one of them is looked up on
+  proxy.golang.org, 404s, and is reported HARD as `Fabricated Go module`.
+
+  Second class, same function: a SUB-PACKAGE of a real module is not itself a module.
+  `github.com/go-chi/chi/v5/middleware` 404s on the proxy while `github.com/go-chi/chi/v5`
+  resolves — reported fabricated too.
+
+  Measured on this repository at 42734e7b:
+    /code-quality  ->  FAIL_HARD, 792 HARD findings, 787 of them d2_symbol_fab on go
+    go build ./... ->  succeeds
+
+  787 undefined symbols in a codebase that compiles is not a finding, it is a broken detector.
+  PRE-EXISTING, not from the plugin update: the same proxy lookup is in the pre-patch copy at
+  `.claude/.patch-backups/20260812T072812/skills/code-quality/scripts/detectors/go.py`.
+why_now: |
+  `FAIL_HARD` blocks `/review` by contract (`cycle-code-quality.md § Hard gates`). Go was enabled
+  in this repo on 2026-08-06 to stop the gate auditing nothing; since then the gate has been
+  unconditionally red for a reason no code change can fix. A gate that is always red is a gate
+  everyone learns to bypass, which is worse than the one that audited nothing — it now also
+  costs the reader 787 lines of noise to discover there is no signal.
+status: triaged
+dod:
+  - a Go file importing `net/http`, `encoding/json` and `log/slog` produces zero d2 findings
+  - a sub-package import of a declared dependency produces zero d2 findings
+  - an import that is genuinely absent is STILL reported HARD (the fix must not disarm the gate)
+  - the stdlib set comes from `go list std`, not from a hand-kept list that drifts each release
+
+> Registered 2026-08-12 during B-228's code-quality phase, which it blocked.
+
+## B-253 — code-quality reports cite paths with the leading slash stripped   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: low
+category: contract
+evidence: |
+  .claude/skills/code-quality/scripts/_shared.py:412
+  `to_rel_path` strips a leading `/` so absolute paths satisfy Finding's repo-relative
+  invariant. Its docstring says production passes already-relative paths, "so this is a no-op
+  there". Measured 2026-08-12: it is not. The audit report at
+  `.claude/knowledge-base/audits/release-version-detection-code-quality-2026-08-12.md:28`
+  cites `home/paulo/Projetos/theo/theo-platform/theo-cloud/cmd/main.go` — an absolute path with
+  its slash removed, which resolves from nowhere and is not clickable.
+why_now: |
+  Found while reading the report for B-252. Same family as B-247: a path mangled by a
+  well-meaning normalisation, producing evidence that cannot be followed. Low severity only
+  because the reader can reconstruct it by eye.
+status: triaged
+dod:
+  - findings cite a path relative to the repository root, resolvable from it
+  - an absolute path outside the repository is reported as such rather than silently truncated
+
+> Registered 2026-08-12 during B-228's code-quality phase.
+
