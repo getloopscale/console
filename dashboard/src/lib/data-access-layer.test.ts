@@ -197,7 +197,21 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 13 desde 2026-08-12, agora com `settings/{audit,team,billing}.tsx`.
+// 9 desde 2026-08-12, agora com `rag/{ask,graphrag,chunks-panel}.tsx` e
+// `lens/dashboards/duration-histogram.tsx`.
+//
+// `ask` e `graphrag` faziam a MESMA requisicao (`POST /v1/dashboard/rag/answers`) e cada uma
+// declarava sua propria `AnswerResult`. As duas copias ja tinham perdido a mesma coisa: nenhuma
+// tinha contrato, entao uma pergunta recusada resolvia `null` e as duas telas simplesmente nao
+// mostravam resposta — numa pagina cujo trabalho inteiro e responder, isso se le como "o modelo
+// nao tinha nada a dizer".
+//
+// As tres leituras de GraphRAG ficaram juntas por causa do NIVEL: todas as tres sao escopadas ao
+// mesmo `level` e todas o carregam na chave. Um nivel acrescentado a uma URL e esquecido numa chave
+// renderiza o relatorio de uma comunidade de um nivel ao lado do grafo de outro, e nada na tela
+// diz que os dois discordam.
+//
+// Antes disso, com `settings/{audit,team,billing}.tsx`.
 //
 // `audit` guarda o achado mais caro do lote, e ele e sobre POR QUE passou despercebido: o guard de
 // null silencioso quantifica sobre `useQuery`/`useInfiniteQuery`/`useSuspenseQuery`, e aquela
@@ -267,7 +281,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 13;
+const TETO_PAGINAS_COM_TRANSPORTE = 9;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

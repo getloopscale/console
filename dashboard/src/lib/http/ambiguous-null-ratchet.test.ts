@@ -98,7 +98,12 @@ const SRC = resolve(__dirname, '../..');
 // As tres de `wiki` eram escritas: criar pasta, criar pagina, salvar pagina. A de salvar era a
 // pior — um PUT recusado resolvia `null`, o editor fechava e o texto ANTIGO voltava por
 // invalidacao. O usuario via a propria edicao ser desfeita, sem erro nenhum na tela.
-const CEILING_WITHOUT_CONTRACT = 7;
+// 4 desde 2026-08-12. A ultima fechada foi o editor de chunks: um PATCH recusado resolvia `null`,
+// o editor fechava, o rascunho era limpo e a lista rebuscava o texto ORIGINAL. O usuario via a
+// propria correcao ser substituida pelo que ele acabara de corrigir, sem nada na tela dizendo por
+// que — e o `reembedded` da resposta, a unica coisa que diz se a edicao chegou ao indice, nunca era
+// consultado porque nao havia resposta bem-sucedida de onde ler.
+const CEILING_WITHOUT_CONTRACT = 4;
 
 /**
  * The corpus may not shrink silently.

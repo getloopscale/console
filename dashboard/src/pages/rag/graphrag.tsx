@@ -1,6 +1,5 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
 import { MessageSquare, Network } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
 import {
@@ -17,7 +16,13 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useRagGraph,
+  useRagCommunities,
+  useCommunityReport,
+  type GraphNode,
+} from '@/hooks/rag/use-graphrag';
+import { useAskQuestion } from '@/hooks/rag/use-answers';
 import { collapseGraph, isSuperNodeId } from './graphrag/collapse-graph';
 
 /**
@@ -31,54 +36,6 @@ import { collapseGraph, isSuperNodeId } from './graphrag/collapse-graph';
  * The graph JSON is forwarded opaquely by the BFF; this page renders it. No fabrication.
  */
 
-interface GraphNode {
-  id: string;
-  name: string;
-  type: string;
-  degree: number;
-  community_key: string | null;
-}
-interface GraphLink {
-  source: string;
-  target: string;
-  weight: number;
-}
-interface GraphData {
-  nodes: GraphNode[];
-  edges: GraphLink[];
-}
-interface Community {
-  community_key: string;
-  level: number;
-  size: number;
-  summary: string | null;
-  member_names: string[];
-}
-interface CommunitiesData {
-  communities: Community[];
-}
-interface ReportFinding {
-  summary?: string;
-  explanation?: string;
-}
-interface CommunityReport {
-  community_key: string;
-  title: string;
-  summary: string;
-  full_content: string;
-  findings: ReportFinding[];
-}
-interface Source {
-  document_id?: string;
-  chunk_id?: string;
-  score?: number;
-}
-interface AnswerResult {
-  answer: string;
-  sources?: Source[];
-  strategy?: string;
-  router?: { strategy?: string; fell_back?: boolean };
-}
 
 const LEVELS = ['0', '1', '2', '3'] as const;
 const GRAPH_MODES: ReadonlyArray<{ value: string; label: string }> = [
@@ -127,36 +84,12 @@ export function RagGraphRagPage() {
     });
 
   const collectionsQuery = useCollections();
-  const graphQuery = useQuery({
-    enabled: collectionID !== '',
-    queryKey: ['cloud', 'rag-graph', collectionID, level] as const,
-    queryFn: () =>
-      cloudFetch<GraphData>(
-        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/graph?level=${level}&limit=300`, {}, { throwOnError: true }),
-  });
-  const communitiesQuery = useQuery({
-    enabled: collectionID !== '',
-    queryKey: ['cloud', 'rag-communities', collectionID, level] as const,
-    queryFn: () =>
-      cloudFetch<CommunitiesData>(
-        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities?level=${level}`, {}, { throwOnError: true }),
-  });
-  // M13 — the full report for the open community (drill-down): title + full_content + findings.
-  const reportQuery = useQuery({
-    enabled: collectionID !== '' && reportKey !== null,
-    queryKey: ['cloud', 'rag-community-report', collectionID, reportKey, level] as const,
-    queryFn: () =>
-      cloudFetch<CommunityReport>(
-        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities/${encodeURIComponent(reportKey ?? '')}/report?level=${level}`, {}, { throwOnError: true }),
-  });
+  const graphQuery = useRagGraph(collectionID, level);
+  const communitiesQuery = useRagCommunities(collectionID, level);
+  const reportQuery = useCommunityReport(collectionID, reportKey, level);
 
-  const ask = useMutation({
-    mutationFn: () =>
-      cloudFetch<AnswerResult>('/v1/dashboard/rag/answers', {
-        method: 'POST',
-        body: JSON.stringify({ collection_id: collectionID, question, strategy: mode }),
-      }),
-  });
+  const ask = useAskQuestion();
+  const submitAsk = () => ask.mutate({ collectionID, question, strategy: mode });
 
   const collections = collectionsQuery.data?.items ?? [];
   const graph = graphQuery.data;
@@ -380,7 +313,7 @@ export function RagGraphRagPage() {
                 className="space-y-3"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (question.trim()) ask.mutate();
+                  if (question.trim()) submitAsk();
                 }}
               >
                 <Textarea

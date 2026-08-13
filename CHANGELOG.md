@@ -2,6 +2,8 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** a rejected question on the RAG Ask and GraphRAG screens now says so instead of showing no answer, which on a page whose job is answering read as the model having nothing to say. A rejected chunk edit no longer silently restores the text you just corrected (B-235).
+
 - **theo-cloud/dashboard:** forgetting a skill now reports a refusal instead of closing the confirmation and letting the skill reappear on the next read — on a screen whose only action is removing a bad skill, that looked like the product undoing itself (B-235).
 
 - **theo-cloud/dashboard:** saving a filter combination as a view now reports a refusal. It used to close the dialog and clear the name, so on a list that caps at 100 a rejected save read as "I hit the limit" (B-235).

@@ -1,13 +1,12 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { MessageSquare } from 'lucide-react';
 import { Badge, Button, Card, PageShell, Select, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import { useAskQuestion } from '@/hooks/rag/use-answers';
 
 /**
  * M21 — /rag/ask. The core RAG surface: pick a collection, ask a question, get a
@@ -15,20 +14,6 @@ import { cloudFetch } from '@/lib/http/api';
  * via POST). Calls the read+write dashboard BFF `POST /v1/dashboard/rag/answers`.
  */
 
-interface Source {
-  document_id?: string;
-  chunk_id?: string;
-  score?: number;
-}
-interface AnswerResult {
-  answer: string;
-  sources?: Source[];
-  confidence?: string;
-  // M9 — theo-rag may echo the strategy that actually answered + a router trace
-  // (e.g. graph/global fell back to vector). Surfaced when present — never fabricated.
-  strategy?: string;
-  router?: { strategy?: string; fell_back?: boolean; reason?: string };
-}
 
 // M9 — retrieval strategies theo-rag exposes, with outcome-shaped labels (not internal
 // jargon). `vector` is the default (progressive disclosure); `graph`/`global` are GraphRAG
@@ -54,19 +39,8 @@ export function RagAskPage() {
 
   const collectionsQuery = useCollections();
 
-  const ask = useMutation({
-    mutationFn: () =>
-      cloudFetch<AnswerResult>('/v1/dashboard/rag/answers', {
-        method: 'POST',
-        // M9 — omit strategy for the default so the request stays byte-identical to pre-M9;
-        // send the selected strategy (graph/global reach GraphRAG) otherwise.
-        body: JSON.stringify({
-          collection_id: collectionID,
-          question,
-          ...(strategy !== 'vector' ? { strategy } : {}),
-        }),
-      }),
-  });
+  const ask = useAskQuestion();
+  const submitAsk = () => ask.mutate({ collectionID, question, strategy });
 
   const collections = collectionsQuery.data?.items ?? [];
   const answer = ask.data;
@@ -80,7 +54,7 @@ export function RagAskPage() {
               className="space-y-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (collectionID && question.trim()) ask.mutate();
+                if (collectionID && question.trim()) submitAsk();
               }}
             >
               <Select value={collectionID} onValueChange={setCollectionID}>
