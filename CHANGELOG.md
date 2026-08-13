@@ -2,6 +2,8 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** saving a filter combination as a view now reports a refusal. It used to close the dialog and clear the name, so on a list that caps at 100 a rejected save read as "I hit the limit" (B-235).
+
 - **theo-cloud/dashboard:** the alert-rule list on the Alerts screen and the webhook list on Settings are now one read instead of two identical ones, so a change to either can no longer reach only one of them (B-244).
 
 - **theo-cloud/dashboard:** a refused RAG write no longer passes for a successful one. Creating a collection, ingesting a document, deleting either, triggering a connector sync and connecting a paste-credential source all report a refusal now; previously each one cleared its form and refreshed its list exactly as a successful write does (B-235).

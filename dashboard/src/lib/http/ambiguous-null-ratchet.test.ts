@@ -92,11 +92,13 @@ const SRC = resolve(__dirname, '../..');
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-// 10 desde 2026-08-12, com todo o cluster de RAG.
+// 8 desde 2026-08-12. As duas ultimas eram as saved views de traces: um POST recusado fechava o
+// dialogo, limpava o nome e recarregava a lista — e numa lista que para em 100, a view faltando
+// se le como "bati no limite", nao como "o servidor recusou".
 // As tres de `wiki` eram escritas: criar pasta, criar pagina, salvar pagina. A de salvar era a
 // pior — um PUT recusado resolvia `null`, o editor fechava e o texto ANTIGO voltava por
 // invalidacao. O usuario via a propria edicao ser desfeita, sem erro nenhum na tela.
-const CEILING_WITHOUT_CONTRACT = 10;
+const CEILING_WITHOUT_CONTRACT = 8;
 
 /**
  * The corpus may not shrink silently.

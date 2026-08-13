@@ -197,7 +197,13 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 24 desde 2026-08-12, agora com `lens/{labeling-queue,experiments,alerts}.tsx`.
+// 22 desde 2026-08-12, agora com `lens/{labeling-queue,experiments,alerts,dashboards}.tsx` e
+// `lens/traces/saved-views.tsx`.
+//
+// `dashboards` rendeu dois achados que so aparecem quando a leitura muda de lugar. O `range` era
+// `string` numa tela cujo endpoint recusa qualquer valor fora de quatro — o compilador nao tinha
+// como dizer isso, e agora tem. E a leitura de observability era uma copia da que ja tinha dono,
+// com o tipo de resposta redeclarado ao lado.
 //
 // Em `alerts`, o que mais justifica a mudanca e o toggle otimista: `onMutate` vira a regra no
 // cache, `onError` restaura o snapshot e `onSettled` re-sincroniza. Os tres so funcionam JUNTOS —
@@ -237,7 +243,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 24;
+const TETO_PAGINAS_COM_TRANSPORTE = 22;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
