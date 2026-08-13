@@ -265,7 +265,7 @@ export default [
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
       'src/pages/settings/billing.tsx', // 502 LOC
       'src/pages/settings/webhooks.tsx', // 354 LOC
-      'src/pages/lens/alerts.tsx', // 523 LOC
+      'src/pages/lens/alerts.tsx', // 447 LOC
       'src/pages/projects/projects.tsx', // 513 LOC
     ],
     rules: {

@@ -1,6 +1,5 @@
 import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, PageShell, StatusDot } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
@@ -11,7 +10,12 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { shortId } from '@/lib/formatting/format';
 import { usePaginacao } from '@/lib/pagination';
 import { Pager } from '@/components/pager';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useLabelingQueue,
+  useResolveQueueItem,
+  useExportQueueAsDataset,
+  type QueueItem,
+} from '@/hooks/lens/use-labeling-queue';
 import { SCORE_CONFIGS } from './labeling-queue/score-configs';
 import { ResolveForm } from './labeling-queue/resolve-form';
 import { prefillValues, toResolveBody, type AnnotationValues } from './labeling-queue/to-resolve-body';
@@ -25,30 +29,7 @@ import { prefillValues, toResolveBody, type AnnotationValues } from './labeling-
  * scoped upstream; a provider/scope error fails closed to a typed Alert (never a fabricated success).
  */
 
-interface QueueItem {
-  id: string;
-  traceId: string;
-  spanId: string;
-  status: 'pending' | 'resolved';
-  label?: string;
-  score?: number;
-  note?: string;
-  createdBy: string;
-  resolvedBy?: string;
-  createdAt: string;
-  resolvedAt?: string;
-}
-interface QueuePage {
-  items: QueueItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
-/** POST a JSON body to a cloud route, failing closed (throwOnError) so mutations surface typed errors. */
-function postJson(path: string, payload: unknown): Promise<unknown> {
-  return cloudFetch(path, { method: 'POST', body: JSON.stringify(payload) }, { throwOnError: true });
-}
 
 /** Map a fail-closed HTTP status to an honest, typed message (duck-typed `.status`). */
 function errorMessage(err: unknown): string {
@@ -67,7 +48,6 @@ export function LensLabelingQueuePage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Labeling Queue'), [setPageTitle]);
   useRequireAuth();
-  const qc = useQueryClient();
 
   const [active, setActive] = useState<QueueItem | null>(null);
   const [values, setValues] = useState<AnnotationValues>({});
@@ -77,10 +57,7 @@ export function LensLabelingQueuePage() {
   // #labeling-queue-pager (M70) — the endpoint is server-paginated (returns total/page/pageSize) but
   // page 2+ was previously unreachable; drive `page` and render a Prev/Next pager + result count.
   const [page, setPage] = useState(1);
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/labeling-queue', page] as const,
-    queryFn: () => cloudFetch<QueuePage>(`/v1/dashboard/lens/labeling-queue?page=${page}`, {}, { throwOnError: true }),
-  });
+  const query = useLabelingQueue(page);
   const items = query.data?.items ?? [];
   // Q-3: exporting with zero resolved items produces an empty/partial golden dataset. Guard the export
   // on the resolved items in view (page-scoped — the payload carries no queue-wide resolved total).
@@ -107,24 +84,18 @@ export function LensLabelingQueuePage() {
 
   const body = toResolveBody(SCORE_CONFIGS, values);
 
-  const resolve = useMutation({
-    mutationFn: (item: QueueItem) =>
-      postJson(`/v1/dashboard/lens/labeling-queue/${encodeURIComponent(item.id)}/resolve`, body),
-    retry: false,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/labeling-queue'] });
-      closeResolve();
-    },
-  });
+  const resolve = useResolveQueueItem();
+  const submitResolve = (item: QueueItem) =>
+    resolve.mutate({ id: item.id, body }, { onSuccess: closeResolve });
 
-  const exportMutation = useMutation({
-    mutationFn: () => postJson('/v1/dashboard/lens/labeling-queue/export-as-dataset', { name: exportName.trim() }),
-    retry: false,
-    onSuccess: () => {
-      setExporting(false);
-      setExportName('');
-    },
-  });
+  const exportMutation = useExportQueueAsDataset();
+  const submitExport = () =>
+    exportMutation.mutate(exportName.trim(), {
+      onSuccess: () => {
+        setExporting(false);
+        setExportName('');
+      },
+    });
 
   const columns: DataTableColumn<QueueItem>[] = [
     {
@@ -221,7 +192,7 @@ export function LensLabelingQueuePage() {
           pending={resolve.isPending}
           error={resolve.isError ? errorMessage(resolve.error) : null}
           onCancel={closeResolve}
-          onResolve={() => active && resolve.mutate(active)}
+          onResolve={() => active && submitResolve(active)}
         />
       </AppModal>
 
@@ -240,7 +211,7 @@ export function LensLabelingQueuePage() {
             <Button
               size="sm"
               disabled={!exportName.trim() || resolvedCount === 0 || exportMutation.isPending}
-              onClick={() => exportMutation.mutate()}
+              onClick={submitExport}
             >
               {exportMutation.isPending ? 'Exporting…' : 'Export'}
             </Button>

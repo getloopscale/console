@@ -197,7 +197,17 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 26 desde 2026-08-12: `memory/{overview,entities}.tsx` e todo o cluster de RAG
+// 24 desde 2026-08-12, agora com `lens/{labeling-queue,experiments,alerts}.tsx`.
+//
+// Em `alerts`, o que mais justifica a mudanca e o toggle otimista: `onMutate` vira a regra no
+// cache, `onError` restaura o snapshot e `onSettled` re-sincroniza. Os tres so funcionam JUNTOS —
+// perder o `onError` numa mudanca deixa um PATCH recusado com a chave mostrando um estado que o
+// servidor negou, e nenhum teste de caminho feliz percebe.
+//
+// A lista de webhooks daquela tela era uma copia byte a byte da de `settings`. Nao criei um
+// segundo dono: a tela passou a ler o que ja existia.
+//
+// Antes disso: `memory/{overview,entities}.tsx` e todo o cluster de RAG
 // (`overview,analytics,wiki,collections,documents,connectors`).
 //
 // Em `documents`, o que nao podia se perder na mudanca era o predicado do polling: theo-rag
@@ -227,7 +237,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 26;
+const TETO_PAGINAS_COM_TRANSPORTE = 24;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

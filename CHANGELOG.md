@@ -2,6 +2,8 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** the alert-rule list on the Alerts screen and the webhook list on Settings are now one read instead of two identical ones, so a change to either can no longer reach only one of them (B-244).
+
 - **theo-cloud/dashboard:** a refused RAG write no longer passes for a successful one. Creating a collection, ingesting a document, deleting either, triggering a connector sync and connecting a paste-credential source all report a refusal now; previously each one cleared its form and refreshed its list exactly as a successful write does (B-235).
 
 - **theo-cloud/dashboard:** the RAG overview and analytics screens now read the same summary from the same place. They had each declared their own copy of the response and their own cache key, so the identical unfiltered request was fetched twice and Refresh on one screen left the other stale (B-244).
