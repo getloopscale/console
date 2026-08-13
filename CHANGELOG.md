@@ -54,6 +54,10 @@
 
 ### Fixed
 
+- **theo-cloud:** three counters that operators watch were recording nothing. A checkout refused because Stripe is misconfigured, a webhook rejected for a bad signature — including a forged one — and a plan resolution falling back to `starter` all left the dashboards at a flat zero, which reads as "this has never happened" rather than "nobody is measuring it". All three now record the event, success and failure separately (B-256).
+
+- **theo-cloud kit:** propagating a kit update no longer reverts a local fix in silence. The previous guard asked whether the file differed from the last commit, so a fix that had been *committed* — which is what a careful person does before running an installer — was invisible to it and was overwritten without a word. The patcher now compares against what it last wrote, backs up anything that diverged, and names every file it clobbered (B-250).
+
 - **theo-cloud/dashboard:** the rule that turns a backend key into a label on screen ("fast_data_transfer" → "Fast Data Transfer") existed in three copies, so a change to one of them was invisible to the tests of the others. It has one home now, and that home accepts both separators where each copy only accepted one — no key in use today mixes them, so nothing on screen moved (B-277).
 
 - **theo-cloud/dashboard:** the tool that renamed the codebase to English had two defects that would have corrupted the next migration: it silently threw away edits when two per-file overrides touched the same file, and it rewrote the key of an object being destructured from an untyped response — which compiles, passes tests, and leaves the field `undefined` at runtime. Both are fixed and both now have a test that fails against the old behaviour (B-241).
