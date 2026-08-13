@@ -34,7 +34,7 @@ export interface EvaluatorsResult {
 
 const EVALUATORS_PATH = '/v1/dashboard/lens/evaluators';
 
-export const evaluatorsQueryKey = ['cloud', EVALUATORS_PATH] as const;
+const evaluatorsQueryKey = ['cloud', EVALUATORS_PATH] as const;
 
 /**
  * The evaluators listing.

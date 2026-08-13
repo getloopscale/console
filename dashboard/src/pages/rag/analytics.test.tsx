@@ -26,7 +26,14 @@ describe('RagAnalyticsPage (/rag/analytics)', () => {
     expect(await screen.findByText('12')).toBeInTheDocument(); // retrievals
     expect(screen.getByText('7')).toBeInTheDocument(); // answers
     // The M5 fetch MUST be the base URL (no collection_id yet).
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/rag/analytics');
+    // The contract is part of the assertion, not incidental to it: without it a refused
+    // request resolves `null` and this page shows the same thing it shows for a workspace with
+    // no traffic yet (B-235/B-244).
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/rag/analytics',
+      {},
+      { throwOnError: true },
+    );
   });
 
   it('renders an error alert when the BFF is unavailable', async () => {
@@ -89,6 +96,8 @@ describe('RagAnalyticsPage (/rag/analytics)', () => {
     // The BFF received the collection_id (proves T3a passthrough is wired end-to-end here).
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/analytics?collection_id=col_docs',
+      {},
+      { throwOnError: true },
     );
   });
 });

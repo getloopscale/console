@@ -197,7 +197,16 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 32 desde 2026-08-12, com `memory/{overview,entities}.tsx`.
+// 29 desde 2026-08-12, com `memory/{overview,entities}.tsx` e `rag/{overview,analytics,wiki}.tsx`.
+//
+// As duas telas de RAG liam o MESMO endpoint e cada uma declarava sua propria copia da resposta.
+// As copias ja tinham divergido — `analytics` conhecia o bloco `scale`, `overview` nao — e as
+// CHAVES de cache tambem: a mesma resposta nao-filtrada era buscada e guardada duas vezes, sob duas
+// chaves, e o Refresh de uma tela deixava a outra velha.
+//
+// Em `wiki`, tres escritas sem contrato falhavam de tres jeitos diferentes; a pior era o save:
+// um PUT recusado resolvia `null`, o editor fechava e a invalidacao trazia o texto ANTIGO de volta.
+// O usuario via a propria edicao ser substituida, sem erro nenhum.
 //
 // Nenhuma das duas tinha contrato faltando — o valor está em outro lugar. Em `overview`, o
 // `throwOnError` e o fallback de zeros são UMA decisão, não duas: os zeros só são seguros porque a
@@ -208,7 +217,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 32;
+const TETO_PAGINAS_COM_TRANSPORTE = 29;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

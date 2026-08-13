@@ -92,7 +92,11 @@ const SRC = resolve(__dirname, '../..');
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 21;
+// 17 desde 2026-08-12, com `rag/{overview,analytics,wiki}.tsx` e `memory/entities.tsx`.
+// As tres de `wiki` eram escritas: criar pasta, criar pagina, salvar pagina. A de salvar era a
+// pior — um PUT recusado resolvia `null`, o editor fechava e o texto ANTIGO voltava por
+// invalidacao. O usuario via a propria edicao ser desfeita, sem erro nenhum na tela.
+const CEILING_WITHOUT_CONTRACT = 17;
 
 /**
  * The corpus may not shrink silently.

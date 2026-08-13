@@ -2,6 +2,9 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** the RAG overview and analytics screens now read the same summary from the same place. They had each declared their own copy of the response and their own cache key, so the identical unfiltered request was fetched twice and Refresh on one screen left the other stale (B-244).
+- **theo-cloud/dashboard:** a rejected wiki page save no longer looks like a save that worked. The editor used to close and quietly restore the previous text, leaving no way to tell a refused write from a round-trip. Creating a page or a folder now reports a refusal too (B-235).
+
 - **theo-cloud/dashboard:** the memory overview and the entities list read through one place each. Nothing changes on screen; what changes is that the reason the KPI figures fall back to zero — which is only safe because the strip is hidden on an error — now sits beside the setting that makes it safe, instead of two edits away (B-244).
 
 ### Fixed

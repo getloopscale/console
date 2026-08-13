@@ -20,6 +20,7 @@ import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
+  ENTITIES_PAGE_SIZE,
   useEntities,
   useCascadeForgetEntity,
   type Entity,
@@ -41,7 +42,6 @@ import {
 const SCOPES = ['user', 'session', 'agent', 'repo'] as const;
 type Scope = (typeof SCOPES)[number];
 
-const PAGE_SIZE = 25;
 
 export function EntitiesPage() {
   const { setPageTitle } = usePageMeta();
@@ -236,7 +236,7 @@ export function EntitiesPage() {
                 Next ja usa `pageCount < pageSize` como heuristica de "ha mais". */}
             <TablePager
               offset={offset}
-              pageSize={PAGE_SIZE}
+              pageSize={ENTITIES_PAGE_SIZE}
               pageCount={entities.length}
               busy={query.isFetching}
               onOffsetChange={setOffset}

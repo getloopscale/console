@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ExploreCard } from '@/components/explore-card';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Boxes, MessageSquare, RefreshCw, ScrollText, Search, Timer } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
@@ -9,7 +8,7 @@ import { CategoryBars } from '@/components/charts/category-bars';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import { useRagAnalytics, useRefreshRagAnalytics } from '@/hooks/rag/use-rag-analytics';
 
 /**
  * @overview-answers: kpi
@@ -31,27 +30,13 @@ import { cloudFetch } from '@/lib/http/api';
  * grid to the sub-pages. Every capability section opens on an Overview; RAG now does too.
  */
 
-interface AnalyticsResult {
-  window: { since: string };
-  totals: { retrievals: number; answers: number; empty_retrieval_rate: number };
-  latency: { p50_ms: number; p95_ms: number };
-  confidence: { high: number; medium: number; low: number };
-}
 
 export function RagOverviewPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('RAG'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/analytics'] as const,
-    queryFn: () => cloudFetch<AnalyticsResult>('/v1/dashboard/rag/analytics', {}, { throwOnError: true }),
-  });
-
-  const onRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/analytics'] });
-  };
+  const query = useRagAnalytics();
+  const onRefresh = useRefreshRagAnalytics();
 
   return (
     <PageShell
