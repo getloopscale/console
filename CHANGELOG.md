@@ -54,6 +54,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** "Delete Account" on the Profile screen was sending the wrong identifier and the server was refusing it. It passed the sign-in identity where the endpoint expects the workspace, so the request could only ever come back forbidden — the Settings screen next door had it right, and the two disagreed. Both now read it from the same place (B-265).
+
 - **theo-cloud:** the Go lint gate can no longer report "your code has findings" when nothing analysed it. The binary was fetched from a GitHub release asset, that download hung, and the single step named `Lint` went red exactly as it would for a real finding — three attempts, then a failure indistinguishable from broken code. Acquisition and analysis are now separate named steps, and the binary comes from the module proxy the rest of the job already uses (B-273).
 
 - **theo-cloud kit:** every `/review` run was emitting five knowledge skills that the Claude Code Skills spec rejects — the templates declared conformance while carrying no frontmatter at all. The smoke suite had been failing on it since May, read as five stale files rather than as a generator producing more on demand. Templates fixed, the five existing ones repaired (B-258).

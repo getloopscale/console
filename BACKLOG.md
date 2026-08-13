@@ -9682,7 +9682,7 @@ O caso negativo pagou por si em um minuto: a primeira correcao usava `\s+\S`, e 
 o `\s` casa a quebra de linha — `-\n- Q1` lia como um bullet cujo conteudo era o traco da linha
 SEGUINTE. Dois bullets vazios contavam como dois. Por isso a classe e `[ \t]`.
 
-## B-250 — a plugin patch silently reverted committed fixes in the working tree   [ ]
+## B-250 — a plugin patch silently reverted committed fixes in the working tree   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9711,7 +9711,7 @@ why_now: |
   reverted state as if it were intentional work, deleting two shipped fixes and their tests with
   no diff anyone would read as a revert. It was caught by a cross-suite check that exists for an
   unrelated reason, which is luck, not a control.
-status: triaged
+status: shipped
 dod:
   - a patch/install run that would overwrite a tracked file modified since the last patch either
     refuses or reports every file it is about to clobber, by name
@@ -9721,7 +9721,30 @@ dod:
 > Registered 2026-08-12 mid-session, after restoring the three files with
 > `git restore --source=HEAD`. Suite back to 35 passed.
 
-## B-251 — the languages config documents a format its own parser rejects   [ ]
+FECHADO 2026-08-13, e o guard anterior nao cobria o caso do proprio incidente.
+
+Ele perguntava `git diff --quiet -- <path>`: a arvore difere do HEAD? Uma correcao COMMITADA
+responde que nao — e commitar antes de rodar um instalador e o que uma pessoa cuidadosa faz. As
+tres correcoes que o B-250 registra estavam commitadas. O guard cobria o caso nao-commitado e
+deixava passar o que aconteceu.
+
+  .claude/.patch-state/installed.sha256   sha256 + caminho, uma linha por arquivo (gitignored)
+  is_local_divergence()                   divergencia = difere do que o patcher ESCREVEU, nao do
+                                          HEAD. Sem registro (primeiro patch) cai no git, que e
+                                          mais fraco mas e o unico sinal disponivel.
+
+Escrito DEPOIS do laco do manifesto: uma falha no meio deixa o registro anterior intacto, e um
+registro velho super-reporta — a direcao segura. Um meio-escrito sub-reporta, que e a falha que o
+mecanismo inteiro existe para evitar.
+
+  scripts/test_patch_install.py  4 casos, contra um repositorio git temporario de verdade
+  mutacao                        removido o teste de hash, a correcao commitada volta a passar
+                                 sem aviso e sem backup (2 failed) — o incidente, reproduzido
+  segundo bullet da DoD          e um caso proprio: um arquivo apenas DESATUALIZADO tem de ficar
+                                 calado. Um guard que grita em todo overwrite e um que se aprende
+                                 a rolar a tela, e ai a linha que importava rola junto.
+
+## B-251 — the languages config documents a format its own parser rejects   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9751,7 +9774,7 @@ why_now: |
   `test_the_shipped_template_parses_when_you_follow_its_own_instructions` — and it is RED out of
   the box against both files. The inline note was the right instinct and the wrong remedy: a
   comment describing a trap keeps the trap. A test does not.
-status: triaged
+status: shipped
 dod:
   - `code-quality` suite fully green
   - the commented examples in `rules/code-quality-languages.txt` are in the format the parser
@@ -9760,6 +9783,12 @@ dod:
   - the 2026-08-06 inline note is replaced by the fix it was standing in for, not merely deleted
 
 > Registered 2026-08-12 while adopting the plugin update, during B-228's code-quality phase.
+
+CONFIRMADO FECHADO 2026-08-13, por medicao e nao por leitura: descomentei programaticamente cada
+exemplo em `rules/code-quality-languages.txt` e passei por `load_languages_config`. Todos parseiam.
+O unico que nao e a linha-modelo do formato (`LANGUAGE | MANIFEST-MARKER | STATUS | NOTES`), que
+nao e um exemplo para descomentar. O cabecalho "one language identifier per line" e a nota de
+2026-08-06 que ficava no lugar do conserto sairam os dois.
 
 ## B-252 — `symbol_fabrication_go` calls half the Go standard library fabricated   [x]
 
@@ -9809,7 +9838,7 @@ dod:
 CONFIRMADO FECHADO 2026-08-13: `go list std` esta em `_registry.py` (3 referencias) e a suite
 do code-quality passa 205/205. Status nao atualizado na epoca.
 
-## B-253 — code-quality reports cite paths with the leading slash stripped   [ ]
+## B-253 — code-quality reports cite paths with the leading slash stripped   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9829,12 +9858,33 @@ why_now: |
   Found while reading the report for B-252. Same family as B-247: a path mangled by a
   well-meaning normalisation, producing evidence that cannot be followed. Low severity only
   because the reader can reconstruct it by eye.
-status: triaged
+status: shipped
 dod:
   - findings cite a path relative to the repository root, resolvable from it
   - an absolute path outside the repository is reported as such rather than silently truncated
 
 > Registered 2026-08-12 during B-228's code-quality phase.
+
+FECHADO 2026-08-13, e consertar o helper sozinho teria sido cosmetico.
+
+`to_rel_path` era `s.lstrip("/")`, com docstring afirmando que producao passa caminhos ja relativos
+"so this is a no-op there". O orquestrador enumera com `repo_root.rglob`, entao TODO caminho de
+producao e absoluto: a auditoria citava
+`home/paulo/Projetos/theo/theo-platform/theo-cloud/cmd/main.go`, que nao existe em maquina nenhuma.
+Apagar um caractere satisfazia o invariante de `Finding` e destruia a unica propriedade que uma
+citacao tem — a de abrir.
+
+  relativo ja       inalterado (o no-op que a docstring descrevia, agora real)
+  absoluto dentro   relativo a raiz, e `anchor / resultado` abre o arquivo
+  absoluto fora     `<outside-repo>:` + caminho completo. Sem barra inicial, entao o invariante
+                    continua valendo, e diz o que a truncagem destruia: que NAO existe forma
+                    relativa deste caminho, em vez de fingir ter achado uma.
+
+E o anchor precisava CHEGAR aos detectores: os quatro chamavam sem anchor e caiam em `Path.cwd()`,
+de onde `_find_repo_root` sobe. `repo_root` agora chega pelo construtor, e um guard estrutural
+reprova se um quinto call site esquecer.
+
+  code-quality  205 passed
 
 ## B-254 — the registry cache has no version, so a detector fix does not invalidate its own bad answers   [x]
 
@@ -10419,7 +10469,7 @@ dod:
 > Registered 2026-08-12 while migrating settings for B-244.
 
 
-## B-265 — "Delete Account" and "Delete Workspace" send DIFFERENT ids to the same endpoint   [ ]
+## B-265 — "Delete Account" and "Delete Workspace" send DIFFERENT ids to the same endpoint   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -10477,8 +10527,40 @@ dod:
   - the fix does NOT widen `useDeleteTenant` to accept either — a hook that takes "whichever id
     you have" is how the two drifted apart in the first place
 
-status: triaged
+status: shipped
 > Registered 2026-08-12 by an adversarial review of the B-244 / B-264 migrations.
+
+FECHADO 2026-08-13. A DoD pedia ler o handler primeiro, e a leitura decidiu tudo.
+
+O ENGINE (`api/internal/routes/tenants/tenants.go`, `TenantHandler.Delete`):
+
+    tenantID := chi.URLParam(r, "id")
+    if !isAdmin && uc.TenantID != tenantID { ErrForbidden }
+
+O parametro do caminho e comparado com o TENANT do contexto de auth. Entao o tenant id e o unico
+valor com que um chamador nao-admin consegue passar.
+
+    settings/overview.tsx   whoami.team_id        CERTO. O engine loga `uc.TenantID` com esse nome.
+    settings/profile.tsx    session.identity.id   ERRADO. E a ENTRADA do `EnsureTenant`, nao o que
+                                                  ele devolve. So podia produzir 403.
+
+"Delete Account" — o botao mais destrutivo do produto — estava ligado a um id que o servidor
+recusa. E so aparecia porque o B-264 tinha acabado de dar ramo de erro aquela chamada: antes, uma
+recusa resolvia `null`, fechava o dialogo e deslogava o usuario sobre uma requisicao rejeitada.
+
+  correcao      `profile.tsx` le `useWhoami`, a MESMA fonte da tela ao lado. O
+                `useDeleteTenant` NAO foi alargado para aceitar qualquer id — um hook que aceita
+                "o que voce tiver" nao consegue dizer ao chamador que ele esta errado, e a DoD
+                proibia isso por nome.
+  guard         `src/lib/tenant-delete-id.test.ts` le os DOIS call sites e reprova se divergirem,
+                e reprova tambem se algum voltar a nomear `identity.id` — divergir nao basta como
+                criterio, porque os dois poderiam convergir de volta no id errado.
+  teste do 264  a URL esperada era `/api/v1/tenants/sess-1`, o proprio defeito pinado. Movida
+                para `tn-1` com a razao escrita no mock, porque mudar teste para casar com codigo
+                e o que uma correcao preguicosa parece — a diferenca aqui e que o oraculo e o
+                handler do engine, nao o codigo que eu escrevi.
+
+  src/pages/settings   82 passed  ·  tsc limpo
 
 ## B-266 — ADR-0006 is cited as done; none of the three things it decided exist   [ ]
 
@@ -10892,6 +10974,29 @@ status: triaged
 
 > Registrado 2026-08-12 ao corrigir o B-270.
 
+BLOQUEADO 2026-08-13 — a correcao vive noutro repositorio, e ele tem sessao ativa.
+
+Os tres itens (B-271, B-272, B-274) pedem mudanca em
+`usetheoai/theo/.github/workflows/build-publish.yml`, o reusable compartilhado. O checkout existe
+em `theo-platform/theo`, esta na `workspace`, e tem trabalho NAO COMMITADO de outra sessao — a
+arvore mudou entre duas verificacoes minhas com 2 minutos de intervalo, e ha ADRs datados de hoje
+em `docs/decisions/`. Commitar ali arrastaria trabalho que nao e meu, e `cycle-maintenance §
+Anti-patterns` proibe dois lacos na mesma arvore pela mesma razao.
+
+Nao e "nao da para fazer": e "nao da para fazer DAQUI, agora, com seguranca". O trabalho e um item
+de `engine-go`, no repo `theo`, e o roteamento destes tres blocos (`domain: control-plane`,
+`repo: theo-cloud`) esta errado por isso — eles descrevem um sintoma medido AQUI cuja causa mora
+LA. Corrigir o roteamento sem medir de novo seria inventar.
+
+A METADE LOCAL DO B-272 JA ESTA FEITA: `.trivyignore` existe como encanamento (nao como allowlist)
+com a razao escrita no proprio arquivo, e `internal/ci/trivyignore_test.go` reprova se alguem
+adicionar uma supressao de verdade. O que falta e o `trivyignores:` condicional no reusable.
+
+O B-271 tem um primeiro bullet de DoD que E local — "medir quanto o export mode=max custa por push
+em develop" — e ele nao foi medido aqui porque exige historico de execucoes do Actions que so
+responde para quem tem o job rodando; o `publish` deste repo esta gated e nao roda em push para
+develop hoje.
+
 ## B-272 — O `trivyignores:` do reusable é incondicional, e o comentário dele promete o contrário   [ ]
 
 domain: control-plane
@@ -10942,6 +11047,29 @@ dod:
 status: triaged
 
 > Registrado 2026-08-12 ao desbloquear o `images` do publish.
+
+BLOQUEADO 2026-08-13 — a correcao vive noutro repositorio, e ele tem sessao ativa.
+
+Os tres itens (B-271, B-272, B-274) pedem mudanca em
+`usetheoai/theo/.github/workflows/build-publish.yml`, o reusable compartilhado. O checkout existe
+em `theo-platform/theo`, esta na `workspace`, e tem trabalho NAO COMMITADO de outra sessao — a
+arvore mudou entre duas verificacoes minhas com 2 minutos de intervalo, e ha ADRs datados de hoje
+em `docs/decisions/`. Commitar ali arrastaria trabalho que nao e meu, e `cycle-maintenance §
+Anti-patterns` proibe dois lacos na mesma arvore pela mesma razao.
+
+Nao e "nao da para fazer": e "nao da para fazer DAQUI, agora, com seguranca". O trabalho e um item
+de `engine-go`, no repo `theo`, e o roteamento destes tres blocos (`domain: control-plane`,
+`repo: theo-cloud`) esta errado por isso — eles descrevem um sintoma medido AQUI cuja causa mora
+LA. Corrigir o roteamento sem medir de novo seria inventar.
+
+A METADE LOCAL DO B-272 JA ESTA FEITA: `.trivyignore` existe como encanamento (nao como allowlist)
+com a razao escrita no proprio arquivo, e `internal/ci/trivyignore_test.go` reprova se alguem
+adicionar uma supressao de verdade. O que falta e o `trivyignores:` condicional no reusable.
+
+O B-271 tem um primeiro bullet de DoD que E local — "medir quanto o export mode=max custa por push
+em develop" — e ele nao foi medido aqui porque exige historico de execucoes do Actions que so
+responde para quem tem o job rodando; o `publish` deste repo esta gated e nao roda em push para
+develop hoje.
 
 ## B-273 — Gates baixam o próprio binário em runtime e reportam falha de rede como falha de análise   [x]
 
@@ -11102,6 +11230,29 @@ dod:
 status: triaged
 
 > Registrado 2026-08-12 ao concluir o release da v1.0.2.
+
+BLOQUEADO 2026-08-13 — a correcao vive noutro repositorio, e ele tem sessao ativa.
+
+Os tres itens (B-271, B-272, B-274) pedem mudanca em
+`usetheoai/theo/.github/workflows/build-publish.yml`, o reusable compartilhado. O checkout existe
+em `theo-platform/theo`, esta na `workspace`, e tem trabalho NAO COMMITADO de outra sessao — a
+arvore mudou entre duas verificacoes minhas com 2 minutos de intervalo, e ha ADRs datados de hoje
+em `docs/decisions/`. Commitar ali arrastaria trabalho que nao e meu, e `cycle-maintenance §
+Anti-patterns` proibe dois lacos na mesma arvore pela mesma razao.
+
+Nao e "nao da para fazer": e "nao da para fazer DAQUI, agora, com seguranca". O trabalho e um item
+de `engine-go`, no repo `theo`, e o roteamento destes tres blocos (`domain: control-plane`,
+`repo: theo-cloud`) esta errado por isso — eles descrevem um sintoma medido AQUI cuja causa mora
+LA. Corrigir o roteamento sem medir de novo seria inventar.
+
+A METADE LOCAL DO B-272 JA ESTA FEITA: `.trivyignore` existe como encanamento (nao como allowlist)
+com a razao escrita no proprio arquivo, e `internal/ci/trivyignore_test.go` reprova se alguem
+adicionar uma supressao de verdade. O que falta e o `trivyignores:` condicional no reusable.
+
+O B-271 tem um primeiro bullet de DoD que E local — "medir quanto o export mode=max custa por push
+em develop" — e ele nao foi medido aqui porque exige historico de execucoes do Actions que so
+responde para quem tem o job rodando; o `publish` deste repo esta gated e nao roda em push para
+develop hoje.
 
 ## B-275 — Apagar um projeto sem contrato leva o usuário a uma lista onde ele ainda está   [ ]
 
