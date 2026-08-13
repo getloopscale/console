@@ -11,28 +11,14 @@ import {
   Table,
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
-import { useQuery } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/http/api';
-import { queryKeys } from '@/lib/api/query-keys';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { InviteMemberSheet } from "@/pages/settings/components/invite-member-sheet";
 import { useRemoveMember, useUpdateMemberRole } from '@/hooks/mutations/use-team';
+import { useTeamMembers } from '@/hooks/settings/use-team-members';
 import { formatDate } from '@/lib/formatting/format';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 import { estadoDaLista } from '@/lib/list-state';
 
-interface Member {
-  username?: string;
-  name?: string;
-  email: string;
-  role: string;
-  joined?: string;
-}
-
-interface TeamResponse {
-  members: Member[];
-}
 
 const ROLE_VARIANTS: Record<string, 'default' | 'success' | 'warning'> = {
   owner: 'warning',
@@ -44,23 +30,7 @@ export function TeamPage() {
   useRequireAuth();
   const { setPageTitle } = usePageMeta();
 
-  // B-060 — a lista precisa morar na MESMA hierarquia que as mutations invalidam.
-  // Antes usava useEngineApi (chave ['engine', path]) enquanto useInviteMember e
-  // useRemoveMember invalidavam ['team']: convidar ou remover um membro nunca
-  // atualizava a tabela.
-  //
-  // throwOnError deliberado, nao o escape hatch silent-null-ok: esta pagina nunca
-  // leu a flag `error`, entao uma falha de rede renderizava a lista VAZIA — o
-  // operador le "seu time nao tem ninguem" quando a verdade e "nao consegui
-  // perguntar" (#274).
-  //
-  // B-167 — a segunda metade desta frase era falsa e foi copiada de `infra/domains.tsx`.
-  // `throwOnError` aqui e do `cloudFetch`, nao do TanStack; a falha NAO sobe ao
-  // RouteBoundary. Ver `lib/list-state.ts`.
-  const teamQuery = useQuery({
-    queryKey: queryKeys.team.list(),
-    queryFn: () => engineFetch<TeamResponse>(`/api/v1/teams/members?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
+  const teamQuery = useTeamMembers();
   const data = teamQuery.data ?? null;
   const loading = teamQuery.isLoading;
   const erroDeLeitura = teamQuery.isError;

@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useQueryState, parseAsString } from 'nuqs';
 import { Brain, Download, History, ShieldAlert, X } from 'lucide-react';
 import { Badge, Button, Card, PageShell, Table } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { engineFetch } from '@/lib/http/api';
 import { usePaginacao } from '@/lib/pagination';
 import { Pager } from '@/components/pager';
 import { formatDate } from '@/lib/formatting/format';
 import { triggerAuditCsvDownload } from '@/pages/settings/audit-csv';
-import type { AuditListResponse, AuditSeverity } from '@/lib/api/types';
+import type { AuditSeverity } from '@/lib/api/types';
+import { useAuditLog, AUDIT_PAGE_SIZE } from '@/hooks/settings/use-audit-log';
 import { estadoDaLista } from '@/lib/list-state';
 
 const SEVERITY_BADGE: Record<
@@ -58,7 +57,6 @@ export function displayAction(action: string, resourceType?: string | null): str
  * GET /api/v1/audit returns entries already sorted desc by ts.
  */
 /** Teto por pagina. Espelha SESSIONS_PAGE_SIZE (pages/lens/sessions.tsx:42). */
-const AUDIT_PAGE_SIZE = 50;
 
 export function AuditPage() {
   useRequireAuth();
@@ -100,17 +98,7 @@ export function AuditPage() {
   // O guard de null silencioso nao pegava porque ele quantifica sobre
   // `useQuery`/`useInfiniteQuery`/`useSuspenseQuery`, e aqui era `engineFetch`
   // cru dentro de um efeito.
-  const query = useQuery({
-    queryKey: ['engine', '/api/v1/audit', { actionFilter, actorFilter, page }] as const,
-    queryFn: () => {
-      const params = new URLSearchParams();
-      if (actionFilter.trim()) params.set('action', actionFilter.trim());
-      if (actorFilter.trim()) params.set('actor', actorFilter.trim());
-      params.set('limit', String(AUDIT_PAGE_SIZE));
-      params.set('offset', String((page - 1) * AUDIT_PAGE_SIZE));
-      return engineFetch<AuditListResponse>(`/api/v1/audit?${params.toString()}`, {}, { throwOnError: true });
-    },
-  });
+  const query = useAuditLog({ action: actionFilter, actor: actorFilter, page });
 
   const entries = query.data?.entries ?? [];
   const total = query.data?.total ?? 0;

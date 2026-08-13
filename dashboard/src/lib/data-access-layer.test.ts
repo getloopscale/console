@@ -197,7 +197,19 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 16 desde 2026-08-12, agora com todo o cluster de memory alem de
+// 13 desde 2026-08-12, agora com `settings/{audit,team,billing}.tsx`.
+//
+// `audit` guarda o achado mais caro do lote, e ele e sobre POR QUE passou despercebido: o guard de
+// null silencioso quantifica sobre `useQuery`/`useInfiniteQuery`/`useSuspenseQuery`, e aquela
+// leitura era um `engineFetch` cru dentro de um efeito. Numa tela de AUDITORIA, ausencia de
+// registro e exatamente o que alguem investigando um incidente procura — uma ausencia fabricada ali
+// e pior que um erro.
+//
+// `team` e o B-060: a lista tem de morar na MESMA hierarquia de chave que as mutations invalidam.
+// Ela lia por `['engine', path]` enquanto convidar e remover invalidavam `['team']`, entao a tabela
+// nunca atualizava. A pagina nao tinha como ver isso; a chave ao lado da leitura tem.
+//
+// Antes disso, todo o cluster de memory alem de
 // `lens/{labeling-queue,experiments,alerts,dashboards}.tsx`.
 //
 // Em `episodes`, a chave importa mais que nas outras: e uma query INFINITA, e paginas se acumulam
@@ -255,7 +267,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 16;
+const TETO_PAGINAS_COM_TRANSPORTE = 13;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

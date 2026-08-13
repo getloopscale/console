@@ -10,7 +10,9 @@ import { OFERTA_POR_PLANO } from '@/pages/settings/upgrade-offers';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, ApiError } from '@/lib/http/api';
+import { ApiError } from '@/lib/http/api';
+import { openBillingPortal, startCheckout } from '@/hooks/settings/billing-actions';
+import type { MemoryMetrics } from '@/hooks/memory/use-memory-metrics';
 
 /**
  * theo-cloud#63: extract the actionable error copy when the backend rejected
@@ -140,18 +142,7 @@ export function BillingPage() {
     setActionLoading(true);
     setActionError('');
     try {
-      // Red Team theo-cloud#49/#69 closure: previously this fetch ran in
-      // the default `T | null` mode, so a non-2xx (the canonical case for
-      // a Free-tier visitor — there's no Stripe subscription to manage
-      // yet) returned null silently and the button looked like a no-op.
-      // Opt into throwOnError so the catch branch surfaces the server's
-      // actionable message (or the canonical 4xx→support copy) just
-      // like upgradePlan does.
-      const portal = await cloudFetch<{ url: string }>(
-        '/v1/billing/portal',
-        undefined,
-        { throwOnError: true },
-      );
+      const portal = await openBillingPortal();
       if (portal?.url) {
         // theo-cloud#15: `window.open(url, '_blank')` after an await is eaten by popup
         // blockers — gesture activation expires across the await — so this is a
@@ -180,17 +171,7 @@ export function BillingPage() {
     setActionLoading(true);
     setActionError('');
     try {
-      // theo-cloud#63 closure: opt into throwOnError so a non-2xx (e.g. 503
-      // BILLING_NOT_CONFIGURED) surfaces an ApiError carrying the server's
-      // actionable body — the UI then renders the operator's message verbatim
-      // rather than the misleading generic "Please try again" that suggested
-      // retry for a non-transitory condition. Backend canonical 503 shape is
-      // {code, message} per Sprint 4 release-blockers-2026-06-25-set T4.2.
-      const result = await cloudFetch<{ url: string }>(
-        '/v1/billing/checkout',
-        { method: 'POST', body: JSON.stringify({ plan }) },
-        { throwOnError: true },
-      );
+      const result = await startCheckout(plan);
       if (result?.url) {
         if (!safeNavigator.goTo(result.url, BILLING_REDIRECT)) setActionError('Failed to start checkout. Please try again.');
       } else {
@@ -414,12 +395,6 @@ export function BillingPage() {
   );
 }
 
-interface MemoryMetricsResponse {
-  total_memories: number;
-  retrieval_api_usage: number;
-  add_events: number;
-  entity_count: number;
-}
 
 /**
  * MemoryUsageCard — Plan 4 cross-cut from dashboard-memory-section-roadmap.md.
@@ -442,7 +417,7 @@ function MemoryUsageCard() {
   // fallback per the D1 invariant in the docstring above.
   const { pathname } = useLocation();
   const enabled = pathname.startsWith('/memory');
-  const { data, error } = useCloudApi<MemoryMetricsResponse>(
+  const { data, error } = useCloudApi<MemoryMetrics>(
     '/v1/dashboard/memory/metrics',
     { enabled },
   );
