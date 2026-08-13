@@ -8,6 +8,10 @@
 
 - **theo-cloud/dashboard:** the randomised-order failure is *reduced*, not closed. Removing the starvation left a second, unrelated cause — one test file whose cases depend on each other's order — which reproduces on its own and is registered separately (B-280).
 
+- **theo-cloud/dashboard:** the guard that keeps tests out of a browser they do not need was only looking at 166 of the 379 test files. It assumed every `.tsx` test renders — an assumption a file already in the tree disproved — and that assumption was covering for a gap in what it recognised as rendering. It now reads all 379, and found three more files paying for a browser; two moved (B-280).
+
+- **theo-cloud/dashboard:** the guard that keeps the code named in English reports zero over seven kinds of declaration and never looked at the eighth. Forty names introduced by destructuring were outside the count while the headline read as if nothing remained. The forty are now measured and frozen, so the number cannot grow while the headline says zero (B-279).
+
 - **theo-cloud/dashboard:** the guard that keeps the code named in English learned sixteen more Portuguese words it could not see before, and the 43 declarations they revealed were renamed. The zero it reports is still a zero *by that guard* — the next batch of words it does not know is measured and registered (B-279).
 
 - **theo-cloud/dashboard:** the code now reads in one language. 276 declarations that were still named in Portuguese — variables, parameters, functions, types and the fields of internal shapes — were renamed to English across 159 files. Comments stay in Portuguese, which is the repository's convention: the rename went through the TypeScript compiler, which cannot touch a comment or a string. Three files in the same commit were then edited by hand to finish what the compiler could not see, and two of those edits did change a literal and a comment (B-241).
@@ -50,7 +54,7 @@
 
 ### Fixed
 
-- **theo-cloud/dashboard:** the rule that turns a backend key into a label on screen ("fast_data_transfer" → "Fast Data Transfer") existed in three copies, so a change to one of them was invisible to the tests of the others. It has one home now (B-277).
+- **theo-cloud/dashboard:** the rule that turns a backend key into a label on screen ("fast_data_transfer" → "Fast Data Transfer") existed in three copies, so a change to one of them was invisible to the tests of the others. It has one home now, and that home accepts both separators where each copy only accepted one — no key in use today mixes them, so nothing on screen moved (B-277).
 
 - **theo-cloud/dashboard:** the tool that renamed the codebase to English had two defects that would have corrupted the next migration: it silently threw away edits when two per-file overrides touched the same file, and it rewrote the key of an object being destructured from an untyped response — which compiles, passes tests, and leaves the field `undefined` at runtime. Both are fixed and both now have a test that fails against the old behaviour (B-241).
 

@@ -236,7 +236,14 @@ const SUPLEMENTO_IDENTIFICADORES = new Set([
   // que ele nao via. Foram dimensionadas primeiro por `grep -rlw`, que conta ARQUIVOS QUE CITAM a
   // palavra — prosa em comentario inclusa, que a convencao permite — e deu `inteiro` 84 e
   // `mostrar` 37. Contadas como DECLARACOES, pelas mesmas regras que `varrerIdentificadores` usa,
-  // sao 1 e 1. As dezesseis juntas revelam 46 ocorrencias.
+  // sao 1 e 1. As dezesseis juntas revelam **43** declaracoes pelas regras DESTE detector.
+  //
+  // CORRECAO 2026-08-13, no /review: esta linha dizia 46, sem qualificar, a seis linhas de um
+  // detector que reporta 43. Os dois numeros sao reais e medem coisas diferentes — 46 e do scanner
+  // do `rename-identifiers.mjs`, que conta tambem `BindingElement`; 43 e do `varrerIdentificadores`,
+  // que nao conta. A diferenca esta pinada em `identifier-language-ratchet.test.ts`
+  // (`BINDING_ELEMENT_CEILING`). Numero sem o instrumento ao lado e numero que a proxima pessoa
+  // nao consegue reproduzir.
   //
   // Cada uma passa o mesmo teste de admissao do docblock acima: nao existe em ingles, e nao e
   // cognato de uma letra. Nenhuma entra no `MARCADOR` — ele e lido tambem pelo `varrerInterface`,
@@ -259,6 +266,56 @@ export function ehIdentificadorPT(id: string): boolean {
   return palavras(id).some(
     (p) => SUPLEMENTO_IDENTIFICADORES.has(p) || inequivoco.test(p) || /[áàâãéêíóôõúüç]/.test(p),
   );
+}
+
+/**
+ * Varre `BindingElement` — os nomes que a desestruturação introduz — e devolve os que estão em
+ * português.
+ *
+ * Um scanner SEPARADO, e não mais um `ts.is…` dentro do `varrerIdentificadores`, por duas razões.
+ * A primeira é que aquele guard exige ZERO e este não pode: há 40 na árvore hoje, e alargar o
+ * predicado deixaria o guard vermelho sem que ninguém pudesse fechá-lo no mesmo commit. A segunda
+ * é que as duas populações se migram de formas diferentes — `const [erro, setErro] = useState()`
+ * renomeia-se pelo compilador sem risco, enquanto `const { nome } = resposta` lê a CHAVE de uma
+ * forma de fio e renomeá-la corrompe a leitura (é o `ShorthandGuard` de `rename-identifiers.mjs`,
+ * e é o BLOCKER que o /review do B-241 encontrou).
+ *
+ * Só o nome LOCAL conta. Em `const { nome: promptName } = wire` o `nome` é a chave da resposta,
+ * não é nossa, e o local já está em inglês — o TypeScript põe a chave em `propertyName` e o local
+ * em `name`, então ler apenas `name` dá a resposta certa sem nenhum caso especial.
+ */
+export function varrerBindingElementsPT(raiz: string): IdentificadorPT[] {
+  const porNome = new Map<string, Set<string>>();
+  const achados: Omit<IdentificadorPT, 'local'>[] = [];
+
+  for (const arquivo of arquivosDeProducao(raiz)) {
+    const sf = ts.createSourceFile(
+      arquivo,
+      readFileSync(arquivo, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+      arquivo.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    const rel = relative(raiz, arquivo).replace(/\\/g, '/');
+
+    const visit = (no: ts.Node): void => {
+      if (ts.isBindingElement(no) && ts.isIdentifier(no.name) && ehIdentificadorPT(no.name.text)) {
+        const nome = no.name.text;
+        achados.push({
+          arquivo: rel,
+          linha: sf.getLineAndCharacterOfPosition(no.name.getStart(sf)).line + 1,
+          nome,
+        });
+        const onde = porNome.get(nome) ?? new Set<string>();
+        onde.add(rel);
+        porNome.set(nome, onde);
+      }
+      ts.forEachChild(no, visit);
+    };
+    ts.forEachChild(sf, visit);
+  }
+
+  return achados.map((a) => ({ ...a, local: (porNome.get(a.nome)?.size ?? 0) === 1 }));
 }
 
 /** Varre declarações e devolve os identificadores em português, com escopo. */

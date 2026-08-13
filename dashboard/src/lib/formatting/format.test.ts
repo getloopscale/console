@@ -315,6 +315,23 @@ describe('humanizeKey (B-277)', () => {
     expect(humanizeKey('google-drive')).toBe('Google Drive');
   });
 
+  it('accepts BOTH separators everywhere — a widening, not the no-op the plan claimed', () => {
+    // T1.2's DoD said "no behaviour change". The /review of 2026-08-13 measured that false, and it
+    // is: each old site handled exactly ONE separator and passed the other through.
+    //
+    //                        old billing (/_/g)   old connectors (/-/g)   now
+    //   'google-drive'       'Google-Drive'       'Google Drive'          'Google Drive'
+    //   'storage_mb'         'Storage Mb'         'Storage_mb'            'Storage Mb'
+    //   'api_calls-per_mo'   'Api Calls-Per Mo'   'Api_calls Per_mo'      'Api Calls Per Mo'
+    //
+    // No shipped key mixes them today — the in-repo billing metrics are underscore-only and the
+    // connectors fallback only fires for a slug the server invented — so this is latent, not
+    // observed. It is pinned here because "latent" is what an unpinned behaviour is called right
+    // up until it is not.
+    expect(humanizeKey('storage_mb')).toBe('Storage Mb');
+    expect(humanizeKey('api_calls-per_mo')).toBe('Api Calls Per Mo');
+  });
+
   it('leaves an already-humane label alone', () => {
     expect(humanizeKey('Seats')).toBe('Seats');
     expect(humanizeKey('seats')).toBe('Seats');

@@ -324,6 +324,13 @@ export function formatScore(score: number | null | undefined, fractionDigits = 2
  *
  * Both separators, one function: the third site differs by `-` instead of `_` and nothing else.
  *
+ * That union is a WIDENING, not a no-op, and the plan's "no behaviour change" was wrong to call it
+ * one. Each old site passed the other separator through untouched — billing rendered
+ * `'google-drive'` as `"Google-Drive"`, connectors rendered `'storage_mb'` as `"Storage_mb"`. No
+ * key shipped today mixes them, so nothing on screen moved; the new reading is also the better one
+ * at both sites. It is pinned by a case in `format.test.ts` so the next person meets it as a
+ * decision rather than as a surprise.
+ *
  * Total, like every other formatter here — an empty key yields an empty label rather than throwing.
  * It deliberately does NOT return the em-dash: an absent LABEL is the caller's decision (see
  * `connectors.tsx`, which prefers a curated name and falls back to this), whereas an absent VALUE

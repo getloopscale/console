@@ -9295,12 +9295,23 @@ UMA MUTACAO MINHA FOI INVALIDA E QUASE PASSOU POR PROVA: trocar a primeira ocorr
 teste ficou verde e por um instante isso leu como "a ancora nao discrimina". Mutar o lugar certo
 derrubou o caso.
 
-A COMPOSICAO DAS 84, medida classificando cada uma por onde o texto existe:
+A COMPOSICAO DAS **91** (a populacao de ANTES da fatia), classificando cada uma por onde o texto
+existe:
 
-     8  ancoraveis   — a TELA que o teste possui renderiza o texto (7 fechadas, ~1 resta)
+    16  ancoraveis   — a TELA que o teste possui renderiza o texto
     25  fixture      — o arquivo introduz o texto num mock: classe do B-276
    ~50  sem texto    — copia REMOVIDA, seletor vindo de VARIAVEL (falso positivo documentado do
                        detector), ou texto de um componente que o teste nao possui
+
+7 das 16 fechadas aqui, cada uma provada por mutacao: 91 - 7 = 84. Restam NOVE ancoraveis, e so uma
+tem razao escrita (`overview-kpi-strip.tsx:38` — o texto so existe em comentario, falso positivo do
+classificador). As outras oito — `recovery:331,536`, `environments:232,233`, `alerts:558`,
+`catalogo:484`, `api-keys:253` — nao estao ancoradas nem explicadas. E por isso que o item fica
+aberto: a DoD do T5.1 pedia "ancorada OU com razao registrada" e oito nao tem nenhuma das duas.
+
+CORRECAO 2026-08-13, no /review: esta tabela dizia "8 ancoraveis (7 fechadas, ~1 resta)" e se
+apresentava como a composicao DAS 84. Soma 83, e as 7 fechadas ja nao estao entre as 84 por
+definicao. O defeito foi misturar a populacao de antes e a de depois na mesma tabela.
 
 O classificador erra nos DOIS sentidos e isso esta escrito no docblock da catraca: leu `spend` em
 `overview-kpi-strip.tsx` que so existe em COMENTARIO, e chamou `project-detail.tsx` de sem-texto
@@ -11186,13 +11197,42 @@ dod:
 
 progresso 2026-08-13 — A CAUSA ERA DUAS, e so uma foi fechada. O item SEGUE ABERTO.
 
-METADE FECHADA — inanicao. 131 dos 379 arquivos construiam um jsdom que nunca usavam. Movidos 111
-(22 nao puderam; ver B-282), com um guard que impede a volta:
+METADE FECHADA — inanicao. 131 dos 379 arquivos construiam um jsdom que nunca usavam. Movidos 109
+(22 nao puderam; ver B-282), com um guard que impede a volta.
 
     antes   transform 26.51s  setup 133.55s  import 562.67s  tests 487.42s  environment 690.34s
-    depois  transform 24.85s  setup 125.03s  import 471.52s  tests 434.66s  environment 415.11s
 
-`environment` era a maior das quatro linhas e passou a ser a menor: -40%.
+CORRECAO 2026-08-13, no /review, em DUAS coisas que esta secao dizia:
+
+1. "Movidos 111" -> sao **109**. O numero se contradizia na propria frase: 111 + 22 = 133, e a
+   populacao era 131. A conta certa: `misfits()` na arvore base = 131, no HEAD = 22, resolvidos =
+   109 (108 arquivos existentes que ganharam o pragma + 1 que ja nasceu com ele).
+
+2. O "depois" era UMA execucao, publicada sem faixa de variacao, e a conclusao tirada dela nao se
+   sustenta. Tres execucoes independentes, em maquina compartilhada:
+
+       environment   479.93s   (esta sessao, suite completa, 381 arquivos / 3385 testes)
+                     497.98s   (revisor adversarial)
+                     427.70s   (revisor de validacao cruzada)
+
+   De 690.34s, isso e uma queda REAL de 30%, 28% e 38% — nao os 40% publicados, e a dispersao de
+   ~70s entre execucoes e maior que a precisao que o numero unico aparentava ter.
+
+   E `environment` NAO "passou a ser a menor". Na execucao desta sessao ela e a terceira de cinco:
+
+       transform 35.31s  setup 150.32s  import 573.74s  tests 562.90s  environment 479.93s
+
+   Saiu de MAIOR para terceira, atras de `import` e `tests`. O que a medicao original acertou —
+   e que continua valendo — e a direcao e a nova ordem: `import` virou a linha dominante, que era
+   exatamente o que a oportunidade previa.
+
+   A licao de higiene de medicao esta duas secoes abaixo, escrita contra mim mesmo, e ela se aplica
+   tambem a estes numeros: um valor de execucao unica numa maquina com outras coisas rodando e uma
+   observacao, nao uma medida.
+
+Depois desta correcao o /review ainda ALARGOU o classificador (o axioma ".tsx precisa de DOM"
+excluia 213 dos 379 arquivos do invariante) e achou mais 3 misfits: 2 movidos, 1 devolvido a lista
+de excecoes por falhar sob `node`. Total agora: 134 arquivos em `node`, 23 excecoes nomeadas.
 
 METADE ABERTA, e a medicao MUDOU DE NATUREZA quando a inanicao caiu. Antes o shuffle falhava por
 `Test timed out in 20000ms` em arquivo variavel. Agora falha em UM arquivo, por asserção:
@@ -11328,3 +11368,78 @@ dod:
   - a correcao nao e aumentar timeout nem `await` extra sem explicar o que se espera
 
 > Registrado 2026-08-13, ao remedir o shuffle numa arvore estavel depois do B-280.
+
+## B-284 — A árvore de DEV carrega 16 achados de segurança que nenhum item cobre   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: security
+evidence: |
+  MEDIDO 2026-08-13, no /review do B-278, ao confirmar que a superficie de PRODUCAO ficou limpa:
+
+      npm audit --omit=dev   ->  0 vulnerabilities
+      npm audit              ->  16 (1 low, 3 moderate, 12 high)
+
+  Os 12 high sao de ferramental: `@babel/core`, `brace-expansion`, `extract-zip`, `fast-uri`,
+  `ip-address`, `undici`, e um `nanoid` de OUTRA faixa (`4.0.0 - 5.1.15`, via `estimo`) que nao e
+  o mesmo do B-278. O `uuid` (<11.1.1, moderate) so sai com `npm audit fix --force`, que o proprio
+  npm marca como breaking: instalaria `@storybook/addon-essentials@7.0.6`.
+
+  Nada disto chega ao bundle — e por isso que a superficie de producao mede zero. Mas a arvore de
+  dev e o que roda na maquina de quem desenvolve e no CI, com credenciais, e chamar isso de
+  "irrelevante" e uma decisao que ninguem tomou por escrito.
+why_now: |
+  O ADR do B-278 declara explicitamente que a arvore de dev NAO esta limpa e que este item existe.
+  Sem o item, aquela frase vira a unica coisa que registra 12 high — dentro de um ADR sobre outro
+  assunto, onde ninguem procura.
+status: raw
+dod:
+  - cada um dos 12 high tem destino: corrigido, ou entrada de allowlist com sunset e razao medida,
+    ou registrado como aceito com o motivo (e o motivo nao pode ser "e dev")
+  - o `uuid` tem decisao explicita sobre o major quebrante do Storybook
+  - `npm audit` reporta um numero que alguem escolheu, nao um numero que ninguem leu
+
+> Registrado 2026-08-13, no /review da fatia dashboard-followups.
+
+## B-285 — Quarenta declarações em português sobrevivem num tipo de nó que o guard não olha   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: code
+evidence: |
+  MEDIDO 2026-08-13, no /review do B-279, com o proprio `ehIdentificadorPT` do repositorio:
+
+      BindingElement em portugues:  40 declaracoes sobre 33 nomes
+      setConteudo:3  setErro:2  setNome:2  setDescricao:2  paginas:2  setPaginas:2
+      erroWhoami  erroProjetos  setValores  rollbackErro  labelsParaEscolher  revAlvoPendente
+      setCampos  recusaAoSalvar  erroPublicacao  erroArquivo  ttlDias  erroCriacao  setMotivo
+      erroCiclo  erroExclusao  ...
+
+  `varrerIdentificadores` inspeciona SETE tipos de no — variable, function, parameter, interface,
+  type alias, property signature, method — e nao inspeciona `BindingElement`. Entao o zero que ele
+  reporta e verdadeiro e a impressao que ele deixa nao e: quase toda desestruturacao
+  (`const [erro, setErro] = useState()`) esta fora da conta.
+
+  Ja esta MEDIDO E TRAVADO: `BINDING_ELEMENT_CEILING = 40` em
+  `dashboard/src/lib/identifier-language-ratchet.test.ts`, com `toBe` — nao pode subir sem alguem
+  mover a linha. Este item e a migracao, nao a deteccao.
+why_now: |
+  O guard passou a dizer as duas coisas na mesma tela (zero nos sete tipos, 40 no oitavo). Enquanto
+  o 40 nao cair, o titulo "o dashboard nomeia as coisas em ingles" e verdadeiro por construcao do
+  detector e nao por estado da arvore — que e exatamente o defeito que o B-238 e o B-243 custaram
+  um ciclo cada para aprender.
+status: raw
+dod:
+  - `BINDING_ELEMENT_CEILING` chega a zero, ou a cada sobrevivente corresponde uma razao escrita
+  - a migracao passa pelo compilador: desestruturacao de ARRAY (`[erro, setErro]`) e segura, a de
+    OBJETO com chave portuguesa (`{ nome }`) NAO e — renomear a chave corrompe a leitura do fio,
+    que e o BLOCKER que o /review do B-241 encontrou no `rename-identifiers.mjs`
+  - o teto desce no MESMO commit que migra, nunca depois
+
+> Registrado 2026-08-13, no /review da fatia dashboard-followups.

@@ -18,8 +18,8 @@
 /** As três portas pelas quais um prompt é consumido. */
 export interface ConsumptionInterface {
   readonly id: 'sdk' | 'rest' | 'mcp';
+  /** O nome da porta na tela — "SDK (TypeScript)", "REST (curl)", "MCP". */
   readonly label: string;
-  /** A linguagem do bloco, para o realce e para o rótulo de cópia. */
   /**
    * A linguagem do bloco.
    *
@@ -53,6 +53,12 @@ export interface Target {
    *
    * `null` é um fato — "nenhum ambiente aponta para este prompt" —, e não uma ausência de dado. A
    * distinção decide o trecho: com ambiente, ele usa o ponteiro móvel; sem, usa a versão.
+   *
+   * **Sim, há dois `label` neste arquivo, e não é descuido** — o /review de 2026-08-13 leu isto
+   * como colisão. Este é o nome do PARÂMETRO que o trecho emite: `getPrompt(name, { label })` no
+   * SDK, `?label=` no REST, `"label":` no MCP. Renomeá-lo para algo como `environmentLabel`
+   * deixaria o campo com nome diferente do que ele literalmente escreve na saída, que é a
+   * confusão pior. O outro `label`, em `ConsumptionInterface`, é texto de tela.
    */
   readonly label: string | null;
   /**

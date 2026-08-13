@@ -177,17 +177,28 @@ const SELF = 'absence-assertion-ratchet.test.ts';
 // derrubou o caso. Uma mutacao que nao muda comportamento nao prova nada, e a diferenca entre as
 // duas leituras e a mesma que este arquivo inteiro persegue.
 //
-// A COMPOSICAO DAS 84 QUE FICAM, medida e nao estimada. Classificando cada uma por onde o texto
-// consultado existe:
+// A COMPOSICAO, classificando cada asserção por onde o texto consultado existe. E das **91** que
+// havia ANTES desta fatia, nao das 84 que ficam:
 //
-//    8  ancoraveis    — a TELA que o teste possui renderiza o texto (7 fechadas aqui, 1 restante)
-//   25  fixture       — o proprio arquivo introduz o texto num mock: classe do B-276
-//   ~50 sem texto     — copia REMOVIDA que nao pode voltar, seletor vindo de VARIAVEL (falso
-//                       positivo documentado do detector), ou texto de um componente que o teste
-//                       nao possui
+//    16  ancoraveis    — a TELA que o teste possui renderiza o texto
+//    25  fixture       — o proprio arquivo introduz o texto num mock: classe do B-276
+//   ~50  sem texto     — copia REMOVIDA que nao pode voltar, seletor vindo de VARIAVEL (falso
+//                        positivo documentado do detector), ou texto de um componente que o teste
+//                        nao possui
+//
+// 7 das 16 ancoraveis foram fechadas aqui, cada uma provada por mutacao: 91 - 7 = 84. Restam 9 da
+// classe ancoravel, e delas apenas UMA tem razao escrita (o `spend` de `overview-kpi-strip.tsx`,
+// falso positivo — o texto so existe em comentario). As outras oito nao estao ancoradas nem
+// explicadas, e e por isso que o item continua aberto.
+//
+// CORRECAO 2026-08-13, no /review: esta tabela dizia "8 ancoraveis (7 fechadas, 1 restante)" e
+// apresentava 8 + 25 + 50 como a composicao DAS 84. Errado duas vezes — a soma da 83, e as 7
+// fechadas por definicao ja nao estao entre as 84. Misturar a populacao de antes com a de depois
+// na mesma tabela e como o numero deixou de fechar.
 //
 // O classificador que produziu isso erra nos DOIS sentidos e esta escrito aqui para nao ser lido
-// como exato: ele leu `spend` em `overview-kpi-strip.tsx` que so existe em COMENTARIO (falso
+// como exato (o `~50` e literalmente aproximado, entao 16+25+50 fecha 91 por arredondamento e nao
+// por contagem): ele leu `spend` em `overview-kpi-strip.tsx` que so existe em COMENTARIO (falso
 // ancoravel), e chamou `project-detail.tsx` de sem-texto quando a copia mora no componente FILHO
 // que a pagina renderiza (falso sem-texto) — essa foi ancorada mesmo assim, e a mutacao provou.
 const CEILING_UNANCHORED = 84;
