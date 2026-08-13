@@ -32,7 +32,8 @@ class PythonDetector(BaseDetector):
     language = "python"
     manifest_marker = "pyproject.toml"
 
-    def __init__(self, min_confidence: int = 80) -> None:
+    def __init__(self, min_confidence: int = 80, repo_root: Path | None = None) -> None:
+        super().__init__(repo_root=repo_root)
         self.min_confidence = min_confidence
 
     def detect_dead_code(self, manifest_dir: Path) -> list[Finding]:
@@ -73,7 +74,7 @@ class PythonDetector(BaseDetector):
         for src_file in changed_files:
             if not src_file.exists():
                 continue
-            rel = to_rel_path(src_file)
+            rel = to_rel_path(src_file, self.repo_root)
             for sym in extract_imports_and_calls(src_file, "python"):
                 if sym.kind != "import":
                     continue

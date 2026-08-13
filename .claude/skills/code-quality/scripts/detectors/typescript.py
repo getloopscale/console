@@ -232,7 +232,7 @@ class TypescriptDetector(BaseDetector):
         for src_file in changed_files:
             if not src_file.exists():
                 continue
-            rel = to_rel_path(src_file)
+            rel = to_rel_path(src_file, self.repo_root)
             for sym in extract_imports_and_calls(src_file, "typescript"):
                 if sym.kind != "import":
                     continue

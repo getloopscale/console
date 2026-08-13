@@ -93,8 +93,26 @@ def _count_table_data_rows(section: str) -> int:
 
 
 def _count_question_bullets(section: str) -> int:
-    """Count `- Q\\d` style bullets OR `- ...` non-empty bullets in Unresolved Questions."""
-    return len(re.findall(r"^\s*[-*]\s+(Q\d+|[A-Z])", section, re.MULTILINE))
+    """Count non-empty `-`/`*` bullets in Unresolved Questions, whatever they open with.
+
+    B-249 — this docstring already promised "any non-empty bullet" while the pattern demanded
+    `Q<digits>` or an uppercase letter. A bullet opening with bold, a backtick, a digit or a
+    lowercase word counted as zero. Measured on the B-228 plan: three real questions written as
+    `- **…**` scored the section EMPTY, firing
+    `soft_floor_unresolved_questions_section_missing`; rewriting them as `- Q1 — **…**` moved the
+    plan from 89 to 93.2 without changing a word of their content. A score that responds to
+    typography is measuring the author's markdown habits, not the plan.
+
+    `[ \\t]+\\S` is what carries the distinction the widening must not lose: a bullet needs
+    HORIZONTAL space and then something. `-` alone fails it, and so does `---`, because a dash-run
+    offers no space after the first dash — a horizontal rule is a separator, not a question.
+
+    The class is deliberately `[ \\t]` and not `\\s`. Under `re.MULTILINE` a bare `\\s` matches the
+    newline, so `-\\n- Q1` reads as one bullet whose content is the NEXT line's dash: two empty
+    bullets followed by a real one counted as two. The negative case in the test file caught that
+    within a minute of the widening being written, which is the entire argument for having one.
+    """
+    return len(re.findall(r"^[ \t]*[-*][ \t]+\S", section, re.MULTILINE))
 
 
 def _count_placeholder_hits(text: str) -> int:

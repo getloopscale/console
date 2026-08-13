@@ -250,7 +250,7 @@ def test_detector_receives_manifest_dir_not_repo_root(tmp_path: Path, monkeypatc
             return []
 
     monkeypatch.setattr(
-        "scripts.run_code_quality._build_detector", lambda _lang: _SpyDetector()
+        "scripts.run_code_quality._build_detector", lambda _lang, _root=None: _SpyDetector()
     )
 
     main(["--repo-root", str(tmp_path), "--no-network"])

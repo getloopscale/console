@@ -9556,7 +9556,7 @@ dod:
 
 > Registrado 2026-08-12 pela varredura de itens sem dono.
 
-## B-247 — `check_evidence_pointers` reads every dotfile-directory path as fabricated   [ ]
+## B-247 — `check_evidence_pointers` reads every dotfile-directory path as fabricated   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9586,7 +9586,7 @@ why_now: |
   with `fabricated_evidence` against two pointers that both exist. Any opportunity about this
   ecosystem's OWN tooling is unscoreable until this is fixed, which is why it is filed rather
   than worked around by re-writing the pointer into a form the regex happens to accept.
-status: triaged
+status: shipped
 dod:
   - a pointer into a dotfile directory (`.claude/…`, `.github/…`) resolves and is counted
   - a regression test asserts the capture keeps the leading dot, and fails on the current regex
@@ -9594,7 +9594,11 @@ dod:
 
 > Registered 2026-08-12 while running `/discover-confidence` for B-228 (slug: `release-version-detection`).
 
-## B-248 — the discover-confidence fixture cites standalone-layout paths, so its own suite is red   [ ]
+CONFIRMADO FECHADO 2026-08-13, no varrimento do backlog: `python3 -m pytest tests/ -q` em
+`.claude/skills/discover-confidence/` -> 37 passed. O lookbehind `(?<![A-Za-z0-9_.\-/])` esta no
+lugar do `\b` e o comentario acima dele explica por que. O bloco so nao tinha o status atualizado.
+
+## B-248 — the discover-confidence fixture cites standalone-layout paths, so its own suite is red   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9623,7 +9627,7 @@ why_now: |
   PLUGIN INSTALL (`knowledge-base-location.md`: the ecosystem lives at `<project>/.claude/`),
   and the fixture was written for the standalone layout where `skills/` and `rules/` sit at the
   root. The skill's own definition of a passing opportunity has therefore never passed here.
-status: triaged
+status: shipped
 dod:
   - `python3 -m pytest tests/ -q` under `.claude/skills/discover-confidence/` is fully green
   - the fixture's pointers resolve in the layout this repository actually uses
@@ -9633,7 +9637,10 @@ dod:
 > Registered 2026-08-12 while fixing B-247. Depends on B-247 — the `.claude/`-prefixed pointers
 > the fix needs are exactly the ones the old regex truncated.
 
-## B-249 — `_count_question_bullets` counts fewer bullets than its own docstring promises   [ ]
+CONFIRMADO FECHADO 2026-08-13: mesma execucao, 37 passed, incluindo
+`test_good_opportunity_scores_shippable`. Os ponteiros da fixture resolvem no layout de plugin.
+
+## B-249 — `_count_question_bullets` counts fewer bullets than its own docstring promises   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9659,13 +9666,21 @@ why_now: |
   workaround is trivial once you read the regex — but that is exactly the problem: the author is
   told the section is missing when it is present, and the only way to find out why is to open the
   checker.
-status: triaged
+status: shipped
 dod:
   - a bullet opening with bold, a backtick, a digit or a lowercase word is counted
   - a genuinely empty bullet (`-` alone) is still NOT counted
   - the docstring and the pattern agree, whichever way the disagreement is resolved
 
 > Registered 2026-08-12 while running /plan-confidence for B-228.
+
+FECHADO 2026-08-13. O padrao passou de `^\s*[-*]\s+(Q\d+|[A-Z])` para `^[ \t]*[-*][ \t]+\S`,
+que e o que a docstring ja prometia. Tres casos novos: bullets abrindo com `**`, crase, digito e
+minuscula agora contam (6, era 2); um `-` sozinho NAO conta; `---` NAO conta.
+
+O caso negativo pagou por si em um minuto: a primeira correcao usava `\s+\S`, e sob `re.MULTILINE`
+o `\s` casa a quebra de linha — `-\n- Q1` lia como um bullet cujo conteudo era o traco da linha
+SEGUINTE. Dois bullets vazios contavam como dois. Por isso a classe e `[ \t]`.
 
 ## B-250 — a plugin patch silently reverted committed fixes in the working tree   [ ]
 
@@ -9746,7 +9761,7 @@ dod:
 
 > Registered 2026-08-12 while adopting the plugin update, during B-228's code-quality phase.
 
-## B-252 — `symbol_fabrication_go` calls half the Go standard library fabricated   [ ]
+## B-252 — `symbol_fabrication_go` calls half the Go standard library fabricated   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9782,7 +9797,7 @@ why_now: |
   unconditionally red for a reason no code change can fix. A gate that is always red is a gate
   everyone learns to bypass, which is worse than the one that audited nothing — it now also
   costs the reader 787 lines of noise to discover there is no signal.
-status: triaged
+status: shipped
 dod:
   - a Go file importing `net/http`, `encoding/json` and `log/slog` produces zero d2 findings
   - a sub-package import of a declared dependency produces zero d2 findings
@@ -9790,6 +9805,9 @@ dod:
   - the stdlib set comes from `go list std`, not from a hand-kept list that drifts each release
 
 > Registered 2026-08-12 during B-228's code-quality phase, which it blocked.
+
+CONFIRMADO FECHADO 2026-08-13: `go list std` esta em `_registry.py` (3 referencias) e a suite
+do code-quality passa 205/205. Status nao atualizado na epoca.
 
 ## B-253 — code-quality reports cite paths with the leading slash stripped   [ ]
 
@@ -9818,7 +9836,7 @@ dod:
 
 > Registered 2026-08-12 during B-228's code-quality phase.
 
-## B-254 — the registry cache has no version, so a detector fix does not invalidate its own bad answers   [ ]
+## B-254 — the registry cache has no version, so a detector fix does not invalidate its own bad answers   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9843,7 +9861,7 @@ why_now: |
   either reverts a correct fix or spends the next hour looking in the wrong place. It also means
   any machine that ran the broken detector keeps reporting broken results for 24h after
   upgrading.
-status: triaged
+status: shipped
 dod:
   - the cache records the resolver semantics that produced it, and a change to them discards it
   - a poisoned cache cannot mask a corrected resolver in a subsequent run
@@ -9851,7 +9869,9 @@ dod:
 
 > Registered 2026-08-12 while verifying B-252, which it silently blocked.
 
-## B-255 — the Go dead-code parser reads packages as symbols and reports every one as `<unknown>`   [ ]
+CONFIRMADO FECHADO 2026-08-13: o cache carrega a semantica do resolvedor. 205/205.
+
+## B-255 — the Go dead-code parser reads packages as symbols and reports every one as `<unknown>`   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9887,7 +9907,7 @@ why_now: |
   fabrication cap gone this is the last thing keeping /code-quality red, and it is unactionable
   as written: a reviewer handed `<unknown> at <unknown>:0:0` cannot act, cannot allowlist it
   (the allowlist key is the same for all five), and cannot tell whether it is real.
-status: triaged
+status: shipped
 dod:
   - findings name the function, the file and the line the tool actually reported
   - the count matches what `deadcode -json` reports, function for function
@@ -9895,6 +9915,8 @@ dod:
   - each finding gets a distinct allowlist key, so one can be exempted without exempting all
 
 > Registered 2026-08-12 during B-228's code-quality phase, which it blocks.
+
+CONFIRMADO FECHADO 2026-08-13: `go.py` desce em `Funcs`. 205/205.
 
 ## B-256 — 21 unreachable Go symbols, visible for the first time   [ ]
 
@@ -9946,7 +9968,7 @@ dod:
 
 > Registered 2026-08-12, surfaced by the B-255 fix during B-228's code-quality phase.
 
-## B-257 — the allowlist format is documented with four fields and parsed with six   [ ]
+## B-257 — the allowlist format is documented with four fields and parsed with six   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -9978,7 +10000,7 @@ why_now: |
   another, and the contradiction is only discovered by someone following the document and being
   refused. Here it is worse than usual, because the failure mode is a HARD finding that turns
   OFF the whole allowlist rather than rejecting one line.
-status: triaged
+status: shipped
 dod:
   - the allowlist header and `code-quality-golden-rule.md § 4` both state the six-field format
   - a test asserts an entry written from the documentation parses
@@ -9986,6 +10008,10 @@ dod:
     deliberately in the golden rule rather than being a side effect
 
 > Registered 2026-08-12 while allowlisting B-256 during B-228's code-quality phase.
+
+CONFIRMADO FECHADO 2026-08-13: o cabecalho de `rules/code-quality-allowlist.txt` e o
+`code-quality-golden-rule.md § 4` declaram os SEIS campos, e o golden rule registra a correcao
+com o numero do item.
 
 ## B-258 — `arch-check` ships a script with no caller, and the skill itself reaches no consumer   [ ]
 
@@ -10020,7 +10046,7 @@ dod:
 
 > Registered 2026-08-12 by the wiring review of the B-228 slice.
 
-## B-259 — the plan-snapshot test's uncovered set grew from 40 to 42   [ ]
+## B-259 — the plan-snapshot test's uncovered set grew from 40 to 42   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -10040,12 +10066,30 @@ why_now: |
   Found by the wiring review of B-228. A ratchet that only ever grows is the same shape as the
   five in B-242..B-246: it records a population without anyone being responsible for it. Filed
   at LOW because nothing regressed; filed at all because the slice contributed to it.
-status: triaged
+status: shipped
 dod:
   - the two plans added by B-228 are registered or explicitly skipped with a reason
   - the pre-existing 40 have an owner, or the test states why the list is allowed to grow
 
 > Registered 2026-08-12 by the wiring review of the B-228 slice.
+
+FECHADO 2026-08-13 — e o achado maior estava atras dele.
+
+O que o item pedia: as 40 (ja 44) descobertas terem dono, ou o teste declarar por que a lista pode
+crescer. Resposta: ela NAO pode. Virou catraca, no idioma que este repositorio ja usa em toda parte.
+
+    DEFERRED_SNAPSHOT   conjunto congelado, afirmado EXATO nas duas direcoes
+    test_no_new_plan_escapes_the_snapshot_suite      um plano novo sem snapshot reprova
+    test_the_deferred_list_is_still_debt_and_not_folklore  um plano que ganhou snapshot reprova
+
+Nao paguei a divida das 44 de uma vez de proposito: seriam 44 bandas de veredito escritas por
+quem nao conhece aqueles planos, e uma banda chutada e um snapshot que nao mede nada. A divida
+fica congelada e cai uma a uma quando a fatia dona de cada plano a tocar.
+
+O QUE ISSO REVELOU (registrado como B-286): os NOVE snapshots existentes apontavam todos para
+planos do repositorio STANDALONE do kit, nenhum dos quais existe aqui. `_resolve_plan` devolvia
+None para os nove e o teste parametrizado chamava `pytest.skip`. Nove snapshots, vinte e sete
+asserções, ZERO executadas — num arquivo cujo docblock promete "fails LOUDLY".
 
 ## B-260 — the dashboard sends untyped bodies to write endpoints whose payload types it already has   [ ]
 
@@ -10568,7 +10612,7 @@ dod:
   - as mutações que hoje matam os auto-testes seguem matando (12 delas, registradas em B-235 e B-242)
   - um caso cobre o parêntese desbalanceado dentro de literal de regex, que hoje passaria
 
-status: triaged
+status: shipped
 > Registrado 2026-08-12 por revisão adversarial de arquitetura, fase REVIEW do ciclo Squad.
 
 ## B-270 — O workflow `publish` falha no startup há 5 dias; a v1.0.0 saiu sem imagem   [x]
@@ -10639,7 +10683,7 @@ confirmado_na_v1_0_1: |
   Cinco runs seguidos agora, duas tags de release entre eles. A v1.0.1 sai como a v1.0.0: tag,
   GitHub release, e nenhuma imagem. A diferença é que desta vez estava escrito antes.
 
-status: triaged
+status: shipped
 causa_raiz: |
   ENCONTRADA 2026-08-12, lendo o run na interface do GitHub com o Chrome — a única superfície que
   mostra a mensagem. A API não expõe nada: `runs/{id}` não traz o erro e `runs/{id}/jobs` vem vazio
@@ -11443,3 +11487,65 @@ dod:
   - o teto desce no MESMO commit que migra, nunca depois
 
 > Registrado 2026-08-13, no /review da fatia dashboard-followups.
+
+## B-286 — Os nove snapshots de plano apontam para planos que não existem aqui   [x]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: tests
+evidence: |
+  MEDIDO 2026-08-13, ao fechar o B-259:
+
+    .claude/skills/plan-confidence/tests/test_real_plans_snapshot.py
+
+  Os NOVE nomes em `SNAPSHOTS` — `observability-cache-maturity-plan.md`,
+  `theo-cli-cohesion-remediation-plan.md`, `sota-gaps-remediation-plan.md`,
+  `journeys-as-sdk-consumers-v2-plan.md`, `dogfood-2026-05-15-fix-plan.md`,
+  `memory-gaps-remediation-plan.md`, `harden-fabrication-and-cq-gate-plan.md`,
+  `slice-s0-walking-skeleton-plan.md`, `slice-s0b-walking-skeleton-crd-first-plan.md` — nao
+  existem em `knowledge-base/plans/` nem em `plans/completed/` (que nem sequer existe). Sao planos
+  do repositorio STANDALONE do kit.
+
+  `_resolve_plan` devolvia None para todos e o teste parametrizado chamava `pytest.skip`. Nove
+  snapshots, 27 asserções, ZERO executadas — num arquivo cujo docblock promete que "this test
+  fails LOUDLY and forces an explicit decision".
+
+  SEGUNDA CAMADA de vacuidade: QUATRO dos nove declaravam
+  `verdict_in: {SHIPPABLE, SHIPPABLE_WITH_CAVEATS, NON_SHIPPABLE, INVALID}` com `score_min: 0` —
+  aceitavam todas as bandas do vocabulario. Mesmo se os planos existissem, nao afirmariam nada.
+
+  Mesma classe do B-248: fixture escrita no layout standalone, carregada para uma instalacao de
+  plugin onde nao resolve.
+why_now: |
+  Achado ao converter o teste de cobertura do B-259 numa catraca. O B-259 media "a lista de
+  descobertos cresce"; ninguem tinha olhado o outro lado, e a lista de COBERTOS estava vazia
+  tambem. Uma suite de regressao que nao pode reprovar e pior que nenhuma: ela ocupa o lugar.
+status: shipped
+dod:
+  - os snapshots nomeiam planos que existem neste repositorio
+  - um snapshot sobre plano ausente REPROVA, em vez de `skip`
+  - as bandas sao estreitas o bastante para reprovar quando um detector move um plano
+
+FECHADO 2026-08-13, no mesmo ciclo.
+
+  seis snapshots reais, tres bandas, quatro hard caps distintos:
+    dashboard-followups-plan            SHIPPABLE               >= 85, sem caps
+    dashboard-ratchet-burndown-plan     SHIPPABLE               >= 85, sem caps
+    release-version-detection-plan      SHIPPABLE               >= 85, sem caps
+    http-error-contract-plan            SHIPPABLE_WITH_CAVEATS  80..89, tres soft floors
+    platform-overview-plan              INVALID                 <= 49, coverage_lt_100 +
+                                                                vague_acceptance_criteria
+    modal-primitive-consolidation-plan  INVALID                 <= 49, coverage_lt_100
+
+  `pytest.skip` sobre plano ausente virou `assert`. Provado por mutacao nas duas direcoes:
+  afrouxar a banda do `platform-overview` para SHIPPABLE reprova ("verdict drift"); um snapshot
+  fantasma reprova em vez de pular.
+
+  Efeito colateral medido: a suite passou de 280 passed + 1 failed + 17 skipped para 291 passed +
+  8 skipped. Os seis planos snapshotados sairam do `DEFERRED_SNAPSHOT` — divida de 44 para 38 — e
+  quem os tirou foi a propria catraca, reprovando enquanto continuavam la.
+
+> Registrado e fechado 2026-08-13, ao fechar o B-259.

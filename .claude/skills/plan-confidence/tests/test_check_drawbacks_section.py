@@ -91,6 +91,65 @@ def test_unresolved_questions_with_entries():
     p.unlink()
 
 
+def test_unresolved_counts_a_bullet_whatever_it_opens_with():
+    """B-249 — the docstring promised any non-empty bullet; the pattern demanded `Q<n>` or A-Z.
+
+    Measured on the B-228 plan: three questions opening with `**` counted as ZERO, so
+    `soft_floor_unresolved_questions_section_missing` fired against a section that had three real
+    questions in it. Rewriting them as `- Q1 — **…**` lifted the plan from 89 to 93.2 with no
+    change to their content — a score that moved because of typography.
+    """
+    content = """# Plan
+## Unresolved Questions
+- **Bold opener** — the shape that fired the cap on a section with three questions
+- `backtick opener` — same blind spot
+- 2 is a digit, and a bullet may open with one
+- lowercase opener, which is ordinary prose
+- Q1 — the shape that always counted
+- Capital opener, which also always counted
+
+## Goal
+"""
+    p = _write(content)
+    r = check_drawbacks_section(p)
+    assert r.unresolved_entries == 6
+    assert r.unresolved_is_complete is True
+    p.unlink()
+
+
+def test_unresolved_does_not_count_an_empty_bullet():
+    """The other half of B-249: widening must not turn a bare dash into a question."""
+    content = """# Plan
+## Unresolved Questions
+-
+-
+- Q1 — the only real one
+
+## Goal
+"""
+    p = _write(content)
+    r = check_drawbacks_section(p)
+    assert r.unresolved_entries == 1
+    p.unlink()
+
+
+def test_unresolved_does_not_count_a_horizontal_rule():
+    """`---` is a separator, not a bullet, and a dash-run must not read as one."""
+    content = """# Plan
+## Unresolved Questions
+
+---
+
+- Q1 — the only real one
+
+## Goal
+"""
+    p = _write(content)
+    r = check_drawbacks_section(p)
+    assert r.unresolved_entries == 1
+    p.unlink()
+
+
 def test_unresolved_explicit_none_is_acceptable():
     content = """# Plan
 ## Unresolved Questions

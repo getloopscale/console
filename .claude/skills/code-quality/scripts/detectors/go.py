@@ -84,7 +84,7 @@ class GoDetector(BaseDetector):
         for src_file in changed_files:
             if not src_file.exists():
                 continue
-            rel = to_rel_path(src_file)
+            rel = to_rel_path(src_file, self.repo_root)
             # Skip files under vendor/
             if "/vendor/" in rel or rel.startswith("vendor/"):
                 continue
