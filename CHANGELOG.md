@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the memory overview and the entities list read through one place each. Nothing changes on screen; what changes is that the reason the KPI figures fall back to zero — which is only safe because the strip is hidden on an error — now sits beside the setting that makes it safe, instead of two edits away (B-244).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** the memory webhooks screen no longer reports work the server refused. Registering one that was rejected closed the dialog as if it had been saved; revoking one left an endpoint still receiving your events while the screen said it was gone; and replaying a delivery announced "Replay queued" for a replay that was never queued. The sibling screen under settings had the same three and was fixed earlier the same day (B-244, B-235).

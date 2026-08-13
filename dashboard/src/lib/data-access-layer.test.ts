@@ -197,7 +197,18 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-const TETO_PAGINAS_COM_TRANSPORTE = 34;
+// 32 desde 2026-08-12, com `memory/{overview,entities}.tsx`.
+//
+// Nenhuma das duas tinha contrato faltando — o valor está em outro lugar. Em `overview`, o
+// `throwOnError` e o fallback de zeros são UMA decisão, não duas: os zeros só são seguros porque a
+// tira de KPI não é renderizada no erro. Separá-las — manter o fallback e perder o contrato — é
+// exatamente como uma tela passa a reportar "0 memórias" para um serviço fora do ar. Estão juntas
+// agora, com a razão escrita entre elas.
+//
+// Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
+// cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
+// memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
+const TETO_PAGINAS_COM_TRANSPORTE = 32;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
