@@ -10949,7 +10949,7 @@ dod:
 
 > Registrado 2026-08-12 durante o burn-down do B-242.
 
-## B-278 — `prismjs` carrega uma vulnerabilidade HIGH e entra no bundle por `react-syntax-highlighter`   [ ]
+## B-278 — Duas vulnerabilidades diferentes, e o bloco original trocou as duas de lugar   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -10958,26 +10958,43 @@ source: human
 severity: medium
 category: security
 evidence: |
-  `npm audit --omit=dev` no `dashboard/` (2026-08-12):
+  CORRECAO 2026-08-13, contra o proprio bloco: eu li o ULTIMO bloco impresso pelo `npm audit` e
+  atribui a ele o "1 high" do resumo. Errado nos dois sentidos.
 
-      node_modules/refractor/node_modules/prismjs
-        refractor  <=4.6.0
-        Depends on vulnerable versions of prismjs
-          react-syntax-highlighter  6.0.0 - 15.6.6
+  Medido com `npm audit --omit=dev --json` + `npm ls`:
 
-      4 vulnerabilities (3 moderate, 1 high)
+    nanoid      HIGH      GHSA-2v37-7h3g-55p8  cvss 5.9  loop infinito com size zero
+                caminho:  @theokit/ui@1.3.2 -> vite@6.4.3 -> postcss@8.5.25 -> nanoid@3.3.16
+    prismjs     MODERATE  GHSA-x7hr-w5r2-h6wg  cvss 4.9  DOM Clobbering
+                caminho:  react-syntax-highlighter@15.6.6 -> refractor@3.6.0 -> prismjs@1.27.0
 
-  `--omit=dev` importa: a cadeia está nas dependências de PRODUÇÃO, não no ferramental.
+  As duas correcoes:
+
+  1. O HIGH e o `nanoid`, nao o `prismjs`. O `prismjs` e MODERATE.
+  2. O `nanoid` NAO entra no bundle; o `prismjs` entra. O `nanoid` chega porque o `@theokit/ui`
+     declara `vite` como dependencia de RUNTIME — defeito de empacotamento daquele pacote — e
+     vite/postcss sao ferramental que o Rollup nao empacota. Ja o `react-syntax-highlighter` e
+     dependencia de producao de verdade, importado por `pages/rag/components/code-block.tsx` e
+     `markdown-view.tsx`.
+
+  A severidade que importa para o PRODUTO e o MODERATE de DOM Clobbering num pacote que renderiza
+  markdown; o HIGH e um fato de cadeia de suprimentos sobre um transitivo de build. As duas sao
+  reais, nao sao o mesmo tipo de real, e o bloco dizia o inverso de cada uma.
+
+  `fixAvailable` da cadeia do prismjs: `react-syntax-highlighter@16.1.1`, semver MAJOR.
 why_now: |
   Medido durante o `/deps-audit` da fatia B-242/B-241, que não adiciona dependência nenhuma — o
   achado é do estado atual da árvore e não da fatia. `deps-audit-golden-rule.md § 2` classifica um
   CVE HIGH em dependência declarada como `FAIL_INSECURE`, e nenhum item o cobria.
 status: raw
 dod:
-  - o `npm audit --omit=dev` do dashboard não reporta HIGH nem CRITICAL, OU existe entrada em
-    `deps-audit-allowlist.txt` com sunset e justificativa
-  - a decisão registra se `react-syntax-highlighter` continua sendo a escolha (o realce de sintaxe
-    é usado em quantas telas?) ou se sai
+  - a cadeia que ENTRA NO BUNDLE (prismjs, via react-syntax-highlighter) nao reporta vulnerabilidade,
+    OU existe entrada em `deps-audit-allowlist.txt` com sunset e a razao medida
+  - o HIGH do `nanoid` e enderecado onde nasce: `@theokit/ui` declarando `vite` como runtime. Aqui
+    isso e um item de outro repo ou uma entrada de allowlist com o motivo — nunca um upgrade local
+    que finge resolver
+  - a decisao registra se `react-syntax-highlighter` continua sendo a escolha (duas telas o usam) e
+    se o major 16.1.1 entra
 
 > Registrado 2026-08-12 durante o `/deps-audit` da fatia do B-242/B-241.
 
