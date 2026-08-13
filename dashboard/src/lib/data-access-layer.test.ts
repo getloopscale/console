@@ -197,7 +197,20 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 9 desde 2026-08-12, agora com `rag/{ask,graphrag,chunks-panel}.tsx` e
+// 7 desde 2026-08-12, agora com `lens/session-detail.tsx`, `workspace/overview.tsx` e
+// `projects/project-connect.tsx`.
+//
+// Em `workspace`, o teto de 1000 objetos mudou de lugar junto com a leitura, e isso e o achado: o
+// limite e propriedade do que PEDIMOS a loja, nao do helper que monta a arvore de prefixos a partir
+// da lista plana. O helper so o consumia de segunda mao.
+//
+// `project-connect` ficou com funcoes async simples, nao mutations. A lista de repositorios e
+// buscada de um efeito com flag de cancelamento propria, e o connect roda dentro de um submit que
+// e dono do proprio estado de busy. As duas seguem em `T | null` DE PROPOSITO: cada chamador ja
+// ramifica no `null` e escreve uma mensagem especifica, entao `throwOnError` so mudaria o texto de
+// lugar. B-235 e sobre recusa que nao chega a ninguem; aqui ela chega a uma frase.
+//
+// Antes disso, com `rag/{ask,graphrag,chunks-panel}.tsx` e
 // `lens/dashboards/duration-histogram.tsx`.
 //
 // `ask` e `graphrag` faziam a MESMA requisicao (`POST /v1/dashboard/rag/answers`) e cada uma
@@ -281,7 +294,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 9;
+const TETO_PAGINAS_COM_TRANSPORTE = 7;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
