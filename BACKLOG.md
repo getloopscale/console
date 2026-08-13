@@ -10829,3 +10829,64 @@ kill_reason_candidate: |
   porque texto de fixture não tem tipo. Cinquenta não é a população de asserções never-leak — é uma
   regra que ancora quase tudo. Se a segunda tentativa não conseguir discriminar melhor, matar o
   item é o resultado certo: contar as quatro honestamente é melhor que limpar cinquenta por engano.
+
+## B-277 — A regra que deriva o rótulo da chave de billing existe duas vezes, e uma mutação sobrevive   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: code
+evidence: |
+  `dashboard/src/pages/settings/billing.tsx:193` e `:315` carregam a MESMA expressão:
+
+      key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+  Uma alimenta o `UsageMeter` ("Usage This Period"), a outra a lista "Includes" do cartão de plano.
+
+  MEDIDO POR MUTAÇÃO em 2026-08-12, ao ancorar as três asserções do B-242 nesse arquivo: trocar a
+  expressão da linha 193 por um literal deixou os 20 casos de `billing.test.tsx` VERDES, porque os
+  rótulos continuavam sendo renderizados pelo segundo site. Só ao mutar as DUAS é que três casos
+  reprovaram. Uma regra duplicada é uma regra que metade dos testes não cobre.
+why_now: |
+  Encontrado ao provar por mutação a âncora do B-242 em `billing.test.tsx`. A duplicação não é
+  hipótese de leitura: ela foi o motivo de a primeira mutação sobreviver.
+status: raw
+dod:
+  - a derivação chave -> rótulo tem UM dono, e os dois sites o chamam
+  - mutar esse dono reprova pelo menos um caso de `billing.test.tsx`
+
+> Registrado 2026-08-12 durante o burn-down do B-242.
+
+## B-278 — `prismjs` carrega uma vulnerabilidade HIGH e entra no bundle por `react-syntax-highlighter`   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: security
+evidence: |
+  `npm audit --omit=dev` no `dashboard/` (2026-08-12):
+
+      node_modules/refractor/node_modules/prismjs
+        refractor  <=4.6.0
+        Depends on vulnerable versions of prismjs
+          react-syntax-highlighter  6.0.0 - 15.6.6
+
+      4 vulnerabilities (3 moderate, 1 high)
+
+  `--omit=dev` importa: a cadeia está nas dependências de PRODUÇÃO, não no ferramental.
+why_now: |
+  Medido durante o `/deps-audit` da fatia B-242/B-241, que não adiciona dependência nenhuma — o
+  achado é do estado atual da árvore e não da fatia. `deps-audit-golden-rule.md § 2` classifica um
+  CVE HIGH em dependência declarada como `FAIL_INSECURE`, e nenhum item o cobria.
+status: raw
+dod:
+  - o `npm audit --omit=dev` do dashboard não reporta HIGH nem CRITICAL, OU existe entrada em
+    `deps-audit-allowlist.txt` com sunset e justificativa
+  - a decisão registra se `react-syntax-highlighter` continua sendo a escolha (o realce de sintaxe
+    é usado em quantas telas?) ou se sai
+
+> Registrado 2026-08-12 durante o `/deps-audit` da fatia do B-242/B-241.
