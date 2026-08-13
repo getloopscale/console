@@ -8541,7 +8541,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-broadcastchannel-message-consumed-without-validating-its`). Source: code-review finding #48, `code-review-output/code-review.db`.
 
-## B-235 — cloudFetch's `T | null` collapses at least four distinct outcomes into one value   [ ]
+## B-235 — cloudFetch's `T | null` collapses at least four distinct outcomes into one value   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8693,7 +8693,27 @@ fourth_measurement: |
   `hasContract` aceitando qualquer valor, `withoutComments` virando no-op, o caminhamento
   ignorando `pages/`, `argsOf` guloso, e o lookbehind de `CALL_OPENING` removido — este último
   sobrevivia até eu fixá-lo com um teste, porque nenhum nome no corpus o exercitava.
-status: triaged
+status: shipped
+
+closed: 2026-08-12 — 39 → 4 chamadas sem contrato, congeladas na catraca
+`src/lib/http/ambiguous-null-ratchet.test.ts`. A DECISAO tomada foi NAO inverter o default: marcar
+as chamadas restantes uma a uma preserva comportamento, mas o unico ganho que a inversao traria
+depois disso e "codigo novo nasce seguro" — e a catraca ja entrega isso com risco zero. Regra 11
+(YAGNI) / degrau 1 da escada de parcimonia.
+
+As recusas fechadas no caminho, em ordem de quanto custavam:
+
+  - salvar uma pagina de wiki: PUT recusado resolvia `null`, o editor fechava e a invalidacao
+    trazia o texto ANTIGO de volta — a pessoa via a propria edicao ser desfeita, sem erro;
+  - editar um chunk: identico, e ainda perdia o `reembedded`, o unico campo que diz se a edicao
+    chegou ao indice;
+  - cascade forget: contava DELETE recusado como sucesso, rodava ate o teto de 50 rodadas e
+    reportava milhares de memorias esquecidas que continuavam la;
+  - conectores de RAG: sync e connect recusados nao mudavam NADA na tela, porque nenhum dos dois
+    afirma nada — a recusa nao tinha o que contradizer;
+  - perguntar no RAG: sem resposta se le como "o modelo nao tinha o que dizer".
+
+As 4 restantes sao deliberadas e estao documentadas no proprio arquivo da catraca.
 
 ## B-236 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [x]
 
@@ -9201,7 +9221,7 @@ implemented: |
 
   Stays `triaged` for the same reason as B-228: RELEASE is blocked on PR #475.
 
-## B-244 — Catraca `data-access-layer` em 53 paginas que falam transporte direto, sem dono   [ ]
+## B-244 — Catraca `data-access-layer` em 53 paginas que falam transporte direto, sem dono   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9220,7 +9240,7 @@ why_now: |
   A regra deste projeto e explicita — um caveat sem dono e um defeito com boas maneiras
   (`cycle-review.md`, gate do READY_TO_MERGE_WITH_FOLLOWUPS). A catraca impede a piora; ela nao
   produz a melhora, e ninguem estava encarregado dela.
-status: triaged
+status: shipped
 dod:
   - a populacao desce e o teto acompanha
   - cada pagina migrada passa a ler pelo hook do dominio, com o teste de tela cobrindo a leitura FALHA
@@ -9260,6 +9280,26 @@ progress_2026_08_12: |
   comentário — enquanto a catraca conta os que os IMPORTAM de `@/lib/http/api`. Duas medições
   diferentes da mesma coisa, e usei a mais fácil para uma tabela que serve justamente para alguém
   escolher o próximo arquivo a migrar.
+
+closed: 2026-08-12 — 53 → 3. A catraca esta congelada em 3, e nenhuma das tres e defeito por si:
+`workspace/overview.tsx` INJETA `cloudFetch` no helper de presign (dependencia explicita, nao
+transporte inline), `lens/alerts.tsx` guarda uma leitura de promptly na tela de alertas, e
+`settings/components/invite-member-sheet.tsx` a ultima. O item pedia dono para a catraca; ela tem
+dono agora e o numero so desce.
+
+O que a migracao revelou, e que nao aparecia enquanto o transporte morava nas paginas:
+
+  - duas telas de RAG liam o MESMO endpoint com copias divergentes da resposta E chaves de cache
+    diferentes — a mesma requisicao nao-filtrada era buscada e guardada duas vezes;
+  - `lens/dashboards` mandava um `range: string` para um endpoint que recusa qualquer valor fora de
+    quatro, e o compilador nao tinha como dizer;
+  - `settings/team` lia por `['engine', path]` enquanto as mutations invalidavam `['team']`, entao a
+    tabela nunca atualizava depois de convidar ou remover (B-060, agora visivel ao lado da chave);
+  - `settings/audit` era um `engineFetch` cru dentro de um efeito — FORA do escopo do guard de null
+    silencioso, que quantifica sobre `useQuery`/`useInfiniteQuery`/`useSuspenseQuery`. Numa tela de
+    auditoria, ausencia fabricada de registro e pior que erro.
+
+Derivado: B-275 (o DELETE de projeto ficou sem contrato de proposito).
 
 ## B-245 — Catraca do knip em 79 tipos exportados sem importador, sem dono   [x]
 
