@@ -122,18 +122,51 @@ jobs:
           GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
         run: go vet ./...
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-        with:
-          # Versao PINADA — a action resolve em runtime quando nao pinada, e foi assim que uma
-          # v2.11.3 nova quebrou o theo-traefik-mcp sem nenhuma mudanca de codigo.
+      # B-273 — DOIS passos, e a separacao e o ponto.
+      #
+      # Um passo chamado `Lint` carregava a aquisicao E a analise, entao o vermelho dele nao dizia
+      # qual das duas falhou. Em 2026-08-12 (job 94258930430) o binario nao desceu — `socket hang
+      # up` tres vezes contra um release asset do GitHub — e o passo ficou vermelho como se o
+      # codigo tivesse achados. Localmente: `0 issues`.
+      #
+      # E a mesma classe que a investigacao do B-270 nomeou em quatro defeitos de uma vez: uma
+      # verificacao que NAO ACONTECEU reportada como uma que aconteceu e falhou. O custo nao e o
+      # vermelho — e que um vermelho incapaz de distinguir "seu codigo esta errado" de "nada rodou"
+      # gasta o tempo de quem investiga, sempre.
+      #
+      # A aquisicao passa pelo MODULE PROXY e nao por um release asset: e o mesmo caminho de onde
+      # o resto das dependencias deste job ja vem, com o cache de modulos do `setup-go` ja quente,
+      # entao o modo de falha e um que o job ja sabe tratar.
+      #
+      # NAO resolvido com `continue-on-error`: um gate que ignora a propria falha e pior que o flake.
+      - name: Install golangci-lint
+        env:
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+        run: |
+          # Versao PINADA — sem pin a resolucao acontece em runtime, e foi assim que uma v2.11.3
+          # nova quebrou o theo-traefik-mcp sem nenhuma mudanca de codigo.
           #
-          # POR QUE v2.12.2 E NAO a v2.6.0 dos repos irmaos: o binario do golangci-lint carrega
-          # a versao de Go com que foi COMPILADO, e ela precisa ser >= a do `go.mod` do alvo.
-          # Este repo esta em `go 1.26.1` (os irmaos em 1.25.x), e a v2.6.0 — compilada com
-          # go1.25 — recusa: "the Go language version (go1.25) used to build golangci-lint is
-          # lower than the targeted Go version". Nao e preferencia: e um piso.
-          version: v2.12.2
+          # POR QUE v2.12.2 E NAO a v2.6.0 dos repos irmaos: o binario carrega a versao de Go com
+          # que foi COMPILADO, e ela precisa ser >= a do `go.mod` do alvo. Este repo esta em
+          # `go 1.26.1` (os irmaos em 1.25.x), e a v2.6.0 — compilada com go1.25 — recusa: "the Go
+          # language version (go1.25) used to build golangci-lint is lower than the targeted Go
+          # version". Nao e preferencia: e um piso.
+          # GOTOOLCHAIN e obrigatorio aqui, e a primeira tentativa desta correcao provou por que:
+          # `go install` compila o golangci-lint com o toolchain que o modulo DELE pede (go1.25),
+          # e o binario resultante recusa o alvo — "the Go language version (go1.25) used to build
+          # golangci-lint is lower than the targeted Go version (1.26.1)". E exatamente o piso que
+          # o comentario da versao ja descrevia; a action baixava um binario ja compilado com um Go
+          # mais novo e por isso nao esbarrava nele. Forcar o toolchain reproduz aquela propriedade.
+          GOTOOLCHAIN=go1.26.1 \
+            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 \
+            || { echo "::error title=golangci-lint install::o BINARIO nao foi obtido — isto NAO e um achado de lint"; exit 1; }
+          "$(go env GOPATH)/bin/golangci-lint" --version
+
+      - name: Lint (analysis)
+        env:
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+        run: |
+          "$(go env GOPATH)/bin/golangci-lint" run ./...
 
   dashboard:
     name: dashboard — typecheck + lint + build + test

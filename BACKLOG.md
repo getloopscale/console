@@ -10943,7 +10943,7 @@ status: triaged
 
 > Registrado 2026-08-12 ao desbloquear o `images` do publish.
 
-## B-273 — Gates baixam o próprio binário em runtime e reportam falha de rede como falha de análise   [ ]
+## B-273 — Gates baixam o próprio binário em runtime e reportam falha de rede como falha de análise   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -10999,9 +10999,51 @@ dod:
   - avaliar cachear o binário (a action já restaura um cache de `golangci-lint` — o cache é do
     resultado, não do binário) ou fixá-lo numa imagem
   - NÃO resolver com `continue-on-error`: um gate que ignora a própria falha é pior que o flake
-status: triaged
+status: shipped
 
 > Registrado 2026-08-12 ao desbloquear o publish.
+
+FECHADO 2026-08-13, e a primeira tentativa da correcao estava errada — foi rodar que mostrou.
+
+O DEFEITO: um passo chamado `Lint` carregava a AQUISICAO e a ANALISE. Quando o binario nao desceu
+(`socket hang up` x3 contra um release asset do GitHub, job 94258930430), o passo ficou vermelho
+igual a um achado real. Localmente `golangci-lint run ./...` dava `0 issues`.
+
+A CORRECAO: dois passos nomeados.
+
+    - name: Install golangci-lint   -> `::error title=golangci-lint install::o BINARIO nao foi
+                                        obtido — isto NAO e um achado de lint`
+    - name: Lint (analysis)         -> so aqui um vermelho significa codigo
+
+  E a aquisicao passa pelo MODULE PROXY, nao por release asset: mesmo caminho de onde o resto das
+  dependencias do job ja vem, com o cache do `setup-go` ja quente. Sem `continue-on-error`, que a
+  DoD proibia por nome.
+
+O QUE A PRIMEIRA TENTATIVA ERROU, e por que vale registrar: `go install` compila o golangci-lint
+com o toolchain que o modulo DELE pede — go1.25 — e o binario resultante RECUSA o alvo:
+
+    can't load config: the Go language version (go1.25) used to build golangci-lint is lower
+    than the targeted Go version (1.26.1)
+
+E o mesmo piso que o comentario da versao ja descrevia. A action nao esbarrava nele porque baixava
+um binario que outra pessoa compilou com um Go mais novo. `GOTOOLCHAIN=go1.26.1` reproduz aquela
+propriedade. Sem isso a aquisicao passa e a ANALISE falha por erro de config — exatamente a
+confusao que este item existe para remover, reintroduzida uma camada abaixo. Nao teria sido pega
+por leitura: so por execucao.
+
+O QUE A PRIMEIRA EXECUCAO DE VERDADE REVELOU — a primeira de todas, ja que o binario nunca chegava:
+
+    dashboard/node_modules/flatted/golang/pkg/flatted/flatted.go:35,62   govet
+
+  `flatted` e um pacote npm que por acaso embarca um `.go`, e `go list ./...` entra nele porque
+  esta sob a raiz do modulo. Nao existia `.golangci.yml` neste repositorio — a ausencia era
+  invisivel porque o gate nunca rodou. Criado, com a exclusao e a razao.
+
+  golangci-lint run ./...   0 issues
+  go test ./...             32 pacotes, zero falhas
+  internal/ci               guards novos: separacao dos passos, proxy nao release-asset, sem
+                            escape de erro, versao ainda pinada, toolchain forcado, node_modules
+                            excluido
 
 ## B-274 — O `cosign verify` do reusable espera a identidade do CHAMADOR, mas quem assina é ele mesmo   [ ]
 
