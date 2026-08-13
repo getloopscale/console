@@ -2,6 +2,8 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** four password-recovery tests that check no internal jargon leaks to the user can now actually fail — the mocked upstream errors carry the words they are supposed to strip, which they previously did not (B-242).
+
 - **theo-cloud/dashboard:** the guard that finds tests asserting something is absent without ever proving it can appear no longer misreads a regex. It compared the selector from its first character, so a quantifier at the front hid an anchor that was really there (B-242).
 
 - **theo-cloud/dashboard:** every write launched from a trace — asking a question about it, replaying a span, queueing it for labelling, voting on an answer — is declared in one place with its no-auto-retry rule. Three of them are billable calls and two record a person's vote; neither may be silently re-sent (B-244).

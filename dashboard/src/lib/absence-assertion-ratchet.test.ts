@@ -365,6 +365,27 @@ describe('the detector, exercised — not a copy of it', () => {
     expect(unanchoredIn('x.test.tsx', source)).toHaveLength(0);
   });
 
+  it('a never-leak assertion stays unanchored, and the reason is recorded not fixed', () => {
+    // The SECOND discriminating shape, which the presence rule cannot express. Nothing on the
+    // recovery screen may ever render the word `kratos`, so there is no positive case to point
+    // at — yet the assertion can still fail, because the mocked upstream error contains the word.
+    // Delete the message mapping and the raw text renders.
+    //
+    // It is still counted here, and that is a decision. The rule that would clear it — anchor an
+    // absence assertion when any string literal in the file contains its core — was implemented
+    // and MEASURED before being rejected: it moved 50 of the 102 assertions at once and broke the
+    // query-kind invariant the case below protects (fixture text has no kind, so a `queryByRole`
+    // absence would be anchored by an unrelated `getByText` string). Fifty is not a population of
+    // never-leak assertions; it is a rule that anchors almost everything.
+    //
+    // Registered as B-276. Until it has a rule that discriminates, the honest number counts them.
+    const source = [
+      "mockSubmitFlow.mockRejectedValueOnce(new Error('kratos credential method failed'));",
+      'expect(screen.queryByText(/kratos/i)).not.toBeInTheDocument();',
+    ].join('\n');
+    expect(unanchoredIn('x.test.tsx', source)).toHaveLength(1);
+  });
+
   it('recognises the absence matchers, and only those', () => {
     for (const form of [
       `expect(screen.queryByRole('table')).toBeNull();`,

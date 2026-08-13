@@ -10787,3 +10787,24 @@ dod:
   - um DELETE recusado não navega para `/projects`
   - a recusa aparece na tela com a mensagem do serviço quando houver
   - teste de regressão que falha no estado atual (DELETE recusado → ainda navega)
+
+## B-276 — A catraca de asserções de ausência não sabe expressar a forma "isto nunca pode vazar"   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: dashboard/src/lib/absence-assertion-ratchet.test.ts — o teste `a never-leak assertion stays unanchored` documenta o caso medido; as quatro ocorrências reais estão em `dashboard/src/pages/auth/recovery.test.tsx:323,324,525,526` (`/kratos/i`, `/identifier similarity/i`, `/credential method/i`).
+why_now: encontrado ao trabalhar o B-242. A regra de ancoragem exige que o MESMO seletor seja afirmado presente em algum caso do arquivo. Uma asserção do tipo "a tela nunca pode mostrar `kratos`" não tem caso positivo por construção — a string não deve aparecer nunca — mas ela ainda DISCRIMINA quando o fixture que alimenta a tela contém a palavra: apague o mapeamento de mensagem e o texto cru renderiza. Hoje ela é contada como se não pudesse falhar, e não é verdade.
+status: raw
+dod:
+  - a regra distingue "a string aparece num fixture do arquivo" de "a string não existe em lugar nenhum"
+  - a distinção por TIPO de query (`ByRole` vs `ByText`) sobrevive — o invariante que a primeira tentativa quebrou
+  - a mudança é provada por mutação antes do teto se mover, e move menos que 50 asserções de uma vez
+
+kill_reason_candidate: |
+  A primeira tentativa (varrer todo literal de string do arquivo) foi IMPLEMENTADA e MEDIDA antes
+  de ser rejeitada: moveu 50 das 102 asserções de uma vez e quebrou o invariante de tipo de query,
+  porque texto de fixture não tem tipo. Cinquenta não é a população de asserções never-leak — é uma
+  regra que ancora quase tudo. Se a segunda tentativa não conseguir discriminar melhor, matar o
+  item é o resultado certo: contar as quatro honestamente é melhor que limpar cinquenta por engano.
