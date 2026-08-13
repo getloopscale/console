@@ -78,8 +78,5 @@ go | internal/metrics/metrics.go | dead_code | IncTokenExchange | metrics helper
 go | internal/metrics/metrics.go | dead_code | IncDeviceFlow | metrics helper pending B-256 classification | 2026-11-10
 go | internal/metrics/metrics.go | dead_code | ObserveTenantProvisioning | metrics helper pending B-256 classification | 2026-11-10
 go | internal/metrics/metrics.go | dead_code | IncAuthRejection | metrics helper pending B-256 classification | 2026-11-10
-go | internal/metrics/metrics.go | dead_code | IncWebhook | metrics helper pending B-256 classification | 2026-11-10
-go | internal/metrics/metrics.go | dead_code | IncCheckout | metrics helper pending B-256 classification | 2026-11-10
 go | internal/metrics/metrics.go | dead_code | IncUsageDrift | metrics helper pending B-256 classification | 2026-11-10
-go | internal/metrics/metrics.go | dead_code | IncSubscriptionFallback | metrics helper pending B-256 classification | 2026-11-10
 go | internal/metrics/metrics.go | dead_code | ObserveHTTPRequest | metrics helper pending B-256 classification | 2026-11-10

@@ -9968,6 +9968,64 @@ dod:
 
 > Registered 2026-08-12, surfaced by the B-255 fix during B-228's code-quality phase.
 
+progresso 2026-08-13 — CLASSIFICADO POR MEDICAO, e a classificacao mudou o item. SEGUE ABERTO.
+
+Os 21 nao eram uma classe. Medido com `grep` qualificado por pacote (`metrics.IncX(`), que e o
+que conta chamador de FORA do pacote:
+
+  8 LEGITIMOS, e a allowlist estava certa sobre eles:
+    Secret.String / GoString / MarshalJSON / MarshalText   satisfacao de interface. Ninguem chama
+      direto — e esse e o ponto. `secret_test.go:67,85` roda um `Secret` por `fmt` e por
+      `json.Marshal`, entao a barreira que impede um segredo de vazar ESTA exercitada.
+    CostAggregator.WithClock, 2x WithInsecureCookieForTests, MemoryExportsHandler.WaitForWorkers
+      costuras de teste, cada uma com chamador em `_test.go`.
+
+  13 GENUINAMENTE MORTAS, e nao era isso que se acreditava:
+    Todo chamador vinha de `internal/metrics/metrics_test.go` — os proprios testes unitarios,
+    afirmando que incrementar nao entra em panico. NENHUM codigo de producao emitia.
+
+      grep -rn "metrics\.IncWebhook(" --include="*.go" . | grep -v _test.go   ->  nada
+      grep -c "metrics\." internal/routes/memory_webhooks.go                  ->  0
+
+    Um contador sem ponto de emissao nao registra numero baixo. Registra ZERO para sempre, e um
+    painel construido sobre ele le "nenhuma rejeicao de auth jamais aconteceu" — que e o tipo mais
+    caro de errado, porque parece boa noticia.
+
+    Isso torna FALSA uma frase do `ADR-0011`, que eu assinei nesta mesma manha: "these are the
+    runtime-metric third of the wiring triad, wired at their emission sites". O ADR esta corrigido
+    no lugar, com a medicao. Segundo ADR do dia cujo MECANISMO foi afirmado em vez de medido,
+    depois do `ADR-b278` — os dois certos sobre o que fazer e errados sobre por que.
+
+FECHADAS NESTA PASSAGEM — 3 das 13, as de ponto de emissao inequivoco:
+
+    IncCheckout             5 saidas de `BillingHandler.Checkout` (plano invalido, preco ausente,
+                            billing nao configurado, cliente Stripe falhou, sessao falhou) + o
+                            sucesso. Antes: um checkout recusado por Stripe mal configurado dava
+                            503 para um operador e zero no painel que todos os outros leem.
+    IncWebhook              3 saidas de `BillingHandler.Webhook` (assinatura invalida, payload
+                            invalido, processamento falhou) + o sucesso. Um webhook FORJADO era
+                            silencioso.
+    IncSubscriptionFallback a queda para `starter` em `GetBilling`, que e literalmente o evento
+                            que o contador nomeia.
+
+  Provado por mutacao nas duas direcoes: remover a emissao do INVALID_PLAN derruba o caso; trocar
+  `IncCheckout(false)` por `(true)` derruba o caso discriminador. Um handler que incrementasse
+  incondicionalmente satisfaria os dois primeiros e reportaria todo checkout recusado como iniciado.
+
+  Medido depois: `deadcode -json ./...` foi de 28 para 26 funcoes mortas; as tres saem da
+  `code-quality-allowlist.txt` (21 -> 18 entradas). `go test ./...` verde em 32 pacotes.
+
+  Ferramenta nova, e apenas UMA: `metrics.CounterValue(name, labels...)`. O padrao existente no
+  arquivo — um `XxxValue()` exportado por contador — teria adicionado treze exports so-de-teste
+  exatamente do tipo que este item existe para aposentar.
+
+RESTAM 10, e cada uma precisa de um julgamento proprio sobre ONDE o evento acontece:
+IncTokenExchange, IncDeviceFlow, IncAuthRejection, ObserveTenantProvisioning, IncUsageDrift,
+ObserveHTTPRequest, ServiceVersionInfoValue, ServiceVersionProbeValue, StorageBytesWrittenValue,
+ObjectsDeletedValue. Nao foram fiadas as tres primeiras "de graca" porque `IncAuthRejection`
+sozinha tem dezenas de sitios candidatos e escolher errado produz um contador que mede outra coisa
+— pior que um contador zerado, porque um numero errado e acreditado.
+
 ## B-257 — the allowlist format is documented with four fields and parsed with six   [x]
 
 domain: control-plane

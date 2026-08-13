@@ -15,6 +15,7 @@ import (
 
 	"github.com/usetheoai/theo-cloud/internal/auth"
 	"github.com/usetheoai/theo-cloud/internal/billing"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
 )
 
 // UsageMetric represents a single usage metric with current value and limit.
@@ -103,6 +104,10 @@ func (h *BillingHandler) GetBilling(w http.ResponseWriter, r *http.Request) {
 			if !errors.Is(err, sql.ErrNoRows) {
 				slog.Warn("resolve account plan failed — defaulting to starter", "tenant", tenantID, "error", err)
 			}
+			// B-256 — the counter this fallback is named after. Zero told an operator nothing:
+			// it read the same whether the fallback never fired or fired on every request, and
+			// those are opposite facts about a billing system.
+			metrics.IncSubscriptionFallback()
 			plan = "starter"
 		}
 		if ps.Valid {
@@ -239,6 +244,7 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	//   2. plan name valid but price NOT configured → 503 BILLING_NOT_CONFIGURED
 	//      (operator action: set STRIPE_PRICE_<PLAN> env + rollout-restart)
 	if !billing.IsValidPlanName(body.Plan) {
+		metrics.IncCheckout(false)
 		writeError(w, http.StatusBadRequest, "INVALID_PLAN", "Invalid plan. Available: starter, pro, team")
 		return
 	}
@@ -251,18 +257,21 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 			"plan", body.Plan,
 			"tenant", user.TenantID,
 		)
+		metrics.IncCheckout(false)
 		writeError(w, http.StatusServiceUnavailable, "BILLING_NOT_CONFIGURED",
 			"Plan '"+body.Plan+"' is not available for purchase yet. Please contact support.")
 		return
 	}
 
 	if h.provisioner == nil || h.stripe == nil {
+		metrics.IncCheckout(false)
 		writeError(w, http.StatusServiceUnavailable, "BILLING_UNAVAILABLE", "Billing is not configured.")
 		return
 	}
 
 	customerID, err := h.provisioner.EnsureStripeCustomer(r.Context(), user.TenantID, user.Email, user.Name)
 	if err != nil || customerID == "" {
+		metrics.IncCheckout(false)
 		writeError(w, http.StatusInternalServerError, "BILLING_ERROR", "Failed to set up billing. Try again.")
 		return
 	}
@@ -275,10 +284,12 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		user.TenantID,
 	)
 	if err != nil {
+		metrics.IncCheckout(false)
 		writeError(w, http.StatusInternalServerError, "CHECKOUT_ERROR", "Failed to create checkout. Try again.")
 		return
 	}
 
+	metrics.IncCheckout(true)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"url": session.URL,
 	})
@@ -295,21 +306,27 @@ func (h *BillingHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 	sig := r.Header.Get("Stripe-Signature")
 	if err := billing.VerifySignature(body, sig, h.webhook.WebhookSecret()); err != nil {
+		// A forged or misconfigured webhook is exactly the event ops needs to see, and it was
+		// the one this counter never recorded (B-256).
+		metrics.IncWebhook(false)
 		writeError(w, http.StatusBadRequest, "INVALID_SIGNATURE", "Invalid webhook signature.")
 		return
 	}
 
 	var event billing.StripeEvent
 	if err := json.Unmarshal(body, &event); err != nil {
+		metrics.IncWebhook(false)
 		writeError(w, http.StatusBadRequest, "INVALID_PAYLOAD", "Invalid webhook payload.")
 		return
 	}
 
 	if err := h.webhook.ProcessEvent(event); err != nil {
+		metrics.IncWebhook(false)
 		writeError(w, http.StatusInternalServerError, "PROCESSING_ERROR", "Failed to process webhook event.")
 		return
 	}
 
+	metrics.IncWebhook(true)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"received":true}`))
 }
