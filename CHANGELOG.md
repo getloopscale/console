@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Security
+
+- **theo-cloud/dashboard:** the syntax highlighter used by the RAG screens was carrying a vulnerable copy of `prismjs` (DOM Clobbering, GHSA-x7hr-w5r2-h6wg) into the shipped bundle. `react-syntax-highlighter` is now on 16.1.1, which brings a fixed `prismjs` and drops `refractor` entirely (B-278).
+
 ### Changed
 
 - **theo-cloud/dashboard:** the guard that keeps the code named in English learned sixteen more Portuguese words it could not see before, and the 43 declarations they revealed were renamed. The zero it reports is still a zero *by that guard* — the next batch of words it does not know is measured and registered (B-279).
