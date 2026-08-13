@@ -9125,7 +9125,7 @@ detector**, e a lista dele tem cauda — `rotulo`, `linguagem`, `variaveis`, `ul
 `resolucao`, `intencao` seguem no codigo e nao estao no `MARCADOR`. Registrado como **B-279**, com
 um caso no proprio guard que reprova se algum dia o detector aprender uma delas.
 
-## B-242 — Catraca `absence-assertion-ratchet` congelada em 91 asserções desancoradas   [ ]
+## B-242 — Catraca `absence-assertion-ratchet` congelada em 84 asserções desancoradas   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9279,6 +9279,34 @@ consertavel:
     documentado no proprio docblock do detector
 
 Derivado: B-277 (a regra de rotulo do billing existe duas vezes; a mutacao de um site sobrevivia).
+
+progresso 2026-08-13 — 91 -> 84, SETE asserções ancoradas, cada uma provada por mutacao.
+
+  signal-detail-sheet  'Replicas'                    o rotulo do sinal com open={true}
+  project-status       /^Progressing$/               um release presente e NAO ativo
+  project-detail       /URL pending/i                projeto COM ambiente de producao e sem URL
+  device-success       'device-success-countdown'    o estado padrao, com animacao permitida
+  promptly/diff        'promptly-diff-config'        o BLOCO, pelo mesmo tipo de query que o nega
+  promptly/playground  /provedor do modelo recusou/  o TITULO, e nao so a descricao
+  rag/analytics        /extraction tokens/i          o ROTULO, e nao so o valor
+
+UMA MUTACAO MINHA FOI INVALIDA E QUASE PASSOU POR PROVA: trocar a primeira ocorrencia de
+"URL pending" em `live-url-hero.tsx` atingiu um COMENTARIO (linha 14), nao o Badge (linha 109). O
+teste ficou verde e por um instante isso leu como "a ancora nao discrimina". Mutar o lugar certo
+derrubou o caso.
+
+A COMPOSICAO DAS 84, medida classificando cada uma por onde o texto existe:
+
+     8  ancoraveis   — a TELA que o teste possui renderiza o texto (7 fechadas, ~1 resta)
+    25  fixture      — o arquivo introduz o texto num mock: classe do B-276
+   ~50  sem texto    — copia REMOVIDA, seletor vindo de VARIAVEL (falso positivo documentado do
+                       detector), ou texto de um componente que o teste nao possui
+
+O classificador erra nos DOIS sentidos e isso esta escrito no docblock da catraca: leu `spend` em
+`overview-kpi-strip.tsx` que so existe em COMENTARIO, e chamou `project-detail.tsx` de sem-texto
+quando a copia mora no componente FILHO — essa foi ancorada mesmo assim e a mutacao provou.
+
+Comando: `npx vitest run src/lib/absence-assertion-ratchet.test.ts` (teto 84 = disco).
 
 ## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [x]
 
@@ -10920,7 +10948,7 @@ kill_reason_candidate: |
   regra que ancora quase tudo. Se a segunda tentativa não conseguir discriminar melhor, matar o
   item é o resultado certo: contar as quatro honestamente é melhor que limpar cinquenta por engano.
 
-## B-277 — A regra que deriva o rótulo da chave de billing existe duas vezes, e uma mutação sobrevive   [ ]
+## B-277 — A regra que deriva o rótulo da chave de billing existe duas vezes, e uma mutação sobrevive   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -10942,14 +10970,26 @@ evidence: |
 why_now: |
   Encontrado ao provar por mutação a âncora do B-242 em `billing.test.tsx`. A duplicação não é
   hipótese de leitura: ela foi o motivo de a primeira mutação sobreviver.
-status: raw
+status: shipped
 dod:
   - a derivação chave -> rótulo tem UM dono, e os dois sites o chamam
   - mutar esse dono reprova pelo menos um caso de `billing.test.tsx`
 
 > Registrado 2026-08-12 durante o burn-down do B-242.
 
-## B-278 — Duas vulnerabilidades diferentes, e o bloco original trocou as duas de lugar   [ ]
+closed: 2026-08-13 — `humanizeKey` em `lib/formatting/format.ts`, e eram TRES sites, nao dois. O
+terceiro (`rag/connectors.tsx:61`) faz o mesmo com `-` no lugar de `_`; e o que torna isto uma
+extracao pela Regra de 3 e nao uma generalizacao especulativa.
+
+A PROVA QUE O ITEM PEDIA, medida: uma mutacao do dono (`humanizeKey` forcada a uma constante)
+avermelha TODOS os consumidores — `billing.test.tsx` 3 casos, `format.test.ts` 4,
+`connectors.test.tsx` 3. Antes da extracao, a mesma classe de mutacao num dos dois sites do billing
+nao avermelhava nada.
+
+Comando: `npx vitest run src/pages/settings/billing.test.tsx src/pages/rag src/lib/formatting`
+(22 arquivos / 169 testes).
+
+## B-278 — Duas vulnerabilidades diferentes, e o bloco original trocou as duas de lugar   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -10998,7 +11038,24 @@ dod:
 
 > Registrado 2026-08-12 durante o `/deps-audit` da fatia do B-242/B-241.
 
-## B-279 — O marcador do guard de identificadores tem cauda, e ela ficou visível ao chegar a zero   [ ]
+closed: 2026-08-13 — as duas, com acoes OPOSTAS, que e a razao de trata-las como um numero so ter
+produzido o bloco errado.
+
+  prismjs (MODERATE, EMBARCADO)  -> CORRIGIDO. `react-syntax-highlighter` 15.6.6 -> 16.1.1, que traz
+                                    prismjs 1.30.0 e elimina o `refractor`. Semver MAJOR, entao foi
+                                    tentativa com portao: `tsc` limpo, 20 arquivos / 101 testes de
+                                    RAG verdes, `npm run build` verde (built in 21.88s).
+  nanoid  (HIGH, NAO EMBARCADO)  -> ALLOWLIST com sunset 2026-11-11 + `ADR-b278-nanoid-not-bundled`.
+
+Por que o `nanoid` NAO foi simplesmente pinado: um `overrides` existe, funciona, e deixaria o
+`npm audit` verde SEM MUDAR UM BYTE DO QUE E EMBARCADO. Um relatorio que melhora enquanto a
+realidade nao muda e a falha que este repositorio registra sob outros nomes. A correcao certa esta
+no empacotamento do `@theokit/ui`, que nao tem checkout neste umbrella.
+
+Medicao final: `npm audit --omit=dev` -> 1 high (o nanoid allowlistado), zero moderate.
+`npm ls prismjs --omit=dev` -> `react-syntax-highlighter@16.1.1 -> prismjs@1.30.0`, sem refractor.
+
+## B-279 — O marcador do guard de identificadores tem cauda, e ela ficou visível ao chegar a zero   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -11039,6 +11096,27 @@ dod:
     alargar a lista aperta os dois consumidores de uma vez
 
 > Registrado 2026-08-13 ao fechar o B-241. A cauda so ficou mensuravel depois que o corpo saiu.
+
+closed: 2026-08-13 — as DEZESSEIS palavras entraram no `SUPLEMENTO_IDENTIFICADORES` e as declaracoes
+que elas revelaram foram migradas pelo harness.
+
+A ESTIMATIVA DO PROPRIO BLOCO ERA RUIDO, e a medicao a substituiu: ele dizia `inteiro` 84 e
+`mostrar` 37, contando ARQUIVOS QUE CITAM a palavra — prosa em comentario inclusa. Como DECLARACOES
+sao 1 e 1. As dezesseis juntas: 46 pelo scanner do harness, 43 pelo da catraca; a diferenca e
+`BindingElement`, kind que o harness renomeia e a catraca nao conta.
+
+Nada entrou no `MARCADOR`, e isso foi verificado e nao suposto: `varrerInterface` le aquela lista e
+e guard ATIVO sobre texto de tela. `i18n-guard.test.ts` verde o tempo todo.
+
+VERMELHO PRIMEIRO, e visivelmente: acrescentar as palavras levou o guard a 43 ANTES de qualquer
+rename. Um alargamento que nao sobe o numero nao alargou nada — e esse e o sinal que separa isto do
+B-238, onde um teto CAIU porque o detector foi estreitado.
+
+Comandos: `varrerIdentificadores(SRC).length` -> 43 -> 0;
+`node scripts/rename-identifiers.mjs --map scripts/identifier-map.json --collisions … --allow-shorthand`
+-> 25 nomes, 169 edicoes, 29 arquivos.
+
+Derivado: B-281 (a cauda SEGUINTE, medida do mesmo jeito).
 
 ## B-280 — Sob shuffle a suite reprova por TIMEOUT, em arquivo variavel, e nenhum reprova isolado   [ ]
 
@@ -11085,3 +11163,148 @@ dod:
     terceiro arquivo, e nesse caso os dois itens viram um
 
 > Registrado 2026-08-13 pela revisao de validacao cruzada da fatia dashboard-ratchet-burndown.
+
+progresso 2026-08-13 — A CAUSA ERA DUAS, e so uma foi fechada. O item SEGUE ABERTO.
+
+METADE FECHADA — inanicao. 131 dos 379 arquivos construiam um jsdom que nunca usavam. Movidos 111
+(22 nao puderam; ver B-282), com um guard que impede a volta:
+
+    antes   transform 26.51s  setup 133.55s  import 562.67s  tests 487.42s  environment 690.34s
+    depois  transform 24.85s  setup 125.03s  import 471.52s  tests 434.66s  environment 415.11s
+
+`environment` era a maior das quatro linhas e passou a ser a menor: -40%.
+
+METADE ABERTA, e a medicao MUDOU DE NATUREZA quando a inanicao caiu. Antes o shuffle falhava por
+`Test timed out in 20000ms` em arquivo variavel. Agora falha em UM arquivo, por asserção:
+
+    FAIL src/pages/lens/overview.test.tsx > M60 — renders ONE shared trend chart …
+    TestingLibraryElementError: Unable to find an element with the text: Throughput (traces)
+
+E ISOLADO ELE REPROVA: `npx vitest run src/pages/lens/overview.test.tsx --sequence.shuffle`
+-> 1 falha em 4 execucoes. Isso nao e contencao — e dependencia de ordem DENTRO do arquivo, que e
+outra coisa e pede outra correcao. Registrado como B-283.
+
+Uma licao de higiene de medicao, minha: duas das tres execucoes anteriores tinham reprovado tambem
+na catraca do B-242, porque eu estava editando as asserções ENQUANTO a suite rodava. Medir uma
+suite durante a edicao dela produz um vermelho que nao e da suite.
+
+## B-281 — A cauda seguinte do marcador de identificadores, medida ao fechar a anterior   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: code
+supersedes:
+evidence: |
+  O B-279 ensinou dezesseis palavras ao detector e migrou as 43 declaracoes que elas revelaram. O
+  zero voltou — e segue sendo um zero POR ESTE DETECTOR. A cauda seguinte, medida do mesmo jeito
+  (contando PALAVRAS DE DECLARACAO que nem `MARCADOR` nem o suplemento contem):
+
+      7 falha        5 colunas      4 frase       4 maior
+      4 compoe       3 acervo       2 abas
+
+  `salvar` entrou no primeiro rascunho desta lista e o proprio caso a rejeitou: o `MARCADOR` ja a
+  conhece. A lista e o que o detector NAO ve, e isso e verificado, nao afirmado —
+  `identifier-language-ratchet.test.ts` assere as duas metades (o detector nao conhece a palavra, E
+  a palavra existe na arvore).
+
+  FORA DA LISTA DE PROPOSITO: `atual` (18 ocorrencias). O docblock do suplemento a nomeia, junto com
+  `total` e `item`, como cognato deliberadamente excluido — foi o que fez uma medicao anterior
+  reportar 329 em vez de um numero utilizavel.
+why_now: |
+  Registrado ao fechar o B-279, pelo mesmo motivo que o B-279 foi registrado ao fechar o B-241: o
+  zero de um detector e sempre relativo ao que ele conhece, e escrever a cauda ao lado do zero e o
+  que impede o zero de mentir.
+status: raw
+dod:
+  - cada palavra decidida uma a uma, com o mesmo criterio de admissao (nao existe em ingles, nao e
+    cognato de uma letra)
+  - as aceitas entram no `SUPLEMENTO_IDENTIFICADORES`, nunca no `MARCADOR` (o `varrerInterface` le
+    o segundo)
+  - a populacao que elas revelam e migrada pelo harness, e o guard volta a zero
+  - o caso `the KNOWN TAIL is MEASURED` acompanha: as palavras aprendidas saem dele, as novas entram
+
+> Registrado 2026-08-13 ao fechar o B-279.
+
+## B-282 — Modulos leem globais de browser no escopo do IMPORT, e isso prende 22 testes ao jsdom   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium
+category: code
+evidence: |
+  MEDIDO 2026-08-13 durante o B-280, movendo 131 arquivos de teste para o ambiente `node`. Cento e
+  onze passaram. VINTE E DOIS falharam, e nenhum deles toca DOM no proprio codigo:
+
+      ReferenceError: window is not defined
+      ReferenceError: document is not defined
+
+  A instancia mais clara e `src/lib/http/config.ts`:
+
+      export const API_URL = getConfig().API_URL;   // roda no IMPORT
+      function getConfig() { return window.__THEO_CONFIG__ ?? { … } }
+
+  `api.ts` importa esse modulo e tem 151 importadores, entao a exigencia de um `window` no momento
+  do import se espalha por todo o grafo. O proprio `vitest.config.ts` nomeia esse arquivo como a
+  razao de a suite inteira usar jsdom por padrao.
+
+  TENTATIVA E REVERSAO, no mesmo dia: trocar por `globalThis.window?.__THEO_CONFIG__` (uma linha,
+  chega ao MESMO ramo de defaults que a funcao ja tinha) NAO desbloqueou os 22 — o erro seguinte foi
+  `document is not defined`, de outro ponto do grafo. Sao varios globais ansiosos, nao um. Revertido
+  por nao ter beneficio medido, e registrado aqui em vez de meio-feito.
+why_now: |
+  O B-280 cortou o custo de ambiente onde deu (111 arquivos), e os 22 restantes tem uma causa unica
+  e nomeavel. Enquanto ela existir, o teto de quanto a suite pode deixar de pagar por jsdom esta
+  travado — e a lista de excecoes em `environment-fit.test.ts` cresce em vez de encolher.
+status: raw
+dod:
+  - a leitura de global de browser sai do escopo do modulo: `API_URL` e companhia viram funcao, ou
+    a leitura vira defensiva em TODOS os pontos, medido pelos 22 arquivos passarem em `node`
+  - os 22 saem de `JSDOM_BY_TRANSITIVE_IMPORT` e o caso que assere a lista exata acompanha
+  - o custo de `environment` na suite completa e medido antes e depois
+
+> Registrado 2026-08-13 durante o B-280, com a tentativa de correcao revertida documentada acima.
+
+
+## B-283 — `lens/overview.test.tsx` M60 depende da ordem DENTRO do proprio arquivo   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: test
+evidence: |
+  MEDIDO 2026-08-13, depois que o B-280 cortou 40% do custo de ambiente e a falha do shuffle mudou
+  de natureza — de timeout para asserção:
+
+      FAIL src/pages/lens/overview.test.tsx > M60 — renders ONE shared trend chart (default
+           throughput), swapped by a KPI-tile click
+      TestingLibraryElementError: Unable to find an element with the text: Throughput (traces)
+      (`overview.test.tsx:64`, o `await screen.findByText(...)` que serve de barreira)
+
+  EM ISOLAMENTO, 4 execucoes com `--sequence.shuffle`:  3 verdes, 1 vermelha.
+
+  Isolado + ordem embaralhada + falha de asserção (nao timeout) = dependencia de ordem ENTRE OS
+  CASOS DO PROPRIO ARQUIVO. Nao e contencao de worker (o B-280 mede aquilo, e isto reproduz com a
+  maquina ociosa e um arquivo so).
+
+  DUAS HIPOTESES, nenhuma confirmada — e nao vou fingir que uma delas e a causa:
+    - o grafico e assincrono (ResponsiveContainer / rAF) e a barreira corre com o layout;
+    - algum estado de modulo sobrevive entre casos (o `QueryClient` NAO e: `src/test/render.tsx:37`
+      cria um por render — verificado).
+why_now: |
+  Enquanto isto existir, a linha "suite verde sob shuffle" da DoD do B-241 e do B-280 nao fecha, e
+  o vermelho que ela produz se parece com um defeito da fatia que estiver em curso — foi exatamente
+  o que aconteceu duas vezes hoje.
+status: raw
+dod:
+  - a causa e NOMEADA por medicao (qual estado sobrevive, ou qual espera falta), nao por hipotese
+  - `npx vitest run src/pages/lens/overview.test.tsx --sequence.shuffle` verde em 10 execucoes
+  - a correcao nao e aumentar timeout nem `await` extra sem explicar o que se espera
+
+> Registrado 2026-08-13, ao remedir o shuffle numa arvore estavel depois do B-280.
