@@ -27,6 +27,7 @@ describe('RagConnectorsPage (/rag/connectors)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/connectors/conn_1/sync',
       expect.objectContaining({ method: 'POST' }),
+      { throwOnError: true },
     );
   });
 
@@ -62,6 +63,7 @@ describe('RagConnectorsPage (/rag/connectors)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/connectors/s3/connect',
       expect.objectContaining({ method: 'POST' }),
+      { throwOnError: true },
     );
     const call = mockCloudFetch.mock.calls.find((c) => c[0] === '/v1/dashboard/rag/connectors/s3/connect');
     const body = JSON.parse((call?.[1] as { body: string }).body);
@@ -87,6 +89,7 @@ describe('RagConnectorsPage — destructive delete flow', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/connectors/conn_1',
       expect.objectContaining({ method: 'DELETE' }),
+      { throwOnError: true },
     );
   });
 

@@ -21,6 +21,10 @@ describe('RagCollectionsPage (/rag/collections)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/collections',
       expect.objectContaining({ method: 'POST' }),
+      // B-235 — the contract is part of what is being asserted: without it a refused creation
+      // resolves `null`, the field clears and the list refreshes, which reads as "that name is
+      // taken" rather than "the server said no".
+      { throwOnError: true },
     );
   });
 
@@ -46,6 +50,7 @@ describe('RagCollectionsPage — destructive delete flow', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/collections/col_1',
       expect.objectContaining({ method: 'DELETE' }),
+      { throwOnError: true },
     );
   });
 });

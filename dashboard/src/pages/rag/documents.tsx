@@ -1,6 +1,5 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2, Upload } from 'lucide-react';
 import {
   Badge,
@@ -21,7 +20,14 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, cloudFetchRaw } from '@/lib/http/api';
+import {
+  useRagDocuments,
+  useInvalidateRagDocuments,
+  useIngestDocument,
+  useUploadDocumentFile,
+  useDeleteDocument,
+  type RagDocument,
+} from '@/hooks/rag/use-documents';
 import { ChunksPanel } from './chunks-panel';
 
 // M11 — file types the engine ingests (PDF/office/CSV/text/image). The engine is the
@@ -37,12 +43,6 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
  * are surfaced — never a fake "done".
  */
 
-interface Document {
-  id: string;
-  name?: string;
-  status?: string;
-  created_at?: string;
-}
 
 function statusVariant(status?: string): 'success' | 'destructive' | 'outline' {
   if (status === 'ready') return 'success';
@@ -54,13 +54,12 @@ export function RagDocumentsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('RAG · Documents'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const [collectionID, setCollectionID] = useState('');
   const [name, setName] = useState('');
   const [text, setText] = useState('');
-  const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
-  const [chunksForDoc, setChunksForDoc] = useState<Document | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<RagDocument | null>(null);
+  const [chunksForDoc, setChunksForDoc] = useState<RagDocument | null>(null);
   const [ingestMode, setIngestMode] = useState('fast');
   const [fileError, setFileError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -68,57 +67,27 @@ export function RagDocumentsPage() {
 
   const collectionsQuery = useCollections();
 
-  const docsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/documents', collectionID] as const,
-    queryFn: () =>
-      cloudFetch<{ items: Document[] }>(
-        `/v1/dashboard/rag/documents?collection_id=${encodeURIComponent(collectionID)}`, {}, { throwOnError: true }),
-    enabled: collectionID !== '',
-    // Poll while any document is still ingesting so status transitions surface.
-    refetchInterval: (q) =>
-      (q.state.data?.items ?? []).some((d) => d.status !== 'ready' && d.status !== 'failed') ? 3000 : false,
-  });
+  const docsQuery = useRagDocuments(collectionID);
 
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/documents', collectionID] });
+  const invalidate = useInvalidateRagDocuments(collectionID);
 
-  const upload = useMutation({
-    mutationFn: () =>
-      cloudFetch<{ id: string }>('/v1/dashboard/rag/documents', {
-        method: 'POST',
-        body: JSON.stringify({ collection_id: collectionID, text, name: name || undefined }),
-      }),
-    onSuccess: () => {
-      setText('');
-      setName('');
-      invalidate();
-    },
-  });
+  const upload = useIngestDocument(collectionID);
+  const submitText = () =>
+    upload.mutate(
+      { text, name: name || undefined },
+      {
+        onSuccess: () => {
+          setText('');
+          setName('');
+          invalidate();
+        },
+      },
+    );
 
   // M11 — file upload. Sends multipart via cloudFetchRaw so the browser sets the
   // multipart boundary itself (cloudFetch would force application/json). The engine
   // ingests async (202); a non-2xx surfaces the typed upstream reason.
-  const uploadFile = useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('collection_id', collectionID);
-      form.append('mode', ingestMode);
-      if (name.trim() !== '') form.append('name', name.trim());
-      const resp = await cloudFetchRaw('/v1/dashboard/rag/documents/file', { method: 'POST', body: form });
-      if (resp === null) return; // session expired — cloudFetchRaw redirected
-      if (!resp.ok) {
-        const detail = await resp.text().catch(() => '');
-        throw new Error(detail || `upload failed (${resp.status})`);
-      }
-    },
-    onSuccess: () => {
-      setName('');
-      setFileError('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      invalidate();
-    },
-  });
+  const uploadFile = useUploadDocumentFile(collectionID);
 
   const onFilePicked = (file: File | undefined) => {
     setFileError('');
@@ -131,19 +100,22 @@ export function RagDocumentsPage() {
       setFileError(`"${file.name}" is larger than 10 MB. Pick a smaller file.`);
       return;
     }
-    uploadFile.mutate(file);
+    uploadFile.mutate(
+      { file, mode: ingestMode, ...(name.trim() !== '' ? { name: name.trim() } : {}) },
+      {
+        onSuccess: () => {
+          setName('');
+          setFileError('');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          invalidate();
+        },
+      },
+    );
   };
 
-  const remove = useMutation({
-    mutationFn: (d: Document) =>
-      cloudFetch<null>(`/v1/dashboard/rag/documents/${encodeURIComponent(d.id)}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
+  const remove = useDeleteDocument();
 
-  const columns: DataTableColumn<Document>[] = [
+  const columns: DataTableColumn<RagDocument>[] = [
     { key: 'name', label: 'Name', render: (row) => <span>{row.name ?? row.id}</span> },
     {
       key: 'status',
@@ -313,7 +285,7 @@ export function RagDocumentsPage() {
                 <div className="flex justify-end">
                   <Button
                     disabled={collectionID === '' || text.trim() === '' || upload.isPending}
-                    onClick={() => upload.mutate()}
+                    onClick={submitText}
                   >
                     Upload &amp; ingest
                   </Button>
@@ -357,7 +329,11 @@ export function RagDocumentsPage() {
           cancelLabel="Cancel"
           intent="destructive"
           loading={remove.isPending}
-          onConfirm={() => remove.mutate(pendingDelete)}
+          onConfirm={async () => {
+            await remove.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+            invalidate();
+          }}
         />
       ) : null}
 

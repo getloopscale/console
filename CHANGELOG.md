@@ -2,6 +2,8 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** a refused RAG write no longer passes for a successful one. Creating a collection, ingesting a document, deleting either, triggering a connector sync and connecting a paste-credential source all report a refusal now; previously each one cleared its form and refreshed its list exactly as a successful write does (B-235).
+
 - **theo-cloud/dashboard:** the RAG overview and analytics screens now read the same summary from the same place. They had each declared their own copy of the response and their own cache key, so the identical unfiltered request was fetched twice and Refresh on one screen left the other stale (B-244).
 - **theo-cloud/dashboard:** a rejected wiki page save no longer looks like a save that worked. The editor used to close and quietly restore the previous text, leaving no way to tell a refused write from a round-trip. Creating a page or a folder now reports a refusal too (B-235).
 

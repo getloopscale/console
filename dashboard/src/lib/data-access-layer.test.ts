@@ -197,7 +197,17 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 29 desde 2026-08-12, com `memory/{overview,entities}.tsx` e `rag/{overview,analytics,wiki}.tsx`.
+// 26 desde 2026-08-12: `memory/{overview,entities}.tsx` e todo o cluster de RAG
+// (`overview,analytics,wiki,collections,documents,connectors`).
+//
+// Em `documents`, o que nao podia se perder na mudanca era o predicado do polling: theo-rag
+// ingere assincrono e responde 202, entao sem o refetch a lista congela em `processing` e um
+// documento que terminou — ou falhou — parece travado ate alguem recarregar a pagina.
+//
+// Em `connectors`, as tres escritas eram invisiveis quando recusadas porque nenhuma delas
+// AFIRMAVA nada na tela. Um sync recusado deixava a linha exatamente como estava; um connect
+// recusado fechava a gaveta e limpava os campos. O usuario so descobre quando documento nenhum
+// chega.
 //
 // As duas telas de RAG liam o MESMO endpoint e cada uma declarava sua propria copia da resposta.
 // As copias ja tinham divergido — `analytics` conhecia o bloco `scale`, `overview` nao — e as
@@ -217,7 +227,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 29;
+const TETO_PAGINAS_COM_TRANSPORTE = 26;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];
