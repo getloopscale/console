@@ -1,4 +1,5 @@
 import { useCollections } from '@/hooks/rag/use-collections';
+import { humanizeKey } from '@/lib/formatting/format';
 import { type ChangeEvent, useEffect, useState } from 'react';
 import { Plug, RefreshCw, Trash2 } from 'lucide-react';
 import {
@@ -58,7 +59,7 @@ const OAUTH_PROVIDER_LABELS: Record<string, string> = {
 };
 
 function providerLabel(provider: string): string {
-  return OAUTH_PROVIDER_LABELS[provider] ?? provider.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return OAUTH_PROVIDER_LABELS[provider] ?? humanizeKey(provider);
 }
 
 // Human messages for the broker's ?connect_error=<reason> redirect (rag_connectors_oauth.go). An

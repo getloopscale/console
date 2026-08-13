@@ -50,7 +50,7 @@ function extractActionableErrorMessage(err: unknown): string {
   // 5xx + network failures stay retryable.
   return 'Failed to start checkout. Please try again in a moment.';
 }
-import { formatDate, formatNumber } from '@/lib/formatting/format';
+import { formatDate, formatNumber, humanizeKey } from '@/lib/formatting/format';
 import { useBillingActivation, type ActivationOutcome } from '@/hooks/settings/use-billing-activation';
 import type { BillingResponse } from '@/lib/api/types';
 import { BILLING_REDIRECT, safeNavigator } from '@/lib/navigation';
@@ -190,7 +190,7 @@ export function BillingPage() {
 
   const usageMetrics: UsageMeterMetric[] = billing?.usage
     ? Object.entries(billing.usage).map(([key, data]) => ({
-        label: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        label: humanizeKey(key),
         value: data.used,
         max: data.limit ?? Number.MAX_SAFE_INTEGER, // EC-5: unlimited
         unit: key.includes('minute') ? 'min' : key.includes('mb') ? 'MB' : '',
@@ -311,7 +311,7 @@ export function BillingPage() {
                 </p>
                 {Object.entries(billing.usage).slice(0, 4).map(([key, data]) => (
                   <div key={key} className="flex justify-between text-body-sm">
-                    <span className="text-muted-foreground">{key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                    <span className="text-muted-foreground">{humanizeKey(key)}</span>
                     <span className="font-mono text-foreground tabular-nums">
                       {data.limit === null ? 'Unlimited' : formatNumber(data.limit, 'grouped')}
                     </span>

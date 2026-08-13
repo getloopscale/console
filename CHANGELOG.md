@@ -2,6 +2,9 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the rule that turns a backend key into a label on screen ("fast_data_transfer" → "Fast Data Transfer") existed in three copies, so a change to one of them was invisible to the tests of the others. It has one home now (B-277).
+
+
 - **theo-cloud/dashboard:** the tool that renamed the codebase to English had two defects that would have corrupted the next migration: it silently threw away edits when two per-file overrides touched the same file, and it rewrote the key of an object being destructured from an untyped response — which compiles, passes tests, and leaves the field `undefined` at runtime. Both are fixed and both now have a test that fails against the old behaviour (B-241).
 
 - **theo-cloud/dashboard:** a local variable on the prompt detail screen was named `window`, shadowing the browser global for the rest of the component. Nothing used the global there yet, so nothing was broken — the name is now `revisionsRange` so nothing can be (B-241).

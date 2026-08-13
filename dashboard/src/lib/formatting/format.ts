@@ -306,3 +306,29 @@ export function formatScore(score: number | null | undefined, fractionDigits = 2
   if (score == null || !Number.isFinite(score)) return EMDASH;
   return score.toFixed(fractionDigits);
 }
+
+/**
+ * Turn a machine key into a display label: separators become spaces, each word is capitalised.
+ *
+ *   humanizeKey('fast_data_transfer')  // "Fast Data Transfer"
+ *   humanizeKey('google-drive')        // "Google Drive"
+ *   humanizeKey('')                    // ""
+ *
+ * ## Why this is here and not inline (B-277)
+ *
+ * The same expression lived in three places — `settings/billing.tsx` twice (the `UsageMeter` and
+ * the "Includes" quota list) and `rag/connectors.tsx` once, differing only in the separator. The
+ * duplication was not cosmetic: an adversarial review mutated ONE of the two billing copies and all
+ * 20 cases of `billing.test.tsx` stayed green, because the assertion was satisfied by the other
+ * renderer. A rule with two homes is a rule that no single test can hold.
+ *
+ * Both separators, one function: the third site differs by `-` instead of `_` and nothing else.
+ *
+ * Total, like every other formatter here — an empty key yields an empty label rather than throwing.
+ * It deliberately does NOT return the em-dash: an absent LABEL is the caller's decision (see
+ * `connectors.tsx`, which prefers a curated name and falls back to this), whereas an absent VALUE
+ * is what `formatNumber` and friends speak for.
+ */
+export function humanizeKey(key: string): string {
+  return key.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}

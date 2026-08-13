@@ -6,6 +6,7 @@ import {
   formatNumber,
   formatTokens,
   humanizeAuthor,
+  humanizeKey,
   isZeroTime,
   maskEmail,
   shortId,
@@ -293,5 +294,33 @@ describe('formatScore (M72)', () => {
     expect(formatScore(null)).toBe('—');
     expect(formatScore(NaN)).toBe('—');
     expect(formatScore(Infinity)).toBe('—');
+  });
+});
+
+describe('humanizeKey (B-277)', () => {
+  // The rule this centralises existed in THREE places — `billing.tsx:193`, `billing.tsx:314` and
+  // `rag/connectors.tsx:61` — and the duplication was not cosmetic. Mutating one of the two billing
+  // copies left all 20 cases of `billing.test.tsx` green, because `getAllByText` was satisfied by
+  // the other renderer. That survival is what registered B-277.
+
+  it('turns a snake_case backend key into a display label', () => {
+    expect(humanizeKey('fast_data_transfer')).toBe('Fast Data Transfer');
+    expect(humanizeKey('builds_per_month')).toBe('Builds Per Month');
+  });
+
+  it('turns a kebab-case slug into one too — the `connectors.tsx` shape', () => {
+    // The third site differs from the other two by ONE separator. Two functions here would be the
+    // duplication wearing a nicer hat.
+    expect(humanizeKey('google-drive')).toBe('Google Drive');
+  });
+
+  it('leaves an already-humane label alone', () => {
+    expect(humanizeKey('Seats')).toBe('Seats');
+    expect(humanizeKey('seats')).toBe('Seats');
+  });
+
+  it('is total: an empty key is an empty label, never a throw', () => {
+    // Every formatter in this module is total (see the module docblock's null-safety contract).
+    expect(humanizeKey('')).toBe('');
   });
 });
