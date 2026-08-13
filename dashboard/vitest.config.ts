@@ -13,7 +13,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: false,
-    include: ['src/**/*.test.{ts,tsx}'],
+    // `scripts/` holds the repo's tooling (guard-pair checker, knip ratchet, the B-241 rename
+    // harness). It is not shipped and knip does not see it, but tooling that edits ~60 production
+    // files needs tests as much as the product does — so its tests run in the same suite. They
+    // declare `// @vitest-environment node`; jsdom would only cost time here.
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
     setupFiles: ['./src/test/setup.ts'],
     // B-099 — avisa quando `src/` muda DURANTE a execução. Um módulo reescrito
     // enquanto a suíte roda produz `Failed to resolve import` para quem estiver
