@@ -121,18 +121,7 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     /estadoDaLista\(|\berror=\{|\bisError\b/.test(fonte) ||
     // Um sinal de LEITURA que falhou — e não um status de domínio como `step.status === 'failed'`,
     // que foi o que uma primeira tentativa de alargamento capturou por engano.
-    // `erroDe\w*` and its English counterpart are the SAME signal: a local whose name says it
-    // holds a failure. Only the lower-case initial is accepted, so a TYPE import (`ApiError`) is
-    // not mistaken for a page consulting an error — that would turn a page that merely imports the
-    // type into a compliant one, which is a false NEGATIVE and worse than the miss it fixes.
-    //
-    // Added 2026-08-13 (B-241): the migration renamed `erroDescricao` to `descriptionError` in
-    // `promptly/create.tsx`, and this guard flagged the page for a defect it does not have — it
-    // still consults both errors, two lines apart. The guard was reading the vocabulary and the
-    // vocabulary moved. Same lesson B-238 and B-243 each recorded here, arriving from the other
-    // direction: last time the guard was too narrow for the code, this time the code moved out
-    // from under it.
-    /\.error\b|\berroDe\w*|\b[a-z]\w*Error\b|\bfalhou\b|\bfalharam\b/.test(fonte) ||
+    /\.error\b|\berroDe\w*|\bfalhou\b|\bfalharam\b/.test(fonte) ||
     /read failed|failed to load|Could not load|setError\(/i.test(fonte) ||
     // B-243 — três formas que telas JÁ CONFORMES usavam e o guarda não reconhecia. Medido
     // 2026-08-12: das 5 que restavam, 4 estavam corretas e foram acusadas por vocabulário.
@@ -179,7 +168,7 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
    * deste predicado tinha, e ele é silencioso.
    */
   const HOOKS_QUE_NAO_LEEM =
-    /^use(State|Effect|Memo|Callback|Ref|Context|Reducer|Id|Transition|DeferredValue|LayoutEffect|ImperativeHandle|SyncExternalStore|Params|Navigate|Location|SearchParams|Navigation|PageMeta|SetPageTitle|RequireAuth|Auth|Toast|Theme|Form|Debounce|Interval|Media|QueryClient|Editor)$/;
+    /^use(State|Effect|Memo|Callback|Ref|Context|Reducer|Id|Transition|DeferredValue|LayoutEffect|ImperativeHandle|SyncExternalStore|Params|Navigate|Location|SearchParams|Navigation|PageMeta|SetPageTitle|RequireAuth|Auth|Toast|Theme|Form|Debounce|Interval|Media|QueryClient|Editor|Mutation)$/;
 
   const iniciaLeitura = (fonte: string) => {
     if (/cloudFetch\w*\(|engineFetch\(|\bfetch\(|\buseQuery\(/.test(fonte)) return true;
@@ -260,6 +249,44 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     expect(consultaErro('<p>Could not reduce the list to a single row.</p>')).toBe(false);
     expect(consultaErro('const ilegal = true;')).toBe(false);
     expect(consultaErro("const status = 'nao-lidos-ainda';")).toBe(false);
+  });
+
+  it('B-241 — uma MUTAÇÃO não é leitura: quem só escreve não tem erro de leitura a consultar', () => {
+    // 2026-08-13. A migração de identificadores renomeou `erroDescricao` para `descriptionError`
+    // em `promptly/create.tsx` e o guarda acusou a página. A primeira correção que escrevi foi
+    // alargar `consultaErro` com `\b[a-z]\w*Error\b` — e a revisão mediu que aquilo isentava 93
+    // arquivos de uma vez, entre eles `throwOnError` (uma OPÇÃO de fetch), `onError` (callback de
+    // mutação) e `formatDeployError` (nome de função). Baixar o número alargando o vocabulário do
+    // guarda é precisamente o que o B-238 registrou neste arquivo.
+    //
+    // O predicado errado era o outro. `create.tsx` afirma ausência sobre `declaradas.length === 0`
+    // — uma conta LOCAL sobre o texto digitado, sem leitura nenhuma — e entrava na população por
+    // causa de `useMutation(`. Uma mutação é escrita: não existe leitura falha para ela consultar.
+    //
+    // As duas metades, e a segunda é o que faltava no alargamento revertido:
+    const soMutacao =
+      'const criar = useMutation({ mutationFn: postar });\n' +
+      'return vars.length === 0 ? <p>No variables in the text</p> : <List />;';
+    expect(afirmaAusencia(soMutacao)).toBe(true);
+    expect(iniciaLeitura(soMutacao), 'uma mutação foi contada como leitura').toBe(false);
+
+    // …e a página que LÊ de verdade continua na população, senão isto seria afrouxar.
+    const leEAfirma =
+      "const q = useQuery({ queryKey: ['x'] });\n" +
+      'return q.data.length === 0 ? <p>No items yet</p> : <List />;';
+    expect(afirmaAusencia(leEAfirma)).toBe(true);
+    expect(iniciaLeitura(leEAfirma)).toBe(true);
+    expect(consultaErro(leEAfirma), 'esta tela é culpada e tem de continuar sendo').toBe(false);
+  });
+
+  it('B-241 — o vocabulário do guarda NÃO foi alargado: um nome que termina em `Error` não isenta', () => {
+    // O contra-teste do alargamento revertido. Cada uma destas linhas contém um identificador
+    // terminado em `Error` e NENHUMA delas é a consulta de uma leitura que falhou. Se alguém
+    // reintroduzir `\b[a-z]\w*Error\b` em `consultaErro`, este caso fica vermelho.
+    expect(consultaErro('cloudFetch(url, {}, { throwOnError: true });')).toBe(false);
+    expect(consultaErro('useMutation({ mutationFn: f, onError: toast });')).toBe(false);
+    expect(consultaErro('const copy = formatDeployError(step);')).toBe(false);
+    expect(consultaErro('{validacao.nameError !== null ? <FormField.Error /> : null}')).toBe(false);
   });
 
   it('B-243 — LIMITE DECLARADO: a frase em PROSA excusa o arquivo, e isso é sabido', () => {

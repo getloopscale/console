@@ -6,7 +6,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RenameHarness, typescriptFilesUnder } from './rename-identifiers.mjs';
+import {
+  RenameHarness,
+  EditPlan,
+  applyCollisionOverrides,
+  isProductionFile,
+  typescriptFilesUnder,
+} from './rename-identifiers.mjs';
 
 /**
  * The B-241 harness, exercised against a real (tiny) project on disk.
@@ -198,6 +204,33 @@ describe('RenameHarness (B-241)', () => {
     expect(b).toContain('const nova = 2;');
   });
 
+  it('REFUSES a shorthand DESTRUCTURING too — the read direction, which is the worse one', () => {
+    // The guard shipped knowing only `return { nome }` (the write direction). Adversarial review
+    // 2026-08-13 found the mirror image unguarded: `const { nome } = await res.json()` renamed the
+    // KEY of an untyped payload read, reported `renamed`, and left `tsc` and the suite green while
+    // the field silently became `undefined` at runtime. The write direction at least breaks typed
+    // consumers loudly. Against a guard that only knows `isShorthandPropertyAssignment`, this case
+    // reports `renamed` and the file comes back with `const { name } = data`.
+    write(
+      'a.ts',
+      [
+        'export async function load(res: Response) {',
+        '  const data: any = await res.json();',
+        '  const { nome } = data;',
+        '  return nome;',
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const result = run({ nome: 'name' });
+
+    const outcome = result.outcomes.find((o) => o.name === 'nome');
+    expect(outcome.status).toBe('skipped');
+    expect(outcome.reason).toMatch(/shorthand destructuring/);
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain('const { nome } = data;');
+  });
+
   it('a symbol with TWO declarations produces one edit per occurrence, not two', () => {
     // Measured on the real run: `temContinuacao` is declared twice (a property signature and the
     // shape that consumes it), the scanner walks both, and the language service answers with the
@@ -237,5 +270,133 @@ describe('RenameHarness (B-241)', () => {
     } finally {
       rmSync(outside, { recursive: true, force: true });
     }
+  });
+
+  // Review 2026-08-13 mutated `#declares` one kind at a time: dropping `isFunctionDeclaration`,
+  // `isParameter`, `isInterfaceDeclaration`, `isTypeAliasDeclaration`, `isMethodDeclaration` or
+  // `isBindingElement` changed real behaviour (2 edits -> 0) and the suite stayed green. Only two
+  // of the eight kinds were exercised. `isBindingElement` is the sharpest: it carries an eight-line
+  // comment recording a measured failure and had nothing holding it.
+  //
+  // One case per kind, not a loop: each needs its own program build (~2.5s), and eight in one case
+  // blew the 20s timeout. It also means a failure names the kind that broke.
+  const KINDS = [
+    ['variable', 'alvo', 'target', 'export const alvo = 1;'],
+    ['function declaration', 'salvar', 'save', 'export function salvar() { return 1; }'],
+    ['parameter', 'arquivo', 'file', 'export function f(arquivo: string) { return arquivo; }'],
+    ['interface', 'Alvo', 'Target', 'export interface Alvo { id: string }'],
+    ['type alias', 'Recorte', 'Scope', 'export type Recorte = string;'],
+    ['property signature', 'chave', 'key', 'export interface X { chave: string }'],
+    ['method', 'salvar', 'save', 'export class C { salvar() { return 1; } }'],
+    [
+      'binding element',
+      'setAlvo',
+      'setTarget',
+      'import { useState } from "react";\nexport function f() { const [t, setAlvo] = useState(1); return setAlvo; }',
+    ],
+  ];
+
+  for (const [kind, name, target, source] of KINDS) {
+    it(`renames a ${kind} — the declaration kind is covered`, () => {
+      write('a.ts', `${source}\n`);
+
+      const result = run({ [name]: target });
+
+      expect(result.outcomes.find((o) => o.name === name).status).toBe('renamed');
+      // A NON-ZERO edit count: review found no case asserted one, so `edits: plan.size -> 0`
+      // survived as a mutant.
+      expect(result.edits).toBeGreaterThan(0);
+      expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain(target);
+    });
+  }
+
+  it('does NOT rename a declaration in a test file — the population is production only', () => {
+    // `isProductionFile` had no test: turning it into `return true` renamed a declaration inside
+    // `a.test.ts`, which the ratchet does not count. Work that moves code without moving the number.
+    write('a.test.ts', 'export const alvo = 1;\n');
+
+    const result = run({ alvo: 'target' });
+
+    expect(result.outcomes.find((o) => o.name === 'alvo').status).toBe('not-found');
+    expect(readFileSync(join(dir, 'a.test.ts'), 'utf8')).toBe('export const alvo = 1;\n');
+  });
+
+  it('judges `src/test` RELATIVE to the root, not against the absolute path', () => {
+    // A checkout living under any directory whose path contains `src/test` classified the entire
+    // codebase as tests: every declaration skipped, `renamed: 0`, no error, ratchet frozen.
+    expect(isProductionFile('/home/dev/src/test/checkout/src/pages/a.tsx', '/home/dev/src/test/checkout/src')).toBe(true);
+    expect(isProductionFile('/p/src/test/helper.ts', '/p/src')).toBe(false);
+    expect(isProductionFile('/p/src/pages/foo/test/helper.ts', '/p/src')).toBe(false);
+    expect(isProductionFile('/p/src/pages/a.test.tsx', '/p/src')).toBe(false);
+  });
+});
+
+describe('EditPlan — the safety net, reachable because it is exported', () => {
+  // Review 2026-08-13 deleted the `#refuseOverlap(...)` call entirely and the suite stayed green:
+  // within a single run two symbols cannot share an occurrence (both would carry the same spelling,
+  // hence the same map key and the same replacement, which `#deduplicate` collapses first). The
+  // module comment claimed "the disjointness is not assumed" while the refusal was unreachable, and
+  // a comment in the test file cited a case proving it that did not exist. Exporting the class is
+  // what makes the claim testable instead of decorative.
+
+  it('THROWS on two edits claiming one span with different text', () => {
+    const plan = new EditPlan();
+    plan.add('/x/a.ts', 13, 4, 'name');
+    plan.add('/x/a.ts', 13, 4, 'label');
+
+    expect(() => plan.render(() => 'export const nome = 1;\n')).toThrow(/overlapping rename spans/);
+  });
+
+  it('THROWS on partially overlapping spans', () => {
+    const plan = new EditPlan();
+    plan.add('/x/a.ts', 13, 4, 'name');
+    plan.add('/x/a.ts', 15, 4, 'label');
+
+    expect(() => plan.render(() => 'export const nomeDoCampo = 1;\n')).toThrow(/overlapping rename spans/);
+  });
+
+  it('collapses the identical edit and renders it once', () => {
+    const plan = new EditPlan();
+    plan.add('/x/a.ts', 13, 4, 'name');
+    plan.add('/x/a.ts', 13, 4, 'name');
+
+    expect(plan.render(() => 'export const nome = 1;\n').get('/x/a.ts')).toBe('export const name = 1;\n');
+  });
+});
+
+describe('applyCollisionOverrides — one harness per entry, or edits vanish', () => {
+  // BLOCKER found by adversarial review 2026-08-13. `InMemoryProject` snapshots its files at
+  // construction and never re-reads after writing, so reusing one harness across override entries
+  // planned entry n+1 against the PRISTINE text and wrote the whole file back — discarding entry
+  // n's edits in any shared file while reporting both `renamed`.
+  //
+  // Against the old single-harness version this case fails: `consumer.ts` comes back importing
+  // `nome` from a module that exports `promptName`, and the program no longer compiles.
+
+  it('two overrides touching a COMMON file both survive', () => {
+    write('one.ts', 'export const nome = 1;\n');
+    write('two.ts', 'export const linhas = 2;\n');
+    write(
+      'consumer.ts',
+      'import { nome } from "./one";\nimport { linhas } from "./two";\nexport const total = nome + linhas;\n',
+    );
+    const overrides = join(dir, 'overrides.json');
+    writeFileSync(
+      overrides,
+      JSON.stringify({ 'one.ts': { nome: 'promptName' }, 'two.ts': { linhas: 'usageRows' } }),
+      'utf8',
+    );
+
+    applyCollisionOverrides(
+      () => new RenameHarness({ root: dir, files: typescriptFilesUnder(dir) }),
+      overrides,
+    );
+
+    expect(readFileSync(join(dir, 'one.ts'), 'utf8')).toBe('export const promptName = 1;\n');
+    expect(readFileSync(join(dir, 'two.ts'), 'utf8')).toBe('export const usageRows = 2;\n');
+    const consumer = readFileSync(join(dir, 'consumer.ts'), 'utf8');
+    expect(consumer).toContain('import { promptName } from "./one";');
+    expect(consumer).toContain('import { usageRows } from "./two";');
+    expect(consumer).toContain('export const total = promptName + usageRows;');
   });
 });

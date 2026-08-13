@@ -3,7 +3,7 @@
 
 import ts from 'typescript';
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 /**
  * Type-aware identifier migration for B-241 — Portuguese declarations to English.
@@ -112,7 +112,7 @@ class DeclarationScanner {
  * the length delta, so the second edit on a line lands in the wrong place. Sorting descending keeps
  * every pending offset valid.
  */
-class EditPlan {
+export class EditPlan {
   constructor() {
     /** @type {Map<string, {start:number,length:number,text:string}[]>} */
     this.byFile = new Map();
@@ -260,6 +260,35 @@ class InMemoryProject {
  *
  * Unbreakable Rule 8: the ambiguous case fails loudly, and the override is explicit.
  */
+/**
+ * The two shorthand shapes, or `undefined` when the identifier is not one.
+ *
+ * There are TWO, and the first version of this guard only knew one. `return { nome }` is the WRITE
+ * direction — a `ShorthandPropertyAssignment`. `const { nome } = await res.json()` is the READ
+ * direction — a `BindingElement` with no `propertyName` inside an `ObjectBindingPattern` — and
+ * missing it was strictly worse than missing the other: the write direction at least breaks typed
+ * consumers loudly, while a destructuring read against an `any` payload compiles clean, keeps the
+ * suite green, and silently yields `undefined` at runtime. Which is verbatim the failure the
+ * docblock above says this guard exists to prevent.
+ *
+ * Found by adversarial review 2026-08-13 with a fixture that renamed `const { nome } = data` to
+ * `const { name } = data` and reported `renamed`, not `skipped`.
+ */
+function shorthandShapeOf(node) {
+  const parent = node.parent;
+  if (parent === undefined) return undefined;
+  if (ts.isShorthandPropertyAssignment(parent)) return 'shorthand property';
+  if (
+    ts.isBindingElement(parent) &&
+    parent.propertyName === undefined &&
+    parent.parent !== undefined &&
+    ts.isObjectBindingPattern(parent.parent)
+  ) {
+    return 'shorthand destructuring';
+  }
+  return undefined;
+}
+
 class ShorthandGuard {
   constructor(project) {
     this.project = project;
@@ -276,10 +305,11 @@ class ShorthandGuard {
         continue;
       }
       const node = this.#tokenAt(sourceFile, location.textSpan.start);
-      if (node !== undefined && node.parent !== undefined && ts.isShorthandPropertyAssignment(node.parent)) {
+      const shape = node === undefined ? undefined : shorthandShapeOf(node);
+      if (shape !== undefined) {
         const { line } = sourceFile.getLineAndCharacterOfPosition(location.textSpan.start);
         return (
-          `a shorthand property at ${location.fileName}:${String(line + 1)} would have its KEY renamed ` +
+          `a ${shape} at ${location.fileName}:${String(line + 1)} would have its KEY renamed ` +
           'with the variable — expand it to `{ key: value }` by hand and decide which name is the key'
         );
       }
@@ -316,8 +346,9 @@ class RenameOutcome {
  * safe and the fast path.
  */
 class SymbolRenamer {
-  constructor(project, { allowShorthand = false } = {}) {
+  constructor(project, { allowShorthand = false, root } = {}) {
     this.project = project;
+    this.root = root;
     this.shorthand = allowShorthand ? undefined : new ShorthandGuard(project);
   }
 
@@ -340,7 +371,7 @@ class SymbolRenamer {
 
     for (const fileName of this.project.fileNames) {
       if (declaredIn === undefined) {
-        if (!isProductionFile(fileName)) continue;
+        if (!isProductionFile(fileName, this.root)) continue;
       } else if (!fileName.endsWith(declaredIn)) continue;
       for (const declaration of scanner.scan(fileName, this.project.sourceFile(fileName))) {
         const target = map[declaration.name];
@@ -422,9 +453,10 @@ export class RenameHarness {
    * @param {{write?: boolean}} options
    */
   run(map, { write = true, declaredIn, allowShorthand = false } = {}) {
-    const { plan, outcomes } = new SymbolRenamer(this.project, { allowShorthand }).planAll(map, {
-      declaredIn,
-    });
+    const { plan, outcomes } = new SymbolRenamer(this.project, {
+      allowShorthand,
+      root: this.root,
+    }).planAll(map, { declaredIn });
     const rendered = plan.render((f) => this.project.read(f));
 
     for (const fileName of rendered.keys()) {
@@ -456,10 +488,15 @@ export class RenameHarness {
  * USAGES in those files still follow: they are in the program, and a symbol renamed without its
  * test usages does not compile.
  */
-export function isProductionFile(fileName) {
+export function isProductionFile(fileName, root) {
   const normalized = fileName.replace(/\\/g, '/');
   if (/\.(test|spec)\.tsx?$/.test(normalized)) return false;
-  return !normalized.includes('/src/test/');
+  // RELATIVE to the root, never absolute. Judging the absolute path meant a checkout living under
+  // any directory whose name contains `src/test` classified the WHOLE codebase as tests: every
+  // declaration skipped, `renamed: 0` reported, no error, and the ratchet never moving. Found by
+  // adversarial review 2026-08-13 against `/home/dev/src/test/checkout/.../src/pages/a.tsx`.
+  const rel = root === undefined ? normalized : relative(root, fileName).replace(/\\/g, '/');
+  return !rel.split('/').includes('test');
 }
 
 /**
@@ -489,7 +526,11 @@ export function typescriptFilesUnder(dir, out = []) {
     if (entry === 'node_modules' || entry === 'vendor') continue;
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) typescriptFilesUnder(path, out);
-    else if (/\.tsx?$/.test(entry) && !/\.d\.ts$/.test(entry)) out.push(path);
+    // `.d.ts` INCLUDED, to match `arquivosDeProducao` in `src/test/i18n-guard.ts`, whose
+    // `/\.tsx?$/` matches them too. Excluding them made the harness blind to a file the ratchet
+    // counts — the module claims the two mirror each other, and this was the one divergence
+    // (latent only because `vite-env.d.ts` happens to hold no Portuguese). Found by review.
+    else if (/\.tsx?$/.test(entry)) out.push(path);
   }
   return out;
 }
@@ -505,12 +546,25 @@ export function typescriptFilesUnder(dir, out = []) {
  * Applied BEFORE the shared map, so by the time the shared map runs the colliding name is gone from
  * that file. Ordering matters and is the whole reason this is a file rather than two commands
  * somebody has to remember to run in sequence.
+ *
+ * ## A FRESH HARNESS PER ENTRY, and it is not an optimisation to remove
+ *
+ * `InMemoryProject` snapshots every file at construction and never re-reads after `writeFileSync`.
+ * Reusing one harness across entries therefore plans entry n+1 against the PRISTINE text and writes
+ * the whole file back — silently discarding entry n's edits in any file the two have in common,
+ * while reporting both as `renamed`.
+ *
+ * Found by adversarial review 2026-08-13, reproduced with two overrides sharing one consumer:
+ * `one.ts` exported `promptName` while `consumer.ts` still imported `nome`, the program no longer
+ * compiled, and the script printed `6 edit(s)` and zero failures. With six entries across six files
+ * this was armed, not theoretical — it had simply not yet been triggered by an overlap.
  */
-async function applyCollisionOverrides(harness, overridesPath) {
+export function applyCollisionOverrides(buildHarness, overridesPath) {
   const overrides = JSON.parse(readFileSync(overridesPath, 'utf8'));
   let edits = 0;
   for (const [file, map] of Object.entries(overrides)) {
-    const result = harness.run(map, { declaredIn: file, allowShorthand: true });
+    // Rebuilt per entry: see the docblock. The cost is one program build per override — six, here.
+    const result = buildHarness().run(map, { declaredIn: file, allowShorthand: true });
     edits += result.edits;
     for (const outcome of result.outcomes) {
       if (outcome.status !== 'renamed') {
@@ -537,22 +591,20 @@ async function main(argv) {
 
   const projectRoot = resolve('.');
   const root = resolve('src');
-  let harness = new RenameHarness({
-    root,
-    files: typescriptFilesUnder(root),
-    compilerOptions: compilerOptionsFrom(resolve('tsconfig.json'), projectRoot),
-  });
-  const collisionsFlag = argv.indexOf('--collisions');
-  if (collisionsFlag !== -1 && !argv.includes('--dry-run')) {
-    await applyCollisionOverrides(harness, argv[collisionsFlag + 1]);
-    // A FRESH harness: the one above wrote to disk, so its in-memory texts are now stale, and
-    // planning the shared map against stale text would write the file back over the overrides.
-    harness = new RenameHarness({
+  const buildHarness = () =>
+    new RenameHarness({
       root,
       files: typescriptFilesUnder(root),
       compilerOptions: compilerOptionsFrom(resolve('tsconfig.json'), projectRoot),
     });
+
+  const collisionsFlag = argv.indexOf('--collisions');
+  if (collisionsFlag !== -1 && !argv.includes('--dry-run')) {
+    applyCollisionOverrides(buildHarness, argv[collisionsFlag + 1]);
   }
+  // Built AFTER the overrides wrote: a harness snapshots its files at construction, so one made
+  // earlier would plan against stale text and write the overrides back out.
+  const harness = buildHarness();
 
   const result = harness.run(map, {
     write: !argv.includes('--dry-run'),
