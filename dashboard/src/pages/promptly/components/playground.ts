@@ -24,7 +24,7 @@ export interface VariableField {
  * sabe, em vez de inventar um motivo.
  */
 export type Falha =
-  | { readonly tipo: 'validacao'; readonly variavelFaltante?: string; readonly reason?: string }
+  | { readonly tipo: 'validacao'; readonly missingVariable?: string; readonly reason?: string }
   | { readonly tipo: 'provider'; readonly message?: string; readonly providerStatus?: number }
   | { readonly tipo: 'sessao' }
   | { readonly tipo: 'transporte' };
@@ -115,8 +115,8 @@ export function classificarFalha(failure: unknown): Falha {
 
   if (failure.status === 400) {
     if (code === 'missing_variable') {
-      const variavel = text(body.variable);
-      return { tipo: 'validacao', ...(variavel !== undefined ? { variavelFaltante: variavel } : {}) };
+      const variable = text(body.variable);
+      return { tipo: 'validacao', ...(variable !== undefined ? { missingVariable: variable } : {}) };
     }
     const reason = text(body.reason) ?? text(body.message);
     return { tipo: 'validacao', ...(reason !== undefined ? { reason } : {}) };

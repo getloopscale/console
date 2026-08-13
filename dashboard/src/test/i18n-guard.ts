@@ -230,6 +230,21 @@ const SUPLEMENTO_IDENTIFICADORES = new Set([
   'trecho', 'trechos', 'raiz', 'alvo', 'alvos', 'origem', 'destino',
   'motivo', 'motivos', 'razao', 'razoes', 'passo', 'passos', 'ordem',
   'tamanho', 'contagem', 'nucleo', 'fonte', 'fontes', 'corpo', 'cabecalho',
+  // B-279, 2026-08-13 — a cauda, medida depois que o corpo saiu.
+  //
+  // O zero que o guard reportava era um zero POR ESTE DETECTOR, e estas dezesseis palavras eram o
+  // que ele nao via. Foram dimensionadas primeiro por `grep -rlw`, que conta ARQUIVOS QUE CITAM a
+  // palavra — prosa em comentario inclusa, que a convencao permite — e deu `inteiro` 84 e
+  // `mostrar` 37. Contadas como DECLARACOES, pelas mesmas regras que `varrerIdentificadores` usa,
+  // sao 1 e 1. As dezesseis juntas revelam 46 ocorrencias.
+  //
+  // Cada uma passa o mesmo teste de admissao do docblock acima: nao existe em ingles, e nao e
+  // cognato de uma letra. Nenhuma entra no `MARCADOR` — ele e lido tambem pelo `varrerInterface`,
+  // o guard ATIVO sobre texto de tela, e alargar aquela lista apertaria os dois consumidores de
+  // uma vez. Esta lista alimenta so o `ehIdentificadorPT`.
+  'rotulo', 'rotulos', 'linguagem', 'variavel', 'variaveis',
+  'ultima', 'ultimo', 'resolucao', 'intencao', 'normalizar',
+  'bruto', 'bruta', 'vistas', 'endereco', 'mostrar', 'inteiro',
 ]);
 
 /**

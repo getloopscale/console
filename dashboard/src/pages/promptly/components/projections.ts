@@ -157,8 +157,8 @@ export function catalogSummary(rows: readonly CatalogRow[], hasContinuation: boo
   let withoutEnvironment = 0;
 
   for (const row of rows) {
-    const ultima = Number.isFinite(row.latestVersion) ? row.latestVersion : 0;
-    publishedRevisions += ultima;
+    const latest = Number.isFinite(row.latestVersion) ? row.latestVersion : 0;
+    publishedRevisions += latest;
 
     const labels = Array.isArray(row.labels) ? row.labels : [];
     const servidos = servedEnvironments(labels);
@@ -167,7 +167,7 @@ export function catalogSummary(rows: readonly CatalogRow[], hasContinuation: boo
     // se reportava como promovido em algum lugar enquanto não servia ninguém. O predicado é "quantos
     // ambientes ele de fato serve", que é o que `ambientesServidos` responde.
     if (servidos.size === 0) withoutEnvironment += 1;
-    if (ultima > maiorVersaoServida(labels)) notPromoted += 1;
+    if (latest > maiorVersaoServida(labels)) notPromoted += 1;
   }
 
   return {
@@ -257,9 +257,9 @@ function resumirLabels(labels: CatalogEntry['labels']): string {
  * corpo inteiro de cada revisão numa lista é o editor que este milestone exclui.
  */
 /** Lê `variables` do corpo do serviço. Ausente ou malformado ⇒ lista vazia — nunca adivinhado. */
-function variaveisDeclaradas(r: unknown): string[] {
-  const bruto = (r as { variables?: unknown }).variables;
-  return Array.isArray(bruto) ? bruto.filter((v): v is string => typeof v === 'string') : [];
+function declaredVariables(r: unknown): string[] {
+  const raw = (r as { variables?: unknown }).variables;
+  return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
 }
 
 /** Extrai a config de uma revisão, tolerando forma inválida (vira `null`). */
@@ -280,7 +280,7 @@ export function revisionRows(payload: unknown): RevisionRow[] {
       version: r.version,
       createdAt: r.createdAt,
       content: typeof r.content === 'string' ? r.content : '',
-      variables: variaveisDeclaradas(r),
+      variables: declaredVariables(r),
       // Defensivo: um campo malformado vindo do serviço vira `null` em vez de derrubar
       // a lista inteira. O conteúdo da revisão é o valor central desta tela.
       changeDescription: typeof r.changeDescription === 'string' ? r.changeDescription : null,
@@ -417,9 +417,9 @@ export function comentarioRows(payload: unknown): ComentarioRow[] {
  * carimbo é o único eixo temporal de quem lê a discussão; se ele exige decodificar um ISO de
  * cabeça, ele não está sendo lido, está sendo pulado.
  */
-function whenReadable(bruto: unknown): string {
-  if (typeof bruto !== 'string' || bruto === '') return '';
-  const d = new Date(bruto);
+function whenReadable(raw: unknown): string {
+  if (typeof raw !== 'string' || raw === '') return '';
+  const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleString('pt-BR', {
     day: '2-digit',

@@ -99,8 +99,8 @@ export function PromptlyCatalogPage() {
     'nao-promovidos': 'not-promoted',
     'sem-ambiente': 'no-environment',
   };
-  const bruto = params.get('recorte');
-  const normalizado = bruto !== null && bruto in ANTIGOS ? ANTIGOS[bruto] : bruto;
+  const raw = params.get('recorte');
+  const normalizado = raw !== null && raw in ANTIGOS ? ANTIGOS[raw] : raw;
   const scope = isValidScope(normalizado) ? normalizado : null;
   const perPage = isValidSize(params.get('porPagina'));
 
@@ -177,12 +177,12 @@ export function PromptlyCatalogPage() {
    * divergir do nome — e a primeira divergência é silenciosa.
    */
   const folders = useMemo(() => {
-    const vistas = new Set<string>();
+    const seen = new Set<string>();
     for (const r of rows) {
       const i = r.name.indexOf('/');
-      if (i > 0) vistas.add(r.name.slice(0, i));
+      if (i > 0) seen.add(r.name.slice(0, i));
     }
-    return [...vistas].sort();
+    return [...seen].sort();
   }, [rows]);
 
   const filtrando = search !== '' || tag !== '' || folder !== '' || scope !== null;

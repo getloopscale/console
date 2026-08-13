@@ -18,7 +18,7 @@ describe('frasePreRollback — o que o diálogo promete ANTES de chamar', () => 
   it('rollback_dialog_names_the_new_revision_it_creates', () => {
     // Medido: reverter CRIA revisão nova. Um texto de "volta para a v1" faz o operador esperar
     // o histórico encolher, e ele nunca encolhe.
-    const frase = frasePreRollback({ name: 'saudacao', toVersion: 1, ultimaVersao: 4, label: 'prod' });
+    const frase = frasePreRollback({ name: 'saudacao', toVersion: 1, latestVersion: 4, label: 'prod' });
     expect(frase).toContain('v5');
     expect(frase).toContain('v1');
     expect(frase).toContain('prod');
@@ -26,7 +26,7 @@ describe('frasePreRollback — o que o diálogo promete ANTES de chamar', () => 
   });
 
   it('rollback_dialog_says_no_label_moves_when_none_was_chosen', () => {
-    const frase = frasePreRollback({ name: 'x', toVersion: 1, ultimaVersao: 2, label: null });
+    const frase = frasePreRollback({ name: 'x', toVersion: 1, latestVersion: 2, label: null });
     expect(frase).toContain('no label');
   });
 });

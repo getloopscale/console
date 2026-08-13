@@ -69,7 +69,7 @@ export function BundleDetailPage() {
   const invalidarBundles = useInvalidateBundles();
 
   const [ttlDias, setTtlDias] = useState('30');
-  const [rotulo, setRotulo] = useState('');
+  const [label, setLabel] = useState('');
   const [segredo, setSegredo] = useState<string | null>(null);
   const [failure, setErro] = useState<string | null>(null);
   const [aRevogar, setARevogar] = useState<TokenRow | null>(null);
@@ -115,7 +115,7 @@ export function BundleDetailPage() {
       // O valor vive AQUI e só aqui. Guardá-lo em estado é o que permite mostrá-lo uma vez; a
       // listagem, por desenho do serviço, nunca o devolve de novo.
       setSegredo(typeof data?.token === 'string' ? data.token : null);
-      setRotulo('');
+      setLabel('');
       invalidarBundles();
     },
     onError: (err) => setErro(promotionRefusal(err, 'Could not issue the token.')),
@@ -161,13 +161,13 @@ export function BundleDetailPage() {
       label: 'Status',
       // Texto, nunca só cor (WCAG 1.4.1): as três situações levam a ações diferentes.
       render: (row) => {
-        const rotulos: Record<TokenRow['status'], { text: string; variante: 'success' | 'warning' | 'outline' }> = {
+        const labels: Record<TokenRow['status'], { text: string; variante: 'success' | 'warning' | 'outline' }> = {
           active: { text: 'active', variante: 'success' },
           expired: { text: 'expired', variante: 'warning' },
           revoked: { text: 'revoked', variante: 'outline' },
           unknown: { text: 'unknown status', variante: 'warning' },
         };
-        const { text, variante } = rotulos[row.status];
+        const { text, variante } = labels[row.status];
         return <Badge variant={variante}>{text}</Badge>;
       },
     },
@@ -410,7 +410,7 @@ export function BundleDetailPage() {
             e.preventDefault();
             const days = Number(ttlDias);
             if (!Number.isFinite(days) || days <= 0) return;
-            emitir.mutate({ ttl: days, label: rotulo.trim() });
+            emitir.mutate({ ttl: days, label: label.trim() });
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
@@ -429,8 +429,8 @@ export function BundleDetailPage() {
             <Input
               aria-label="Token label"
               placeholder="e.g. CI pipeline"
-              value={rotulo}
-              onChange={(e) => setRotulo(e.target.value)}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
             />
           </label>
           <Button type="submit" disabled={emitir.isPending || Number(ttlDias) <= 0}>

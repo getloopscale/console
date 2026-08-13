@@ -116,7 +116,7 @@ describe('classificarFalha — DoD-5: o motivo do provider, ou o genérico hones
   it('nomeia a variavel faltante, para a tela poder apontar o campo', () => {
     const f = classificarFalha(new ApiError(400, { error: 'missing_variable', variable: 'artigo' }));
 
-    expect(f).toMatchObject({ tipo: 'validacao', variavelFaltante: 'artigo' });
+    expect(f).toMatchObject({ tipo: 'validacao', missingVariable: 'artigo' });
   });
 
   /**

@@ -14,7 +14,7 @@
 export interface Aba {
   readonly id: 'conteudo' | 'config' | 'producao' | 'consumo';
   readonly sufixo: string;
-  readonly rotulo: string;
+  readonly label: string;
   /** A pergunta que ela responde — vai para a tela, não é comentário. */
   readonly pergunta: string;
 }
@@ -23,25 +23,25 @@ export const ABAS: readonly Aba[] = [
   {
     id: 'conteudo',
     sufixo: '',
-    rotulo: 'Content',
+    label: 'Content',
     pergunta: 'What this prompt says',
   },
   {
     id: 'config',
     sufixo: 'config',
-    rotulo: 'Config',
+    label: 'Config',
     pergunta: 'What tuning it runs with',
   },
   {
     id: 'producao',
     sufixo: 'production',
-    rotulo: 'Production usage',
+    label: 'Production usage',
     pergunta: 'Who used it, and what it cost',
   },
   {
     id: 'consumo',
     sufixo: 'consumption',
-    rotulo: 'How to consume',
+    label: 'How to consume',
     pergunta: 'How do I call this from my code',
   },
 ];

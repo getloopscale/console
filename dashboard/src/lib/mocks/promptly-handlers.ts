@@ -129,13 +129,13 @@ export function registerPromptlyHandlers() {
  * As variáveis declaradas por um conteúdo — mesma regra do serviço: os tokens `{{identificador}}`,
  * na ordem de primeira aparição, sem repetição. A presença É a declaração.
  */
-function variaveisDe(content: string): string[] {
-  const vistas = new Set<string>();
+function variablesOf(content: string): string[] {
+  const seen = new Set<string>();
   for (const m of content.matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)) {
     const promptName = m[1];
-    if (promptName !== undefined) vistas.add(promptName);
+    if (promptName !== undefined) seen.add(promptName);
   }
-  return [...vistas];
+  return [...seen];
 }
 
 function registerPromptlyRoutes(base: string) {
@@ -154,8 +154,8 @@ function registerPromptlyRoutes(base: string) {
    */
   registerRoute('GET', `${base}/prompts`, async (req) => {
     const url = new URL(req.url, 'http://localhost');
-    const bruto = url.searchParams.get('limit');
-    const limit = bruto !== null && Number.isInteger(Number(bruto)) && Number(bruto) > 0 ? Number(bruto) : 100;
+    const raw = url.searchParams.get('limit');
+    const limit = raw !== null && Number.isInteger(Number(raw)) && Number(raw) > 0 ? Number(raw) : 100;
 
     // M16 — o mock FILTRA, como o serviço. Um mock que ignora `search`/`tag`/`folder` devolveria
     // a lista inteira para uma busca, e o e2e ficaria verde sobre uma tela que exibe linhas que
@@ -226,8 +226,8 @@ function registerPromptlyRoutes(base: string) {
     if (!revs || revs.length === 0) {
       return Response.json({ error: 'prompt_not_found', name }, { status: 404 });
     }
-    const ultima = revs[revs.length - 1]!;
-    return Response.json({ ...ultima, name: decodeURIComponent(name), variables: variaveisDe(ultima.content) });
+    const latest = revs[revs.length - 1]!;
+    return Response.json({ ...latest, name: decodeURIComponent(name), variables: variablesOf(latest.content) });
   });
 
   /**
@@ -251,18 +251,18 @@ function registerPromptlyRoutes(base: string) {
     if (!revs || revs.length === 0) {
       return Response.json({ error: 'prompt_not_found', name: target }, { status: 404 });
     }
-    const ultima = revs[revs.length - 1]!;
-    const resolved = ultima.content.replace(
+    const latest = revs[revs.length - 1]!;
+    const resolved = latest.content.replace(
       /(?<!@)@@@promptly:name=([^@\s|]+)\|version=(\d+)@@@/g,
-      (inteiro, promptName: string, versao: string) => {
+      (whole, promptName: string, versao: string) => {
         const targetRev = (promptlyDb.revisions[promptName] ?? []).find((r) => r.version === Number(versao));
-        return targetRev?.content ?? inteiro;
+        return targetRev?.content ?? whole;
       },
     );
     return Response.json({
-      ...ultima,
+      ...latest,
       name: target,
-      variables: variaveisDe(ultima.content),
+      variables: variablesOf(latest.content),
       resolvedContent: resolved,
     });
   });
@@ -303,7 +303,7 @@ function registerPromptlyRoutes(base: string) {
     const content = body.content ?? '';
     const variables = body.variables ?? {};
 
-    const faltante = variaveisDe(content).find((v) => (variables[v] ?? '').trim() === '');
+    const faltante = variablesOf(content).find((v) => (variables[v] ?? '').trim() === '');
     if (faltante !== undefined) {
       return Response.json({ error: 'missing_variable', variable: faltante }, { status: 400 });
     }

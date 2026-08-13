@@ -67,7 +67,7 @@ export function PromptHeader({ promptName, latestVersion, abaAtiva }: Props) {
               : 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
           }
         >
-          {aba.rotulo}
+          {aba.label}
         </Link>
       ))}
     </nav>

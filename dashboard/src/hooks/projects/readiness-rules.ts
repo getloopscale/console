@@ -30,7 +30,7 @@ export interface Medidas {
   readonly statusIndisponivel: boolean;
   /** `useDeployments` falhou. */
   readonly deploysIndisponiveis: boolean;
-  readonly ultimoDeploy: unknown;
+  readonly lastDeploy: unknown;
   readonly replicasDesejadas: number;
   readonly replicasProntas: number;
   readonly alertasAtivos: number;
@@ -62,7 +62,7 @@ export function lerMedidas(entrada: {
     projetoIndisponivel: !entrada.projeto,
     statusIndisponivel: Boolean(entrada.statusError) || !entrada.status,
     deploysIndisponiveis: Boolean(entrada.deploysError),
-    ultimoDeploy: entrada.projeto?.last_deploy ?? null,
+    lastDeploy: entrada.projeto?.last_deploy ?? null,
     replicasDesejadas: entrada.status?.replicas_desired ?? 0,
     replicasProntas: entrada.status?.replicas_ready ?? 0,
     alertasAtivos: entrada.status?.alerts_active ?? 0,
@@ -76,7 +76,7 @@ type Regra = (m: Medidas) => ReadinessStatus;
 export const REGRAS: Readonly<Record<SignalName, Regra>> = {
   // Proxy de auto-deploy: um `last_deploy` não-nulo significa que o repositório construiu ao menos
   // uma vez — logo, a cadeia de auto-deploy está ligada.
-  auto_deploy: (m) => (m.projetoIndisponivel ? 'unknown' : m.ultimoDeploy ? 'pass' : 'fail'),
+  auto_deploy: (m) => (m.projetoIndisponivel ? 'unknown' : m.lastDeploy ? 'pass' : 'fail'),
 
   // HPA configurado = mais de uma réplica desejada (alguém escolheu uma postura de escala
   // não-trivial).

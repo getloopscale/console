@@ -6,7 +6,7 @@ const medidas = (over: Partial<Medidas> = {}): Medidas => ({
   projetoIndisponivel: false,
   statusIndisponivel: false,
   deploysIndisponiveis: false,
-  ultimoDeploy: null,
+  lastDeploy: null,
   replicasDesejadas: 0,
   replicasProntas: 0,
   alertasAtivos: 0,
@@ -77,8 +77,8 @@ describe('o que não dá para medir fica unknown, nunca fail', () => {
     // A sonda cross-tenant devolve 401 e o projeto não resolve. Marcar `fail` aí diria que o
     // auto-deploy do projeto está quebrado quando o que houve foi uma recusa de permissão.
     expect(REGRAS.auto_deploy(medidas({ projetoIndisponivel: true }))).toBe('unknown');
-    expect(REGRAS.auto_deploy(medidas({ ultimoDeploy: null }))).toBe('fail');
-    expect(REGRAS.auto_deploy(medidas({ ultimoDeploy: '2026-08-11' }))).toBe('pass');
+    expect(REGRAS.auto_deploy(medidas({ lastDeploy: null }))).toBe('fail');
+    expect(REGRAS.auto_deploy(medidas({ lastDeploy: '2026-08-11' }))).toBe('pass');
   });
 });
 

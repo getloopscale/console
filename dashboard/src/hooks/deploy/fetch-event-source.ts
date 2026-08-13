@@ -188,17 +188,17 @@ export class FetchEventSource {
     // grande (o caso comum num log) chegaria cortado sem este buffer.
     const partes = this.resto.split('\n\n');
     this.resto = partes.pop() ?? '';
-    for (const bruto of partes) {
-      const frame = this.parsear(bruto);
+    for (const raw of partes) {
+      const frame = this.parsear(raw);
       if (frame) this.despachar(frame);
     }
   }
 
-  private parsear(bruto: string): Frame | null {
+  private parsear(raw: string): Frame | null {
     const dados: string[] = [];
     let tipo = 'message';
     let id = '';
-    for (const row of bruto.split('\n')) {
+    for (const row of raw.split('\n')) {
       // Comentário de keep-alive. Proxies mandam a cada poucos segundos;
       // tratá-lo como evento entregaria lixo ao reducer o tempo todo.
       if (row.startsWith(':') || row === '') continue;

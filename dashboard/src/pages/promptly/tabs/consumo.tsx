@@ -105,7 +105,7 @@ export function ConsumptionTab({ target, unreadableEnvironments, promptIlegivel 
             ) : (
               <>
                 {' '}
-                by version <code className="font-mono text-xs">v{target.ultimaVersao}</code>, because
+                by version <code className="font-mono text-xs">v{target.latestVersion}</code>, because
                 no environment points at it yet.
               </>
             )}
@@ -117,11 +117,11 @@ export function ConsumptionTab({ target, unreadableEnvironments, promptIlegivel 
             return (
               <div key={iface.id} className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium">{iface.rotulo}</h3>
+                  <h3 className="text-sm font-medium">{iface.label}</h3>
                   <Button
                     variant="secondary"
                     size="sm"
-                    aria-label={`Copy the ${iface.rotulo} snippet`}
+                    aria-label={`Copy the ${iface.label} snippet`}
                     onClick={() => {
                       // `writeText` pode falhar (permissão negada, contexto inseguro). Falhar em
                       // silêncio deixaria o operador colando o que estava antes na área de

@@ -44,7 +44,7 @@ export function PainelDeAbas({ usageByRevision, labels, dependentsRows, dependen
         ilegivel={Boolean(prompt.error)}
         versao={latestVersion}
         modelConfig={prompt.data?.modelConfig ?? null}
-        variaveis={prompt.data?.variables ?? []}
+        variables={prompt.data?.variables ?? []}
       />
     ) : null}
 
@@ -71,13 +71,13 @@ export function PainelDeAbas({ usageByRevision, labels, dependentsRows, dependen
             : {
                 name: promptName,
                 compoe,
-                ultimaVersao: latestVersion,
+                latestVersion: latestVersion,
                 label: snippetEnvironment(ponteiros),
                 environmentIsProduction:
                   snippetEnvironment(ponteiros) === null
                     ? true // sem ambiente, o trecho usa versão e não afirma nada sobre produção
                     : PRODUCTION_ENVIRONMENTS.has(snippetEnvironment(ponteiros) as string),
-                variaveis: prompt.data?.variables ?? [],
+                variables: prompt.data?.variables ?? [],
                 baseUrl: CONSUMPTION_BASE,
               }
         }

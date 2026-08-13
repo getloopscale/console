@@ -18,7 +18,7 @@
 /** As três portas pelas quais um prompt é consumido. */
 export interface ConsumptionInterface {
   readonly id: 'sdk' | 'rest' | 'mcp';
-  readonly rotulo: string;
+  readonly label: string;
   /** A linguagem do bloco, para o realce e para o rótulo de cópia. */
   /**
    * A linguagem do bloco.
@@ -27,13 +27,13 @@ export interface ConsumptionInterface {
    * a chamada), então não é um documento JSON analisável. Declará-lo `json` seria a mesma mentira
    * que o `/review` pegou — um rótulo que promete uma forma que o conteúdo não tem.
    */
-  readonly linguagem: 'typescript' | 'bash' | 'json' | 'text';
+  readonly language: 'typescript' | 'bash' | 'json' | 'text';
 }
 
 export const INTERFACES: readonly ConsumptionInterface[] = [
-  { id: 'sdk', rotulo: 'SDK (TypeScript)', linguagem: 'typescript' },
-  { id: 'rest', rotulo: 'REST (curl)', linguagem: 'bash' },
-  { id: 'mcp', rotulo: 'MCP', linguagem: 'text' },
+  { id: 'sdk', label: 'SDK (TypeScript)', language: 'typescript' },
+  { id: 'rest', label: 'REST (curl)', language: 'bash' },
+  { id: 'mcp', label: 'MCP', language: 'text' },
 ];
 
 /** O prompt para o qual o trecho é gerado. */
@@ -47,7 +47,7 @@ export interface Target {
    * que o módulo de resolução chama de o pior: o prompt "funciona" e produz lixo.
    */
   readonly compoe: boolean;
-  readonly ultimaVersao: number;
+  readonly latestVersion: number;
   /**
    * O ambiente que este prompt serve, quando serve algum.
    *
@@ -63,7 +63,7 @@ export interface Target {
    * produção é deixar o operador supor o contrário. Medido pelo `/review`.
    */
   readonly environmentIsProduction: boolean;
-  readonly variaveis: readonly string[];
+  readonly variables: readonly string[];
   readonly baseUrl: string;
 }
 
@@ -75,16 +75,16 @@ export interface Target {
  * exatamente o que a promoção evita. Sem ambiente algum, a versão é o único endereço honesto que
  * sobra: omitir os dois resolveria "a mais recente", que muda debaixo do consumidor sem aviso.
  */
-function enderecoSdk(target: Target): string {
+function sdkAddress(target: Target): string {
   return target.label !== null
     ? `label: '${target.label}'`
-    : `version: ${String(target.ultimaVersao)}`;
+    : `version: ${String(target.latestVersion)}`;
 }
 
-function enderecoRest(target: Target): string {
+function restAddress(target: Target): string {
   return target.label !== null
     ? `label=${encodeURIComponent(target.label)}`
-    : `version=${String(target.ultimaVersao)}`;
+    : `version=${String(target.latestVersion)}`;
 }
 
 /**
@@ -97,9 +97,9 @@ function enderecoRest(target: Target): string {
  *
  * Fonte: `packages/sdk/src/index.ts:158` (`readonly vars?: Record<string, string>`).
  */
-function variaveisSdk(target: Target): string {
-  if (target.variaveis.length === 0) return '';
-  const pares = target.variaveis.map((v) => `    ${v}: '…',`).join('\n');
+function sdkVariables(target: Target): string {
+  if (target.variables.length === 0) return '';
+  const pares = target.variables.map((v) => `    ${v}: '…',`).join('\n');
   return `,\n  vars: {\n${pares}\n  }`;
 }
 
@@ -112,7 +112,7 @@ function gerarSdk(target: Target): string {
   //
   // Só quando compõe, porque resolver custa a travessia do grafo: quem não referencia ninguém não
   // deve pagá-la (a mesma decisão de custo do DoD-5 do M20).
-  const resolucao = target.compoe ? ',\n  resolve: true' : '';
+  const resolution = target.compoe ? ',\n  resolve: true' : '';
   const leitura = target.compoe
     ? 'console.log(prompt.resolvedContent ?? prompt.content);'
     : 'console.log(prompt.content);';
@@ -126,7 +126,7 @@ const promptly = new PromptlyClient({
 });
 
 const prompt = await promptly.getPrompt('${target.name}', {
-  ${enderecoSdk(target)}${resolucao}${variaveisSdk(target)}
+  ${sdkAddress(target)}${resolution}${sdkVariables(target)}
 });
 
 ${leitura}`;
@@ -138,8 +138,8 @@ function gerarRest(target: Target): string {
   //
   // `resolve=true` SÓ quando o prompt compõe: resolver custa a travessia do grafo, e quem não
   // referencia ninguém não deve pagá-la (a mesma decisão de custo do DoD-5 do M20).
-  const resolucao = target.compoe ? '&resolve=true' : '';
-  const caminho = `${target.baseUrl}/prompts/${encodeURIComponent(target.name)}?${enderecoRest(target)}${resolucao}`;
+  const resolution = target.compoe ? '&resolve=true' : '';
+  const caminho = `${target.baseUrl}/prompts/${encodeURIComponent(target.name)}?${restAddress(target)}${resolution}`;
   return `# PLATFORM key (theo_live_…), from Settings → API Tokens, with the promptly:read scope.
 # Never pasted here — it comes from the environment.
 curl -sS '${caminho}' \\
@@ -157,7 +157,7 @@ function gerarMcp(target: Target): string {
   const args =
     target.label !== null
       ? `"name": "${target.name}", "label": "${target.label}"`
-      : `"name": "${target.name}", "version": ${String(target.ultimaVersao)}`;
+      : `"name": "${target.name}", "version": ${String(target.latestVersion)}`;
   return `1) Point your MCP client at the server — platform key (theo_live_…),
    from Settings → API Tokens, with the promptly:read scope:
 

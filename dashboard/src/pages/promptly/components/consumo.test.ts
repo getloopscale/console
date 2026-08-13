@@ -25,10 +25,10 @@ import { buildConsumptionSnippet, INTERFACES, type Target } from './consumo';
 const COM_AMBIENTE: Target = {
   name: 'atendimento',
   compoe: false,
-  ultimaVersao: 7,
+  latestVersion: 7,
   label: 'production',
   environmentIsProduction: true,
-  variaveis: ['pergunta'],
+  variables: ['pergunta'],
   baseUrl: 'https://app-dev.usetheo.dev/v1/promptly',
 };
 
@@ -83,7 +83,7 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
 
   it('prompt sem variável alguma não gera um objeto de valores vazio', () => {
     // Um `vars: {}` pendurado no exemplo é ruído que o leitor tenta interpretar.
-    const semVars = buildConsumptionSnippet('sdk', { ...COM_AMBIENTE, variaveis: [] });
+    const semVars = buildConsumptionSnippet('sdk', { ...COM_AMBIENTE, variables: [] });
     expect(semVars).not.toContain('vars: {');
   });
 

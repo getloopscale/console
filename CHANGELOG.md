@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** the guard that keeps the code named in English learned sixteen more Portuguese words it could not see before, and the 43 declarations they revealed were renamed. The zero it reports is still a zero *by that guard* — the next batch of words it does not know is measured and registered (B-279).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** the rule that turns a backend key into a label on screen ("fast_data_transfer" → "Fast Data Transfer") existed in three copies, so a change to one of them was invisible to the tests of the others. It has one home now (B-277).

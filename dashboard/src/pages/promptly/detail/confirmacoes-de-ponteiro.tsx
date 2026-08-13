@@ -85,7 +85,7 @@ export function ConfirmacoesDePonteiro({
           {frasePreRollback({
             name: promptName,
             toVersion: targetRevision ?? 0,
-            ultimaVersao: latestVersion ?? 0,
+            latestVersion: latestVersion ?? 0,
             label: labelRollback,
           })}
         </p>

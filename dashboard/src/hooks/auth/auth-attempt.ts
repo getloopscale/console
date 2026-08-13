@@ -59,17 +59,17 @@ export function recordAttempt(attempt: PendingAttempt): void {
  * aparência de dado.
  */
 export function takePendingAttempt(): PendingAttempt | null {
-  let bruto: string | null;
+  let raw: string | null;
   try {
-    bruto = sessionStorage.getItem(PENDING_ATTEMPT_KEY);
-    if (bruto !== null) sessionStorage.removeItem(PENDING_ATTEMPT_KEY);
+    raw = sessionStorage.getItem(PENDING_ATTEMPT_KEY);
+    if (raw !== null) sessionStorage.removeItem(PENDING_ATTEMPT_KEY);
   } catch {
     return null;
   }
-  if (bruto === null) return null;
+  if (raw === null) return null;
 
   try {
-    const v = JSON.parse(bruto) as Partial<PendingAttempt>;
+    const v = JSON.parse(raw) as Partial<PendingAttempt>;
     if (typeof v?.correlation_id !== 'string' || !v.correlation_id) return null;
     if (typeof v.method !== 'string') return null;
     return {

@@ -52,23 +52,23 @@ export function resultadoDoRollback(resposta: RespostaRollback): ResultadoRollba
   };
 }
 
-export interface IntencaoRollback {
+export interface RollbackIntent {
   readonly name: string;
   readonly toVersion: number;
-  readonly ultimaVersao: number;
+  readonly latestVersion: number;
   readonly label: string | null;
 }
 
 /** O que o diálogo promete ANTES de chamar — nomeando a revisão que será CRIADA. */
-export function frasePreRollback(intencao: IntencaoRollback): string {
-  const newRevision = `v${intencao.ultimaVersao + 1}`;
-  const origin = `v${intencao.toVersion}`;
+export function frasePreRollback(intent: RollbackIntent): string {
+  const newRevision = `v${intent.latestVersion + 1}`;
+  const origin = `v${intent.toVersion}`;
   const base =
-    `This creates revision ${newRevision} of "${intencao.name}" with the content of ${origin}. ` +
+    `This creates revision ${newRevision} of "${intent.name}" with the content of ${origin}. ` +
     `History does not shrink: ${origin} stays where it is.`;
-  return intencao.label === null
+  return intent.label === null
     ? `${base} Since you chose no label, no label will be moved and nothing changes in production.`
-    : `${base} Label ${intencao.label} stops serving what it serves today and starts pointing at ${newRevision}.`;
+    : `${base} Label ${intent.label} stops serving what it serves today and starts pointing at ${newRevision}.`;
 }
 
 /**

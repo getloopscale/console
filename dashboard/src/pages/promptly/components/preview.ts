@@ -22,11 +22,11 @@ export type PreviewFields = Record<string, string>;
  * mãos) — e deliberadamente NÃO é lido: quem decide quais campos existem é a API.
  */
 export function variableFields(
-  variaveis: readonly string[],
+  variables: readonly string[],
   _content: string,
 ): PreviewFields {
   const fields: PreviewFields = {};
-  for (const name of variaveis) fields[name] = '';
+  for (const name of variables) fields[name] = '';
   return fields;
 }
 

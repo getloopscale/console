@@ -167,17 +167,21 @@ describe('the guard, exercised — not a copy of it', () => {
     expect(ehIdentificadorPT('validaçao')).toBe(true);
   });
 
-  it('the KNOWN TAIL is MEASURED, not merely stated (B-279)', () => {
-    // The honest limit of the zero above. Review 2026-08-13 pointed out that the first version of
-    // this case asserted six strings are absent from a word list — true regardless of what is in
-    // `src/`, so the docblock's claim that the tail is "still in the tree" was documented and never
-    // verified. If the tail were migrated away, the case stayed green and the claim silently became
-    // false.
+  it('the KNOWN TAIL is MEASURED, not merely stated (B-279 closed, B-281 opened)', () => {
+    // The honest limit of the zero above, and it MOVES. B-279's tail — `rotulo`, `linguagem`,
+    // `variaveis`, `ultimaVersao`, `resolucao`, `intencao` and ten more — is now IN the supplement
+    // and its 43 declarations are migrated, so those words left this list by being learned. That is
+    // the case working as designed: it goes red when the detector improves.
     //
-    // Both halves are asserted now: the detector does not see these words (so the zero above is
-    // scoped, not absolute), AND each one is really declared somewhere in the tree. Teach the
-    // detector one of them and the first half fails; migrate one away and the second does.
-    const tail = ['rotulo', 'linguagem', 'variaveis', 'ultimaVersao', 'resolucao', 'intencao'];
+    // What replaced them was measured the same way, by counting DECLARATION words the lists do not
+    // contain (`falha` 7, `colunas` 5, `frase` 4, `compoe` 4, `maior` 4, …). Registered as B-281.
+    // `salvar` was in the first draft of this list and the case rejected it: `MARCADOR` already
+    // knows it. The list is what the detector does NOT see, and it is checked, not asserted.
+    //
+    // `atual` (18 occurrences) is NOT in this list and that is a decision, not an omission: the
+    // supplement's own docblock names it, with `total` and `item`, as a cognate deliberately kept
+    // out — it is what made an earlier measurement report 329 instead of a usable number.
+    const tail = ['falha', 'colunas', 'frase', 'maior', 'compoe', 'acervo', 'abas'];
 
     for (const invisible of tail) {
       expect(
@@ -186,19 +190,15 @@ describe('the guard, exercised — not a copy of it', () => {
       ).toBe(false);
     }
 
+    // …and each one is really in the tree, so the list cannot quietly become fiction.
     const declared = new Set<string>();
-    const declaration = new RegExp(
-      `\\b(?:const|let|var|function|readonly|interface|type)\\s+(${tail.join('|')})\\b|` +
-        `\\b(${tail.join('|')})\\s*[:,)]`,
-    );
     for (const file of arquivosDeProducao(SRC)) {
       const source = readFileSync(file, 'utf8');
-      for (const word of tail) if (declaration.test(source) && new RegExp(`\\b${word}\\b`).test(source)) declared.add(word);
+      for (const word of tail) if (new RegExp(`\\b${word}\\b`, 'i').test(source)) declared.add(word);
     }
-
     expect(
       [...declared].sort(),
-      'a word left the tree — B-279 shrank, and this list should shrink with it',
+      'a word left the tree — B-281 shrank, and this list should shrink with it',
     ).toEqual([...tail].sort());
   });
 });

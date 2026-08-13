@@ -55,10 +55,14 @@ describe('identifier-map.json (B-241)', () => {
     ).toEqual([]);
   });
 
-  it('the map still covers what it was written for — 276 entries, none silently dropped', () => {
+  it('the map still covers what it was written for — 301 entries, none silently dropped', () => {
     // The teeth the case above lost when the population reached zero. The map is the RECORD of the
-    // migration and the tool B-279 will reuse; deleting entries from it must not be free.
-    expect(Object.keys(map)).toHaveLength(276);
+    // migration; deleting entries from it must not be free.
+    //
+    // 276 after B-241, 301 after B-279 added the 25 names its sixteen tail words revealed. The
+    // number moves only when a migration moves it, and it moves UP — a map entry is never removed,
+    // because the name it renamed can come back.
+    expect(Object.keys(map)).toHaveLength(301);
   });
 
   it('two names never share a target, except the one pair that is recorded here', () => {

@@ -129,6 +129,6 @@ function inheritCompletionBackwards(phases: readonly PhaseState[]): PhaseState[]
 export function faseCorrente(phases: readonly PhaseState[]): PhaseState {
   const viva = phases.find((c) => c.status === 'in_progress' || c.status === 'degraded');
   if (viva) return viva;
-  const ultimaTocada = [...phases].reverse().find((c) => c.status !== 'pending');
-  return ultimaTocada ?? phases[0];
+  const lastTouched = [...phases].reverse().find((c) => c.status !== 'pending');
+  return lastTouched ?? phases[0];
 }

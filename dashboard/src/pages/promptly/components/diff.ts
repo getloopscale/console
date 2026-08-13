@@ -32,7 +32,7 @@ export const DIFF_LINE_CEILING = 2000;
  * de `{{nome}}` muda o que o modelo recebe. Normalizar demais esconde mudança real, que é o
  * erro oposto e o mais perigoso dos dois.
  */
-function normalizar(content: string): string[] {
+function normalize(content: string): string[] {
   return content
     .replace(/\r\n/g, '\n')
     .replace(/\n+$/, '')
@@ -61,8 +61,8 @@ function tabelaLcs(a: readonly string[], b: readonly string[]): number[][] {
  * entre v2 e v3?") sem o custo — e os erros — de um diff por palavra escrito à mão.
  */
 export function diffLines(previous: string, next: string): DiffBlock[] {
-  const a = normalizar(previous);
-  const b = normalizar(next);
+  const a = normalize(previous);
+  const b = normalize(next);
 
   // O número que a tela mostra é o do LADO MAIOR, não a soma: é ele que estourou o teto, e é
   // o que o operador consegue relacionar com a revisão que tem na mão.
@@ -132,7 +132,7 @@ export interface DiffDeConfig {
 /** O que a tela diz quando um dos lados é anterior ao milestone (ADR-1). */
 const PREVIOUS = 'revision before the config';
 
-function mostrar(cfg: RevisionConfig | null | undefined, field: 'temperature' | 'model'): string {
+function show(cfg: RevisionConfig | null | undefined, field: 'temperature' | 'model'): string {
   // `!= null` cobre `null` E `undefined`: o primeiro vem do serviço, o segundo de uma
   // revisão cuja projeção nem chegou a olhar o campo. Os dois significam "não tem", e
   // tratá-los diferente faria a tela quebrar num dos caminhos.
@@ -150,8 +150,8 @@ export function diffConfig(
 
   const fields = ['temperature', 'model'] as const;
   const rows = fields
-    .filter((field) => mostrar(before, field) !== mostrar(after, field))
-    .map((field) => ({ field, before: mostrar(before, field), after: mostrar(after, field) }));
+    .filter((field) => show(before, field) !== show(after, field))
+    .map((field) => ({ field, before: show(before, field), after: show(after, field) }));
 
   return { mudou: rows.length > 0, rows };
 }

@@ -171,12 +171,12 @@ export function SkillsOverviewPage() {
       // campo, e ausência não é o mesmo que estar ativa.
       render: (row) => {
         if (row.lifecycle === undefined) return <span className="text-muted-foreground">—</span>;
-        const rotulos = {
+        const labels = {
           active: { texto: 'in use', variante: 'success' as const },
           draft: { texto: 'draft', variante: 'outline' as const },
           deprecated: { texto: 'deprecated', variante: 'warning' as const },
         };
-        const r = rotulos[row.lifecycle];
+        const r = labels[row.lifecycle];
         return (
           <span className="flex flex-col gap-0.5">
             <Badge variant={r.variante}>{r.texto}</Badge>

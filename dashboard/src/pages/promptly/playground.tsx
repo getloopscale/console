@@ -253,7 +253,7 @@ export function PromptlyPlaygroundPage() {
                   onChange={(e) => changeField(field.name, e.target.value)}
                 />
               </FormField.Control>
-              {falha?.tipo === 'validacao' && falha.variavelFaltante === field.name ? (
+              {falha?.tipo === 'validacao' && falha.missingVariable === field.name ? (
                 <FormField.Error>Fill this field before running.</FormField.Error>
               ) : null}
             </FormField>
@@ -393,8 +393,8 @@ function SaidaDoModelo({
           intent="destructive"
           title="Nothing was sent to the model"
           description={
-            falha.variavelFaltante !== undefined
-              ? `Variable "${falha.variavelFaltante}" was left blank. No call was made, and nothing was charged.`
+            falha.missingVariable !== undefined
+              ? `Variable "${falha.missingVariable}" was left blank. No call was made, and nothing was charged.`
               : (falha.reason ??
                 'The prompt could not be prepared. No call was made, and nothing was charged.')
           }

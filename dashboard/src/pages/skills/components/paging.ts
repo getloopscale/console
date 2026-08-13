@@ -64,7 +64,7 @@ export function mergePages(
  * Quem digita com pressa não acentua. Sem isso, "cotacao" não acha "Cotação" e o filtro parece
  * quebrado justamente para quem está com pressa.
  */
-function normalizar(s: string): string {
+function normalize(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFD')
@@ -78,13 +78,13 @@ function normalizar(s: string): string {
  * que a skill **faz**, ou tem o **identificador** copiado de um log ou de uma mensagem de erro.
  */
 export function filterCollection(acervo: readonly SkillRow[], termo: string): SkillRow[] {
-  const t = normalizar(termo.trim());
+  const t = normalize(termo.trim());
   if (t === '') return [...acervo];
 
   return acervo.filter(
     (s) =>
-      normalizar(s.name).includes(t) ||
-      normalizar(s.description).includes(t) ||
-      normalizar(s.skill_id).includes(t),
+      normalize(s.name).includes(t) ||
+      normalize(s.description).includes(t) ||
+      normalize(s.skill_id).includes(t),
   );
 }

@@ -72,14 +72,14 @@ export type DisplayedText =
 export function displayedText(
   modo: TextMode,
   written: string | null,
-  resolucao: { readonly loading: boolean; readonly failure: boolean; readonly text: string | null },
+  resolution: { readonly loading: boolean; readonly failure: boolean; readonly text: string | null },
 ): DisplayedText {
   if (modo === 'escrito') {
     return written === null ? { estado: 'carregando' } : { estado: 'texto', text: written };
   }
-  if (resolucao.failure) return { estado: 'falhou' };
-  if (resolucao.loading || resolucao.text === null) return { estado: 'carregando' };
-  return { estado: 'texto', text: resolucao.text };
+  if (resolution.failure) return { estado: 'falhou' };
+  if (resolution.loading || resolution.text === null) return { estado: 'carregando' };
+  return { estado: 'texto', text: resolution.text };
 }
 
 /**
