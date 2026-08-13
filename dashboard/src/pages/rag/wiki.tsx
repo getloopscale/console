@@ -138,7 +138,7 @@ export function RagWikiPage() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         pages={pages}
-        leituraFalhou={pagesQuery.isError}
+        readFailed={pagesQuery.isError}
         onSelect={(id) => {
           const pg = pages.find((p) => p.id === id);
           if (pg) setPrefix(folderOf(pg.name));

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dependentRows, textoExibido, temComposicao } from './composicao';
+import { dependentRows, displayedText, hasComposition } from './composicao';
 
 describe('dependentRows — quem depende de mim', () => {
   it('projeta as linhas bem formadas, com o via', () => {
@@ -46,63 +46,63 @@ describe('dependentRows — quem depende de mim', () => {
 
 describe('textoExibido — o par resolvido / como escrito', () => {
   it('no modo escrito mostra o texto com o marcador visível', () => {
-    const r = textoExibido('escrito', 'antes @@@promptly:name=p|version=1@@@', {
-      carregando: false,
-      erro: false,
-      texto: 'antes POLÍTICA',
+    const r = displayedText('escrito', 'antes @@@promptly:name=p|version=1@@@', {
+      loading: false,
+      failure: false,
+      text: 'antes POLÍTICA',
     });
-    expect(r).toEqual({ estado: 'texto', texto: 'antes @@@promptly:name=p|version=1@@@' });
+    expect(r).toEqual({ estado: 'texto', text: 'antes @@@promptly:name=p|version=1@@@' });
   });
 
   it('no modo resolvido mostra o texto composto', () => {
-    const r = textoExibido('resolvido', 'antes @@@promptly:name=p|version=1@@@', {
-      carregando: false,
-      erro: false,
-      texto: 'antes POLÍTICA',
+    const r = displayedText('resolvido', 'antes @@@promptly:name=p|version=1@@@', {
+      loading: false,
+      failure: false,
+      text: 'antes POLÍTICA',
     });
-    expect(r).toEqual({ estado: 'texto', texto: 'antes POLÍTICA' });
+    expect(r).toEqual({ estado: 'texto', text: 'antes POLÍTICA' });
   });
 
   it('resolução que falhou NÃO cai para o texto escrito', () => {
     // O caso que justifica esta função existir. Cair para o escrito mostraria um texto CORRETO sob
     // um rótulo ERRADO: o operador leria marcadores literais acreditando ver o texto composto, e
     // concluiria que a composição não funciona — quando o que falhou foi a leitura.
-    const r = textoExibido('resolvido', 'antes @@@promptly:name=p|version=1@@@', {
-      carregando: false,
-      erro: true,
-      texto: null,
+    const r = displayedText('resolvido', 'antes @@@promptly:name=p|version=1@@@', {
+      loading: false,
+      failure: true,
+      text: null,
     });
     expect(r).toEqual({ estado: 'falhou' });
   });
 
   it('resolução em voo é carregando, e não texto vazio', () => {
-    const r = textoExibido('resolvido', 'x', { carregando: true, erro: false, texto: null });
+    const r = displayedText('resolvido', 'x', { loading: true, failure: false, text: null });
     expect(r).toEqual({ estado: 'carregando' });
   });
 
   it('o texto escrito ainda não lido é carregando', () => {
-    const r = textoExibido('escrito', null, { carregando: false, erro: false, texto: null });
+    const r = displayedText('escrito', null, { loading: false, failure: false, text: null });
     expect(r).toEqual({ estado: 'carregando' });
   });
 });
 
 describe('temComposicao — quando o par vale ser oferecido', () => {
   it('reconhece referência por versão e por label', () => {
-    expect(temComposicao('a @@@promptly:name=policy|version=3@@@ b')).toBe(true);
-    expect(temComposicao('@@@promptly:name=tom|label=production@@@')).toBe(true);
+    expect(hasComposition('a @@@promptly:name=policy|version=3@@@ b')).toBe(true);
+    expect(hasComposition('@@@promptly:name=tom|label=production@@@')).toBe(true);
   });
 
   it('prompt comum não ganha alternador entre dois textos idênticos', () => {
-    expect(temComposicao('Você é um assistente cordial.')).toBe(false);
-    expect(temComposicao(null)).toBe(false);
+    expect(hasComposition('Você é um assistente cordial.')).toBe(false);
+    expect(hasComposition(null)).toBe(false);
   });
 
   it('respeita o escape — falar do marcador não é invocá-lo', () => {
     // O escape existe para a documentação do produto poder ser escrita DENTRO do produto.
-    expect(temComposicao('escreva @@@@promptly:name=x|version=1@@@ para referenciar')).toBe(false);
+    expect(hasComposition('escreva @@@@promptly:name=x|version=1@@@ para referenciar')).toBe(false);
   });
 
   it('marcador malformado não conta como composição', () => {
-    expect(temComposicao('@@@promptly:sem fecho e sem nada')).toBe(false);
+    expect(hasComposition('@@@promptly:sem fecho e sem nada')).toBe(false);
   });
 });

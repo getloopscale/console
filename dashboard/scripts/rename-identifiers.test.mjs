@@ -166,6 +166,54 @@ describe('RenameHarness (B-241)', () => {
     );
   });
 
+  it('…and `--allow-shorthand` performs it, once a human has read the sites', () => {
+    // The override exists because the refusal is a prompt to look, not a verdict. On this
+    // repository the 15 flagged sites are internal prop bags and return shapes whose key is itself
+    // a mapped name, so renaming both sides is consistent — and `tsc` is what proves it.
+    write('a.ts', 'export function f() {\n  const nome = 1;\n  return { nome };\n}\n');
+
+    const harness = new RenameHarness({ root: dir, files: typescriptFilesUnder(dir) });
+    const result = harness.run({ nome: 'name' }, { allowShorthand: true });
+
+    expect(result.outcomes.find((o) => o.name === 'nome').status).toBe('renamed');
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain('return { name };');
+  });
+
+  it('`declaredIn` restricts which DECLARATIONS are renamed, and usages still follow', () => {
+    // One Portuguese name can mean two things in two files — `nova` is the new REVISION in
+    // `rollback.ts` and the incoming PAGE in `paging.ts`. A single global target would name one of
+    // them badly, so each is renamed on its own with the right word.
+    write('a.ts', 'export const nova = 1;\n');
+    write('b.ts', 'import { nova } from "./a";\nexport const eco = nova;\nexport const outra = () => { const nova = 2; return nova; };\n');
+
+    const harness = new RenameHarness({ root: dir, files: typescriptFilesUnder(dir) });
+    harness.run({ nova: 'newRevision' }, { declaredIn: 'a.ts' });
+
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('export const newRevision = 1;\n');
+    const b = readFileSync(join(dir, 'b.ts'), 'utf8');
+    // the IMPORTED symbol followed…
+    expect(b).toContain('import { newRevision } from "./a";');
+    expect(b).toContain('export const eco = newRevision;');
+    // …and b.ts's own local, declared elsewhere, did not.
+    expect(b).toContain('const nova = 2;');
+  });
+
+  it('a symbol with TWO declarations produces one edit per occurrence, not two', () => {
+    // Measured on the real run: `temContinuacao` is declared twice (a property signature and the
+    // shape that consumes it), the scanner walks both, and the language service answers with the
+    // same spans each time. Before this, the identical edit was counted as an overlap and the whole
+    // migration aborted at `promptly-api.ts:3442`. Two edits at one span with DIFFERENT text is
+    // still a conflict and still throws — that case is below.
+    write('a.ts', 'export interface P { temContinuacao: boolean }\nexport interface Q extends P { temContinuacao: boolean }\n');
+
+    const result = run({ temContinuacao: 'hasContinuation' });
+
+    expect(result.outcomes.find((o) => o.name === 'temContinuacao').status).toBe('renamed');
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe(
+      'export interface P { hasContinuation: boolean }\nexport interface Q extends P { hasContinuation: boolean }\n',
+    );
+  });
+
   it('an empty map is a no-op that reports zero edits', () => {
     write('a.ts', 'export const nome = 1;\n');
 

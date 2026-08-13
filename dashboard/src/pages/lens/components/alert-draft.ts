@@ -44,7 +44,7 @@ export const EMPTY_ALERT_DRAFT: AlertDraft = {
  * parecido — mas de outra fonte — pedir um campo que não lhe serve, e o formulário passaria a exigir
  * o que o backend ignora.
  */
-export function exigeNomeDePrompt(metric: string): boolean {
+export function requiresPromptName(metric: string): boolean {
   return metric === METRICA_DE_PROMPT;
 }
 
@@ -67,12 +67,12 @@ function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>
   }
 
   // O pareamento, nos DOIS sentidos — cada um falha em silêncio de um jeito diferente.
-  const temNome = d.promptName.trim() !== '';
-  if (exigeNomeDePrompt(d.metric) && !temNome) {
+  const hasName = d.promptName.trim() !== '';
+  if (requiresPromptName(d.metric) && !hasName) {
     // Sem isto o avaliador não tem o que consultar e pula a regra para sempre: o cliente vê uma
     // regra armada que nunca dispara.
     out.promptName = 'Say which prompt this alert watches.';
-  } else if (!exigeNomeDePrompt(d.metric) && temNome) {
+  } else if (!requiresPromptName(d.metric) && hasName) {
     // Aqui o backend simplesmente ignora o campo, e o próximo leitor da regra não sabe dizer se o
     // escopo valia. Recusar é o que mantém a regra legível depois.
     out.promptName = 'This metric is workspace-wide — it does not watch a single prompt.';
@@ -122,6 +122,6 @@ export function toCreateBody(d: AlertDraft): Record<string, unknown> {
     webhook_id: d.webhookId,
   };
   // Aparado porque o backend compara o nome literalmente contra o catálogo de prompts.
-  if (exigeNomeDePrompt(d.metric)) body.prompt_name = d.promptName.trim();
+  if (requiresPromptName(d.metric)) body.prompt_name = d.promptName.trim();
   return body;
 }

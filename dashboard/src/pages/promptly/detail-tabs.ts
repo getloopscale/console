@@ -52,9 +52,9 @@ export const ABAS: readonly Aba[] = [
  * O nome é **codificado**: o M16 trouxe pastas, e `m16-sup/relatorio` é um NOME, não um caminho.
  * Sem codificar, a barra viraria segmento e a rota apontaria para lugar nenhum.
  */
-export function rotaDaAba(nomeDoPrompt: string, aba: Aba['id']): string {
+export function rotaDaAba(promptName: string, aba: Aba['id']): string {
   const encontrada = ABAS.find((a) => a.id === aba);
-  const base = `/promptly/${encodeURIComponent(nomeDoPrompt)}`;
+  const base = `/promptly/${encodeURIComponent(promptName)}`;
   return encontrada === undefined || encontrada.sufixo === '' ? base : `${base}/${encontrada.sufixo}`;
 }
 
@@ -69,8 +69,8 @@ export function rotaDaAba(nomeDoPrompt: string, aba: Aba['id']): string {
  * lista de dependentes que o M20 acabou de criar.
  */
 export function abaDaRota(caminho: string): Aba['id'] | null {
-  const semBarraFinal = caminho.endsWith('/') ? caminho.slice(0, -1) : caminho;
-  const partes = semBarraFinal.split('/').filter((p) => p !== '');
+  const withoutTrailingSlash = caminho.endsWith('/') ? caminho.slice(0, -1) : caminho;
+  const partes = withoutTrailingSlash.split('/').filter((p) => p !== '');
   // `promptly` + nome = detalhe sem sufixo. O nome vem codificado, então nunca contribui com um
   // segmento a mais, mesmo quando é uma pasta (`m16-sup%2Frelatorio`).
   if (partes[0] !== 'promptly' || partes.length < 2) return null;

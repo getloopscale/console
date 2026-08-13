@@ -11,11 +11,11 @@ const VAZIO = { icon: Globe, title: 'No custom domains yet' };
 
 describe('estadoDaLista — ausência e ignorância não são a mesma tela', () => {
   it('devolve o estado vazio quando a leitura deu certo', () => {
-    expect(estadoDaLista({ erro: false, vazio: VAZIO }, 'domains')).toBe(VAZIO);
+    expect(estadoDaLista({ failure: false, empty: VAZIO }, 'domains')).toBe(VAZIO);
   });
 
   it('NÃO afirma ausência quando a leitura falhou', () => {
-    const s = estadoDaLista({ erro: true, vazio: VAZIO }, 'domains')!;
+    const s = estadoDaLista({ failure: true, empty: VAZIO }, 'domains')!;
     expect(s.title).not.toMatch(/no custom domains yet/i);
     expect(s.title).toMatch(/could not read domains/i);
   });
@@ -23,7 +23,7 @@ describe('estadoDaLista — ausência e ignorância não são a mesma tela', () 
   it('diz ao usuário o que a tela NÃO está mostrando', () => {
     // A diferença que importa: "não há nada" é um fato sobre os dados; "não li" é um fato
     // sobre a requisição. A segunda tem de dizer que a lista não representa o que existe.
-    const s = estadoDaLista({ erro: true, vazio: VAZIO }, 'domains')!;
+    const s = estadoDaLista({ failure: true, empty: VAZIO }, 'domains')!;
     expect(s.description).toMatch(/not showing what exists/i);
   });
 });
@@ -32,7 +32,7 @@ describe('estadoDaLista — quando a lista tem linhas', () => {
   it('não vira estado de erro por cima de dados que existem', () => {
     // `vazio === undefined` é como o PageShell diz "há linhas". Um erro de refetch sobre
     // dados velhos pede uma tarja, não um estado vazio — e essa decisão não é desta função.
-    expect(estadoDaLista({ erro: true, vazio: undefined }, 'domains')).toBeUndefined();
+    expect(estadoDaLista({ failure: true, empty: undefined }, 'domains')).toBeUndefined();
   });
 });
 
@@ -121,7 +121,18 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     /estadoDaLista\(|\berror=\{|\bisError\b/.test(fonte) ||
     // Um sinal de LEITURA que falhou — e não um status de domínio como `step.status === 'failed'`,
     // que foi o que uma primeira tentativa de alargamento capturou por engano.
-    /\.error\b|\berroDe\w*|\bfalhou\b|\bfalharam\b/.test(fonte) ||
+    // `erroDe\w*` and its English counterpart are the SAME signal: a local whose name says it
+    // holds a failure. Only the lower-case initial is accepted, so a TYPE import (`ApiError`) is
+    // not mistaken for a page consulting an error — that would turn a page that merely imports the
+    // type into a compliant one, which is a false NEGATIVE and worse than the miss it fixes.
+    //
+    // Added 2026-08-13 (B-241): the migration renamed `erroDescricao` to `descriptionError` in
+    // `promptly/create.tsx`, and this guard flagged the page for a defect it does not have — it
+    // still consults both errors, two lines apart. The guard was reading the vocabulary and the
+    // vocabulary moved. Same lesson B-238 and B-243 each recorded here, arriving from the other
+    // direction: last time the guard was too narrow for the code, this time the code moved out
+    // from under it.
+    /\.error\b|\berroDe\w*|\b[a-z]\w*Error\b|\bfalhou\b|\bfalharam\b/.test(fonte) ||
     /read failed|failed to load|Could not load|setError\(/i.test(fonte) ||
     // B-243 — três formas que telas JÁ CONFORMES usavam e o guarda não reconhecia. Medido
     // 2026-08-12: das 5 que restavam, 4 estavam corretas e foram acusadas por vocabulário.

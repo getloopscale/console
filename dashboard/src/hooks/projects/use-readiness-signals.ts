@@ -72,9 +72,9 @@ export function useReadinessSignals(
 
     const medidas = lerMedidas({
       projeto: projects.projects?.find((p) => p.name === projectName),
-      statusErro: status.error,
+      statusError: status.error,
       status: status.status,
-      deploysErro: deployments.error,
+      deploysError: deployments.error,
       builds: deployments.builds,
     });
 

@@ -13,9 +13,9 @@
  */
 export type EstadoDaCandidata =
   | { readonly publicada: false }
-  | { readonly publicada: true; readonly temVetor: boolean };
+  | { readonly publicada: true; readonly hasVector: boolean };
 
-export interface CorpoDiagnostico {
+export interface DiagnosticBody {
   readonly name: string;
   readonly description: string;
   /** AUSENTE para rascunho. A presença é o que distingue "não há revisão" de "revisão sem vetor". */
@@ -35,11 +35,11 @@ export interface CorpoDiagnostico {
  * o veredito e encobria as causas que o autor poderia corrigir antes de publicar — que é a única
  * coisa que ele quer saber naquele momento.
  */
-export function corpoDoDiagnostico(
+export function diagnosticBody(
   name: string,
   description: string,
   estado: EstadoDaCandidata,
-): CorpoDiagnostico {
+): DiagnosticBody {
   if (!estado.publicada) return { name, description };
-  return { name, description, has_embedding: estado.temVetor };
+  return { name, description, has_embedding: estado.hasVector };
 }

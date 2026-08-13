@@ -37,7 +37,7 @@ export function SecretsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const envFilter = searchParams.get('env') ?? undefined;
   useSetPageTitle(`${name} · Secrets`);
-  const { secrets, loading, error: erroDeLeitura } = useSecrets({ project: name, env: envFilter });
+  const { secrets, loading, error: readError } = useSecrets({ project: name, env: envFilter });
 
   // T1.4: env filter options derived from useEnvironments(name) instead
   // of a hardcoded literal. Closes the J-22↔J-10 silent break.
@@ -77,7 +77,7 @@ export function SecretsPage() {
       loading={loading}
       empty={
         estadoDaLista(
-          { erro: erroDeLeitura, vazio: !loading && secrets.length === 0
+          { failure: readError, empty: !loading && secrets.length === 0
           ? {
               icon: KeyRound,
               title: 'No secrets yet',

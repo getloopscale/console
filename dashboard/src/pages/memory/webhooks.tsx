@@ -14,7 +14,7 @@ import {
   useToast,
 } from '@usetheo/ui';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
-import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
+import { DELIVERIES_READ_FAILURE } from '@/pages/settings/webhook-copy';
 import type { Delivery } from '@/lib/webhooks/delivery';
 import { deliveryStatusVariant, canReplay } from '@/lib/webhooks/delivery';
 import { colunasDeWebhook } from '@/lib/webhooks/columns';
@@ -129,7 +129,7 @@ export function WebhooksPage() {
         onSubmit={(input) => create.mutate(input)}
         description="Register a URL to be notified when memory events occur."
         events={AVAILABLE_EVENTS}
-        exemploUrl="https://hook.example.com/memory"
+        exampleUrl="https://hook.example.com/memory"
       />
 
       {pendingDelete ? (
@@ -269,7 +269,7 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
             {query.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading deliveries…</p>
             ) : query.isError ? (
-              <EmptyState title="Could not read this webhook's deliveries" description={FALHA_AO_LER_ENTREGAS} />
+              <EmptyState title="Could not read this webhook's deliveries" description={DELIVERIES_READ_FAILURE} />
             ) : deliveries.length === 0 ? (
               <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
             ) : (

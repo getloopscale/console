@@ -51,7 +51,7 @@ const COLUNAS_DE_RESOLUCAO: ColumnState = {
  *
  * `null` obriga o chamador a decidir o que mostrar, que é onde a decisão pertence.
  */
-export function linkParaTracesDoPrompt(promptName: string): string | null {
+export function linkToPromptTraces(promptName: string): string | null {
   if (promptName.trim() === '') return null;
   // O escape e a forma do predicado sao responsabilidade do lens (B-043): um nome
   // hostil nao vira um segundo parametro nem trunca a query, e se a DSL mudar,

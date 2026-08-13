@@ -22,7 +22,7 @@
  */
 export interface OfertaDeUpgrade {
   /** O plano que o botão compra — o argumento de `upgradePlan`. */
-  readonly alvo: string;
+  readonly target: string;
   readonly titulo: string;
   readonly resumo: string;
   readonly beneficios: readonly string[];
@@ -30,7 +30,7 @@ export interface OfertaDeUpgrade {
 
 export const OFERTA_POR_PLANO: Record<string, OfertaDeUpgrade | undefined> = {
   free: {
-    alvo: 'pro',
+    target: 'pro',
     titulo: 'Upgrade to Pro',
     resumo: 'For a project that outgrew the free tier.',
     beneficios: [
@@ -39,7 +39,7 @@ export const OFERTA_POR_PLANO: Record<string, OfertaDeUpgrade | undefined> = {
     ],
   },
   pro: {
-    alvo: 'team',
+    target: 'team',
     titulo: 'Upgrade to Team',
     resumo: 'A whole team or department.',
     beneficios: [

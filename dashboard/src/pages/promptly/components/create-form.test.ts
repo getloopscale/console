@@ -6,46 +6,46 @@ describe('validarCriacao — a descrição da mudança (M17)', () => {
     // ADR-3: a API aceita ausente para não quebrar automação; quem DECIDE está aqui.
     // Um campo opcional num formulário é um campo vazio, e o milestone inteiro
     // deixaria de acontecer.
-    const r = validarCriacao({ nome: 'saudacao', descricao: '' });
+    const r = validarCriacao({ name: 'saudacao', description: '' });
 
     expect(r.ok).toBe(false);
-    expect(r.erroDescricao).toMatch(/.+/);
+    expect(r.descriptionError).toMatch(/.+/);
   });
 
   it('descricao so de espacos REPROVA — a borda que um trim descuidado deixa passar', () => {
-    const r = validarCriacao({ nome: 'saudacao', descricao: '    ' });
+    const r = validarCriacao({ name: 'saudacao', description: '    ' });
 
     expect(r.ok).toBe(false);
-    expect(r.erroDescricao).toMatch(/.+/);
+    expect(r.descriptionError).toMatch(/.+/);
   });
 
   it('descricao acima do teto REPROVA, e o teto e dito', () => {
-    const r = validarCriacao({ nome: 'saudacao', descricao: 'x'.repeat(501) });
+    const r = validarCriacao({ name: 'saudacao', description: 'x'.repeat(501) });
 
     expect(r.ok).toBe(false);
-    expect(r.erroDescricao).toMatch(/500/);
+    expect(r.descriptionError).toMatch(/500/);
   });
 
   it('exatamente no teto PASSA — a outra borda', () => {
-    const r = validarCriacao({ nome: 'saudacao', descricao: 'x'.repeat(500) });
+    const r = validarCriacao({ name: 'saudacao', description: 'x'.repeat(500) });
 
     expect(r.ok).toBe(true);
-    expect(r.erroDescricao).toBeNull();
+    expect(r.descriptionError).toBeNull();
   });
 
   it('nome invalido E descricao vazia reportam os DOIS erros', () => {
     // Reportar um de cada vez faria o operador corrigir, submeter, e descobrir o
     // segundo — duas viagens para um formulário de dois campos.
-    const r = validarCriacao({ nome: 'time/saudacao', descricao: '' });
+    const r = validarCriacao({ name: 'time/saudacao', description: '' });
 
-    expect(r.erroNome).toMatch(/.+/);
-    expect(r.erroDescricao).toMatch(/.+/);
+    expect(r.nameError).toMatch(/.+/);
+    expect(r.descriptionError).toMatch(/.+/);
   });
 
   it('descricao valida com nome valido APROVA', () => {
-    const r = validarCriacao({ nome: 'saudacao', descricao: 'encurtei o preambulo' });
+    const r = validarCriacao({ name: 'saudacao', description: 'encurtei o preambulo' });
 
-    expect(r).toEqual({ ok: true, erroNome: null, erroDescricao: null });
+    expect(r).toEqual({ ok: true, nameError: null, descriptionError: null });
   });
 });
 
@@ -54,23 +54,23 @@ describe('validarCriacao (EC-4)', () => {
     // Medido: POST aceita 'time/saudacao' (201) mas o GET só responde com %2F, e há dois
     // intermediários cujo tratamento de barra codificada NÃO foi medido. Sem DELETE no produto,
     // um nome ilegível fica no histórico para sempre.
-    const r = validarCriacao({ nome: 'time/saudacao', descricao: 'x' });
+    const r = validarCriacao({ name: 'time/saudacao', description: 'x' });
     expect(r.ok).toBe(false);
-    expect(r.erroNome).toContain('Slashes');
+    expect(r.nameError).toContain('Slashes');
   });
 
   it('create_form_rejects_a_name_with_spaces', () => {
-    expect(validarCriacao({ nome: 'meu prompt', descricao: 'x' }).ok).toBe(false);
+    expect(validarCriacao({ name: 'meu prompt', description: 'x' }).ok).toBe(false);
   });
 
   it('create_form_rejects_an_empty_name', () => {
-    expect(validarCriacao({ nome: '   ', descricao: 'x' }).ok).toBe(false);
+    expect(validarCriacao({ name: '   ', description: 'x' }).ok).toBe(false);
   });
 
   it('create_form_accepts_the_conventional_name_shape', () => {
     // O par: restringir sem aceitar o que o time de fato usa seria trocar um problema por outro.
-    for (const nome of ['saudacao', 'onboarding.welcome', 'faq-v2', 'resumo_curto']) {
-      expect(validarCriacao({ nome, descricao: 'x' }).ok, nome).toBe(true);
+    for (const name of ['saudacao', 'onboarding.welcome', 'faq-v2', 'resumo_curto']) {
+      expect(validarCriacao({ name, description: 'x' }).ok, name).toBe(true);
     }
   });
 });

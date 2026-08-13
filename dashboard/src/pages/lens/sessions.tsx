@@ -39,7 +39,7 @@ export function LensSessionsPage() {
     pageSize: SESSIONS_PAGE_SIZE,
     page,
     setPage,
-    naoAssentado: query.isFetching || !query.data,
+    notSettled: query.isFetching || !query.data,
   });
 
   const columns: DataTableColumn<Session>[] = [

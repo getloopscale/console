@@ -52,7 +52,7 @@ const POLL_TIMEOUT_MS = 5 * 60 * 1_000; // 5 min cap (EC-3 cancel guard)
  * recomeçaria. Uma peça de estado a menos, e ela já é reiniciada no lugar certo
  * — `handleInstallClick`, que sempre limpou o `installError`.
  */
-const MENSAGEM_PRAZO_DO_INSTALL =
+const INSTALL_DEADLINE_MESSAGE =
   "We didn't see the GitHub install complete. Try again from the install button.";
 const VISIBILITY_DEBOUNCE_MS = 500;
 
@@ -140,7 +140,7 @@ export function ProjectConnectPage() {
   useEffect(() => {
     if (state !== 'installing') return;
     const id = window.setTimeout(
-      () => setInstallError(MENSAGEM_PRAZO_DO_INSTALL),
+      () => setInstallError(INSTALL_DEADLINE_MESSAGE),
       POLL_TIMEOUT_MS,
     );
     return () => window.clearTimeout(id);

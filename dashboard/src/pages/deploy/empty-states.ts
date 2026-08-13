@@ -1,6 +1,6 @@
 import { Rocket } from 'lucide-react';
 import { safeNavigator } from '@/lib/navigation';
-import type { EstadoVazio } from '@/lib/list-state';
+import type { EmptyStateCopy } from '@/lib/list-state';
 
 /**
  * O que a tela de deploys diz quando um projeto ainda não fez nenhum.
@@ -15,7 +15,7 @@ import type { EstadoVazio } from '@/lib/list-state';
  *
  * Sair do JSX também o torna testável sem montar a página.
  */
-export function semDeploysAinda(projeto: string): EstadoVazio {
+export function noDeploysYet(projeto: string): EmptyStateCopy {
   return {
     icon: Rocket,
     // T4.3 finding 3.5: projeto frio — a afordância primária é conectar um repositório, e não

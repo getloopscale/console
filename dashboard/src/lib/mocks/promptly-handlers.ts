@@ -18,7 +18,7 @@ const promptlyDb: {
   // M18 — a discussão, por "nome\u001fversão". A chave carrega a VERSÃO porque o comentário é
   // dela: a v8 nasce e o comentário da v7 segue na v7.
   comentarios: Record<string, { id: string; body: string; author: string | null; createdAt: string }[]>;
-  uso: Record<string, { revision: number; resolutions: number; totalTokens: number; costUsd: number | null; p50LatencyMs: number | null }[]>;
+  usage: Record<string, { revision: number; resolutions: number; totalTokens: number; costUsd: number | null; p50LatencyMs: number | null }[]>;
 } = {
   catalog: [
     {
@@ -84,7 +84,7 @@ const promptlyDb: {
   // provaria um terço: v3 com uso e custo · v2 com uso e custo AUSENTE (o provider não reportou)
   // · v1 sem tráfego nenhum, que é diferente de zero.
   comentarios: {},
-  uso: {
+  usage: {
     saudacao: [
       { revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.0312, p50LatencyMs: 4.2 },
       { revision: 2, resolutions: 4, totalTokens: 0, costUsd: null, p50LatencyMs: 3.1 },
@@ -108,7 +108,7 @@ const promptlyDb: {
  * sem explicar. O e2e liga o interruptor com `addInitScript`, antes de qualquer script da
  * página — sem `goto` extra e sem parâmetro de URL, que a navegação SPA descartaria.
  */
-function usoIndisponivel(): boolean {
+function usageUnavailable(): boolean {
   try {
     return globalThis.sessionStorage?.getItem('__mock_uso') === 'indisponivel';
   } catch {
@@ -132,8 +132,8 @@ export function registerPromptlyHandlers() {
 function variaveisDe(content: string): string[] {
   const vistas = new Set<string>();
   for (const m of content.matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)) {
-    const nome = m[1];
-    if (nome !== undefined) vistas.add(nome);
+    const promptName = m[1];
+    if (promptName !== undefined) vistas.add(promptName);
   }
   return [...vistas];
 }
@@ -161,31 +161,31 @@ function registerPromptlyRoutes(base: string) {
     // a lista inteira para uma busca, e o e2e ficaria verde sobre uma tela que exibe linhas que
     // não casam com o termo digitado — exatamente o modo de falha que o cabeçalho deste arquivo
     // já alerta duas vezes (`content` do catálogo, `variables` do prompt).
-    const busca = (url.searchParams.get('search') ?? '').toLowerCase();
+    const search = (url.searchParams.get('search') ?? '').toLowerCase();
     const tag = url.searchParams.get('tag') ?? '';
-    const pasta = url.searchParams.get('folder') ?? '';
+    const folder = url.searchParams.get('folder') ?? '';
     const casados = promptlyDb.catalog.filter((p) => {
-      if (busca !== '' && !p.name.toLowerCase().includes(busca)) return false;
-      if (pasta !== '' && !p.name.startsWith(`${pasta}/`)) return false;
+      if (search !== '' && !p.name.toLowerCase().includes(search)) return false;
+      if (folder !== '' && !p.name.startsWith(`${folder}/`)) return false;
       if (tag !== '' && !(p.tags ?? []).includes(tag)) return false;
       return true;
     });
 
-    const pagina = casados.slice(0, limit);
-    const temMais = casados.length > limit;
+    const page = casados.slice(0, limit);
+    const hasMore = casados.length > limit;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (temMais && pagina.length > 0) {
-      const cursor = encodeURIComponent(pagina[pagina.length - 1]!.name);
+    if (hasMore && page.length > 0) {
+      const cursor = encodeURIComponent(page[page.length - 1]!.name);
       // O filtro viaja no Link, como no serviço: sem isso a página 2 volta ao catálogo inteiro.
       const extras = [
-        busca !== '' ? `&search=${encodeURIComponent(busca)}` : '',
+        search !== '' ? `&search=${encodeURIComponent(search)}` : '',
         tag !== '' ? `&tag=${encodeURIComponent(tag)}` : '',
-        pasta !== '' ? `&folder=${encodeURIComponent(pasta)}` : '',
+        folder !== '' ? `&folder=${encodeURIComponent(folder)}` : '',
       ].join('');
       headers.Link = `<${base}/prompts?after=${cursor}&limit=${String(limit)}${extras}>; rel="next"`;
     }
-    return new Response(JSON.stringify(pagina), { status: 200, headers });
+    return new Response(JSON.stringify(page), { status: 200, headers });
   });
 
   /**
@@ -197,18 +197,18 @@ function registerPromptlyRoutes(base: string) {
    * prompt, e que quebrou três jornadas quando o cartão de discussão nasceu.
    */
   registerRoute('GET', `${base}/prompts/{name}/revisions/{version}/comments`, async (_req, { name, version }) => {
-    const chave = `${name ?? ''}\u001f${version ?? ''}`;
-    return Response.json(promptlyDb.comentarios[chave] ?? []);
+    const key = `${name ?? ''}\u001f${version ?? ''}`;
+    return Response.json(promptlyDb.comentarios[key] ?? []);
   });
 
   registerRoute('POST', `${base}/prompts/{name}/revisions/{version}/comments`, async (req, { name, version }) => {
-    const corpo = (await req.json()) as { body?: string };
-    const texto = (corpo.body ?? '').trim();
-    if (texto === '') return Response.json({ error: 'empty_comment' }, { status: 400 });
-    const chave = `${name ?? ''}\u001f${version ?? ''}`;
-    const lista = promptlyDb.comentarios[chave] ?? [];
-    lista.push({ id: `c-${String(lista.length + 1)}`, body: texto, author: 'operador', createdAt: '2026-08-04T12:00:00Z' });
-    promptlyDb.comentarios[chave] = lista;
+    const body = (await req.json()) as { body?: string };
+    const text = (body.body ?? '').trim();
+    if (text === '') return Response.json({ error: 'empty_comment' }, { status: 400 });
+    const key = `${name ?? ''}\u001f${version ?? ''}`;
+    const lista = promptlyDb.comentarios[key] ?? [];
+    lista.push({ id: `c-${String(lista.length + 1)}`, body: text, author: 'operador', createdAt: '2026-08-04T12:00:00Z' });
+    promptlyDb.comentarios[key] = lista;
     return Response.json({ name, version }, { status: 201 });
   });
 
@@ -246,24 +246,24 @@ function registerPromptlyRoutes(base: string) {
    * exibindo um texto que o produto real não produz.
    */
   registerRoute('GET', `${base}/prompts/{name}/resolved`, async (_req, { name }) => {
-    const alvo = decodeURIComponent(name);
-    const revs = promptlyDb.revisions[alvo];
+    const target = decodeURIComponent(name);
+    const revs = promptlyDb.revisions[target];
     if (!revs || revs.length === 0) {
-      return Response.json({ error: 'prompt_not_found', name: alvo }, { status: 404 });
+      return Response.json({ error: 'prompt_not_found', name: target }, { status: 404 });
     }
     const ultima = revs[revs.length - 1]!;
-    const resolvido = ultima.content.replace(
+    const resolved = ultima.content.replace(
       /(?<!@)@@@promptly:name=([^@\s|]+)\|version=(\d+)@@@/g,
-      (inteiro, nome: string, versao: string) => {
-        const alvoRev = (promptlyDb.revisions[nome] ?? []).find((r) => r.version === Number(versao));
-        return alvoRev?.content ?? inteiro;
+      (inteiro, promptName: string, versao: string) => {
+        const targetRev = (promptlyDb.revisions[promptName] ?? []).find((r) => r.version === Number(versao));
+        return targetRev?.content ?? inteiro;
       },
     );
     return Response.json({
       ...ultima,
-      name: alvo,
+      name: target,
       variables: variaveisDe(ultima.content),
-      resolvedContent: resolvido,
+      resolvedContent: resolved,
     });
   });
 
@@ -274,14 +274,14 @@ function registerPromptlyRoutes(base: string) {
    * da tabela de arestas, e derivá-lo mantém as duas pontas incapazes de divergir na fixture.
    */
   registerRoute('GET', `${base}/prompts/{name}/dependents`, async (_req, { name }) => {
-    const alvo = decodeURIComponent(name);
+    const target = decodeURIComponent(name);
     const out: { name: string; version: number; via: { version: number | null; label: string | null } }[] = [];
-    for (const [nome, revs] of Object.entries(promptlyDb.revisions)) {
+    for (const [promptName, revs] of Object.entries(promptlyDb.revisions)) {
       for (const rev of revs) {
         for (const m of rev.content.matchAll(/(?<!@)@@@promptly:name=([^@\s|]+)\|(version|label)=([^@\s]+)@@@/g)) {
-          if (m[1] !== alvo) continue;
+          if (m[1] !== target) continue;
           out.push({
-            name: nome,
+            name: promptName,
             version: rev.version,
             via: {
               version: m[2] === 'version' ? Number(m[3]) : null,
@@ -295,19 +295,19 @@ function registerPromptlyRoutes(base: string) {
   });
 
   registerRoute('POST', `${base}/prompts/{name}/playground`, async (req) => {
-    const corpo = (await req.json()) as {
+    const body = (await req.json()) as {
       credential?: string;
       content?: string;
       variables?: Record<string, string>;
     };
-    const content = corpo.content ?? '';
-    const variables = corpo.variables ?? {};
+    const content = body.content ?? '';
+    const variables = body.variables ?? {};
 
     const faltante = variaveisDe(content).find((v) => (variables[v] ?? '').trim() === '');
     if (faltante !== undefined) {
       return Response.json({ error: 'missing_variable', variable: faltante }, { status: 400 });
     }
-    if ((corpo.credential ?? '').trim() === '') {
+    if ((body.credential ?? '').trim() === '') {
       return Response.json({ error: 'invalid_body' }, { status: 400 });
     }
 
@@ -326,15 +326,15 @@ function registerPromptlyRoutes(base: string) {
     // `after` devolveria sempre as revisões certas por acaso, e o e2e passaria numa tela que no
     // ar mostra as 10 mais velhas rotuladas como as mais novas.
     const after = Number(params.get('after') ?? '0');
-    const janela = revs.filter((r) => r.version > after);
-    return Response.json(janela.slice(0, Math.max(1, limit)));
+    const window = revs.filter((r) => r.version > after);
+    return Response.json(window.slice(0, Math.max(1, limit)));
   });
 
   // M15 — o uso observado por revisão. O mock respeita `windowDays` porque a tela DIZ a janela:
   // um mock que a ignorasse deixaria passar uma tela que mostra "7 dias" sobre outro período.
   registerRoute('GET', `${base}/prompts/{name}/usage`, async (req, { name }) => {
-    const nome = decodeURIComponent(name);
-    if (usoIndisponivel()) {
+    const promptName = decodeURIComponent(name);
+    if (usageUnavailable()) {
       // O estado que o DoD-3 exige que a tela saiba distinguir de "ninguém usou".
       return Response.json(
         { code: 'PROMPTLY_USAGE_UNAVAILABLE', message: 'could not read this prompt usage' },
@@ -342,7 +342,7 @@ function registerPromptlyRoutes(base: string) {
       );
     }
     const windowDays = Number(new URL(req.url).searchParams.get('windowDays') ?? '7');
-    return Response.json({ promptName: nome, windowDays, rows: promptlyDb.uso[nome] ?? [] });
+    return Response.json({ promptName: promptName, windowDays, rows: promptlyDb.usage[promptName] ?? [] });
   });
 
   registerRoute('GET', `${base}/prompts/{name}/labels`, async (_req, { name }) => {
@@ -351,8 +351,8 @@ function registerPromptlyRoutes(base: string) {
   });
 
   registerRoute('GET', `${base}/prompts/{name}/policies/{label}`, async (_req, { name, label }) => {
-    const chave = `${decodeURIComponent(name)}::${decodeURIComponent(label)}`;
-    const p = promptlyDb.policies[chave];
+    const key = `${decodeURIComponent(name)}::${decodeURIComponent(label)}`;
+    const p = promptlyDb.policies[key];
     // 404 TIPADO: "nenhuma regra governa este label" é um fato, e a tela renderiza *promoção
     // livre*. Um 200 com corpo vazio faria a tela não conseguir distinguir isso de uma falha.
     if (!p) {
@@ -368,25 +368,25 @@ function registerPromptlyRoutes(base: string) {
   // no e2e hermético, e o milestone provaria só a metade que lê.
   registerRoute('POST', `${base}/prompts`, async (req) => {
     const body = (await req.json()) as { name?: string; content?: string };
-    const nome = String(body.name ?? '');
-    const conteudo = String(body.content ?? '');
-    const lista = (promptlyDb.revisions[nome] ??= []);
+    const promptName = String(body.name ?? '');
+    const content = String(body.content ?? '');
+    const lista = (promptlyDb.revisions[promptName] ??= []);
     const version = lista.length + 1;
-    lista.push({ version, content: conteudo, createdAt: '2026-08-03T12:00:00Z' });
-    const entrada = promptlyDb.catalog.find((c) => c.name === nome);
+    lista.push({ version, content: content, createdAt: '2026-08-03T12:00:00Z' });
+    const entrada = promptlyDb.catalog.find((c) => c.name === promptName);
     if (entrada) entrada.latestVersion = version;
-    else promptlyDb.catalog.push({ name: nome, latestVersion: version, labels: [], tags: [], updatedAt: '2026-08-03T12:00:00Z' });
-    return Response.json({ id: `rev-${version}`, name: nome, content: conteudo, version, createdAt: '2026-08-03T12:00:00Z', variables: [] }, { status: 201 });
+    else promptlyDb.catalog.push({ name: promptName, latestVersion: version, labels: [], tags: [], updatedAt: '2026-08-03T12:00:00Z' });
+    return Response.json({ id: `rev-${version}`, name: promptName, content: content, version, createdAt: '2026-08-03T12:00:00Z', variables: [] }, { status: 201 });
   });
 
   registerRoute('POST', `${base}/prompts/{name}/rollback`, async (req, { name }) => {
-    const nome = decodeURIComponent(name);
+    const promptName = decodeURIComponent(name);
     const body = (await req.json()) as { toVersion?: number; label?: string };
-    const entrada = promptlyDb.catalog.find((c) => c.name === nome);
-    const lista = promptlyDb.revisions[nome] ?? [];
-    const origem = lista.find((r) => r.version === body.toVersion);
-    if (!entrada || !origem) {
-      return Response.json({ error: 'prompt_not_found', name: nome, toVersion: body.toVersion }, { status: 404 });
+    const entrada = promptlyDb.catalog.find((c) => c.name === promptName);
+    const lista = promptlyDb.revisions[promptName] ?? [];
+    const origin = lista.find((r) => r.version === body.toVersion);
+    if (!entrada || !origin) {
+      return Response.json({ error: 'prompt_not_found', name: promptName, toVersion: body.toVersion }, { status: 404 });
     }
     // A ambiguidade é REAL na API e a jornada precisa dela: um prompt COM labels e sem label
     // nomeado recusa com 400 e a lista — é o que transforma a recusa em escolha na tela.
@@ -394,14 +394,14 @@ function registerPromptlyRoutes(base: string) {
       return Response.json(
         {
           error: 'label_required',
-          message: `rollback of "${nome}" needs the label to roll back — existing: ${entrada.labels.map((l) => l.label).join(', ')}`,
+          message: `rollback of "${promptName}" needs the label to roll back — existing: ${entrada.labels.map((l) => l.label).join(', ')}`,
           availableLabels: entrada.labels.map((l) => l.label),
         },
         { status: 400 },
       );
     }
     const version = lista.length + 1;
-    lista.push({ version, content: origem.content, createdAt: '2026-08-03T12:05:00Z' });
+    lista.push({ version, content: origin.content, createdAt: '2026-08-03T12:05:00Z' });
     entrada.latestVersion = version;
     const movidos: string[] = [];
     if (body.label) {
@@ -410,40 +410,40 @@ function registerPromptlyRoutes(base: string) {
     }
     // labelsMoved PODE voltar vazio, e é justamente o caso que a tela não pode ler como sucesso.
     return Response.json(
-      { id: `rev-${version}`, name: nome, content: origem.content, version, createdAt: '2026-08-03T12:05:00Z', variables: [], labelsMoved: movidos, currentLabels: entrada.labels },
+      { id: `rev-${version}`, name: promptName, content: origin.content, version, createdAt: '2026-08-03T12:05:00Z', variables: [], labelsMoved: movidos, currentLabels: entrada.labels },
       { status: 201 },
     );
   });
 
   registerRoute('PUT', `${base}/prompts/{name}/labels/{label}`, async (req, { name, label }) => {
-    const nome = decodeURIComponent(name);
+    const promptName = decodeURIComponent(name);
     const lbl = decodeURIComponent(label);
     const body = (await req.json()) as { version?: number };
     const version = body.version ?? 0;
 
-    const politica = promptlyDb.policies[`${nome}::${lbl}`];
-    if (politica) {
+    const policy = promptlyDb.policies[`${promptName}::${lbl}`];
+    if (policy) {
       // A recusa carrega os NÚMEROS — é o que diz ao operador por que a promoção foi barrada.
       // Sem eles ele vê "erro" e tenta de novo igual.
       return Response.json(
         {
           error: 'promotion_blocked',
-          message: `promotion requires score ≥ ${politica.minScore} on dataset ${politica.datasetId}; the best run of this revision scored 0.41`,
-          required: politica.minScore,
+          message: `promotion requires score ≥ ${policy.minScore} on dataset ${policy.datasetId}; the best run of this revision scored 0.41`,
+          required: policy.minScore,
           actual: 0.41,
         },
         { status: 409 },
       );
     }
 
-    const entrada = promptlyDb.catalog.find((c) => c.name === nome);
-    if (!entrada) return Response.json({ error: 'prompt_not_found', name: nome }, { status: 404 });
+    const entrada = promptlyDb.catalog.find((c) => c.name === promptName);
+    if (!entrada) return Response.json({ error: 'prompt_not_found', name: promptName }, { status: 404 });
     const ponteiro = entrada.labels.find((l) => l.label === lbl);
     if (ponteiro) {
       ponteiro.version = version;
     } else {
       entrada.labels.push({ label: lbl, version });
     }
-    return Response.json({ name: nome, label: lbl, version });
+    return Response.json({ name: promptName, label: lbl, version });
   });
 }

@@ -1,5 +1,5 @@
 import { FolderKanban } from 'lucide-react';
-import type { EstadoVazio } from '@/lib/list-state';
+import type { EmptyStateCopy } from '@/lib/list-state';
 
 /**
  * O que a lista de projetos diz quando a BUSCA não casou nada.
@@ -9,12 +9,12 @@ import type { EstadoVazio } from '@/lib/list-state';
  * LoC ao ganhar a perna de erro que faltava (B-167); a catraca manda decompor, e esta é a parte
  * do arquivo que menos tem a ver com renderizar.
  */
-export function buscaSemResultado(
-  carregando: boolean,
-  busca: string,
+export function searchWithoutResult(
+  loading: boolean,
+  search: string,
   encontrados: number,
-): EstadoVazio | undefined {
-  if (carregando || busca === '' || encontrados > 0) return undefined;
+): EmptyStateCopy | undefined {
+  if (loading || search === '' || encontrados > 0) return undefined;
   return {
     icon: FolderKanban,
     title: 'No matching projects',

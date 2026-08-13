@@ -49,7 +49,7 @@ export function DeleteSecretDialog({
 
   if (!secret) return null;
 
-  const excluir = async () => {
+  const remove = async () => {
     const env = environment ?? secret.environments?.[0] ?? 'production';
     try {
       await deleteSecret.mutateAsync({ name: secret.name, environment: env, project });
@@ -77,7 +77,7 @@ export function DeleteSecretDialog({
       confirmLabel="Delete"
       intent="destructive"
       confirmationPhrase={secret.name}
-      onConfirm={excluir}
+      onConfirm={remove}
       loading={deleteSecret.isPending}
     />
   );

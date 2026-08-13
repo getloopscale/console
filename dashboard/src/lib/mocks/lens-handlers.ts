@@ -60,7 +60,7 @@ export function registerLensHandlers() {
       Response.json({ alert_rules: regrasDeAlerta }),
     );
     registerRoute('POST', `${prefix}/v1/dashboard/lens/alert-rules`, async (req) => {
-      const corpo = (await req.json()) as Record<string, unknown>;
+      const body = (await req.json()) as Record<string, unknown>;
       const regra = {
         id: `lar-${regrasDeAlerta.length + 1}`,
         enabled: true,
@@ -69,7 +69,7 @@ export function registerLensHandlers() {
         // distinção que impede o operador de concluir que a regra falhou e criar a segunda.
         last_evaluated_at: null,
         last_triggered_at: null,
-        ...corpo,
+        ...body,
       };
       regrasDeAlerta.push(regra);
       return Response.json(regra);
@@ -168,9 +168,9 @@ export function registerLensHandlers() {
       const bucket = new URL(req.url).searchParams.get("bucket");
       if (bucket !== "day") return Response.json({ ...USAGE_BY_USER, windowDays: days });
 
-      const dia = (n: number) => new Date(Date.UTC(2026, 6, n)).toISOString();
+      const day = (n: number) => new Date(Date.UTC(2026, 6, n)).toISOString();
       const ponto = (n: number, i: number, o: number, c: number) => ({
-        periodStart: dia(n), inputTokens: i, outputTokens: o,
+        periodStart: day(n), inputTokens: i, outputTokens: o,
         cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: c,
       });
       return Response.json({

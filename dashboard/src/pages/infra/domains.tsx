@@ -177,7 +177,7 @@ export function DomainsPage() {
   const domainsQuery = useDomains();
   const data = domainsQuery.data ?? null;
   const loading = domainsQuery.isLoading;
-  const erroDeLeitura = domainsQuery.isError;
+  const readError = domainsQuery.isError;
   const domains = data?.domains ?? [];
   const [verifying, setVerifying] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -239,8 +239,8 @@ export function DomainsPage() {
         !loading && filtered.length === 0
           ? estadoDaLista(
               {
-                erro: erroDeLeitura,
-                vazio: {
+                failure: readError,
+                empty: {
                   icon: Globe,
                   title: searchQuery ? 'No matching domains' : 'No custom domains yet',
                   description: searchQuery

@@ -3,8 +3,8 @@ import { parseAsInteger, useQueryState } from 'nuqs';
 import { Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
 import { TrendChart, type TrendSeries } from '@usetheo/ui';
-import { densificar, janelaDaSerie, type CampoPlotavel } from '@/pages/lens/usage-series';
-import { resumirConsumo } from '@/pages/lens/usage-summary';
+import { densificar, seriesWindow, type PlottableField } from '@/pages/lens/usage-series';
+import { summarizeConsumption } from '@/pages/lens/usage-summary';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -74,7 +74,7 @@ export const cabeSerie = (days: number): boolean =>
  * `--pairs all` e não só os pares adjacentes porque num gráfico de linhas que se cruzam **quaisquer**
  * duas linhas encostam — a lista honesta é todas contra todas.
  */
-const LINHAS_NO_GRAFICO = 4;
+const ROWS_IN_CHART = 4;
 
 /**
  * Okabe-Ito, escalonada para a superfície ESCURA — e só para ela, de propósito.
@@ -99,7 +99,7 @@ const UNATTRIBUTED = 'unattributed';
  * fuso do navegador deslocaria o rótulo em relação ao balde que ele nomeia. Um gráfico que diz
  * "21/07" sobre o balde de 22/07 é pior que um sem data — erra com confiança.
  */
-const diaDoEixo = (x: number): string =>
+const axisDay = (x: number): string =>
   new Date(x).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
 
 /**
@@ -109,7 +109,7 @@ const diaDoEixo = (x: number): string =>
  * genérica para TODA falha foi o defeito, não a existência dela. Reusamos o padrão, não o texto —
  * o do billing carrega cópia específica de checkout.
  */
-function mensagemDoServico(err: unknown): string | null {
+function serviceMessage(err: unknown): string | null {
   if (err instanceof ApiError && typeof err.body === 'object' && err.body !== null) {
     const body = err.body as { message?: unknown };
     if (typeof body.message === 'string' && body.message.trim().length > 0) return body.message;
@@ -143,12 +143,12 @@ export function LensUsageByUserPage() {
     pageSize: PAGE_SIZE,
     page,
     setPage,
-    naoAssentado: query.isFetching || !query.data,
+    notSettled: query.isFetching || !query.data,
   });
 
   // M143 — a agregação vive fora do componente, pura e testável por mutação. O que quebrou no M142
   // não foi a renderização, foi a aritmética sem oráculo.
-  const resumo = resumirConsumo(users, total);
+  const resumo = summarizeConsumption(users, total);
 
   const columns: DataTableColumn<UsageRow>[] = [
     {
@@ -241,12 +241,12 @@ export function LensUsageByUserPage() {
    * ali mentiria — a mesma armadilha que a faixa de KPI já evita ao declarar escopo parcial.
    */
   const escopoDoGrafico =
-    page === 1 ? `top ${LINHAS_NO_GRAFICO}` : `top ${LINHAS_NO_GRAFICO} on this page`;
+    page === 1 ? `top ${ROWS_IN_CHART}` : `top ${ROWS_IN_CHART} on this page`;
 
-  const totalDe = (u: UsageRow, campo: CampoPlotavel): number =>
-    campo === 'costUsd' ? u.costUsd : u.inputTokens + u.outputTokens;
+  const totalDe = (u: UsageRow, field: PlottableField): number =>
+    field === 'costUsd' ? u.costUsd : u.inputTokens + u.outputTokens;
 
-  const serieDe = (campo: CampoPlotavel): TrendSeries[] => {
+  const serieDe = (field: PlottableField): TrendSeries[] => {
     // O ranking é POR GRANDEZA PLOTADA. A página vem ordenada pelo serviço por
     // `inputTokens + outputTokens DESC` — tokens, não custo —, e os quatro primeiros dessa ordem
     // não são os quatro maiores em dólares: um usuário num modelo caro com poucos tokens fica atrás
@@ -254,11 +254,11 @@ export function LensUsageByUserPage() {
     // título dizia "maiores". O título afirmava sobre o eixo de dólares uma ordem de tokens.
     const plotaveis = [...users]
       .filter((u) => u.series !== undefined)
-      .sort((a, b) => totalDe(b, campo) - totalDe(a, campo))
-      .slice(0, LINHAS_NO_GRAFICO);
+      .sort((a, b) => totalDe(b, field) - totalDe(a, field))
+      .slice(0, ROWS_IN_CHART);
     if (plotaveis.length === 0) return [];
-    const diasComPonto = plotaveis.flatMap((u) => (u.series ?? []).map((p) => Date.parse(p.periodStart)));
-    const { inicio, dias } = janelaDaSerie(diasComPonto, days, Date.now());
+    const daysWithPoint = plotaveis.flatMap((u) => (u.series ?? []).map((p) => Date.parse(p.periodStart)));
+    const { start, windowDays } = seriesWindow(daysWithPoint, days, Date.now());
     return plotaveis.map((u, i) => ({
       name: u.userId === UNATTRIBUTED ? 'Unattributed' : shortId(u.userId, 12),
       // A cor segue a POSIÇÃO no recorte, não a entidade: com quatro slots e um conjunto ilimitado
@@ -268,11 +268,11 @@ export function LensUsageByUserPage() {
       // cruzar custo e tokens. Trocar a janela troca o recorte e repinta; está registrado como
       // limitação, não disfarçado de estabilidade.
       color: CORES[i % CORES.length] as string,
-      points: densificar(u.series ?? [], inicio, dias, campo),
+      points: densificar(u.series ?? [], start, windowDays, field),
     }));
   };
 
-  const doServico = query.isError ? mensagemDoServico(query.error) : null;
+  const fromService = query.isError ? serviceMessage(query.error) : null;
 
   return (
     <PageShell
@@ -324,8 +324,8 @@ export function LensUsageByUserPage() {
         {query.isLoading ? (
           <ListSkeleton label="usage" />
         ) : query.isError ? (
-          <Alert intent="warning" title={doServico ? 'The service refused the query' : 'Could not load the usage'}>
-            {doServico ?? 'The observability service is unavailable. Try again in a moment.'}
+          <Alert intent="warning" title={fromService ? 'The service refused the query' : 'Could not load the usage'}>
+            {fromService ?? 'The observability service is unavailable. Try again in a moment.'}
           </Alert>
         ) : users.length === 0 ? (
           <EmptyState
@@ -363,7 +363,7 @@ export function LensUsageByUserPage() {
               <MetricCard
                 data-testid="kpi-custo"
                 title="Estimated cost"
-                value={formatCost(resumo.custoUsd)}
+                value={formatCost(resumo.costUsd)}
                 icon={<DollarSign className="h-4 w-4" />}
                 hint={resumo.completo ? `all ${total} users in the period` : `among the ${users.length} shown`}
               />
@@ -416,7 +416,7 @@ export function LensUsageByUserPage() {
                     title={`Cost per day — ${escopoDoGrafico}`}
                     series={serieDe('costUsd')}
                     valueFormatter={(v) => formatCost(v)}
-                    xFormatter={diaDoEixo}
+                    xFormatter={axisDay}
                     xLabel="Day"
                   />
                 </Card>
@@ -425,7 +425,7 @@ export function LensUsageByUserPage() {
                     title={`Tokens per day — ${escopoDoGrafico}`}
                     series={serieDe('tokens')}
                     valueFormatter={(v) => formatNumber(v, 'compact')}
-                    xFormatter={diaDoEixo}
+                    xFormatter={axisDay}
                     xLabel="Day"
                   />
                 </Card>

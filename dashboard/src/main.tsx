@@ -45,7 +45,7 @@ const ReactQueryDevtools = __DEV__
 //
 // Custo em producao: ZERO. O `if` e resolvido em tempo de build (a env e literal),
 // entao o corpo inteiro — inclusive o await — some do bundle.
-const prontoParaRenderizar =
+const readyToRender =
   import.meta.env.VITE_USE_MOCKS === 'true'
     ? Promise.all([import('./lib/mocks/dev-mocks'), import('./lib/mocks')]).then(
         ([devMocks, mocks]) => {
@@ -98,7 +98,7 @@ if (import.meta.env.PROD) {
 //         TheoUIProvider — design system + toaster
 //           App
 //             ReactQueryDevtools (dev only) — Cmd-Shift-Q inspect cache
-void prontoParaRenderizar.then(() =>
+void readyToRender.then(() =>
   createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RouteBoundary routePath="root">

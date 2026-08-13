@@ -48,7 +48,7 @@ export function SkillsDiscoveryPage() {
   // B-052 — a chave literal citava o caminho do endpoint. Na factory ela e
   // `skills.discovery(...)`, entao uma invalidacao de `skills.all` alcanca a
   // busca junto do catalogo — antes eram ilhas separadas.
-  const busca = useSkillsDiscovery<RetrievePayload>(
+  const search = useSkillsDiscovery<RetrievePayload>(
     consulta,
     TOP_K,
     incluirRascunhos,
@@ -56,8 +56,8 @@ export function SkillsDiscoveryPage() {
     consulta !== '',
   );
 
-  const linhas = discoveryRows(busca.data);
-  const falhou = Boolean(busca.error);
+  const rows = discoveryRows(search.data);
+  const failed = Boolean(search.error);
 
   const colunas: DataTableColumn<DiscoveryRow>[] = [
     {
@@ -127,8 +127,8 @@ export function SkillsDiscoveryPage() {
               value={rascunho}
               onChange={(e) => setRascunho(e.target.value)}
             />
-            <Button type="submit" disabled={rascunho.trim() === '' || busca.isFetching}>
-              {busca.isFetching ? 'Searching…' : 'Search'}
+            <Button type="submit" disabled={rascunho.trim() === '' || search.isFetching}>
+              {search.isFetching ? 'Searching…' : 'Search'}
             </Button>
           </div>
 
@@ -158,15 +158,15 @@ export function SkillsDiscoveryPage() {
         </form>
       </Card>
 
-      {falhou ? (
+      {failed ? (
         <Alert
           intent="destructive"
           title="The search could not run"
-          description={promotionRefusal(busca.error, 'Try again in a moment.')}
+          description={promotionRefusal(search.error, 'Try again in a moment.')}
           // Erro com AÇÃO, não só com texto: `DESIGN.md` §4 — um erro sem saída deixa o operador
           // olhando para uma tela que não muda.
           action={
-            <Button variant="secondary" size="sm" onClick={() => void busca.refetch()}>
+            <Button variant="secondary" size="sm" onClick={() => void search.refetch()}>
               Try again
             </Button>
           }
@@ -181,29 +181,29 @@ export function SkillsDiscoveryPage() {
           <Card.Description>
             {consulta === ''
               ? 'No search yet.'
-              : `${linhas.length} result(s) for "${consulta}", ordered by how well they matched.`}
+              : `${rows.length} result(s) for "${consulta}", ordered by how well they matched.`}
           </Card.Description>
         </Card.Header>
 
         <DataTable
           columns={colunas}
-          data={linhas}
+          data={rows}
           rowKey={(row) => row.skillId}
-          loading={busca.isFetching}
+          loading={search.isFetching}
           emptyState={
             <EmptyState
               icon={Search}
               title={
                 consulta === ''
                   ? 'Ask something'
-                  : falhou
+                  : failed
                     ? 'No data — the search failed'
                     : 'Nothing matched that intent'
               }
               description={
                 consulta === ''
                   ? 'Describe above what you want the agent to do. You will see what it would find, how well it matched, and why.'
-                  : falhou
+                  : failed
                     ? 'This does NOT mean the registry is empty — the read never happened.'
                     : 'No skill in the registry matched. Try other words, or tick "include drafts" — discovery hides them by default.'
               }

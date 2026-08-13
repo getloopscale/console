@@ -1,5 +1,5 @@
 import { Badge, Button, type DataTableColumn } from '@usetheo/ui';
-import type { LinhaDeUso } from '@/pages/promptly/components/usage';
+import type { UsageRow } from '@/pages/promptly/components/usage';
 import type { RevisionRow } from '@/pages/promptly/components/projections';
 import type { ResultadoRollback } from '@/pages/promptly/components/rollback';
 
@@ -15,13 +15,13 @@ import type { ResultadoRollback } from '@/pages/promptly/components/rollback';
  */
 export interface DepsDasColunas {
   /** Uso por revisão (M15), já projetado — a coluna só formata. */
-  readonly usoPorRevisao: ReadonlyMap<number, LinhaDeUso>;
+  readonly usageByRevision: ReadonlyMap<number, UsageRow>;
   /** Para onde cada ambiente aponta AGORA (M1) — a coluna de promoção precisa saber. */
   readonly ponteiros: readonly { readonly label: string; readonly version: number }[];
   /** Abre o diálogo de reversão para uma revisão. */
-  readonly setAlvo: (versao: number) => void;
+  readonly setTarget: (versao: number) => void;
   /** Janela declarada do agregado de uso (M15) — a coluna a exibe, nunca a supõe. */
-  readonly janelaDias: number;
+  readonly windowDays: number;
   /**
    * Os setters que os dois botões da linha acionam.
    *
@@ -29,27 +29,27 @@ export interface DepsDasColunas {
    * reverter e promover. Quem lê esta assinatura vê que a coluna PODE disparar os dois, em vez de
    * descobrir isso caçando closures no meio de 135 linhas de JSX.
    */
-  readonly setRevAlvo: (v: number | null) => void;
-  readonly setLabelAlvo: (l: string) => void;
+  readonly setTargetRevision: (v: number | null) => void;
+  readonly setTargetLabel: (l: string) => void;
   readonly setPromoteError: (e: string | null) => void;
-  readonly setRollbackErro: (e: string | null) => void;
+  readonly setRollbackError: (e: string | null) => void;
   readonly setRollbackResultado: (r: ResultadoRollback | null) => void;
   readonly setLabelRollback: (l: string | null) => void;
-  readonly setLabelsParaEscolher: (l: string[]) => void;
+  readonly setLabelsToChoose: (l: string[]) => void;
 }
 
 export function revisionColumns({
-  usoPorRevisao,
+  usageByRevision,
   ponteiros,
-  setAlvo,
-  janelaDias,
-  setRevAlvo,
-  setLabelAlvo,
+  setTarget,
+  windowDays,
+  setTargetRevision,
+  setTargetLabel,
   setPromoteError,
-  setRollbackErro,
+  setRollbackError,
   setRollbackResultado,
   setLabelRollback,
-  setLabelsParaEscolher,
+  setLabelsToChoose,
 }: DepsDasColunas): DataTableColumn<RevisionRow>[] {
   return [
   {
@@ -104,14 +104,14 @@ export function revisionColumns({
   },
   {
     key: 'uso',
-    label: `Usage (${String(janelaDias)} days)`,
+    label: `Usage (${String(windowDays)} days)`,
     render: (row) => {
-      const u = usoPorRevisao.get(row.version);
+      const u = usageByRevision.get(row.version);
       if (u === undefined || u.estado === 'nao-lido') {
         // Nunca um zero: um zero aqui afirmaria um fato que ninguém mediu.
         return (
           <span className="text-xs text-destructive">
-            {u?.razao ?? 'could not read this prompt usage'}
+            {u?.rationale ?? 'could not read this prompt usage'}
           </span>
         );
       }
@@ -125,13 +125,13 @@ export function revisionColumns({
             {u.latenciaP50Ms !== undefined ? `${u.latenciaP50Ms.toFixed(1)} ms` : 'latency not measured'}
             {u.tokens !== undefined ? ` · ${String(u.tokens)} tokens` : null}
           </div>
-          {u.custoUsd !== undefined ? (
+          {u.costUsd !== undefined ? (
             <div className="font-mono text-[10px] text-muted-foreground">
-              US$ {u.custoUsd.toFixed(4)}
+              US$ {u.costUsd.toFixed(4)}
             </div>
           ) : (
             <div className="text-[10px] text-muted-foreground">
-              {u.razaoDoCusto} — cost is only attributed when the resolution and the model call
+              {u.costRationale} — cost is only attributed when the resolution and the model call
               happen in the same trace
             </div>
           )}
@@ -148,13 +148,13 @@ export function revisionColumns({
         variant="ghost"
         aria-label={`Roll back to revision v${row.version}`}
         onClick={() => {
-          setRollbackErro(null);
+          setRollbackError(null);
           setRollbackResultado(null);
           // Um único label ⇒ já se sabe qual move. Vários ⇒ o serviço recusa com a lista, e a
           // recusa vira a escolha. Zero ⇒ segue sem label, e o resultado dirá que nada mudou.
           setLabelRollback(ponteiros.length === 1 ? ponteiros[0].label : null);
-          setLabelsParaEscolher([]);
-          setRevAlvo(row.version);
+          setLabelsToChoose([]);
+          setTargetRevision(row.version);
         }}
       >
         Roll back
@@ -177,8 +177,8 @@ export function revisionColumns({
               aria-label={`Promote ${p.label} to revision v${row.version}`}
               onClick={() => {
                 setPromoteError(null);
-                setLabelAlvo(p.label);
-                setAlvo(row.version);
+                setTargetLabel(p.label);
+                setTarget(row.version);
               }}
             >
               {p.label}

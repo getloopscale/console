@@ -68,7 +68,7 @@ const registro = new Map<string, Entrada>();
  * `('/a', 'b')` e `('/a\u0000b', null)` não colidam — uma colisão de chave aqui entrega a
  * um assinante o stream de outro.
  */
-function chaveDe(url: string, lastEventId: string | null | undefined): string {
+function keyOf(url: string, lastEventId: string | null | undefined): string {
   return `${url}\u0000${lastEventId ?? ''}`;
 }
 
@@ -90,12 +90,12 @@ function chaveDe(url: string, lastEventId: string | null | undefined): string {
  */
 type Transporte = (url: string, opcoes: { token: string | null; lastEventId?: string | null }) => EventSource;
 
-let criarTransporte: Transporte = (url, opcoes) =>
+let createTransport: Transporte = (url, opcoes) =>
   new FetchEventSource(url, opcoes) as unknown as EventSource;
 
 /** So para teste — troca o transporte. Ver o bloco acima para o porque. */
 export function __setTransporte(t: Transporte | null): void {
-  criarTransporte = t ?? ((url, opcoes) => new FetchEventSource(url, opcoes) as unknown as EventSource);
+  createTransport = t ?? ((url, opcoes) => new FetchEventSource(url, opcoes) as unknown as EventSource);
 }
 
 /** Só para teste — o registro é global por natureza e precisa zerar entre casos. */
@@ -133,9 +133,9 @@ export class SharedEventSource {
     // O TOKEN continua fora da chave, de propósito e por assimetria real: ele é credencial para o
     // MESMO dado, e duas abas que renovaram em instantes diferentes não devem abrir duas conexões
     // para um build — ver `abrirNova` logo abaixo.
-    const chave = chaveDe(url, this.opcoes.lastEventId);
-    this.chave = chave;
-    const existente = registro.get(chave);
+    const key = keyOf(url, this.opcoes.lastEventId);
+    this.chave = key;
+    const existente = registro.get(key);
     if (existente) {
       this.entrada = existente;
       existente.handles.add(this);
@@ -145,15 +145,15 @@ export class SharedEventSource {
       queueMicrotask(() => this.recuperarAtraso());
       return;
     }
-    this.entrada = this.abrirNova(url, chave);
+    this.entrada = this.openNew(url, key);
   }
 
-  private abrirNova(url: string, chave: string): Entrada {
+  private openNew(url: string, key: string): Entrada {
     // B-088 — o transporte e `FetchEventSource`, nao `EventSource`: o token vai
     // em `Authorization` e some da URL. Efeito colateral util: a chave do
     // registro passa a ser a URL LIMPA, entao dois consumidores do mesmo stream
     // compartilham mesmo que tenham obtido o token em instantes diferentes.
-    const real = criarTransporte(url, {
+    const real = createTransport(url, {
       token: this.opcoes.token,
       lastEventId: this.opcoes.lastEventId,
     });
@@ -164,7 +164,7 @@ export class SharedEventSource {
       buffer: [],
       aberta: false,
     };
-    registro.set(chave, entrada);
+    registro.set(key, entrada);
 
     real.onopen = (event) => {
       entrada.aberta = true;
@@ -174,7 +174,7 @@ export class SharedEventSource {
     real.onerror = (event) => {
       // Despeja ANTES de avisar: o consumidor reage fechando e reabrindo, e o
       // reabrir precisa encontrar o registro limpo.
-      if (registro.get(chave) === entrada) registro.delete(chave);
+      if (registro.get(key) === entrada) registro.delete(key);
       entrada.aberta = false;
       for (const h of entrada.handles) h.onerror?.(event);
     };

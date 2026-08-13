@@ -266,16 +266,16 @@ function registerBuildHandlers() {
   // A serie e DENSA e com zeros no meio de proposito: o componente preenche
   // buracos server-side, e uma serie sem dia vazio nao exercitaria isso.
   registerRoute('GET', '/api/v1/builds/stats', async (req) => {
-    const janela = new URL(req.url).searchParams.get('window') ?? '7d';
-    const dias = janela === '90d' ? 90 : janela === '30d' ? 30 : 7;
+    const window = new URL(req.url).searchParams.get('window') ?? '7d';
+    const days = window === '90d' ? 90 : window === '30d' ? 30 : 7;
     const contagens = [3, 0, 5, 2, 0, 8, 1];
-    const by_day = Array.from({ length: dias }, (_, i) => {
-      const d = new Date(Date.UTC(2026, 7, 7) - (dias - 1 - i) * 86_400_000);
+    const by_day = Array.from({ length: days }, (_, i) => {
+      const d = new Date(Date.UTC(2026, 7, 7) - (days - 1 - i) * 86_400_000);
       return { date: d.toISOString().slice(0, 10), count: contagens[i % contagens.length] };
     });
     const total = by_day.reduce((s, d) => s + d.count, 0);
     return Response.json({
-      window_days: dias,
+      window_days: days,
       timezone: 'UTC',
       by_day,
       last_7d_count: by_day.slice(-7).reduce((s, d) => s + d.count, 0),

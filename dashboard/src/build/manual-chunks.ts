@@ -53,7 +53,7 @@ const FORCE_GRAPH_RE = /node_modules\/(react-force-graph|force-graph|d3-|d3\/)/;
 // A ancoragem usa a estrutura real de `node_modules/`: um nome de pacote e sempre
 // seguido de `/`. Familias de prefixo (`remark-`, `hast-`) mantem o hifen, que ja
 // e ancora suficiente — `remark-` nao casa `remarkable`.
-const NOMES_EXATOS = [
+const EXACT_NAMES = [
   '@tiptap', 'tiptap-markdown', 'markdown-it', 'linkifyit', 'mdurl',
   'orderedmap', 'rope-sequence', 'w3c-keyname',
   'react-markdown', 'micromark', 'unified', 'vfile', 'bail', 'trough',
@@ -90,7 +90,7 @@ const LAZY_ONLY_RE = new RegExp(
       //
       // E `ccounter` continua fora, porque nao ha hifen depois de `ccount`. Era
       // esse o defeito original: prefixo SEM ancora nenhuma casava os dois.
-      ...NOMES_EXATOS.map((n) => `${escapar(n)}[/-]`),
+      ...EXACT_NAMES.map((n) => `${escapar(n)}[/-]`),
       // Familia: o hifen final e a ancora.
       ...FAMILIAS_PREFIXO.map((f) => escapar(f)),
     ].join('|') +

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeColumns } from '../lens/traces/view-encoding';
-import { linkParaTracesDoPrompt } from './traces-link';
+import { linkToPromptTraces } from './traces-link';
 
 // M23 — o caminho da aba do prompt até as resoluções individuais.
 //
@@ -11,7 +11,7 @@ import { linkParaTracesDoPrompt } from './traces-link';
 
 /** O helper devolve `string | null`; nos casos de sucesso o `null` é falha de teste, não de tipo. */
 function linkDe(nome: string): URL {
-  const href = linkParaTracesDoPrompt(nome);
+  const href = linkToPromptTraces(nome);
   expect(href).not.toBeNull();
   return new URL(href as string, 'https://x');
 }
@@ -49,7 +49,7 @@ describe('linkParaTracesDoPrompt — o filtro (T1.1)', () => {
       // faz o ErrorBoundary substituir a tela de detalhe inteira, e o botão Retry re-renderiza o
       // mesmo estado. Nome ausente é estado CONHECIDO do produto (`detail.tsx` tem `= ''` e nove
       // guardas `!== ''`), e `error-handling.md § 2` proíbe exceção para controle de fluxo.
-      expect(linkParaTracesDoPrompt(nome)).toBeNull();
+      expect(linkToPromptTraces(nome)).toBeNull();
     },
   );
 });

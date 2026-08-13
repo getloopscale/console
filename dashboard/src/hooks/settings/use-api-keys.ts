@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/api/query-keys';
 import * as api from './api-keys-api';
-import type { CreateKeyResponse, NovaChave } from './api-keys-api';
+import type { CreateKeyResponse, NewKey } from './api-keys-api';
 
 /**
  * A camada de acesso a dados do domínio de chaves de API (B-012 / B-053).
@@ -52,10 +52,10 @@ function useInvalidarListagem() {
   return () => client.invalidateQueries({ queryKey: queryKeys.apiKeys.list() });
 }
 
-export function useCriarApiKey(onCriada: (chave: CreateKeyResponse) => void) {
+export function useCreateApiKey(onCriada: (key: CreateKeyResponse) => void) {
   const invalidar = useInvalidarListagem();
   return useMutation({
-    mutationFn: (input: NovaChave) => api.criar(input),
+    mutationFn: (input: NewKey) => api.create(input),
     onSuccess: (resp) => {
       if (resp) onCriada(resp);
       void invalidar();
@@ -74,7 +74,7 @@ export function useRevogarApiKey(onRevogada: () => void) {
   });
 }
 
-export function useRotacionarApiKey(onRotacionada: (chave: CreateKeyResponse) => void) {
+export function useRotacionarApiKey(onRotacionada: (key: CreateKeyResponse) => void) {
   const invalidar = useInvalidarListagem();
   return useMutation({
     mutationFn: (id: string) => api.rotacionar(id),

@@ -48,20 +48,20 @@ export interface Medidas {
  */
 export function lerMedidas(entrada: {
   projeto: { last_deploy?: unknown } | undefined;
-  statusErro: unknown;
+  statusError: unknown;
   status: {
     replicas_desired?: number;
     replicas_ready?: number;
     alerts_active?: number;
     traffic_5xx_pct_1h?: number;
   } | null | undefined;
-  deploysErro: unknown;
+  deploysError: unknown;
   builds: readonly unknown[] | undefined;
 }): Medidas {
   return {
     projetoIndisponivel: !entrada.projeto,
-    statusIndisponivel: Boolean(entrada.statusErro) || !entrada.status,
-    deploysIndisponiveis: Boolean(entrada.deploysErro),
+    statusIndisponivel: Boolean(entrada.statusError) || !entrada.status,
+    deploysIndisponiveis: Boolean(entrada.deploysError),
     ultimoDeploy: entrada.projeto?.last_deploy ?? null,
     replicasDesejadas: entrada.status?.replicas_desired ?? 0,
     replicasProntas: entrada.status?.replicas_ready ?? 0,

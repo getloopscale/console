@@ -1,117 +1,132 @@
+// @vitest-environment node
+//
+// The scan parses ~450 files and never touches a DOM. Under the suite's default jsdom the same
+// work costs tens of seconds; in `node` it is a fraction of that. Same reasoning as
+// `i18n-guard.test.ts`, and for the same reason: a slow guard is a guard someone eventually skips.
+
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect } from 'vitest';
-import { resolve } from 'node:path';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { varrerIdentificadores, ehIdentificadorPT } from '@/test/i18n-guard';
 
 const SRC = resolve(__dirname, '..');
 
 /**
- * B-241 — identifiers still written in Portuguese.
+ * B-241 — identifiers are written in English. This file used to be a ratchet; it is now a GUARD.
  *
- * ## The blocker was the measurement, not the migration
+ * ## What changed, and what the zero does and does not mean
  *
- * This item carried a number nobody could reproduce. Four attempts gave four answers:
+ * The population was 484 occurrences over 277 distinct names. It is now 0, migrated 2026-08-13 in
+ * one slice through `scripts/rename-identifiers.mjs` — the TypeScript language service's rename,
+ * not a substitution. 276 names came from the shared map, six from per-file targets where one
+ * Portuguese word meant two different things or collided with an English name already in scope.
  *
- *   278  recorded as INFLATED, for matching `isError`/`ApiError` against the prefix "erro"
- *   179  the correction the item carries — method never written down
- *   314  mine, 2026-08-12, repeating 278's defect exactly: my regex matched `error` by PREFIX,
- *        55 files in one stroke
- *   329  mine, corrected to whole-word matching — still inflated
- *   398  reusing `MARCADOR` alone
- *   484  this one, with an identifier-specific supplement
+ * **The zero is a zero BY THIS DETECTOR.** `MARCADOR` plus `SUPLEMENTO_IDENTIFICADORES` decide what
+ * counts as unambiguously Portuguese, and that list has a tail: `rotulo`, `linguagem`, `variaveis`,
+ * `ultimaVersao`, `resolucao`, `intencao` and others are still in the tree and are simply not in
+ * it. Reading this zero as "no Portuguese identifier remains" would be the same mistake B-238 and
+ * B-243 each cost a cycle to learn — the number measures the SPELLING the list knows, never the
+ * defect. The tail is measured and registered as B-279 rather than left for someone to discover.
  *
- * The third contamination is the one narrowing a regex cannot fix: **Portuguese and English share
- * cognates.** `total` (38 files), `item` (14), `texto` (15), `atual` (14) are each a valid word in
- * both languages or differ by a letter. A word list cannot separate the two without someone
- * deciding cognate by cognate — and that decision was written nowhere.
+ * ## Why the guard flips only now
  *
- * Except it was. `i18n-guard.ts`'s `MARCADOR` is exactly that decision, made for interface text and
- * documented as "acento, ou palavra que não existe em inglês". It contains `nome`, `chave`, `linha`,
- * `janela`, `busca`; it does NOT contain `total`, `item`, `atual`. Reusing it rather than writing a
- * second list is parsimony rung 4, and it removes the obvious failure of two lists drifting apart.
+ * B-241's DoD says the guard goes in LAST, and the reason is mechanical: enabled at any number
+ * above zero it rejects the migration's own intermediate states. And the shortcut that would have
+ * reached zero sooner — removing words from `MARCADOR` — was refused: `varrerInterface` reads the
+ * same list and is an ACTIVE guard over screen text, so every word dropped here would quietly widen
+ * what may appear on screen (D4 of `dashboard-ratchet-burndown-plan.md`).
  *
- * `MARCADOR` alone gave 398, and stopping there would have UNDER-counted: it was written for
- * interface text, so words that are unambiguous in an identifier but never appear as a screen
- * label — `erro`, `vazio`, `seletor`, `teto` — are simply not in it. `erro` being absent while
- * `error` must stay absent is the exact distinction the first measurement destroyed by matching
- * prefixes. A supplement lists them, holds no cognates, and takes the count to 484. Silently
- * accepting 398 would have been the same defect this whole session documents, one more time.
+ * ## Comments stay Portuguese
  *
- * The count is now defined by a committed, tested artifact instead of by whoever measured last.
- *
- * ## What this ratchet is for, and what it is not
- *
- * It freezes the population so it can only shrink. It does NOT perform the migration, and the
- * migration is not mechanical: this item records a sweep that touched 270 files, corrupted prose
- * inside comments, and was reverted. `local` marks the identifiers declared and used in a single
- * file — the safe batch to rename first, because a rename there cannot collide with a homonym
- * elsewhere.
- *
- * Comments stay in Portuguese. That is the repo's convention and this item's DoD says so
- * explicitly; I claimed three times that a conflict there was blocking this item, and re-reading
- * it, there is none. The blocker was always the measurement.
+ * The repo's convention, this item's DoD, and a property of how the migration ran: the rename went
+ * through `findRenameLocations(..., findInStrings: false, findInComments: false)`, so across 159
+ * files and 2 678 edits not one comment line and not one string literal changed. Verified by diff,
+ * not asserted.
  */
-
-/** Occurrences. Measured 2026-08-12 with `MARCADOR`. ONLY GOES DOWN. */
-const CEILING_OCCURRENCES = 484;
-
-/** Distinct names. Falls faster than occurrences — one rename closes every use of that name. */
-const CEILING_DISTINCT = 277;
-
-function found() {
-  return varrerIdentificadores(SRC);
-}
-
-describe('identifier-language ratchet (B-241)', () => {
-  it('the population does not grow — new code is written in English', () => {
-    const all = found();
-    const top = [...new Set(all.map((a) => a.nome))].slice(0, 8).join(', ');
+describe('the dashboard names things in English (B-241)', () => {
+  it('no production declaration is written in Portuguese', () => {
+    const found = varrerIdentificadores(SRC);
+    const sample = found
+      .slice(0, 30)
+      .map((a) => `  ${a.arquivo}:${String(a.linha)}  ${a.nome}`)
+      .join('\n');
 
     expect(
-      all.length,
-      `\nPortuguese-form identifiers: ${String(all.length)} occurrences ` +
-        `(ceiling ${String(CEILING_OCCURRENCES)}).\n\n` +
-        `e.g. ${top}\n\n` +
-        'If it WENT UP: a new declaration was written in Portuguese. The repo is migrating the\n' +
-        'other way — comments stay Portuguese by convention, identifiers do not.\n\n' +
-        'If it WENT DOWN: that is progress, and both ceilings should follow.\n',
-    ).toBeLessThanOrEqual(CEILING_OCCURRENCES);
-  });
-
-  it('the occurrence ceiling matches disk', () => {
-    expect(found().length).toBe(CEILING_OCCURRENCES);
-  });
-
-  it('the distinct-name ceiling matches disk', () => {
-    expect(new Set(found().map((a) => a.nome)).size).toBe(CEILING_DISTINCT);
-  });
-
-  it('the safe batch is identified — names living in exactly one file', () => {
-    // 217 of the 277 are declared and used in a single file. Those are where a rename cannot
-    // collide with a homonym in another scope, which is the failure mode the reverted sweep hit:
-    // `erro` appears in dozens of files as a LOCAL, and `\berro\b -> error` collided with the
-    // `error` already in scope in many of them.
-    const localOnly = new Set(found().filter((a) => a.local).map((a) => a.nome));
-    expect(localOnly.size).toBeGreaterThanOrEqual(210);
+      found,
+      `\nPortuguese-form declarations in \`src/\`: ${String(found.length)}.\n\n` +
+        `${sample}\n\n` +
+        'The product is written in English and so is its code. Comments are NOT — Portuguese\n' +
+        'comments are this repository\'s convention and this guard never looks at them.\n\n' +
+        'If you are migrating a name, `scripts/rename-identifiers.mjs` does it through the\n' +
+        'compiler; a search-and-replace corrupts prose and collides with homonyms, which is\n' +
+        'recorded in B-241 as having happened.\n',
+    ).toEqual([]);
   });
 });
 
-describe('the detector, exercised — not a copy of it', () => {
-  it('flags an unambiguously Portuguese name', () => {
-    expect(ehIdentificadorPT('nomeDoCampo')).toBe(true);
-    expect(ehIdentificadorPT('linhas')).toBe(true);
+describe('the guard, exercised — not a copy of it', () => {
+  // The counterpart that makes the case above mean something. Without these, a detector that
+  // returned nothing at all would pass, which is exactly how the first version of the interface
+  // guard "reported zero with Portuguese still on screen" (`i18n-guard.ts` docblock).
+
+  it('REJECTS a Portuguese declaration — the guard can fail', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'identifier-guard-'));
+    try {
+      writeFileSync(
+        join(dir, 'exemplo.ts'),
+        ['export const nomeDoCampo = 1;', 'export function buscarLinhas() { return []; }'].join('\n'),
+        'utf8',
+      );
+
+      const found = varrerIdentificadores(dir);
+      expect(found.map((a) => a.nome).sort()).toEqual(['buscarLinhas', 'nomeDoCampo']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
-  it('does NOT flag English', () => {
-    expect(ehIdentificadorPT('fieldName')).toBe(false);
-    expect(ehIdentificadorPT('rows')).toBe(false);
+  it('ACCEPTS English — the rejection is not trivially true', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'identifier-guard-'));
+    try {
+      writeFileSync(
+        join(dir, 'exemplo.ts'),
+        ['export const fieldName = 1;', 'export function fetchRows() { return []; }'].join('\n'),
+        'utf8',
+      );
+      expect(varrerIdentificadores(dir)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a Portuguese COMMENT is not a finding — the convention is not the defect', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'identifier-guard-'));
+    try {
+      writeFileSync(
+        join(dir, 'exemplo.ts'),
+        [
+          '// A entrada antiga não é servida: a janela de cache decide, e o nome do campo importa.',
+          '/** Docblock em português: revisão, ambiente, chave, linha. */',
+          'export const fieldName = 1;',
+        ].join('\n'),
+        'utf8',
+      );
+      expect(
+        varrerIdentificadores(dir),
+        'the guard read a comment — it is matching text instead of declarations',
+      ).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('does NOT flag a COGNATE — the contamination that produced 329', () => {
     // Each of these is a valid English word, or differs by a letter. Counting them is what made
-    // three of the four earlier measurements wrong.
+    // three of the four earlier measurements of this item wrong.
     for (const cognate of ['total', 'item', 'atual', 'items', 'totalCount']) {
       expect(ehIdentificadorPT(cognate), `${cognate} is not evidence of Portuguese`).toBe(false);
     }
@@ -128,5 +143,18 @@ describe('the detector, exercised — not a copy of it', () => {
 
   it('an accent alone is enough, without any word list', () => {
     expect(ehIdentificadorPT('validaçao')).toBe(true);
+  });
+
+  it('the KNOWN TAIL is stated rather than implied (B-279)', () => {
+    // The honest limit of the zero above, encoded so it cannot be forgotten: these are Portuguese
+    // and this detector does not see them, because neither list contains the word. Registered as
+    // B-279. If a future change teaches the detector one of them, this case fails and the tail
+    // shrinks with it — which is the point.
+    for (const invisible of ['rotulo', 'linguagem', 'variaveis', 'ultimaVersao', 'resolucao', 'intencao']) {
+      expect(
+        ehIdentificadorPT(invisible),
+        `${invisible} is now detected — move it out of this list and migrate the population it reveals`,
+      ).toBe(false);
+    }
   });
 });

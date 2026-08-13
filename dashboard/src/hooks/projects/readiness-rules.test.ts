@@ -85,14 +85,14 @@ describe('o que não dá para medir fica unknown, nunca fail', () => {
 describe('lerMedidas', () => {
   it('um corpo de status ausente é indisponibilidade, mesmo sem erro', () => {
     // As duas causas — o hook falhou, ou respondeu sem corpo — levam à mesma leitura: não medimos.
-    expect(lerMedidas({ projeto: {}, statusErro: null, status: null, deploysErro: null, builds: [] })
+    expect(lerMedidas({ projeto: {}, statusError: null, status: null, deploysError: null, builds: [] })
       .statusIndisponivel).toBe(true);
-    expect(lerMedidas({ projeto: {}, statusErro: new Error('x'), status: { replicas_ready: 3 }, deploysErro: null, builds: [] })
+    expect(lerMedidas({ projeto: {}, statusError: new Error('x'), status: { replicas_ready: 3 }, deploysError: null, builds: [] })
       .statusIndisponivel).toBe(true);
   });
 
   it('campos ausentes viram zero, e o zero é uma medida — não um desconhecido', () => {
-    const m = lerMedidas({ projeto: {}, statusErro: null, status: {}, deploysErro: null, builds: undefined });
+    const m = lerMedidas({ projeto: {}, statusError: null, status: {}, deploysError: null, builds: undefined });
     expect(m.replicasProntas).toBe(0);
     expect(m.totalBuilds).toBe(0);
     expect(m.statusIndisponivel).toBe(false);

@@ -44,7 +44,7 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
     );
   }
 
-  const temConfig =
+  const hasConfig =
     modelConfig !== null &&
     (modelConfig.model !== undefined ||
       modelConfig.temperature !== undefined ||
@@ -63,7 +63,7 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
-          {!temConfig ? (
+          {!hasConfig ? (
             // Dito, nunca em branco: espaço vazio lê-se como "não carregou". A ausência é um fato
             // sobre a revisão — as anteriores ao M17 não têm config, e inventar uma retroativamente
             // apareceria numa auditoria como se alguém a tivesse escolhido.

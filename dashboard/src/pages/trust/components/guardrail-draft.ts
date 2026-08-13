@@ -55,34 +55,34 @@ export type DraftField = 'name' | 'terms' | 'replacement';
  * dizer ONDE. Texto de interface é escrito para humanos e reescrito o tempo todo; usá-lo como
  * chave de roteamento é acoplar a lógica à redação.
  */
-export interface ProblemaDeCampo {
-  readonly campo: DraftField;
-  readonly mensagem: string;
+export interface FieldProblem {
+  readonly field: DraftField;
+  readonly message: string;
 }
 
-export function draftProblems(d: GuardrailDraft): readonly ProblemaDeCampo[] {
-  const out: ProblemaDeCampo[] = [];
+export function draftProblems(d: GuardrailDraft): readonly FieldProblem[] {
+  const out: FieldProblem[] = [];
   const name = d.name.trim();
 
-  if (name === '') out.push({ campo: 'name', mensagem: 'Give the guardrail a name.' });
+  if (name === '') out.push({ field: 'name', message: 'Give the guardrail a name.' });
   else if (RESERVED.has(name.toLowerCase())) {
     out.push({
-      campo: 'name',
-      mensagem: `"${name}" is a name reserved by the platform. Choose another.`,
+      field: 'name',
+      message: `"${name}" is a name reserved by the platform. Choose another.`,
     });
   }
 
   const terms = cleanTerms(d.terms);
-  if (terms.length === 0) out.push({ campo: 'terms', mensagem: 'Add at least one term to block.' });
+  if (terms.length === 0) out.push({ field: 'terms', message: 'Add at least one term to block.' });
 
   // Um termo em branco casaria em todo lugar — o serviço rejeita, mas o operador merece saber
   // antes de enviar, e sem descobrir por tentativa.
   if (d.terms.some((t) => t.trim() === '' && t !== '')) {
-    out.push({ campo: 'terms', mensagem: 'One of the terms is blank.' });
+    out.push({ field: 'terms', message: 'One of the terms is blank.' });
   }
 
   if (d.action === 'modify' && d.replacement.trim() === '') {
-    out.push({ campo: 'replacement', mensagem: 'Set the text that replaces the term found.' });
+    out.push({ field: 'replacement', message: 'Set the text that replaces the term found.' });
   }
   return out;
 }
@@ -98,7 +98,7 @@ export function draftProblemsByField(d: GuardrailDraft): Partial<Record<DraftFie
   const out: Partial<Record<DraftField, string>> = {};
   // Uma indexação, não uma dedução. O primeiro problema de cada campo vence — é o mais alto na
   // ordem em que `draftProblems` os produz, e é o que o operador precisa resolver primeiro.
-  for (const { campo, mensagem } of draftProblems(d)) out[campo] ??= mensagem;
+  for (const { field, message } of draftProblems(d)) out[field] ??= message;
   return out;
 }
 

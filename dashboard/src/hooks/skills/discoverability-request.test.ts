@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { corpoDoDiagnostico } from './discoverability-request';
+import { diagnosticBody } from './discoverability-request';
 
 /**
  * M34 / theo-skills#144 — o corpo enviado ao diagnóstico de descobribilidade.
@@ -27,7 +27,7 @@ import { corpoDoDiagnostico } from './discoverability-request';
 
 describe('corpoDoDiagnostico', () => {
   it('rascunho OMITE has_embedding — não manda `false`', () => {
-    const corpo = corpoDoDiagnostico('Converter moeda', 'Converte moeda para reais.', {
+    const corpo = diagnosticBody('Converter moeda', 'Converte moeda para reais.', {
       publicada: false,
     });
     expect('has_embedding' in corpo).toBe(false);
@@ -35,20 +35,20 @@ describe('corpoDoDiagnostico', () => {
   });
 
   it('publicada sem vetor manda `false` EXPLÍCITO — ali o achado é real', () => {
-    const corpo = corpoDoDiagnostico('x', 'y', { publicada: true, temVetor: false });
+    const corpo = diagnosticBody('x', 'y', { publicada: true, hasVector: false });
     expect(corpo.has_embedding).toBe(false);
   });
 
   it('publicada com vetor manda `true`', () => {
-    const corpo = corpoDoDiagnostico('x', 'y', { publicada: true, temVetor: true });
+    const corpo = diagnosticBody('x', 'y', { publicada: true, hasVector: true });
     expect(corpo.has_embedding).toBe(true);
   });
 
   it('a diferença entre rascunho e publicada-sem-vetor é OBSERVÁVEL no corpo', () => {
     // O contraste que o defeito apagava: os dois casos produziam exatamente o mesmo corpo, e o
     // serviço não tinha como distinguir a pergunta que estava respondendo.
-    const rascunho = corpoDoDiagnostico('x', 'y', { publicada: false });
-    const publicadaSemVetor = corpoDoDiagnostico('x', 'y', { publicada: true, temVetor: false });
+    const rascunho = diagnosticBody('x', 'y', { publicada: false });
+    const publicadaSemVetor = diagnosticBody('x', 'y', { publicada: true, hasVector: false });
     expect(rascunho).not.toEqual(publicadaSemVetor);
   });
 });

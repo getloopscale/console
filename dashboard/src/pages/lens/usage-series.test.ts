@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { densificar, janelaDaSerie, type PontoDaSerie } from './usage-series';
+import { densificar, seriesWindow, type PontoDaSerie } from './usage-series';
 
 /**
  * M144 — a densificação.
@@ -121,25 +121,25 @@ describe('janelaDaSerie', () => {
   const HOJE = Date.UTC(2026, 6, 22, 15, 30); // 22/jul, 15:30 UTC — de propósito fora da meia-noite
 
   it('cobre days + 1 fatias — o mesmo que o orçamento paga', () => {
-    const { dias } = janelaDaSerie([Date.UTC(2026, 6, 20)], 30, HOJE);
-    expect(dias).toBe(31);
+    const { windowDays } = seriesWindow([Date.UTC(2026, 6, 20)], 30, HOJE);
+    expect(windowDays).toBe(31);
   });
 
   it('termina HOJE, não no último dia com consumo — o silêncio final é visível', () => {
     // ninguém consome desde o dia 18; hoje é 22. Os quatro dias de silêncio TÊM de estar no eixo.
-    const { inicio, dias } = janelaDaSerie([Date.UTC(2026, 6, 18)], 7, HOJE);
-    expect(inicio + (dias - 1) * DIA).toBe(Date.UTC(2026, 6, 22));
+    const { start, windowDays } = seriesWindow([Date.UTC(2026, 6, 18)], 7, HOJE);
+    expect(start + (windowDays - 1) * DIA).toBe(Date.UTC(2026, 6, 22));
   });
 
   it('nunca corta dado: um balde mais novo que o relógio estende a janela', () => {
     // relógio do navegador atrasado em relação ao serviço — o dado manda, não o relógio.
-    const { inicio, dias } = janelaDaSerie([Date.UTC(2026, 6, 25)], 7, HOJE);
-    expect(inicio + (dias - 1) * DIA).toBe(Date.UTC(2026, 6, 25));
+    const { start, windowDays } = seriesWindow([Date.UTC(2026, 6, 25)], 7, HOJE);
+    expect(start + (windowDays - 1) * DIA).toBe(Date.UTC(2026, 6, 25));
   });
 
   it('sem ponto algum a janela ainda existe, ancorada no relógio', () => {
-    const { inicio, dias } = janelaDaSerie([], 7, HOJE);
-    expect(dias).toBe(8);
-    expect(inicio + (dias - 1) * DIA).toBe(Date.UTC(2026, 6, 22));
+    const { start, windowDays } = seriesWindow([], 7, HOJE);
+    expect(windowDays).toBe(8);
+    expect(start + (windowDays - 1) * DIA).toBe(Date.UTC(2026, 6, 22));
   });
 });

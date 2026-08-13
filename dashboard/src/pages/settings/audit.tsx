@@ -103,7 +103,7 @@ export function AuditPage() {
   const entries = query.data?.entries ?? [];
   const total = query.data?.total ?? 0;
   const loading = query.isLoading;
-  const erroDeLeitura = query.isError;
+  const readError = query.isError;
   // B-184 — a aritmética é compartilhada; com ela vem o passo-atrás quando a página fica além do
   // fim, que esta tela não tinha: filtrar por ação encolhe o total, e quem estava na página 4
   // ficava olhando uma tabela vazia sem nada explicando por quê.
@@ -112,7 +112,7 @@ export function AuditPage() {
     pageSize: AUDIT_PAGE_SIZE,
     page,
     setPage,
-    naoAssentado: query.isFetching || !query.data,
+    notSettled: query.isFetching || !query.data,
   });
   const { pageCount } = paginacao;
 
@@ -154,7 +154,7 @@ export function AuditPage() {
       loading={loading}
       empty={
         estadoDaLista(
-          { erro: erroDeLeitura, vazio: !loading && visibleEntries.length === 0
+          { failure: readError, empty: !loading && visibleEntries.length === 0
           ? {
               icon: History,
               title: sourceFilter === 'memory' ? 'No memory activity in this period' : 'No audit entries',
@@ -313,7 +313,7 @@ export function AuditPage() {
                 Page {page} of {pageCount} · {total} records
               </span>
               <div className="flex gap-2">
-                <Pager paginacao={paginacao} ocupado={query.isFetching} mostrarPagina={false} />
+                <Pager paginacao={paginacao} ocupado={query.isFetching} showPage={false} />
               </div>
             </div>
           </Card.Footer>

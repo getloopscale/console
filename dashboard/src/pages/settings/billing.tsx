@@ -334,7 +334,7 @@ export function BillingPage() {
         {OFERTA_POR_PLANO[planTier] && (
           <button
             type="button"
-            onClick={() => upgradePlan(OFERTA_POR_PLANO[planTier]!.alvo)}
+            onClick={() => upgradePlan(OFERTA_POR_PLANO[planTier]!.target)}
             disabled={actionLoading}
             // Red Team theo-cloud#72 closure: disable on the first click so a double-tap can't
             // fire two POST /v1/billing/checkout requests in quick succession. This is the

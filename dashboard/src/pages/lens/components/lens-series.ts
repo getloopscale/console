@@ -158,15 +158,15 @@ export function scoresToSeries(buckets: ScoreBucket[], topN = 6): TrendSeries[] 
   //
   // `NaN` e não `0`: uma média sobre zero amostras é **indefinida**, não zero. É a distinção que o
   // próprio produto já aplica nos KPIs — contagem aceita zero honesto, taxa não (`widgets.ts`).
-  const porNome = new Map<string, Map<number, number>>();
-  for (const n of names) porNome.set(n, new Map());
+  const byName = new Map<string, Map<number, number>>();
+  for (const n of names) byName.set(n, new Map());
   for (const b of numeric) {
     if (!nameSet.has(b.name)) continue;
-    porNome.get(b.name)!.set(idx.get(b.periodStart)!, b.avgScore!);
+    byName.get(b.name)!.set(idx.get(b.periodStart)!, b.avgScore!);
   }
   return names.map((n, i) => ({
     name: n,
     color: PALETTE[i % PALETTE.length],
-    points: periods.map((_, x) => ({ x, y: porNome.get(n)!.get(x) ?? Number.NaN })),
+    points: periods.map((_, x) => ({ x, y: byName.get(n)!.get(x) ?? Number.NaN })),
   }));
 }

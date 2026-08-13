@@ -88,15 +88,15 @@ describe('diffConfig — a config muda, não só o texto (M17 DoD-4)', () => {
     const d = diffConfig({ temperature: 0.2 }, { temperature: 0.9 });
 
     expect(d.mudou).toBe(true);
-    expect(d.linhas).toHaveLength(1);
-    expect(d.linhas[0]).toMatchObject({ campo: 'temperature', antes: '0.2', depois: '0.9' });
+    expect(d.rows).toHaveLength(1);
+    expect(d.rows[0]).toMatchObject({ field: 'temperature', before: '0.2', after: '0.9' });
   });
 
   it('mesma config NAO e diferenca — o controle que da sentido ao caso acima', () => {
     const d = diffConfig({ temperature: 0.2, model: 'gpt-4o' }, { temperature: 0.2, model: 'gpt-4o' });
 
     expect(d.mudou).toBe(false);
-    expect(d.linhas).toHaveLength(0);
+    expect(d.rows).toHaveLength(0);
   });
 
   it('mesmas chaves em ORDEM diferente nao e diferenca', () => {
@@ -111,7 +111,7 @@ describe('diffConfig — a config muda, não só o texto (M17 DoD-4)', () => {
     const d = diffConfig(null, { temperature: 0.5 });
 
     expect(d.mudou).toBe(true);
-    expect(d.linhas[0]?.antes).toMatch(/before the config/i);
+    expect(d.rows[0]?.before).toMatch(/before the config/i);
   });
 
   it('as DUAS sem config nao e diferenca', () => {

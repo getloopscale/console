@@ -73,7 +73,7 @@ export function LensLabelingQueuePage() {
     setPage,
     // "Dados não assentados" inclui o estado anterior à primeira resposta: sem ele, um `data`
     // vazio no meio de uma navegação colapsaria `pageCount` para 1 e devolveria a página.
-    naoAssentado: query.isFetching || !query.data,
+    notSettled: query.isFetching || !query.data,
   });
 
   const openResolve = (item: QueueItem) => {

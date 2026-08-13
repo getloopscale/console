@@ -40,7 +40,7 @@ export interface TokenRow {
   readonly quotaPerWindow: number | null;
 }
 
-function statusDoToken(entry: TokenEntry, agora: Date): TokenStatus {
+function statusDoToken(entry: TokenEntry, now: Date): TokenStatus {
   // A revogação vem PRIMEIRO, e a ordem é a regra: um token revogado nunca volta a valer, e
   // exibi-lo como expirado esconderia que alguém o cortou de propósito — o operador precisa saber
   // qual dos dois aconteceu.
@@ -51,10 +51,10 @@ function statusDoToken(entry: TokenEntry, agora: Date): TokenStatus {
 
   // `<=`: no instante exato da expiração o serviço já recusa. Tratar como ativo faria a tela
   // discordar do backend sobre o mesmo token.
-  return expira <= agora.getTime() ? 'expired' : 'active';
+  return expira <= now.getTime() ? 'expired' : 'active';
 }
 
-export function tokenRows(payload: TokensPayload | null | undefined, agora: Date): TokenRow[] {
+export function tokenRows(payload: TokensPayload | null | undefined, now: Date): TokenRow[] {
   const entries = payload?.tokens;
   if (!Array.isArray(entries)) return [];
 
@@ -63,7 +63,7 @@ export function tokenRows(payload: TokensPayload | null | undefined, agora: Date
     // "sem rótulo" e não string vazia: uma célula em branco parece dado faltando na tela, e o
     // operador vai procurar o defeito que não existe.
     labelText: entry.label !== null && entry.label !== undefined && entry.label !== '' ? entry.label : 'no label',
-    status: statusDoToken(entry, agora),
+    status: statusDoToken(entry, now),
     expiresAt: entry.expires_at,
     revokedAt: entry.revoked_at ?? null,
     quotaPerWindow: entry.quota_per_window ?? null,
@@ -112,14 +112,14 @@ export function adoptionRows(payload: AdoptionPayload | null | undefined): Adopt
   if (!Array.isArray(entries)) return [];
 
   const total = payload?.total_installs;
-  const temDenominador = typeof total === 'number' && total > 0;
+  const hasDenominator = typeof total === 'number' && total > 0;
 
   return entries
     .map((entry) => ({
       skillId: entry.skill_id,
       version: entry.version,
       installs: entry.installs,
-      share: temDenominador ? entry.installs / total : null,
+      share: hasDenominator ? entry.installs / total : null,
     }))
     .sort((a, b) =>
       // Desempate por identificador: sem ele a ordem dança entre renders com contagens iguais, e

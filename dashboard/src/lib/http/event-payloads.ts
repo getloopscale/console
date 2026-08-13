@@ -49,7 +49,7 @@ export interface PlanLimitDetail {
 }
 
 /** Uma string presente e não-vazia; qualquer outra coisa é ausência. */
-function textoUtil(v: unknown): string | undefined {
+function usefulText(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
   const t = v.trim();
   return t === '' ? undefined : v;
@@ -81,9 +81,9 @@ export function isLoggedOutMessage(v: unknown): v is AuthMessage {
 export function readPlanLimitDetail(v: unknown): PlanLimitDetail | null {
   if (!ehObjeto(v)) return null;
   const lido: { -readonly [K in keyof PlanLimitDetail]: PlanLimitDetail[K] } = {};
-  for (const campo of ['current_plan', 'code', 'message', 'resource'] as const) {
-    const t = textoUtil(v[campo]);
-    if (t !== undefined) lido[campo] = t;
+  for (const field of ['current_plan', 'code', 'message', 'resource'] as const) {
+    const t = usefulText(v[field]);
+    if (t !== undefined) lido[field] = t;
   }
   // `limit` é o único numérico: um `Infinity` ou `NaN` renderizaria como texto e não como limite.
   if (typeof v.limit === 'number' && Number.isFinite(v.limit)) lido.limit = v.limit;

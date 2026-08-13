@@ -7,11 +7,11 @@ import {
   labelRows,
   promotionConsequence,
   policySummary,
-  resumoCatalogo,
-  temProximaPagina,
+  catalogSummary,
+  hasNextPage,
   type CatalogRow,
   comentarioRows,
-  promptsPorAmbiente,
+  promptsByEnvironment,
 } from './projections';
 
 /**
@@ -128,7 +128,7 @@ describe('promotionConsequence', () => {
   it('nomeia QUAL revisão deixa de servir o label', () => {
     // O critério do milestone, literal: não "o item será alterado", mas qual versão sai de
     // produção. O número vem do que a API devolve em `/labels` — não é inferido.
-    const frase = promotionConsequence({ label: 'prod', atual: 4, alvo: 7 });
+    const frase = promotionConsequence({ label: 'prod', atual: 4, target: 7 });
 
     expect(frase).toContain('prod');
     expect(frase).toContain('v4');
@@ -138,7 +138,7 @@ describe('promotionConsequence', () => {
 
   it('quando o label ainda não existe, a frase MUDA em vez de inventar a revisão que sai', () => {
     // Se o dado não existe, não se inventa o dado nem se implementa API para sustentar a frase.
-    const frase = promotionConsequence({ label: 'canario', atual: null, alvo: 2 });
+    const frase = promotionConsequence({ label: 'canario', atual: null, target: 2 });
 
     expect(frase).not.toMatch(/stops serving/i);
     expect(frase).toContain('canario');
@@ -149,7 +149,7 @@ describe('promotionConsequence', () => {
   it('avisa quando o label já serve exatamente a revisão escolhida', () => {
     // Promover para onde já está não é erro — é um clique que não muda nada, e dizer isso evita
     // que o operador ache que a promoção falhou.
-    const frase = promotionConsequence({ label: 'prod', atual: 5, alvo: 5 });
+    const frase = promotionConsequence({ label: 'prod', atual: 5, target: 5 });
 
     expect(frase).toMatch(/already serves/i);
   });
@@ -160,8 +160,8 @@ describe('policySummary', () => {
     const resumo = policySummary({ datasetId: 'ds-1', minScore: 0.8 });
 
     expect(resumo.livre).toBe(false);
-    expect(resumo.texto).toContain('0.8');
-    expect(resumo.texto).toContain('ds-1');
+    expect(resumo.text).toContain('0.8');
+    expect(resumo.text).toContain('ds-1');
   });
 
   it('sem política, declara promoção LIVRE — não "não consegui ler"', () => {
@@ -171,7 +171,7 @@ describe('policySummary', () => {
     const resumo = policySummary(null);
 
     expect(resumo.livre).toBe(true);
-    expect(resumo.texto).toMatch(/unrestricted|no rule governs/i);
+    expect(resumo.text).toMatch(/unrestricted|no rule governs/i);
   });
 });
 
@@ -188,64 +188,64 @@ describe('resumoCatalogo', () => {
     ({ name: 'a', latestVersion: 1, labels: [], updatedAt: '', labelsResumo: 'none', ...over }) as CatalogRow;
 
   it('conta prompt com revisão nova que nenhum label serve', () => {
-    const r = resumoCatalogo([linha({ latestVersion: 4, labels: [{ label: 'prod', version: 3 }] })], false);
-    expect(r.naoPromovidos).toBe(1);
+    const r = catalogSummary([linha({ latestVersion: 4, labels: [{ label: 'prod', version: 3 }] })], false);
+    expect(r.notPromoted).toBe(1);
   });
 
   // O PAR QUE DISCRIMINA do KPI: mesma forma, decisão oposta.
   it('não conta prompt cuja última revisão já serve', () => {
-    const r = resumoCatalogo([linha({ latestVersion: 3, labels: [{ label: 'prod', version: 3 }] })], false);
-    expect(r.naoPromovidos).toBe(0);
+    const r = catalogSummary([linha({ latestVersion: 3, labels: [{ label: 'prod', version: 3 }] })], false);
+    expect(r.notPromoted).toBe(0);
   });
 
   it('conta prompt sem label algum como sem ambiente E como não promovido', () => {
-    const r = resumoCatalogo([linha({ latestVersion: 1, labels: [] })], false);
-    expect(r.semAmbiente).toBe(1);
-    expect(r.naoPromovidos).toBe(1);
+    const r = catalogSummary([linha({ latestVersion: 1, labels: [] })], false);
+    expect(r.withoutEnvironment).toBe(1);
+    expect(r.notPromoted).toBe(1);
   });
 
   it('marca parcial quando o serviço sinaliza continuação', () => {
-    const r = resumoCatalogo([linha(), linha({ name: 'b' })], true);
+    const r = catalogSummary([linha(), linha({ name: 'b' })], true);
     expect(r.parcial).toBe(true);
   });
 
   // O CONTROLE NEGATIVO DO MILESTONE — impede `parcial = linhas.length >= PAGE_LIMIT`.
   it('NÃO marca parcial num catálogo cheio sem continuação', () => {
     const cheio = Array.from({ length: 100 }, (_, i) => linha({ name: `p${String(i)}` }));
-    const r = resumoCatalogo(cheio, false);
+    const r = catalogSummary(cheio, false);
     expect(r.parcial).toBe(false);
     expect(r.prompts).toBe(100);
   });
 
   it('resumo de catálogo vazio é zerado e não parcial', () => {
-    const r = resumoCatalogo([], false);
+    const r = catalogSummary([], false);
     expect(r.prompts).toBe(0);
     expect(r.parcial).toBe(false);
-    expect(r.revisoesPublicadas).toBe(0);
+    expect(r.publishedRevisions).toBe(0);
   });
 
   // EC-5 — dado parcial vira NaN silencioso: Math.max() de lista vazia é -Infinity e somar
   // undefined dá NaN. Números errados exibidos com a mesma confiança dos certos.
   it('trata linha sem labels como sem ambiente, sem produzir NaN', () => {
-    const r = resumoCatalogo([{ name: 'a', latestVersion: 1 } as unknown as CatalogRow], false);
-    expect(r.semAmbiente).toBe(1);
-    expect(Number.isFinite(r.revisoesPublicadas)).toBe(true);
+    const r = catalogSummary([{ name: 'a', latestVersion: 1 } as unknown as CatalogRow], false);
+    expect(r.withoutEnvironment).toBe(1);
+    expect(Number.isFinite(r.publishedRevisions)).toBe(true);
   });
 
   it('ignora linha sem latestVersion em vez de contar NaN', () => {
-    const r = resumoCatalogo([{ name: 'a', labels: [] } as unknown as CatalogRow], false);
-    expect(Number.isNaN(r.revisoesPublicadas)).toBe(false);
+    const r = catalogSummary([{ name: 'a', labels: [] } as unknown as CatalogRow], false);
+    expect(Number.isNaN(r.publishedRevisions)).toBe(false);
   });
 
   // EC-6 — trava a DEFINIÇÃO ("escrita e não serve ninguém") contra a leitura vizinha
   // ("atrasada em prod"), que é outra métrica e não entra neste milestone.
   it('não conta como não promovido quando a última revisão serve algum ambiente', () => {
-    const r = resumoCatalogo(
+    const r = catalogSummary(
       [linha({ latestVersion: 3, labels: [{ label: 'prod', version: 2 }, { label: 'staging', version: 3 }] })],
       false,
     );
-    expect(r.naoPromovidos).toBe(0);
-    expect(r.ambientes).toBe(2);
+    expect(r.notPromoted).toBe(0);
+    expect(r.environments).toBe(2);
   });
 
   // B-147, second site. `promptsPorAmbiente` THREW on a malformed label entry; this one does not —
@@ -253,7 +253,7 @@ describe('resumoCatalogo', () => {
   // Silent and wrong is the worse of the two failures, and fixing only the loud one is how the
   // next reader finds this still here.
   it('a malformed label entry is not counted as an environment', () => {
-    const r = resumoCatalogo(
+    const r = catalogSummary(
       [
         linha({
           latestVersion: 1,
@@ -267,13 +267,13 @@ describe('resumoCatalogo', () => {
       false,
     );
 
-    expect(r.ambientes).toBe(1);
+    expect(r.environments).toBe(1);
   });
 
   it('a prompt whose only label is malformed counts as never promoted', () => {
     // `semAmbiente` currently keys off `labels.length === 0`, so a prompt carrying one unusable
     // label entry reports as promoted somewhere while serving nobody.
-    const r = resumoCatalogo(
+    const r = catalogSummary(
       [
         linha({
           latestVersion: 1,
@@ -283,8 +283,8 @@ describe('resumoCatalogo', () => {
       false,
     );
 
-    expect(r.semAmbiente).toBe(1);
-    expect(r.ambientes).toBe(0);
+    expect(r.withoutEnvironment).toBe(1);
+    expect(r.environments).toBe(0);
   });
 });
 
@@ -297,34 +297,34 @@ describe('resumoCatalogo', () => {
  */
 describe('temProximaPagina', () => {
   it('reconhece o marcador nas três grafias válidas da RFC', () => {
-    expect(temProximaPagina('</v1/x?after=z>; rel="next"')).toBe(true);
-    expect(temProximaPagina("</v1/x?after=z>; rel='next'")).toBe(true);
-    expect(temProximaPagina('</v1/x?after=z>; rel=next')).toBe(true);
+    expect(hasNextPage('</v1/x?after=z>; rel="next"')).toBe(true);
+    expect(hasNextPage("</v1/x?after=z>; rel='next'")).toBe(true);
+    expect(hasNextPage('</v1/x?after=z>; rel=next')).toBe(true);
   });
 
   // O PAR QUE DISCRIMINA: header presente, decisão oposta.
   it('não confunde outro rel com continuação', () => {
-    expect(temProximaPagina('</v1/x?after=z>; rel="prev"')).toBe(false);
-    expect(temProximaPagina('</v1/x?after=z>; rel="nextpage"')).toBe(false);
+    expect(hasNextPage('</v1/x?after=z>; rel="prev"')).toBe(false);
+    expect(hasNextPage('</v1/x?after=z>; rel="nextpage"')).toBe(false);
   });
 
   it('header ausente é ausência de continuação, não erro', () => {
-    expect(temProximaPagina(null)).toBe(false);
-    expect(temProximaPagina('')).toBe(false);
+    expect(hasNextPage(null)).toBe(false);
+    expect(hasNextPage('')).toBe(false);
   });
 
   it('encontra o marcador quando vários links vêm na mesma linha', () => {
-    expect(temProximaPagina('</v1/x?a=1>; rel="prev", </v1/x?a=2>; rel="next"')).toBe(true);
+    expect(hasNextPage('</v1/x?a=1>; rel="prev", </v1/x?a=2>; rel="next"')).toBe(true);
   });
 
   // TA-06 — o regex casava `rel=next` em qualquer lugar da string, inclusive DENTRO da URL de um
   // link `prev`. O lado TS era mais frouxo que o Go que ele diz espelhar.
   it('não confunde rel=next DENTRO da URL de um link prev', () => {
-    expect(temProximaPagina('</v1/x?after=a&rel=next>; rel="prev"')).toBe(false);
+    expect(hasNextPage('</v1/x?after=a&rel=next>; rel="prev"')).toBe(false);
   });
 
   it('exige o enquadramento do link — texto solto não é continuação', () => {
-    expect(temProximaPagina('nada disso; rel=next')).toBe(false);
+    expect(hasNextPage('nada disso; rel=next')).toBe(false);
   });
 });
 
@@ -377,18 +377,18 @@ describe('M18 — a data do comentário é lida por gente', () => {
     const [linha] = comentarioRows([
       { id: 'c1', body: 'ok', author: 'ana', createdAt: '2026-08-04T17:13:42.848Z' },
     ]);
-    expect(linha?.quando).toBeTruthy();
-    expect(linha?.quando).not.toContain('T');
-    expect(linha?.quando).not.toContain('Z');
+    expect(linha?.when).toBeTruthy();
+    expect(linha?.when).not.toContain('T');
+    expect(linha?.when).not.toContain('Z');
   });
 
   it('data_ausente_ou_invalida_nao_vira_texto_falso', () => {
     // O CONTROLE: sem data, a projeção não inventa "agora" nem imprime "Invalid Date". Diz que
     // não sabe — a mesma disciplina do autor ausente.
     const [semData] = comentarioRows([{ id: 'c1', body: 'ok', author: null }]);
-    expect(semData?.quando).toBe('');
+    expect(semData?.when).toBe('');
     const [lixo] = comentarioRows([{ id: 'c2', body: 'ok', createdAt: 'nao-e-data' }]);
-    expect(lixo?.quando).toBe('');
+    expect(lixo?.when).toBe('');
   });
 });
 
@@ -406,7 +406,7 @@ describe('promptsPorAmbiente (B-129)', () => {
     // The `Environments` card says `2`. It does not say WHICH, nor that one of them serves
     // everything while the other serves one prompt — and that asymmetry is what tells an operator
     // where a bad promotion would actually land.
-    const bars = promptsPorAmbiente([
+    const bars = promptsByEnvironment([
       linha('a', [{ label: 'prod', version: 1 }, { label: 'staging', version: 3 }]),
       linha('b', [{ label: 'prod', version: 2 }]),
     ]);
@@ -420,7 +420,7 @@ describe('promptsPorAmbiente (B-129)', () => {
   it('counts a prompt once per environment, not once per label version', () => {
     // A prompt carrying `prod → v1` twice (a malformed payload) must not inflate `prod` to 2. The
     // bar counts PROMPTS; counting label rows instead would silently overstate reach.
-    const bars = promptsPorAmbiente([
+    const bars = promptsByEnvironment([
       linha('a', [{ label: 'prod', version: 1 }, { label: 'prod', version: 2 }]),
     ]);
     expect(bars).toEqual([{ label: 'prod', value: 1 }]);
@@ -429,7 +429,7 @@ describe('promptsPorAmbiente (B-129)', () => {
   it('prompts serving nobody get their own bar', () => {
     // `semAmbiente` is already a KPI, so hiding these from the chart would make the bars disagree
     // with a number on the same screen. Serving nobody is a state, not an absence.
-    const bars = promptsPorAmbiente([linha('a', []), linha('b', [{ label: 'prod', version: 1 }])]);
+    const bars = promptsByEnvironment([linha('a', []), linha('b', [{ label: 'prod', version: 1 }])]);
     expect(bars).toEqual([
       { label: 'prod', value: 1 },
       { label: 'No environment', value: 1 },
@@ -441,7 +441,7 @@ describe('promptsPorAmbiente (B-129)', () => {
   // is above the highest version any label serves, this bucket counts prompts with no label at
   // all. Two quantities, one word, one screen — a reader cannot tell which number they are on.
   it('the no-label bucket is named for what it IS, not for the KPI it is not', () => {
-    const bars = promptsPorAmbiente([linha('a', [])]);
+    const bars = promptsByEnvironment([linha('a', [])]);
 
     expect(bars.map((b) => b.label)).toEqual(['No environment']);
     expect(bars.map((b) => b.label)).not.toContain('not promoted');
@@ -450,7 +450,7 @@ describe('promptsPorAmbiente (B-129)', () => {
   it('No environment sorts last even when it dominates', () => {
     // It is a residue, not a destination. Letting it head the chart would answer "where do my
     // prompts run?" with "nowhere", burying the environments that do exist.
-    const bars = promptsPorAmbiente([
+    const bars = promptsByEnvironment([
       linha('a', []),
       linha('b', []),
       linha('c', [{ label: 'prod', version: 1 }]),
@@ -459,7 +459,7 @@ describe('promptsPorAmbiente (B-129)', () => {
   });
 
   it('an empty catalog yields no bars', () => {
-    expect(promptsPorAmbiente([])).toEqual([]);
+    expect(promptsByEnvironment([])).toEqual([]);
   });
 
   // B-147 — reproduced by execution 2026-08-11: a label entry without a `label` field put
@@ -474,8 +474,8 @@ describe('promptsPorAmbiente (B-129)', () => {
       linha('b', [{ version: 1 } as unknown as { label: string; version: number }]),
     ];
 
-    expect(() => promptsPorAmbiente(malformado)).not.toThrow();
-    expect(promptsPorAmbiente(malformado)).toEqual([
+    expect(() => promptsByEnvironment(malformado)).not.toThrow();
+    expect(promptsByEnvironment(malformado)).toEqual([
       { label: 'prod', value: 1 },
       { label: 'No environment', value: 1 },
     ]);
@@ -484,7 +484,7 @@ describe('promptsPorAmbiente (B-129)', () => {
   it('a label entry whose label is blank is not an environment either', () => {
     // An empty string would sort, so it would not throw — it would render a nameless bar, which
     // is a reading nobody can act on.
-    const bars = promptsPorAmbiente([
+    const bars = promptsByEnvironment([
       linha('a', [{ label: '   ', version: 1 }]),
       linha('b', [{ label: 'prod', version: 1 }]),
     ]);
@@ -496,7 +496,7 @@ describe('promptsPorAmbiente (B-129)', () => {
   });
 
   it('a non-string label is dropped rather than coerced into a bar', () => {
-    const bars = promptsPorAmbiente([
+    const bars = promptsByEnvironment([
       linha('a', [{ label: 42 as unknown as string, version: 1 }]),
     ]);
     expect(bars).toEqual([{ label: 'No environment', value: 1 }]);

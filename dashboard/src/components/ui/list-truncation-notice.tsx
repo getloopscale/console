@@ -18,15 +18,15 @@
  */
 export interface ListTruncationNoticeProps {
   /** O `has_more` que o servidor devolveu. */
-  readonly temMais: boolean;
+  readonly hasMore: boolean;
   /** Quantos itens a tela está mostrando. */
   readonly total: number;
   /** O que está sendo listado, no plural e em inglês: `views`, `keys`, `webhooks`. */
   readonly substantivo: string;
 }
 
-export function ListTruncationNotice({ temMais, total, substantivo }: ListTruncationNoticeProps) {
-  if (!temMais) return null;
+export function ListTruncationNotice({ hasMore, total, substantivo }: ListTruncationNoticeProps) {
+  if (!hasMore) return null;
 
   return (
     // `role="status"` (aria-live polite) e não `alert`: a lista carregou com sucesso, e

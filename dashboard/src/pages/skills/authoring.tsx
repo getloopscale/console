@@ -5,7 +5,7 @@ import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { faseDaOperacao } from '@/pages/skills/components/operation-state';
-import { avaliarArquivo, paraBase64 } from '@/hooks/skills/skill-upload';
+import { evaluateFile, toBase64 } from '@/hooks/skills/skill-upload';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useSkillOperation } from '@/hooks/skills/use-skills';
@@ -77,14 +77,14 @@ export function SkillAuthoringPage() {
   useRequireAuth();
 
   const [skillId, setSkillId] = useState('');
-  const [conteudo, setConteudo] = useState(MODELO);
+  const [content, setConteudo] = useState(MODELO);
   const [diagnostico, setDiagnostico] = useState<{ message: string; field?: string; line?: number } | null>(null);
   const [validada, setValidada] = useState<ValidacaoOk | null>(null);
   const [operacaoId, setOperacaoId] = useState<string | null>(null);
   const [erroPublicacao, setErroPublicacao] = useState<string | null>(null);
 
   const validar = useMutation({
-    mutationFn: () => validateSkill<ValidacaoOk>(conteudo),
+    mutationFn: () => validateSkill<ValidacaoOk>(content),
     onSuccess: (data) => {
       setDiagnostico(null);
       setValidada(data);
@@ -107,7 +107,7 @@ export function SkillAuthoringPage() {
   // Uma skill com script (Python, Bash) ou `assets/` não cabe num markdown só. O registro sempre
   // aceitou o zip; a tela é que não tinha o caminho, e por isso publicar uma skill com script
   // exigia terminal.
-  const [zip, setZip] = useState<{ readonly nome: string; readonly base64: string } | null>(null);
+  const [zip, setZip] = useState<{ readonly name: string; readonly base64: string } | null>(null);
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
 
   const diagnosticar = useMutation({
@@ -137,7 +137,7 @@ export function SkillAuthoringPage() {
     mutationFn: () =>
       zip !== null
         ? createSkillFromZip<{ operation_id?: string }>(skillId.trim(), zip.base64)
-        : createSkill<{ operation_id?: string }>(skillId.trim(), conteudo),
+        : createSkill<{ operation_id?: string }>(skillId.trim(), content),
     onSuccess: (data) => {
       setErroPublicacao(null);
       setOperacaoId(typeof data?.operation_id === 'string' ? data.operation_id : null);
@@ -165,7 +165,7 @@ export function SkillAuthoringPage() {
   const fase = faseDaOperacao(operacao.data?.state);
   const estado = operacao.data?.state;
   const concluida = fase === 'concluida';
-  const falhou = fase === 'falhou';
+  const failed = fase === 'falhou';
 
   return (
     <PageShell
@@ -235,7 +235,7 @@ export function SkillAuthoringPage() {
           <textarea
             aria-label="Skill content"
             className="min-h-64 w-full rounded-md border bg-background p-3 font-mono text-xs"
-            value={conteudo}
+            value={content}
             onChange={(e) => {
               setConteudo(e.target.value);
               // Editar invalida a validação anterior: exibir "válido" sobre um texto que mudou
@@ -328,21 +328,21 @@ export function SkillAuthoringPage() {
             aria-label="Skill folder as a .zip"
             className="text-sm file:mr-3 file:rounded-md file:border file:bg-muted file:px-3 file:py-1.5 file:text-sm"
             onChange={(e) => {
-              const arquivo = e.target.files?.[0] ?? null;
+              const file = e.target.files?.[0] ?? null;
               // Sem arquivo é LIMPAR, não erro: o autor desistiu do zip e volta ao markdown.
-              if (arquivo === null) {
+              if (file === null) {
                 setZip(null);
                 setErroArquivo(null);
                 return;
               }
-              const veredito = avaliarArquivo(arquivo);
+              const veredito = evaluateFile(file);
               if (!veredito.aceito) {
                 setZip(null);
-                setErroArquivo(veredito.motivo);
+                setErroArquivo(veredito.reason);
                 return;
               }
-              void arquivo.arrayBuffer().then((buffer) => {
-                setZip({ nome: veredito.nome, base64: paraBase64(buffer) });
+              void file.arrayBuffer().then((buffer) => {
+                setZip({ name: veredito.name, base64: toBase64(buffer) });
                 setErroArquivo(null);
                 // Outro arquivo é outra publicação — mesmo motivo do identificador acima.
                 setOperacaoId(null);
@@ -356,7 +356,7 @@ export function SkillAuthoringPage() {
           {zip !== null ? (
             <div className="rounded-md border bg-muted/40 p-3 text-sm">
               <p>
-                Publishing <strong>{zip.nome}</strong> — the content typed above will be ignored.
+                Publishing <strong>{zip.name}</strong> — the content typed above will be ignored.
               </p>
               {/* Honestidade sobre o que NÃO acontece: `:validate` recebe markdown, não zip. Dizer
                   "validado" aqui seria afirmar uma verificação que ninguém fez. O registro valida
@@ -425,13 +425,13 @@ export function SkillAuthoringPage() {
               {/* O 202 significa ACEITO, não pronto. A tela mostra o estado real. */}
               {concluida
                 ? 'Done — the skill is in the registry and discoverable.'
-                : falhou
+                : failed
                   ? 'Ingestion failed. The skill is not in the registry.'
                   : 'In progress — ingestion is generating the discovery vectors.'}
             </Card.Description>
           </Card.Header>
           <div className="flex flex-wrap items-center gap-2 px-6 pb-6">
-            <Badge variant={concluida ? 'success' : falhou ? 'destructive' : 'outline'}>
+            <Badge variant={concluida ? 'success' : failed ? 'destructive' : 'outline'}>
               {estado ?? 'aguardando'}
             </Badge>
             <span className="font-mono text-xs text-muted-foreground">{operacaoId}</span>
@@ -449,7 +449,7 @@ export function SkillAuthoringPage() {
               </>
             ) : null}
 
-            {falhou && operacao.data?.error ? (
+            {failed && operacao.data?.error ? (
               <span className="text-xs text-destructive">{operacao.data.error}</span>
             ) : null}
           </div>

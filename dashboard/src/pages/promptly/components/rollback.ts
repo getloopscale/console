@@ -26,7 +26,7 @@ export interface RespostaRollback {
 
 export interface ResultadoRollback {
   readonly tom: 'sucesso' | 'atencao';
-  readonly texto: string;
+  readonly text: string;
 }
 
 /**
@@ -40,7 +40,7 @@ export function resultadoDoRollback(resposta: RespostaRollback): ResultadoRollba
   if (resposta.labelsMoved.length === 0) {
     return {
       tom: 'atencao',
-      texto:
+      text:
         `Revision ${v} created with the old content, but no label was moved — ` +
         `nothing changed in production. Promote a label to ${v} if that is what you wanted.`,
     };
@@ -48,27 +48,27 @@ export function resultadoDoRollback(resposta: RespostaRollback): ResultadoRollba
   const movidos = resposta.labelsMoved.join(', ');
   return {
     tom: 'sucesso',
-    texto: `Revision ${v} created and ${movidos} now points at it.`,
+    text: `Revision ${v} created and ${movidos} now points at it.`,
   };
 }
 
 export interface IntencaoRollback {
-  readonly nome: string;
-  readonly paraVersao: number;
+  readonly name: string;
+  readonly toVersion: number;
   readonly ultimaVersao: number;
   readonly label: string | null;
 }
 
 /** O que o diálogo promete ANTES de chamar — nomeando a revisão que será CRIADA. */
 export function frasePreRollback(intencao: IntencaoRollback): string {
-  const nova = `v${intencao.ultimaVersao + 1}`;
-  const origem = `v${intencao.paraVersao}`;
+  const newRevision = `v${intencao.ultimaVersao + 1}`;
+  const origin = `v${intencao.toVersion}`;
   const base =
-    `This creates revision ${nova} of "${intencao.nome}" with the content of ${origem}. ` +
-    `History does not shrink: ${origem} stays where it is.`;
+    `This creates revision ${newRevision} of "${intencao.name}" with the content of ${origin}. ` +
+    `History does not shrink: ${origin} stays where it is.`;
   return intencao.label === null
     ? `${base} Since you chose no label, no label will be moved and nothing changes in production.`
-    : `${base} Label ${intencao.label} stops serving what it serves today and starts pointing at ${nova}.`;
+    : `${base} Label ${intencao.label} stops serving what it serves today and starts pointing at ${newRevision}.`;
 }
 
 /**
@@ -83,9 +83,9 @@ export function labelsOferecidos(
   recusa: ApiError | null,
   labelsAtuais: readonly LabelPointer[] = [],
 ): string[] {
-  const corpo = recusa?.body as { availableLabels?: unknown } | undefined;
-  if (Array.isArray(corpo?.availableLabels)) {
-    return corpo.availableLabels.filter((l): l is string => typeof l === 'string');
+  const body = recusa?.body as { availableLabels?: unknown } | undefined;
+  if (Array.isArray(body?.availableLabels)) {
+    return body.availableLabels.filter((l): l is string => typeof l === 'string');
   }
   return labelsAtuais.map((l) => l.label);
 }
@@ -101,14 +101,14 @@ const GENERICA = 'Could not complete the operation. Try again in a moment.';
  * pode carregar host, porta e stack — vira mensagem genérica. Sem esse contraste, o repasse
  * seria um matcher cego.
  */
-export function mensagemDeRecusa(erro: unknown): string {
-  if (!(erro instanceof ApiError)) return GENERICA;
-  if (erro.status >= 500) return GENERICA;
-  const corpo = erro.body as { message?: unknown; toVersion?: unknown; error?: unknown } | undefined;
-  const doServico = typeof corpo?.message === 'string' ? corpo.message : null;
-  if (corpo?.error === 'prompt_not_found' && typeof corpo.toVersion === 'number') {
+export function rejectionMessage(failure: unknown): string {
+  if (!(failure instanceof ApiError)) return GENERICA;
+  if (failure.status >= 500) return GENERICA;
+  const body = failure.body as { message?: unknown; toVersion?: unknown; error?: unknown } | undefined;
+  const fromService = typeof body?.message === 'string' ? body.message : null;
+  if (body?.error === 'prompt_not_found' && typeof body.toVersion === 'number') {
     // O 404 do rollback nomeia o prompt, não a versão — e é a versão que o operador escolheu.
-    return `Version v${corpo.toVersion} of this prompt does not exist.`;
+    return `Version v${body.toVersion} of this prompt does not exist.`;
   }
-  return doServico ?? GENERICA;
+  return fromService ?? GENERICA;
 }

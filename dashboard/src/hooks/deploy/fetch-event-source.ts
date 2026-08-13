@@ -83,7 +83,7 @@ export class FetchEventSource {
     readonly url: string,
     private readonly opcoes: Opcoes,
   ) {
-    void this.abrir();
+    void this.open();
   }
 
   addEventListener(tipo: string, fn: Ouvinte): void {
@@ -117,7 +117,7 @@ export class FetchEventSource {
     queueMicrotask(() => this.onerror?.(streamEndEvent(reason)));
   }
 
-  private async abrir(): Promise<void> {
+  private async open(): Promise<void> {
     if (!this.opcoes.token) {
       // Chamar sem credencial produz um 401 garantido e um ciclo de backoff
       // inútil. Falhar aqui é mais barato e mais claro.
@@ -198,17 +198,17 @@ export class FetchEventSource {
     const dados: string[] = [];
     let tipo = 'message';
     let id = '';
-    for (const linha of bruto.split('\n')) {
+    for (const row of bruto.split('\n')) {
       // Comentário de keep-alive. Proxies mandam a cada poucos segundos;
       // tratá-lo como evento entregaria lixo ao reducer o tempo todo.
-      if (linha.startsWith(':') || linha === '') continue;
-      const sep = linha.indexOf(':');
-      const campo = sep === -1 ? linha : linha.slice(0, sep);
+      if (row.startsWith(':') || row === '') continue;
+      const sep = row.indexOf(':');
+      const field = sep === -1 ? row : row.slice(0, sep);
       // Um único espaço depois do `:` é do protocolo e não do valor.
-      const valor = sep === -1 ? '' : linha.slice(sep + 1).replace(/^ /, '');
-      if (campo === 'data') dados.push(valor);
-      else if (campo === 'event') tipo = valor;
-      else if (campo === 'id') id = valor;
+      const value = sep === -1 ? '' : row.slice(sep + 1).replace(/^ /, '');
+      if (field === 'data') dados.push(value);
+      else if (field === 'event') tipo = value;
+      else if (field === 'id') id = value;
       // `retry` é ignorado: quem controla o backoff aqui é o useSSEStream.
     }
     if (dados.length === 0) return null;

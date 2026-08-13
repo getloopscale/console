@@ -86,6 +86,15 @@ class DeclarationScanner {
   #declares(node) {
     return (
       ts.isVariableDeclaration(node) ||
+      // A BINDING ELEMENT is not counted by the ratchet, and must still be renamed.
+      //
+      // `const [target, setAlvo] = useState()` declares `setAlvo` inside an array binding pattern,
+      // which `varrerIdentificadores` never sees. Skipping it here breaks the other half of a
+      // shorthand pair: `revisionColumns({ setAlvo })` renames the PROPERTY (a property signature,
+      // which IS counted) while the variable keeps its old name, and the object no longer compiles.
+      // Measured — `detail.tsx` came back with five `No value exists in scope for the shorthand
+      // property` errors before this line existed.
+      ts.isBindingElement(node) ||
       ts.isFunctionDeclaration(node) ||
       ts.isParameter(node) ||
       ts.isInterfaceDeclaration(node) ||
@@ -128,7 +137,7 @@ class EditPlan {
   render(read) {
     const out = new Map();
     for (const [fileName, edits] of this.byFile) {
-      const ordered = [...edits].sort((a, b) => b.start - a.start);
+      const ordered = this.#deduplicate(edits).sort((a, b) => b.start - a.start);
       this.#refuseOverlap(fileName, ordered);
       let text = read(fileName);
       for (const e of ordered) {
@@ -137,6 +146,28 @@ class EditPlan {
       out.set(fileName, text);
     }
     return out;
+  }
+
+  /**
+   * Collapse edits that are literally the same edit.
+   *
+   * A symbol can have more than one DECLARATION — `temContinuacao` is a property signature in
+   * `promptly-api.ts` and is declared again in the shape that consumes it — and the scanner walks
+   * each of them. `findRenameLocations` answers with the same span set both times, so the plan
+   * legitimately holds the identical edit twice. That is not a conflict, and treating it as one
+   * (measured: the first full run aborted on `promptly-api.ts:3442`) would refuse a correct
+   * migration.
+   *
+   * Two edits at the same span with DIFFERENT text is a real conflict and survives to
+   * `#refuseOverlap`.
+   */
+  #deduplicate(edits) {
+    const seen = new Map();
+    for (const e of edits) {
+      const key = `${String(e.start)}:${String(e.length)}:${e.text}`;
+      if (!seen.has(key)) seen.set(key, e);
+    }
+    return [...seen.values()];
   }
 
   /** Two symbols never share an occurrence; an overlap means the premise broke. Fail loudly. */
@@ -220,9 +251,14 @@ class InMemoryProject {
  * serialised, persisted, or read by name at runtime is now a different key, and nothing in the type
  * system can see the difference.
  *
- * So the shorthand is refused rather than applied. The fix is to expand it by hand
- * (`{ nome: valor }`) and decide which of the two names is the key — a decision a migration harness
- * has no business making silently. This is Unbreakable Rule 8: the ambiguous case fails loudly.
+ * So the shorthand is refused BY DEFAULT rather than applied. The caller can opt in with
+ * `--allow-shorthand` once the sites have been read — which is the point: the harness makes you
+ * look. Measured on this repository, the 15 sites it flags are all internal prop bags and return
+ * shapes whose key is itself a mapped name, so renaming both sides is consistent and `tsc` proves
+ * it; a key that crossed the wire would not be, and there is none (no Portuguese key appears in
+ * `openapi/*.yaml` or in any production Go `json:` tag).
+ *
+ * Unbreakable Rule 8: the ambiguous case fails loudly, and the override is explicit.
  */
 class ShorthandGuard {
   constructor(project) {
@@ -280,16 +316,20 @@ class RenameOutcome {
  * safe and the fast path.
  */
 class SymbolRenamer {
-  constructor(project) {
+  constructor(project, { allowShorthand = false } = {}) {
     this.project = project;
-    this.shorthand = new ShorthandGuard(project);
+    this.shorthand = allowShorthand ? undefined : new ShorthandGuard(project);
   }
 
   /**
    * @param {Record<string,string>} map
+   * @param {{declaredIn?: string}} options restrict which DECLARATIONS are renamed (usages are
+   *   still updated everywhere). Needed because one Portuguese name can mean two different things
+   *   in two files — `nova` is the new REVISION in `rollback.ts` and the incoming PAGE in
+   *   `paging.ts` — and a single global target would name one of them badly.
    * @returns {{plan: EditPlan, outcomes: RenameOutcome[]}}
    */
-  planAll(map) {
+  planAll(map, { declaredIn } = {}) {
     const scanner = new DeclarationScanner(new Set(Object.keys(map)));
     const plan = new EditPlan();
     /** @type {Map<string, RenameOutcome>} */
@@ -299,6 +339,9 @@ class SymbolRenamer {
     }
 
     for (const fileName of this.project.fileNames) {
+      if (declaredIn === undefined) {
+        if (!isProductionFile(fileName)) continue;
+      } else if (!fileName.endsWith(declaredIn)) continue;
       for (const declaration of scanner.scan(fileName, this.project.sourceFile(fileName))) {
         const target = map[declaration.name];
         const locations = this.project.service.findRenameLocations(
@@ -328,7 +371,7 @@ class SymbolRenamer {
           continue;
         }
 
-        const refusal = this.shorthand.refuse(locations);
+        const refusal = this.shorthand?.refuse(locations);
         if (refusal !== undefined) {
           outcomes.set(
             declaration.name,
@@ -378,8 +421,10 @@ export class RenameHarness {
    * @param {Record<string,string>} map
    * @param {{write?: boolean}} options
    */
-  run(map, { write = true } = {}) {
-    const { plan, outcomes } = new SymbolRenamer(this.project).planAll(map);
+  run(map, { write = true, declaredIn, allowShorthand = false } = {}) {
+    const { plan, outcomes } = new SymbolRenamer(this.project, { allowShorthand }).planAll(map, {
+      declaredIn,
+    });
     const rendered = plan.render((f) => this.project.read(f));
 
     for (const fileName of rendered.keys()) {
@@ -401,6 +446,43 @@ export class RenameHarness {
   }
 }
 
+/**
+ * Whether a file is one the B-241 population is measured over.
+ *
+ * `varrerIdentificadores` skips `src/test/` (the suite's harness) and every `*.test.ts?(x)`, so the
+ * migration must skip them too. Renaming a declaration the ratchet does not count churns ~40 files
+ * without moving the number — and the number is the only thing that says whether the item is done.
+ *
+ * USAGES in those files still follow: they are in the program, and a symbol renamed without its
+ * test usages does not compile.
+ */
+export function isProductionFile(fileName) {
+  const normalized = fileName.replace(/\\/g, '/');
+  if (/\.(test|spec)\.tsx?$/.test(normalized)) return false;
+  return !normalized.includes('/src/test/');
+}
+
+/**
+ * The project's real compiler options, read from its `tsconfig.json`.
+ *
+ * NOT a detail, and not optional: this repository imports through the `@/` alias, which lives in
+ * `compilerOptions.paths`. Without it the language service cannot resolve
+ * `import { varrerInterface } from '@/test/i18n-guard'`, so the symbol in the importing file is
+ * unrelated to the declaration and `findRenameLocations` answers with the declaration alone.
+ *
+ * Measured, on the first full run: the declarations were renamed, every cross-file usage was left
+ * behind, and `tsc` came back with 191 errors of the shape "Property 'arquivo' does not exist".
+ * The rename was type-aware and still wrong, because it was aware of the wrong types.
+ */
+export function compilerOptionsFrom(tsconfigPath, projectRoot) {
+  const read = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+  if (read.error !== undefined) {
+    throw new Error(`cannot read ${tsconfigPath}: ${ts.flattenDiagnosticMessageText(read.error.messageText, ' ')}`);
+  }
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, projectRoot);
+  return parsed.options;
+}
+
 /** Every `.ts`/`.tsx` under `dir`, tests INCLUDED — a symbol renamed without its test usages breaks the build. */
 export function typescriptFilesUnder(dir, out = []) {
   for (const entry of readdirSync(dir)) {
@@ -410,6 +492,33 @@ export function typescriptFilesUnder(dir, out = []) {
     else if (/\.tsx?$/.test(entry) && !/\.d\.ts$/.test(entry)) out.push(path);
   }
   return out;
+}
+
+/**
+ * Per-file targets for names that collide with an identifier already in the destination scope.
+ *
+ * This is the one failure class the language service will happily produce and cannot detect: it
+ * renames the symbol, it does not check that the new name is free. `tsc` finds them, and the fix is
+ * a different word in that file — not a different word everywhere, because `nome -> name` is right
+ * in the other 23 files that declare it.
+ *
+ * Applied BEFORE the shared map, so by the time the shared map runs the colliding name is gone from
+ * that file. Ordering matters and is the whole reason this is a file rather than two commands
+ * somebody has to remember to run in sequence.
+ */
+async function applyCollisionOverrides(harness, overridesPath) {
+  const overrides = JSON.parse(readFileSync(overridesPath, 'utf8'));
+  let edits = 0;
+  for (const [file, map] of Object.entries(overrides)) {
+    const result = harness.run(map, { declaredIn: file, allowShorthand: true });
+    edits += result.edits;
+    for (const outcome of result.outcomes) {
+      if (outcome.status !== 'renamed') {
+        console.log(`override ${outcome.status}: ${file} ${outcome.name} — ${outcome.reason ?? 'no declaration here'}`);
+      }
+    }
+  }
+  console.log(`collision overrides: ${String(edits)} edit(s)`);
 }
 
 async function main(argv) {
@@ -423,9 +532,33 @@ async function main(argv) {
   /** @type {Record<string,string>} */
   const map = raw === '' ? {} : JSON.parse(raw);
 
+  const onlyFlag = argv.indexOf('--only');
+  const declaredIn = onlyFlag === -1 ? undefined : argv[onlyFlag + 1];
+
+  const projectRoot = resolve('.');
   const root = resolve('src');
-  const harness = new RenameHarness({ root, files: typescriptFilesUnder(root) });
-  const result = harness.run(map, { write: !argv.includes('--dry-run') });
+  let harness = new RenameHarness({
+    root,
+    files: typescriptFilesUnder(root),
+    compilerOptions: compilerOptionsFrom(resolve('tsconfig.json'), projectRoot),
+  });
+  const collisionsFlag = argv.indexOf('--collisions');
+  if (collisionsFlag !== -1 && !argv.includes('--dry-run')) {
+    await applyCollisionOverrides(harness, argv[collisionsFlag + 1]);
+    // A FRESH harness: the one above wrote to disk, so its in-memory texts are now stale, and
+    // planning the shared map against stale text would write the file back over the overrides.
+    harness = new RenameHarness({
+      root,
+      files: typescriptFilesUnder(root),
+      compilerOptions: compilerOptionsFrom(resolve('tsconfig.json'), projectRoot),
+    });
+  }
+
+  const result = harness.run(map, {
+    write: !argv.includes('--dry-run'),
+    declaredIn,
+    allowShorthand: argv.includes('--allow-shorthand'),
+  });
 
   for (const outcome of result.outcomes) {
     if (outcome.status !== 'renamed') {

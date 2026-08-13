@@ -10,6 +10,6 @@
  * nada, e não o que existe" é a diferença entre um webhook sem entregas e um webhook que falhou
  * cem vezes — que pedem ações opostas de quem está lendo.
  */
-export const FALHA_AO_LER_ENTREGAS =
+export const DELIVERIES_READ_FAILURE =
   "Could not read this webhook's deliveries. The request failed, so this is showing nothing " +
   'rather than what exists. Retry, and if it keeps failing the service is likely unavailable.';

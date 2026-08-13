@@ -19,7 +19,7 @@ interface Props {
  * Por isso os itens são `<Link>` e não botões: quem clica com o meio abre em
  * outra guia, e quem copia o endereço copia a aba.
  */
-export function CabecalhoDoPrompt({ promptName, latestVersion, abaAtiva }: Props) {
+export function PromptHeader({ promptName, latestVersion, abaAtiva }: Props) {
   return (
     <>
     {/* Caminho de VOLTA explícito: sem ele o detalhe é uma sala sem porta. */}

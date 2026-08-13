@@ -1,0 +1,20 @@
+{
+  "src/lib/mocks/promptly-handlers.ts": {
+    "nome": "promptName"
+  },
+  "src/pages/lens/alerts.tsx": {
+    "linhas": "usageRows"
+  },
+  "src/pages/lens/usage-by-user.tsx": {
+    "dias": "windowDays"
+  },
+  "src/pages/promptly/detail.tsx": {
+    "resumoPolitica": "policySummaryText"
+  },
+  "src/pages/promptly/components/rollback.ts": {
+    "nova": "newRevision"
+  },
+  "src/pages/skills/components/paging.ts": {
+    "nova": "incomingPage"
+  }
+}

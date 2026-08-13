@@ -239,7 +239,7 @@ export function useSSEStream<T = unknown>(
 
       es.onerror = (evento) => {
         if (cancelled) return;
-        const motivo: StreamEndReason =
+        const reason: StreamEndReason =
           (evento as { reason?: StreamEndReason }).reason ?? { kind: 'network-error' };
 
         // B-160 — a política deixou de inferir a causa a partir de `readyState`, porque o
@@ -263,12 +263,12 @@ export function useSSEStream<T = unknown>(
         // `aborted` não chega aqui — `close()` não dispara `onerror` —, mas `shouldReopen` o
         // trata mesmo assim: um predicado que depende de um invariante de outro módulo é um
         // predicado que quebra quando aquele módulo muda.
-        if (!shouldReopen(motivo)) return;
+        if (!shouldReopen(reason)) return;
 
         setError(true);
         setConnected(false);
 
-        if (credentialIsSuspect(motivo)) clearToken();
+        if (credentialIsSuspect(reason)) clearToken();
         es?.close();
 
         // Backoff exponencial com jitter: sem ele, um 401 persistente (sessao de

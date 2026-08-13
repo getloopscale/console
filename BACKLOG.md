@@ -9009,7 +9009,7 @@ resolved: |
 status: shipped
 shipped_in: v1.0.1 (2026-08-12) — tag ae8f6dda em origin/main, PR #478
 
-## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [ ]
+## B-241 — Migrar os identificadores do dashboard para ingles e fazer o guard reprovar portugues   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9060,7 +9060,7 @@ tentativa_1: |
   CONCLUSAO: exige rename ciente de TIPOS (a language service do TypeScript, ja instalada, via um
   harness proprio) ou arquivo a arquivo com `tsc` entre cada arquivo. Nao e trabalho de sessao de
   fim de ciclo, e por isso este item nasce triaged em vez de ser feito as pressas.
-status: triaged
+status: shipped
 dod:
   - zero identificadores em forma portuguesa em `dashboard/src` pela medicao acima
   - `i18n-guard.test.ts` reprova um identificador em portugues, com auto-teste que prova a reprovacao
@@ -9070,7 +9070,50 @@ dod:
 
 > Registrado 2026-08-12. Escopo decidido pelo dono; substitui o B-128.
 
-## B-242 — Catraca `absence-assertion-ratchet` congelada em 98 arquivos, sem dono   [ ]
+closed: 2026-08-13 — **484 -> 0 ocorrencias, 277 -> 0 nomes**, em 159 arquivos, e o guard passou a
+REPROVAR. O que a tentativa_1 nao tinha: o rename passou pela language service do TypeScript
+(`dashboard/scripts/rename-identifiers.mjs`), nao por substituicao de texto.
+
+AS DUAS LICOES DA TENTATIVA REVERTIDA MORRERAM POR CONSTRUCAO, e isso foi VERIFICADO por diff em
+vez de afirmado:
+
+    linhas de COMENTARIO alteradas em todo o diff  ->  0
+    literais de STRING alterados em todo o diff    ->  0
+
+`findRenameLocations(..., findInStrings: false, findInComments: false)` nao pula um comentario, ele
+nunca o considera candidato. E um homonimo noutro escopo e outro SIMBOLO, entao a colisao que
+matou o `sed` de `\berro\b` nao existe aqui.
+
+O QUE O COMPILADOR NAO PEGOU, e por que a suite continua sendo a rede (medido, nao suposto):
+
+  - `tsc` limpo com 25 casos VERMELHOS. A causa e uma so, em tres roupas: um literal de objeto que
+    o compilador nao tipa contextualmente — dentro de um spread condicional (`usage.ts`), dentro de
+    um `.map()` cujo unico tipo e a anotacao de retorno, e dentro de um `mockResolvedValue`, que e
+    `unknown`. Nos tres o literal ficou com a chave antiga enquanto a interface andou.
+  - o pior deles nao era de teste: `usage.ts` devolvia `{ custoUsd }` e `{ razaoDoCusto }` para uma
+    interface que ja dizia `costUsd`/`costRationale`. Um spread condicional relaxa a checagem de
+    propriedade excedente, entao a forma do objeto mudou em silencio.
+  - uma chave de fabrica de `vi.mock` (`fetchPromptResolvido:`) e o nome de uma propriedade
+    afirmado como STRING (`toHaveProperty('campo')`) — os dois invisiveis para um rename, por
+    definicao, e os dois so detectaveis executando.
+
+DECISOES REGISTRADAS NO CAMINHO:
+
+  - `--allow-shorthand`: o rename de `const nome = 1; return { nome }` reescreve o shorthand
+    inteiro e muda a CHAVE do objeto. O harness recusa por padrao e obriga a olhar; os 15 sitios
+    deste repositorio foram lidos um a um e sao prop bags internos, nunca contrato de rede — nao
+    existe chave em portugues em `openapi/*.yaml` nem em tag `json:` de producao no Go.
+  - `identifier-map-collisions.json`: seis nomes precisaram de alvo POR ARQUIVO — quatro por
+    colidirem com um ingles ja no escopo (`nome`/`name` em `promptly-handlers`, `linhas`/`rows` em
+    `alerts`, `dias`/`days` em `usage-by-user`, `resumoPolitica` em `detail`) e dois porque `nova`
+    significa coisas diferentes em dois arquivos (revisao nova vs pagina que chega).
+
+O QUE ESTE BLOCO NAO AFIRMA: que nao ha mais identificador em portugues. O zero e **pela medicao do
+detector**, e a lista dele tem cauda — `rotulo`, `linguagem`, `variaveis`, `ultimaVersao`,
+`resolucao`, `intencao` seguem no codigo e nao estao no `MARCADOR`. Registrado como **B-279**, com
+um caso no proprio guard que reprova se algum dia o detector aprender uma delas.
+
+## B-242 — Catraca `absence-assertion-ratchet` congelada em 91 asserções desancoradas   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -9189,6 +9232,41 @@ antes do teto se mover.
 Tambem nesta sessao, sem mover o numero: quatro asserções de vazamento em
 `pages/auth/recovery.test.tsx` passaram a PODER falhar — os mocks nao continham as palavras que a
 tela deve remover, entao elas passavam igual com o mapeamento apagado.
+
+progresso 2026-08-13 — 102 → 91, ONZE asserções ancoradas, cada uma provada por mutação.
+
+O metodo, e a parte que vale: para cada uma, a producao foi quebrada e o caso NOVO ficou VERMELHO
+enquanto a assercao de ausencia antiga seguia verde. Em nenhuma das onze a assercao de ausencia
+reprovou sozinha — que e exatamente o que "nao pode falhar" quer dizer, medido em vez de afirmado.
+
+  datasets            "No items"                         um dataset que carrega com zero itens
+  memories            "hasn't stored any memories"       a DESCRICAO, nao so o titulo
+  log-viewer          "No lines match"                   a busca e dirigivel; o comentario do
+                                                         proprio caso dizia que nao era
+  deployments         "No deployments yet"               projeto com zero builds
+  live-url-hero       "No production deploy yet — …"     a copia padrao, ao lado do titulo
+  trust/overview x2   heading "Violations by policy"     o arquivo so nomeava a TABELA
+  monitors            "No evaluators — create one first" leitura que da certo com zero linhas
+  billing x3          os tres rotulos de cota            sao derivados da chave do backend
+
+DUAS LICOES, as duas contra mim:
+
+  1. o caso do billing primeiro afirmava os tres rotulos num `for` sobre um array. O detector le o
+     SELETOR, e seletor que e variavel nao tem literal para casar: os tres seguiram desancorados.
+  2. o caso novo do log-viewer NASCEU com uma assercao de ausencia desancorada (`/oops/`), e quem
+     apontou foi esta propria catraca.
+
+A COMPOSICAO DOS 91 RESTANTES, remedida hoje (67 -> 56 da classe honesta, 35 da classe never-leak):
+ler as primeiras mostrou que a classe "honesta" tem tres formas distintas dentro dela, e so uma e
+consertavel:
+
+  - estado vazio afirmado ausente com dados presentes  -> ANCORAVEL (foi o que esta fatia fez)
+  - secao REMOVIDA que nao pode voltar (`'No recent previews'`, `'Get alerted for anomalies'`,
+    `/revisoes publicadas/i`) -> nao existe caso positivo por construcao
+  - seletor construido a partir de VARIAVEL (`overview.test.tsx:173`) -> falso positivo conhecido,
+    documentado no proprio docblock do detector
+
+Derivado: B-277 (a regra de rotulo do billing existe duas vezes; a mutacao de um site sobrevivia).
 
 ## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [x]
 
@@ -10890,3 +10968,45 @@ dod:
     é usado em quantas telas?) ou se sai
 
 > Registrado 2026-08-12 durante o `/deps-audit` da fatia do B-242/B-241.
+
+## B-279 — O marcador do guard de identificadores tem cauda, e ela ficou visível ao chegar a zero   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low
+category: code
+supersedes:
+evidence: |
+  Com o B-241 migrado, `varrerIdentificadores` reporta zero — e o repositorio AINDA tem
+  identificadores em portugues. Eles simplesmente nao estao no `MARCADOR` nem no
+  `SUPLEMENTO_IDENTIFICADORES` de `dashboard/src/test/i18n-guard.ts`.
+
+  MEDIDO em 2026-08-13, por `grep -rlw` sobre `dashboard/src` (arquivos que contem a palavra):
+
+      84  inteiro        37  mostrar       16  bruto        11  rotulo
+       7  variaveis       7  ultimaVersao   6  resolucao     4  intencao
+       3  normalizar      2  vistas         2  endereco      1  linguagem
+
+  A contagem e de ARQUIVOS que citam a palavra, nao de declaracoes — serve para dimensionar, nao
+  para ser o teto de nada. `inteiro` e `mostrar` quase certamente incluem prosa em comentario, que
+  a convencao permite.
+why_now: |
+  O B-241 fechou "zero pela medicao do detector". Isso e o que o DoD dele pedia, literalmente, e e
+  o que o guard passa a impor. Mas ler esse zero como "nao ha mais identificador em portugues"
+  seria a mesma leitura errada que o B-238 e o B-243 registraram uma catraca de cada vez: o numero
+  mede a GRAFIA que a lista conhece, nao o defeito.
+
+  Registrar isto ao lado do zero e o que impede o zero de mentir.
+status: raw
+dod:
+  - cada palavra da cauda e decidida uma a uma (entra no marcador, ou fica de fora com o motivo —
+    `inteiro` e `mostrar` sao candidatas a cognato/prosa e podem legitimamente ficar fora)
+  - as palavras aceitas entram no `SUPLEMENTO_IDENTIFICADORES`, com o mesmo criterio do docblock
+    dele: nao existe em ingles, ou difere por mais que um acento
+  - a populacao que elas revelam e migrada com o mesmo harness, e o guard segue reprovando
+  - `varrerInterface` (o guard de texto de INTERFACE, que compartilha o `MARCADOR`) continua verde:
+    alargar a lista aperta os dois consumidores de uma vez
+
+> Registrado 2026-08-13 ao fechar o B-241. A cauda so ficou mensuravel depois que o corpo saiu.

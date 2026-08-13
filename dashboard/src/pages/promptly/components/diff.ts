@@ -32,12 +32,12 @@ export const DIFF_LINE_CEILING = 2000;
  * de `{{nome}}` muda o que o modelo recebe. Normalizar demais esconde mudança real, que é o
  * erro oposto e o mais perigoso dos dois.
  */
-function normalizar(conteudo: string): string[] {
-  return conteudo
+function normalizar(content: string): string[] {
+  return content
     .replace(/\r\n/g, '\n')
     .replace(/\n+$/, '')
     .split('\n')
-    .map((linha) => linha.replace(/[ \t]+$/, ''));
+    .map((row) => row.replace(/[ \t]+$/, ''));
 }
 
 /** Comprimentos da maior subsequência comum — a tabela clássica, sem reconstrução recursiva. */
@@ -60,9 +60,9 @@ function tabelaLcs(a: readonly string[], b: readonly string[]): number[][] {
  * Granularidade de LINHA, não de palavra: responde a pergunta que o operador faz ("o que mudou
  * entre v2 e v3?") sem o custo — e os erros — de um diff por palavra escrito à mão.
  */
-export function diffLines(anterior: string, novo: string): DiffBlock[] {
-  const a = normalizar(anterior);
-  const b = normalizar(novo);
+export function diffLines(previous: string, next: string): DiffBlock[] {
+  const a = normalizar(previous);
+  const b = normalizar(next);
 
   // O número que a tela mostra é o do LADO MAIOR, não a soma: é ele que estourou o teto, e é
   // o que o operador consegue relacionar com a revisão que tem na mão.
@@ -96,7 +96,7 @@ export function diffLines(anterior: string, novo: string): DiffBlock[] {
 }
 
 /** Atalho para a tela: houve alguma diferença? Zero blocos alterados = revisões equivalentes. */
-export function saoEquivalentes(blocos: readonly DiffBlock[]): boolean {
+export function areEquivalent(blocos: readonly DiffBlock[]): boolean {
   return blocos.every((b) => b.kind === 'same');
 }
 
@@ -113,45 +113,45 @@ export function saoEquivalentes(blocos: readonly DiffBlock[]): boolean {
  * E `temperature: 0` **não** é o mesmo que ausente. Zero é uma afinação escolhida —
  * determinismo máximo —, e tratá-la como "sem config" apagaria a decisão de quem a tomou.
  */
-export interface ConfigDeRevisao {
+export interface RevisionConfig {
   readonly temperature?: number;
   readonly model?: string;
 }
 
-interface LinhaDeConfig {
-  readonly campo: string;
-  readonly antes: string;
-  readonly depois: string;
+interface ConfigRow {
+  readonly field: string;
+  readonly before: string;
+  readonly after: string;
 }
 
 export interface DiffDeConfig {
   readonly mudou: boolean;
-  readonly linhas: readonly LinhaDeConfig[];
+  readonly rows: readonly ConfigRow[];
 }
 
 /** O que a tela diz quando um dos lados é anterior ao milestone (ADR-1). */
-const ANTERIOR = 'revision before the config';
+const PREVIOUS = 'revision before the config';
 
-function mostrar(cfg: ConfigDeRevisao | null | undefined, campo: 'temperature' | 'model'): string {
+function mostrar(cfg: RevisionConfig | null | undefined, field: 'temperature' | 'model'): string {
   // `!= null` cobre `null` E `undefined`: o primeiro vem do serviço, o segundo de uma
   // revisão cuja projeção nem chegou a olhar o campo. Os dois significam "não tem", e
   // tratá-los diferente faria a tela quebrar num dos caminhos.
-  if (cfg == null) return ANTERIOR;
-  const v = cfg[campo];
+  if (cfg == null) return PREVIOUS;
+  const v = cfg[field];
   // `undefined` e não falsy: `temperature: 0` tem de sair como "0", não como "—".
   return v === undefined ? '—' : String(v);
 }
 
 export function diffConfig(
-  antes: ConfigDeRevisao | null | undefined,
-  depois: ConfigDeRevisao | null | undefined,
+  before: RevisionConfig | null | undefined,
+  after: RevisionConfig | null | undefined,
 ): DiffDeConfig {
-  if (antes == null && depois == null) return { mudou: false, linhas: [] };
+  if (before == null && after == null) return { mudou: false, rows: [] };
 
-  const campos = ['temperature', 'model'] as const;
-  const linhas = campos
-    .filter((campo) => mostrar(antes, campo) !== mostrar(depois, campo))
-    .map((campo) => ({ campo, antes: mostrar(antes, campo), depois: mostrar(depois, campo) }));
+  const fields = ['temperature', 'model'] as const;
+  const rows = fields
+    .filter((field) => mostrar(before, field) !== mostrar(after, field))
+    .map((field) => ({ field, before: mostrar(before, field), after: mostrar(after, field) }));
 
-  return { mudou: linhas.length > 0, linhas };
+  return { mudou: rows.length > 0, rows };
 }

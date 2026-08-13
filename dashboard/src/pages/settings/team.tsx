@@ -33,7 +33,7 @@ export function TeamPage() {
   const teamQuery = useTeamMembers();
   const data = teamQuery.data ?? null;
   const loading = teamQuery.isLoading;
-  const erroDeLeitura = teamQuery.isError;
+  const readError = teamQuery.isError;
   const members = data?.members ?? [];
   const [searchQuery, setSearchQuery] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -95,7 +95,7 @@ export function TeamPage() {
       loading={loading}
       empty={
         estadoDaLista(
-          { erro: erroDeLeitura, vazio: !loading && filtered.length === 0
+          { failure: readError, empty: !loading && filtered.length === 0
           ? {
               icon: Users,
               title: searchQuery ? 'No matching members' : 'No team members',

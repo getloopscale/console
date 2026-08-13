@@ -6,9 +6,9 @@ import { Button } from '@usetheo/ui';
 interface Props {
   tags: readonly string[];
 
-  novaTag: string;
-  setNovaTag: (v: string) => void;
-  erroDeTag: string | null;
+  newTag: string;
+  setNewTag: (v: string) => void;
+  tagError: string | null;
   marcando: MarcandoMutation;
 }
 
@@ -24,7 +24,7 @@ interface Props {
  * cada um responde uma pergunta própria e recebe entre um e seis símbolos.
  * Cortar por tamanho teria produzido metades sem nome.
  */
-export function TagsCard({ novaTag, setNovaTag, erroDeTag, marcando, tags }: Props) {
+export function TagsCard({ newTag, setNewTag, tagError, marcando, tags }: Props) {
   return (
     <Card>
       <Card.Header>
@@ -37,8 +37,8 @@ export function TagsCard({ novaTag, setNovaTag, erroDeTag, marcando, tags }: Pro
         </Card.Description>
       </Card.Header>
       <div className="space-y-3 p-4 pt-0">
-        {erroDeTag !== null ? (
-          <Alert intent="destructive" title="The tags were not saved" description={erroDeTag} />
+        {tagError !== null ? (
+          <Alert intent="destructive" title="The tags were not saved" description={tagError} />
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {tags.length === 0 ? (
@@ -65,8 +65,8 @@ export function TagsCard({ novaTag, setNovaTag, erroDeTag, marcando, tags }: Pro
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
-            value={novaTag}
-            onChange={(e) => { setNovaTag(e.target.value); }}
+            value={newTag}
+            onChange={(e) => { setNewTag(e.target.value); }}
             aria-label="New tag"
             placeholder="suporte"
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
@@ -74,11 +74,11 @@ export function TagsCard({ novaTag, setNovaTag, erroDeTag, marcando, tags }: Pro
           <Button
             variant="secondary"
             size="sm"
-            disabled={novaTag.trim() === '' || marcando.isPending}
+            disabled={newTag.trim() === '' || marcando.isPending}
             onClick={() => {
               // O conjunto INTEIRO, nunca só a nova: o contrato do serviço é substituição, e
               // mandar só a tag nova apagaria as antigas do outro lado.
-              const t = novaTag.trim();
+              const t = newTag.trim();
               marcando.mutate(tags.includes(t) ? tags : [...tags, t]);
             }}
           >

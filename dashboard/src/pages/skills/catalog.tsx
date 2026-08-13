@@ -8,7 +8,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { catalogCards, categoryChips, type CatalogSkill } from '@/pages/skills/components/catalog';
-import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
+import { filterCollection, mergePages, type SkillRow } from '@/pages/skills/components/paging';
 import { useSkillsCatalog } from '@/hooks/skills/use-skills';
 
 /**
@@ -25,7 +25,7 @@ import { useSkillsCatalog } from '@/hooks/skills/use-skills';
 
 const PAGE_LIMIT = 100;
 /** Teto de chips. Acima disto a faixa vira uma parede de rótulos e deixa de orientar. */
-const TETO_CHIPS = 8;
+const CHIPS_CEILING = 8;
 
 interface SkillsPayload {
   readonly skills?: CatalogSkill[];
@@ -37,7 +37,7 @@ export function SkillsCatalogPage() {
   useEffect(() => setPageTitle('Catalog'), [setPageTitle]);
   useRequireAuth();
 
-  const [paginas, setPaginas] = useState<SkillLinha[]>([]);
+  const [paginas, setPaginas] = useState<SkillRow[]>([]);
   const [tokenAtual, setTokenAtual] = useState<string | undefined>(undefined);
   const [filtro, setFiltro] = useState('');
   const [categoria, setCategoria] = useState<string | null>(null);
@@ -48,30 +48,30 @@ export function SkillsCatalogPage() {
   // armadilha que `trust` tinha entre 200 e 100.
   const query = useSkillsCatalog<SkillsPayload>(PAGE_LIMIT, tokenAtual);
 
-  const pagina = useMemo(
-    () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
+  const page = useMemo(
+    () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillRow[]) : []),
     [query.data],
   );
 
   useEffect(() => {
     const primeira = tokenAtual === undefined;
-    if (pagina.length === 0 && !primeira) return;
-    setPaginas((atual) => mesclarPaginas(atual, pagina, { primeira }));
-  }, [pagina, tokenAtual]);
+    if (page.length === 0 && !primeira) return;
+    setPaginas((atual) => mergePages(atual, page, { primeira }));
+  }, [page, tokenAtual]);
 
   // B-237 — este literal era a SEGUNDA cópia da decisão que `colecaoDescrita` nomeia. A extração
   // foi feita para `skills/overview.tsx` e parou ali, deixando exatamente os dois lugares
   // escolhendo que ela existe para impedir.
-  const acervo = colecaoDescrita(paginas, pagina);
-  const chips = categoryChips(acervo as CatalogSkill[], TETO_CHIPS);
+  const acervo = colecaoDescrita(paginas, page);
+  const chips = categoryChips(acervo as CatalogSkill[], CHIPS_CEILING);
 
-  const porTexto = filtrarAcervo(acervo, filtro);
-  const filtrados = categoria === null ? porTexto : porTexto.filter((s) => s.category === categoria);
+  const byText = filterCollection(acervo, filtro);
+  const filtrados = categoria === null ? byText : byText.filter((s) => s.category === categoria);
   const cards = catalogCards(filtrados as CatalogSkill[]);
 
-  const proximoToken = query.data?.next_page_token ?? null;
-  const temMais = typeof proximoToken === 'string' && proximoToken !== '';
-  const falhou = Boolean(query.error);
+  const nextToken = query.data?.next_page_token ?? null;
+  const hasMore = typeof nextToken === 'string' && nextToken !== '';
+  const failed = Boolean(query.error);
   const buscando = filtro.trim() !== '' || categoria !== null;
 
   return (
@@ -79,7 +79,7 @@ export function SkillsCatalogPage() {
       title="Catalog"
       description="What this workspace has — for when you do not know the name of what you are looking for."
     >
-      {falhou ? (
+      {failed ? (
         <Alert
           intent="destructive"
           title="Could not load the catalog"
@@ -101,7 +101,7 @@ export function SkillsCatalogPage() {
               arbitrário — e um usuário que não sabe por que aquela ordem desconfia da lista. */}
           <Card.Description>
             Sorted by name. {acervo.length} loaded
-            {temMais ? ' — there are more in the registry' : ' (whole registry)'}.
+            {hasMore ? ' — there are more in the registry' : ' (whole registry)'}.
           </Card.Description>
         </Card.Header>
 
@@ -158,21 +158,21 @@ export function SkillsCatalogPage() {
             // "busca sem resultado" era exibido como "acervo vazio": o operador concluía que
             // não havia nada publicado quando só o filtro dele não casava.
             title={
-              falhou
+              failed
                 ? 'No data — the read failed'
                 : buscando
                   ? 'Nothing matches this filter'
                   : 'No skill published yet'
             }
             description={
-              falhou
+              failed
                 ? 'Try again in a moment. Until then, there is no way to know what the registry holds.'
                 : buscando
                   ? 'The registry does have skills — none of them match your filter. Clear it to see everything.'
                   : 'Nothing has been published in this workspace yet. Create the first skill from the authoring screen.'
             }
             action={
-              falhou ? undefined : buscando ? (
+              failed ? undefined : buscando ? (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -230,12 +230,12 @@ export function SkillsCatalogPage() {
         </div>
       )}
 
-      {temMais ? (
+      {hasMore ? (
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             disabled={query.isFetching}
-            onClick={() => setTokenAtual(proximoToken ?? undefined)}
+            onClick={() => setTokenAtual(nextToken ?? undefined)}
           >
             {query.isFetching ? 'Loading…' : 'Load more'}
           </Button>

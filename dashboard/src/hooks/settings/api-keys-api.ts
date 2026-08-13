@@ -75,7 +75,7 @@ export interface LineageResult {
   lineage: LineageItem[];
 }
 
-export interface NovaChave {
+export interface NewKey {
   name: string;
   scopes: string[];
   expires_at?: string | null;
@@ -93,7 +93,7 @@ export function linhagem(id: string) {
   return cloudFetch<LineageResult>(`/v1/api-keys/${id}/lineage`, {}, { throwOnError: true });
 }
 
-export function criar(input: NovaChave) {
+export function create(input: NewKey) {
   return cloudFetch<CreateKeyResponse>(
     '/v1/api-keys',
     {

@@ -10,7 +10,7 @@
 // Nada aqui busca dado nem decide se o par métrica↔prompt é válido.
 
 import { Button, Input, Select } from '@usetheo/ui';
-import { exigeNomeDePrompt } from '@/pages/lens/components/alert-draft';
+import { requiresPromptName } from '@/pages/lens/components/alert-draft';
 import type { AlertDraft } from '@/pages/lens/components/alert-draft';
 import type { AlertField } from '@/pages/lens/components/alert-draft';
 
@@ -18,7 +18,7 @@ export interface AlertCreateFormProps {
   /** O rascunho inteiro. Espelhar campo a campo duplicaria um tipo que já existe. */
   readonly draft: AlertDraft;
   /** Um ponto de mudança para todos os campos — é o que faz `touched` cair de graça na página. */
-  readonly onChange: (campo: keyof AlertDraft, valor: string) => void;
+  readonly onChange: (field: keyof AlertDraft, value: string) => void;
   readonly webhooks: readonly { id: string; label?: string; url?: string }[];
   readonly metrics: readonly { value: string; label: string }[];
   readonly comparators: readonly { value: string; label: string }[];
@@ -28,12 +28,12 @@ export interface AlertCreateFormProps {
   /** Problemas a EXIBIR — só os campos já tocados. A validação em si vive em `alert-draft.ts`. */
   readonly problems?: Partial<Record<AlertField, string>>;
   /** O uso medido AGORA do prompt digitado — ausente enquanto não há prompt alvo. */
-  readonly usoAtual?: {
-    readonly carregando: boolean;
-    readonly erro: boolean;
+  readonly currentUsage?: {
+    readonly loading: boolean;
+    readonly failure: boolean;
     readonly resolucoes?: number;
     /** A janela que o número cobre — dita, nunca implícita: sem ela o operador o atribui ao período errado. */
-    readonly janelaDias: number;
+    readonly windowDays: number;
   };
 }
 
@@ -76,7 +76,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
           </Select.Content>
         </Select>
       </div>
-      {exigeNomeDePrompt(p.draft.metric) ? (
+      {requiresPromptName(p.draft.metric) ? (
         <div className="min-w-[160px]">
           <label htmlFor="rule-prompt" className="mb-1 block text-xs font-medium text-muted-foreground">
             Prompt
@@ -131,16 +131,16 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
         {/* O valor MEDIDO agora — risco #2 do M22. Um limite escolhido as cegas e o
             alerta mal calibrado, e alerta que dispara sem motivo ensina o time a
             ignorar o canal. Falha de leitura NAO vira zero: sao fatos diferentes. */}
-        {p.usoAtual ? (
+        {p.currentUsage ? (
                       <p className="mt-1 text-xs text-muted-foreground" data-testid="valor-medido">
-                        {p.usoAtual.erro
+                        {p.currentUsage.failure
                           ? 'Could not read the current usage of this prompt.'
-                          : p.usoAtual.carregando
+                          : p.currentUsage.loading
                             ? 'Reading current usage…'
                             : // Sem "Hoje": o prefixo mentia sobre o período em toda janela maior
                               // que um dia, e o número é justamente a base do limiar.
-                              `${p.usoAtual.resolucoes} resolutions ${
-                                p.usoAtual.janelaDias === 1 ? 'in the last 24 h' : `in the last ${p.usoAtual.janelaDias} days`
+                              `${p.currentUsage.resolucoes} resolutions ${
+                                p.currentUsage.windowDays === 1 ? 'in the last 24 h' : `in the last ${p.currentUsage.windowDays} days`
                               } — the same window as this rule.`}
                       </p>
                     ) : null}

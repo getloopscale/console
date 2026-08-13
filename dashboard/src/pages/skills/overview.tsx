@@ -22,7 +22,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useSkillsCatalog } from '@/hooks/skills/use-skills';
-import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
+import { filterCollection, mergePages, type SkillRow } from '@/pages/skills/components/paging';
 
 /**
  * @overview-answers: kpi
@@ -93,7 +93,7 @@ export function SkillsOverviewPage() {
   // As páginas já buscadas ficam em estado local em vez de virarem `useInfiniteQuery`: o acervo
   // é pequeno o bastante para isso (teto de 200 por página no serviço), e trocar a query inteira
   // pela variante infinita mexeria em cache que outras telas compartilham.
-  const [paginas, setPaginas] = useState<SkillLinha[]>([]);
+  const [paginas, setPaginas] = useState<SkillRow[]>([]);
   const [tokenAtual, setTokenAtual] = useState<string | undefined>(undefined);
   const [filtro, setFiltro] = useState('');
 
@@ -103,8 +103,8 @@ export function SkillsOverviewPage() {
   // armadilha que `trust` tinha entre 200 e 100.
   const query = useSkillsCatalog<SkillsPayload>(PAGE_LIMIT, tokenAtual);
 
-  const pagina = useMemo(
-    () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
+  const page = useMemo(
+    () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillRow[]) : []),
     [query.data],
   );
 
@@ -112,15 +112,15 @@ export function SkillsOverviewPage() {
     // A primeira página SUBSTITUI o acervo; as seguintes acumulam. Sem essa distinção, apagar
     // uma skill deixava a apagada na tela — o refetch mesclava, e mesclar nunca remove.
     const primeira = tokenAtual === undefined;
-    if (pagina.length === 0 && !primeira) return;
-    setPaginas((atual) => mesclarPaginas(atual, pagina, { primeira }));
-  }, [pagina, tokenAtual]);
+    if (page.length === 0 && !primeira) return;
+    setPaginas((atual) => mergePages(atual, page, { primeira }));
+  }, [page, tokenAtual]);
 
   // B-149 — UMA escolha de qual coleção esta tela descreve, lida por todos os três consumidores.
   // Antes, os cards e o gráfico liam `paginas` enquanto a tabela lia esta expressão inline, então
   // no primeiro frame após o sucesso o gráfico dizia "Nothing recorded" por cima de uma tabela
   // povoada. A correção não é o gráfico passar a ler a expressão certa — é não haver duas.
-  const acervo = colecaoDescrita(paginas, pagina);
+  const acervo = colecaoDescrita(paginas, page);
 
   // B-126 — o veredito julga o ACERVO, não a página em mãos: um julgamento sobre a última página
   // responderia sobre um recorte que o operador não pediu. `next_page_token` marca a parcialidade
@@ -140,9 +140,9 @@ export function SkillsOverviewPage() {
   // B-129 — o mesmo catálogo já carregado, agrupado. Nenhuma requisição nova.
   const porCategoria = catalogByCategory(acervo);
 
-  const rows = filtrarAcervo(acervo, filtro);
-  const proximoToken = query.data?.next_page_token ?? null;
-  const temMais = typeof proximoToken === 'string' && proximoToken !== '';
+  const rows = filterCollection(acervo, filtro);
+  const nextToken = query.data?.next_page_token ?? null;
+  const hasMore = typeof nextToken === 'string' && nextToken !== '';
   const failed = Boolean(query.error);
 
   const columns: DataTableColumn<SkillSummary>[] = [
@@ -290,7 +290,7 @@ export function SkillsOverviewPage() {
               acervo" com 300 lá dentro — um número que parecia total e era de uma página. */}
           <Card.Description>
             {filtro.trim() === ''
-              ? `${acervo.length} loaded${temMais ? ' — there are more in the registry' : ' (whole registry)'}`
+              ? `${acervo.length} loaded${hasMore ? ' — there are more in the registry' : ' (whole registry)'}`
               : `${rows.length} of ${acervo.length} loaded match "${filtro}"`}
           </Card.Description>
         </Card.Header>
@@ -332,12 +332,12 @@ export function SkillsOverviewPage() {
           }
         />
 
-        {temMais ? (
+        {hasMore ? (
           <div className="flex items-center gap-2 px-6 pb-6">
             <Button
               variant="secondary"
               disabled={query.isFetching}
-              onClick={() => setTokenAtual(proximoToken ?? undefined)}
+              onClick={() => setTokenAtual(nextToken ?? undefined)}
             >
               {query.isFetching ? 'Loading…' : 'Load more'}
             </Button>

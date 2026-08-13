@@ -111,7 +111,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
           Save current view
         </Button>
       </div>
-      <ListTruncationNotice temMais={truncou} total={views.length} substantivo="saved views" />
+      <ListTruncationNotice hasMore={truncou} total={views.length} substantivo="saved views" />
 
       {/* M59 P3 — the naming Dialog (replaces the inline form). The stored query_string is the whole
           filter URL — including the M59 `cols=` (column visibility) + `density=` params — so a saved

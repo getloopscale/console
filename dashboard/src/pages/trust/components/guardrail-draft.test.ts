@@ -31,28 +31,28 @@ describe('draftProblems', () => {
 
   it('exige nome', () => {
     const problems = draftProblems(draft({ terms: ['segredo'] }));
-    expect(problems.map((p) => p.mensagem)).toContain('Give the guardrail a name.');
+    expect(problems.map((p) => p.message)).toContain('Give the guardrail a name.');
   });
 
   it('exige ao menos um termo', () => {
     const problems = draftProblems(draft({ name: 'sem-termos' }));
-    expect(problems.map((p) => p.mensagem)).toContain('Add at least one term to block.');
+    expect(problems.map((p) => p.message)).toContain('Add at least one term to block.');
   });
 
   it('recusa nome reservado da plataforma antes de ir ao servidor', () => {
     // O serviço devolveria 422 VALIDATOR_NAME_RESERVED — mas só depois de uma ida ao servidor,
     // com o operador já tendo perdido o contexto do campo. A autoridade continua sendo o 422.
     const problems = draftProblems(draft({ name: 'pii', terms: ['x'] }));
-    expect(problems.some((p) => p.campo === 'name' && p.mensagem.includes('reserved'))).toBe(true);
+    expect(problems.some((p) => p.field === 'name' && p.message.includes('reserved'))).toBe(true);
   });
 
   it('recusa nome reservado independentemente de caixa', () => {
-    expect(draftProblems(draft({ name: 'PII', terms: ['x'] })).some((p) => p.campo === 'name' && p.mensagem.includes('reserved'))).toBe(true);
+    expect(draftProblems(draft({ name: 'PII', terms: ['x'] })).some((p) => p.field === 'name' && p.message.includes('reserved'))).toBe(true);
   });
 
   it('exige replacement quando a ação é modify', () => {
     const problems = draftProblems(draft({ name: 'n', terms: ['x'], action: 'modify', replacement: '  ' }));
-    expect(problems.map((p) => p.mensagem)).toContain('Set the text that replaces the term found.');
+    expect(problems.map((p) => p.message)).toContain('Set the text that replaces the term found.');
   });
 
   it('não exige replacement quando a ação é block', () => {
@@ -222,8 +222,8 @@ describe('o campo de cada problema é DADO, não deduzido da frase (B-111)', () 
       expect(
         p,
         'um problema sem `campo` volta a obrigar alguém a adivinhar pelo texto',
-      ).toHaveProperty('campo');
-      expect(['name', 'terms', 'replacement']).toContain(p.campo);
+      ).toHaveProperty('field');
+      expect(['name', 'terms', 'replacement']).toContain(p.field);
     }
   });
 

@@ -16,7 +16,7 @@ import type { PontoDaSerie } from '@/hooks/lens/use-usage-by-user';
  * que a mutação alcança.
  */
 
-const DIA_MS = 86_400_000;
+const DAY_MS = 86_400_000;
 
 /**
  * A janela do eixo: onde ela começa e quantas fatias tem.
@@ -34,14 +34,14 @@ const DIA_MS = 86_400_000;
  *    `Math.max` com o maior ponto garante que um relógio de navegador atrasado nunca corte dado: o
  *    dado manda sobre o relógio, nunca o contrário.
  */
-export function janelaDaSerie(
-  diasComPonto: number[],
+export function seriesWindow(
+  daysWithPoint: number[],
   days: number,
-  agoraMs: number,
-): { inicio: number; dias: number } {
-  const aoDia = (t: number): number => Math.floor(t / DIA_MS) * DIA_MS;
-  const fim = Math.max(aoDia(agoraMs), ...diasComPonto.map(aoDia));
-  return { inicio: fim - days * DIA_MS, dias: days + 1 };
+  nowMs: number,
+): { start: number; windowDays: number } {
+  const perDay = (t: number): number => Math.floor(t / DAY_MS) * DAY_MS;
+  const end = Math.max(perDay(nowMs), ...daysWithPoint.map(perDay));
+  return { start: end - days * DAY_MS, windowDays: days + 1 };
 }
 
 /** Um ponto como o serviço o devolve (`usageByUserSeriesPointSchema` do theo-lens). */
@@ -50,10 +50,10 @@ export function janelaDaSerie(
 export type { PontoDaSerie };
 
 /** Os campos plotáveis. `tokens` é derivado — entrada + saída, como a coluna da tabela. */
-export type CampoPlotavel = keyof Omit<PontoDaSerie, 'periodStart'> | 'tokens';
+export type PlottableField = keyof Omit<PontoDaSerie, 'periodStart'> | 'tokens';
 
-const valorDe = (p: PontoDaSerie, campo: CampoPlotavel): number =>
-  campo === 'tokens' ? p.inputTokens + p.outputTokens : p[campo];
+const valueFor = (p: PontoDaSerie, field: PlottableField): number =>
+  field === 'tokens' ? p.inputTokens + p.outputTokens : p[field];
 
 /**
  * Expande `pontos` sobre os `dias` dias a partir de `inicioMs`, projetando `campo`.
@@ -67,24 +67,24 @@ const valorDe = (p: PontoDaSerie, campo: CampoPlotavel): number =>
  */
 export function densificar(
   pontos: PontoDaSerie[],
-  inicioMs: number,
-  dias: number,
-  campo: CampoPlotavel,
+  startMs: number,
+  days: number,
+  field: PlottableField,
 ): TrendPoint[] {
   // `Date.parse` do `periodStart` truncado ao dia: o serviço já devolve meia-noite, mas o truncamento
   // torna a chave imune a um fuso que desloque o horário sem mudar o dia.
-  const porDia = new Map<number, PontoDaSerie>();
+  const byDay = new Map<number, PontoDaSerie>();
   for (const p of pontos) {
     const t = Date.parse(p.periodStart);
-    if (Number.isFinite(t)) porDia.set(Math.floor(t / DIA_MS) * DIA_MS, p);
+    if (Number.isFinite(t)) byDay.set(Math.floor(t / DAY_MS) * DAY_MS, p);
   }
 
-  const base = Math.floor(inicioMs / DIA_MS) * DIA_MS;
-  return Array.from({ length: dias }, (_, i) => {
-    const x = base + i * DIA_MS;
-    const p = porDia.get(x);
+  const base = Math.floor(startMs / DAY_MS) * DAY_MS;
+  return Array.from({ length: days }, (_, i) => {
+    const x = base + i * DAY_MS;
+    const p = byDay.get(x);
     // NaN, nunca 0 — é o que faz o `seriesPath` quebrar a linha em vez de desenhar um vale que não
     // aconteceu.
-    return { x, y: p === undefined ? Number.NaN : valorDe(p, campo) };
+    return { x, y: p === undefined ? Number.NaN : valueFor(p, field) };
   });
 }
