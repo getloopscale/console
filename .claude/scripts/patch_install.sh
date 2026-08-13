@@ -50,6 +50,45 @@ CLOBBERED=0
 CLOBBERED_FILES=()
 BACKUP_DIR="$ECO/.patch-backups/$(date +%Y%m%dT%H%M%S)"
 
+# --- what the LAST patch wrote (B-250) ------------------------------------
+# The first guard against silent reverts asked `git diff --quiet`: does the working tree differ
+# from HEAD? A fix that is COMMITTED answers no — and committing before running an installer is
+# what a careful person does, so the guard missed precisely the case that occurred. Three fixes
+# committed earlier in the same session were reverted with no warning; only a re-run of a
+# neighbouring suite noticed (35 passed -> 32 passed + 1 failed).
+#
+# The question has to be "does this differ from what the patcher last WROTE", which needs the
+# patcher to remember. This file is that memory: `sha256  relative/path`, one per line.
+STATE_DIR="$ECO/.patch-state"
+STATE_FILE="$STATE_DIR/installed.sha256"
+declare -A LAST_INSTALLED=()
+if [ -f "$STATE_FILE" ]; then
+  while read -r digest rel; do
+    [ -n "${rel:-}" ] && LAST_INSTALLED["$rel"]="$digest"
+  done < "$STATE_FILE"
+fi
+declare -A NOW_INSTALLED=()
+
+record_installed() {
+  # $1 = path relative to $ECO
+  NOW_INSTALLED["$1"]="$(sha256sum "$ECO/$1" | cut -d" " -f1)"
+}
+
+# Local divergence = the file on disk is not what we last wrote.
+#
+# Committed or not is irrelevant to that question, which is the whole correction. When there is no
+# record (a first patch, or a file added to the manifest since), fall back to asking git — it is
+# weaker, but it is the only signal available and it still catches the uncommitted case.
+is_local_divergence() {
+  local rel="$1" dst="$2"
+  if [ -n "${LAST_INSTALLED[$rel]:-}" ]; then
+    [ "$(sha256sum "$dst" | cut -d" " -f1)" != "${LAST_INSTALLED[$rel]}" ]
+    return $?
+  fi
+  git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1 &&
+    ! git -C "$TARGET" diff --quiet -- ".claude/$rel" 2>/dev/null
+}
+
 # --- manifest -------------------------------------------------------------
 # Paths are RELATIVE to source SRC_DIR (and to ECO target).
 # Lines starting with `#` and empty lines are ignored.
@@ -287,25 +326,27 @@ while IFS= read -r line; do
       df="$dst$rel"
       if [ -f "$df" ]; then
         if cmp -s "$sf" "$df"; then
+          record_installed "$line$rel"
           SKIPPED=$((SKIPPED + 1))
           continue
         fi
         # Mesma guarda do ramo de arquivo. Entradas de DIRETORIO sao o caminho
         # por onde o conserto do detector D2 se perdeu: `skills/code-quality/`
         # varre a pasta inteira, e a reversao nao dizia uma palavra.
-        if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1 &&
-           ! git -C "$TARGET" diff --quiet -- ".claude/$line$rel" 2>/dev/null; then
+        if is_local_divergence "$line$rel" "$df" || [ "${ALWAYS_BACKUP:-0}" = "1" ]; then
           mkdir -p "$BACKUP_DIR/$(dirname "$line$rel")"
           cp "$df" "$BACKUP_DIR/$line$rel"
           CLOBBERED=$((CLOBBERED + 1))
           CLOBBERED_FILES+=("$line$rel")
         fi
         cp "$sf" "$df"
+        record_installed "$line$rel"
         OVERWRITTEN=$((OVERWRITTEN + 1))
         OVERWRITTEN_FILES+=("$line$rel")
       else
         mkdir -p "$(dirname "$df")"
         cp "$sf" "$df"
+        record_installed "$line$rel"
         CREATED=$((CREATED + 1))
         CREATED_FILES+=("$line$rel")
       fi
@@ -322,6 +363,7 @@ while IFS= read -r line; do
 
   if [ -f "$dst" ]; then
     if cmp -s "$src" "$dst"; then
+      record_installed "$line"
       SKIPPED=$((SKIPPED + 1))
       continue
     fi
@@ -329,13 +371,8 @@ while IFS= read -r line; do
     # Sem isto o patch destroi conserto local em silencio -- aconteceu de
     # verdade: um consumidor corrigiu dois defeitos do detector D2 (112 achados,
     # zero reais) com teste de regressao, e a propagacao seguinte reverteu tudo
-    # sem uma linha de aviso. O trabalho so nao se perdeu porque estava commitado.
-    if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1 &&
-       ! git -C "$TARGET" diff --quiet -- ".claude/$line" 2>/dev/null; then
-      LOCAL_EDIT=1
-    else
-      LOCAL_EDIT=0
-    fi
+    # sem uma linha de aviso. Ver B-250 e `is_local_divergence` acima.
+    if is_local_divergence "$line" "$dst"; then LOCAL_EDIT=1; else LOCAL_EDIT=0; fi
     if [ "$LOCAL_EDIT" = "1" ] || [ "${ALWAYS_BACKUP:-0}" = "1" ]; then
       mkdir -p "$BACKUP_DIR/$(dirname "$line")"
       cp "$dst" "$BACKUP_DIR/$line"
@@ -343,15 +380,29 @@ while IFS= read -r line; do
       CLOBBERED_FILES+=("$line")
     fi
     cp "$src" "$dst"
+    record_installed "$line"
     OVERWRITTEN=$((OVERWRITTEN + 1))
     OVERWRITTEN_FILES+=("$line")
   else
     mkdir -p "$(dirname "$dst")"
     cp "$src" "$dst"
+    record_installed "$line"
     CREATED=$((CREATED + 1))
     CREATED_FILES+=("$line")
   fi
 done <<< "$MANIFEST"
+
+# --- persist what this run installed (B-250) -------------------------------
+# Written AFTER the loop so a crash mid-patch leaves the previous record intact: a stale record
+# makes the next run over-report, which is the safe direction. A half-written one would make it
+# under-report, which is the failure this whole mechanism exists to prevent.
+mkdir -p "$STATE_DIR"
+: > "$STATE_FILE.tmp"
+for rel in "${!NOW_INSTALLED[@]}"; do
+  printf '%s  %s\n' "${NOW_INSTALLED[$rel]}" "$rel" >> "$STATE_FILE.tmp"
+done
+LC_ALL=C sort -k2 "$STATE_FILE.tmp" -o "$STATE_FILE.tmp"
+mv "$STATE_FILE.tmp" "$STATE_FILE"
 
 # --- summary --------------------------------------------------------------
 echo "=== Patch summary for $TARGET ==="

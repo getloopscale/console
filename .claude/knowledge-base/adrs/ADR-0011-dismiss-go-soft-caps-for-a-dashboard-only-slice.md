@@ -27,9 +27,42 @@ groups:
 
 | Group | Symbols | Why unreachable by static reading |
 |---|---|---|
-| `internal/metrics/*` | `IncTokenExchange`, `IncDeviceFlow`, `ObserveTenantProvisioning`, `IncAuthRejection`, `IncWebhook`, `IncCheckout`, `IncUsageDrift`, `IncSubscriptionFallback`, and the `*Value` readers | Instrumentation and its test readers. A metric with no caller is a real smell in general; these are the runtime-metric third of the wiring triad, wired at their emission sites |
-| `internal/config` | `Secret.String`, `Secret.GoString`, `Secret.MarshalJSON`, `Secret.MarshalText` | Interface satisfaction. They exist so a secret cannot be printed or serialised by accident; nothing calls them directly and that is the point |
-| `internal/billing` | `CostAggregator.WithClock` | Test seam for a deterministic clock |
+| `internal/metrics/*` | `IncTokenExchange`, `IncDeviceFlow`, `ObserveTenantProvisioning`, `IncAuthRejection`, `IncWebhook`, `IncCheckout`, `IncUsageDrift`, `IncSubscriptionFallback`, and the `*Value` readers | **Genuinely dead — see the correction below.** |
+| `internal/config` | `Secret.String`, `Secret.GoString`, `Secret.MarshalJSON`, `Secret.MarshalText` | Interface satisfaction. They exist so a secret cannot be printed or serialised by accident; nothing calls them directly and that is the point. Exercised implicitly by `secret_test.go`, which round-trips a `Secret` through `fmt` and `json.Marshal` |
+| `internal/billing`, `internal/routes` | `CostAggregator.WithClock`, two `WithInsecureCookieForTests`, `MemoryExportsHandler.WaitForWorkers` | Test seams, each with a caller in a `_test.go` |
+
+### Correction, 2026-08-13 — the metrics row above was wrong
+
+This ADR first said the thirteen metric helpers were "the runtime-metric third of the wiring triad,
+wired at their emission sites". Measured a few hours later, while closing B-256:
+
+```
+$ grep -rn "metrics\.IncWebhook(\|metrics\.IncCheckout(\|metrics\.IncAuthRejection(" \
+        --include="*.go" . | grep -v _test.go
+(nothing)
+
+$ grep -c "metrics\." internal/routes/memory_webhooks.go      # the actual webhook handler
+0
+```
+
+Every call to those helpers comes from `internal/metrics/metrics_test.go` — their own unit tests,
+which assert that incrementing does not panic. **No production code emits any of them.** A counter
+with no emission site does not record a low number; it records a flat zero forever, and a dashboard
+built on it reads as "no auth rejection has ever happened".
+
+So they are not instrumentation that a static reader cannot see. They are instrumentation that is
+not wired, which is exactly the finding `dead_code_unallowlisted_go` was firing about, and the
+allowlist entry was carrying an explanation that did not hold.
+
+**The dismissal below still stands** — the slice it covers contains zero `.go` files and blocking a
+dashboard test-guard slice on control-plane instrumentation would be the bundling `/review` flagged
+three times in it. What changes is the disposition of the debt: it is not "already wired, invisible
+to the tool", it is "not wired", and it is now measured and owned by B-256 rather than described
+incorrectly here.
+
+This is the second ADR in one day whose *mechanism* was asserted rather than measured, after
+`ADR-b278`. Both were correct about what to do and wrong about why, and in both cases one command
+would have refuted the sentence before it was written.
 
 ## Decision
 
