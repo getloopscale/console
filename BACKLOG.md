@@ -9169,6 +9169,27 @@ third_measurement: |
   como módulos de produção sem consumidor no instante em que nasceram em `lib/`, e ele estava
   certo. Allowlistar seria suprimir um achado verdadeiro.
 
+progresso 2026-08-12 — 116 → 102, e o item deixa de carregar um numero indistinto.
+
+A composicao dos 102, MEDIDA (rodando a regra de ancoragem-por-fixture como instrumento, nao como
+gate — ver B-276):
+
+  - ~50 sao a classe "isto nunca pode vazar": o arquivo INTRODUZ o texto num fixture ou num mock, e
+    a assercao discrimina de verdade (apague o comportamento e a string aparece), mas nao existe
+    caso positivo para apontar porque a string nao deve renderizar nunca. Sao trabalho do B-276, e
+    fechar isso e mudar a REGRA, nao mexer nos testes;
+  - ~52 sao a classe honesta do item: o texto nao existe em lugar nenhum do arquivo. Essas passam
+    pelo comportamento certo e pelo defeito igualmente.
+
+As duas quedas ate aqui foram de naturezas diferentes e isso esta escrito nos commits: 116 → 106
+foram asserções realmente ancoradas; 106 → 102 foi um DEFEITO DO DETECTOR (o core lido do primeiro
+caractere fazia `\d+ neste workspace` nunca casar com `3 neste workspace`), provado por mutacao
+antes do teto se mover.
+
+Tambem nesta sessao, sem mover o numero: quatro asserções de vazamento em
+`pages/auth/recovery.test.tsx` passaram a PODER falhar — os mocks nao continham as palavras que a
+tela deve remover, entao elas passavam igual com o mapeamento apagado.
+
 ## B-243 — Catraca `list-state` em 7 telas que afirmam ausencia sem consultar erro, sem dono   [x]
 
 domain: frontend-dashboard
