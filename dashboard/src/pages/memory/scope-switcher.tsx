@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/http/api';
+import { useMemorySessions, type SessionRow } from '@/hooks/memory/use-sessions';
 
 /**
  * B-024 (classe) — sessoes acumulam com o uso e o seletor baixava todas para
@@ -11,7 +10,6 @@ import { cloudFetch } from '@/lib/http/api';
  * deep link continua funcionando porque SessionSelectBase sintetiza a opcao
  * desconhecida em vez de descartar o id da URL.
  */
-const SESSION_PICKER_LIMIT = 100;
 
 /**
  * Session-separation (2026-07-23) — the M8 scope switcher.
@@ -23,30 +21,6 @@ const SESSION_PICKER_LIMIT = 100;
  * picks the session INSTANCE on surfaces whose tab already fixed the tier.
  */
 
-interface SessionRow {
-  session_id: string;
-  memory_count: number;
-  last_activity_at?: string;
-}
-
-function useSessionsQuery() {
-  return useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/sessions'] as const,
-    queryFn: () =>
-      cloudFetch<{ sessions: SessionRow[] }>(
-        `/v1/dashboard/memory/sessions?limit=${SESSION_PICKER_LIMIT}`,
-        {},
-        { throwOnError: true },
-      ),
-    // Sessions change slowly; keep the picker snappy without hammering the BFF.
-    //
-    // B-077 — o `staleTime: 60_000` que estava aqui REPETIA o default global
-    // (`lib/http/query-client.ts`), entao nao declarava politica nenhuma: no dia
-    // em que o default mudasse, esta linha ficaria congelada sozinha e o
-    // comentario acima seguiria afirmando uma intencao que ela deixou de
-    // entregar. O default ja da os 60s, e agora muda para todo mundo de uma vez.
-  });
-}
 
 /** Short human handle for a session id (full id stays in the option title). */
 function sessionLabel(s: SessionRow): string {
@@ -80,7 +54,7 @@ function SessionSelectBase({
   className: string;
   ariaLabel?: string;
 }) {
-  const sessions = useSessionsQuery();
+  const sessions = useMemorySessions();
   const rows = sessions.data?.sessions ?? [];
   const known = rows.some((s) => s.session_id === value);
   return (
@@ -134,7 +108,7 @@ export function ScopeSelect(props: SessionSelectProps) {
  * (Entities / Graph / Episodes) — picks WHICH session to inspect.
  */
 export function SessionPicker(props: SessionSelectProps) {
-  const sessions = useSessionsQuery();
+  const sessions = useMemorySessions();
   // B-243 — FOUR states, where the code had two. `data === undefined` collapsed into the
   // empty list via `?? []`, so the picker announced "no sessions recorded yet" both while
   // the request was still in flight and after it failed — a claim about the user's data,

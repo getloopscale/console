@@ -2,6 +2,8 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** forgetting a skill now reports a refusal instead of closing the confirmation and letting the skill reappear on the next read — on a screen whose only action is removing a bad skill, that looked like the product undoing itself (B-235).
+
 - **theo-cloud/dashboard:** saving a filter combination as a view now reports a refusal. It used to close the dialog and clear the name, so on a list that caps at 100 a rejected save read as "I hit the limit" (B-235).
 
 - **theo-cloud/dashboard:** the alert-rule list on the Alerts screen and the webhook list on Settings are now one read instead of two identical ones, so a change to either can no longer reach only one of them (B-244).

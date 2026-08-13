@@ -256,7 +256,7 @@ export default [
       'src/pages/deploy/deployments.tsx', // 694 LOC
       'src/pages/projects/project-connect.tsx', // 661 LOC
       'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
-      'src/pages/memory/graph.tsx', // 690 LOC
+      'src/pages/memory/graph.tsx', // 652 LOC
       'src/pages/lens/evaluators.tsx', // 521 LOC
       // 555 no inicio do ciclo; baixei para 545 cedo demais, antes de a revisao achar o nono
       // local do B-167 neste arquivo. 552 e o valor apos a fatia inteira — ainda DESCIDA.

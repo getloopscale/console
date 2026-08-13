@@ -197,7 +197,19 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 22 desde 2026-08-12, agora com `lens/{labeling-queue,experiments,alerts,dashboards}.tsx` e
+// 16 desde 2026-08-12, agora com todo o cluster de memory alem de
+// `lens/{labeling-queue,experiments,alerts,dashboards}.tsx`.
+//
+// Em `episodes`, a chave importa mais que nas outras: e uma query INFINITA, e paginas se acumulam
+// sob a chave. Um filtro presente na URL e ausente da chave anexa a pagina do filtro novo a lista
+// do filtro velho, e a tela mostra um log continuo montado de duas perguntas diferentes.
+//
+// Em `scope-switcher` sobrevive o B-077: NAO ha `staleTime` local. O que estava ali repetia o
+// default global palavra por palavra, entao nao declarava politica nenhuma — no dia em que o
+// default mudasse, aquela linha congelaria sozinha enquanto o comentario acima seguiria afirmando
+// uma intencao que ela deixou de entregar.
+//
+// Antes disso, com `lens/{labeling-queue,experiments,alerts,dashboards}.tsx` e
 // `lens/traces/saved-views.tsx`.
 //
 // `dashboards` rendeu dois achados que so aparecem quando a leitura muda de lugar. O `range` era
@@ -243,7 +255,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 22;
+const TETO_PAGINAS_COM_TRANSPORTE = 16;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

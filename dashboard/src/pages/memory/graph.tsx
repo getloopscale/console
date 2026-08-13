@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Maximize2, Share2, ZoomIn, ZoomOut } from 'lucide-react';
 import ForceGraph2D, {
   type ForceGraphMethods,
@@ -12,7 +11,10 @@ import { Alert } from '@/components/ui/alert-guard';
 import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useMemoryGraph,
+  type GraphResult,
+} from '@/hooks/memory/use-graph';
 
 /**
  * themory-graph-gateway-dashboard — /memory/graph.
@@ -27,24 +29,6 @@ import { cloudFetch } from '@/lib/http/api';
  *  - react-query against the BFF `/v1/dashboard/memory/graph?scope=`
  *  - EmptyState when the active scope has no nodes (D5 — never null/NaN)
  */
-interface GraphNode {
-  id: string;
-  scope_type: string;
-  memory_count: number;
-  last_seen_at?: string;
-}
-interface GraphEdge {
-  source: string;
-  relation: string;
-  target: string;
-  memory_count: number;
-  /** M1 — false when the edge is superseded/invalidated (audit view). */
-  active?: boolean;
-}
-interface GraphResult {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
 
 const SCOPES = ['user', 'session', 'agent', 'repo'] as const;
 type Scope = (typeof SCOPES)[number];
@@ -239,12 +223,6 @@ export const HAIRBALL_NODE_THRESHOLD = 500;
 /** Labels drawn at the default zoom. Past this many nodes the text overlaps into a wash. */
 export const LABEL_BUDGET = 40;
 
-/**
- * B-057 — teto do REQUEST do grafo. Ver o comentario na query para o porque de
- * 300: e o mesmo valor da tela irma `rag/graphrag.tsx`, nao uma derivacao de um
- * limite de render (que nao existe — LABEL_BUDGET limita rotulos, nao nos).
- */
-export const GRAPH_REQUEST_CAP = 300;
 
 /**
  * theo-cloud#254 — whether unconnected (degree-0) nodes are shown on FIRST paint.
@@ -562,23 +540,7 @@ export function GraphPage() {
   // forca acima disso deixa de ser legivel antes de deixar de ser renderizavel.
   // Se a medicao mostrar que 300 corta grafos uteis, o numero muda; o que nao
   // volta e a ausencia de teto.
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/graph', { activeScope, session, includeSuperseded }] as const,
-    // throwOnError so a failed fetch is query.isError, not an empty graph rendered
-    // as "no relations" (theo-cloud#250).
-    queryFn: () => {
-      const params = new URLSearchParams();
-      params.set('scope', activeScope);
-      params.set('limit', String(GRAPH_REQUEST_CAP));
-      if (activeScope === 'session' && session) params.set('session_id', session);
-      if (includeSuperseded) params.set('includeSuperseded', 'true');
-      return cloudFetch<GraphResult>(
-        `/v1/dashboard/memory/graph?${params.toString()}`,
-        {},
-        { throwOnError: true },
-      );
-    },
-  });
+  const query = useMemoryGraph({ scope: activeScope, session, includeSuperseded });
 
   const result = query.data;
   const data = useMemo(() => (result ? toGraphData(result) : { nodes: [], links: [] }), [result]);

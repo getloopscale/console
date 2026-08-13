@@ -98,7 +98,7 @@ const SRC = resolve(__dirname, '../..');
 // As tres de `wiki` eram escritas: criar pasta, criar pagina, salvar pagina. A de salvar era a
 // pior — um PUT recusado resolvia `null`, o editor fechava e o texto ANTIGO voltava por
 // invalidacao. O usuario via a propria edicao ser desfeita, sem erro nenhum na tela.
-const CEILING_WITHOUT_CONTRACT = 8;
+const CEILING_WITHOUT_CONTRACT = 7;
 
 /**
  * The corpus may not shrink silently.
