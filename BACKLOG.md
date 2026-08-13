@@ -11026,7 +11026,7 @@ why_now: |
   Medido durante o `/deps-audit` da fatia B-242/B-241, que não adiciona dependência nenhuma — o
   achado é do estado atual da árvore e não da fatia. `deps-audit-golden-rule.md § 2` classifica um
   CVE HIGH em dependência declarada como `FAIL_INSECURE`, e nenhum item o cobria.
-status: raw
+status: shipped
 dod:
   - a cadeia que ENTRA NO BUNDLE (prismjs, via react-syntax-highlighter) nao reporta vulnerabilidade,
     OU existe entrada em `deps-audit-allowlist.txt` com sunset e a razao medida
@@ -11042,18 +11042,38 @@ closed: 2026-08-13 — as duas, com acoes OPOSTAS, que e a razao de trata-las co
 produzido o bloco errado.
 
   prismjs (MODERATE, EMBARCADO)  -> CORRIGIDO. `react-syntax-highlighter` 15.6.6 -> 16.1.1, que traz
-                                    prismjs 1.30.0 e elimina o `refractor`. Semver MAJOR, entao foi
-                                    tentativa com portao: `tsc` limpo, 20 arquivos / 101 testes de
-                                    RAG verdes, `npm run build` verde (built in 21.88s).
-  nanoid  (HIGH, NAO EMBARCADO)  -> ALLOWLIST com sunset 2026-11-11 + `ADR-b278-nanoid-not-bundled`.
+                                    prismjs 1.30.0. Semver MAJOR, entao foi tentativa com portao:
+                                    `tsc` limpo, 20 arquivos / 101 testes de RAG verdes,
+                                    `npm run build` verde (built in 21.88s).
+  nanoid  (HIGH, NAO EMBARCADO)  -> CORRIGIDO. `npm update nanoid` -> 3.3.18, tres linhas de
+                                    `package-lock.json`. `npm audit --omit=dev` -> ZERO.
 
-Por que o `nanoid` NAO foi simplesmente pinado: um `overrides` existe, funciona, e deixaria o
-`npm audit` verde SEM MUDAR UM BYTE DO QUE E EMBARCADO. Um relatorio que melhora enquanto a
-realidade nao muda e a falha que este repositorio registra sob outros nomes. A correcao certa esta
-no empacotamento do `@theokit/ui`, que nao tem checkout neste umbrella.
+CORRECAO 2026-08-13, no /review, contra a primeira redacao DESTE bloco. Ele fechava o nanoid com
+ALLOWLIST + ADR, e as duas premissas que justificavam isso eram falsas:
 
-Medicao final: `npm audit --omit=dev` -> 1 high (o nanoid allowlistado), zero moderate.
-`npm ls prismjs --omit=dev` -> `react-syntax-highlighter@16.1.1 -> prismjs@1.30.0`, sem refractor.
+  1. "o `@theokit/ui` declara `vite` como dependencia de RUNTIME" -> NAO. Medido no
+     `node_modules/@theokit/ui/package.json`: `vite` esta em `peerDependencies` com
+     `peerDependenciesMeta.vite.optional = true`. Peer opcional e a declaracao CORRETA para um
+     design system que oferece um plugin de Vite. Nao havia defeito de empacotamento de terceiro,
+     e portanto nao havia "a correcao certa esta noutro repositorio sem checkout".
+  2. "um bump local so deixaria o report verde" -> confundia DUAS acoes. Um `overrides` forcando
+     versao que o grafo nao pediu e, sim, maquiar numero. Um `npm update` dentro do range
+     `^3.3.16` que o lockfile JA declara e pegar o patch do mantenedor. O proprio `npm audit`
+     nomeava o remedio (`fix available via npm audit fix`, sem `--force`, sem breaking change).
+
+E `npm explain nanoid` mostra que a instalacao fisica vem do `postcss`, que e devDependency
+DIRETA do dashboard — nao de terceiro nenhum.
+
+O que sobreviveu da leitura original: o `nanoid` realmente nao entra no bundle (`grep` por
+`urlAlphabet`/`useandom` em `dist/` -> zero, antes e depois). Era a conclusao certa pela razao
+errada, e uma razao nao medida num ADR assinado sobrevive a quem a chutou.
+
+Correcao adicional: o 16.1.1 NAO "elimina o refractor" — move de 3.6.0 para 5.0.0.
+`npm ls refractor` -> `react-syntax-highlighter@16.1.1 -> refractor@5.0.0`.
+
+Medicao final: `npm audit --omit=dev` -> **0 vulnerabilities**. Sem entrada de allowlist, sem
+sunset para responder em novembro. A arvore de DEV continua com 16 achados (1 low, 3 moderate,
+12 high) que nenhum destes itens cobre — registrado como B-284, nao varrido para debaixo do tapete.
 
 ## B-279 — O marcador do guard de identificadores tem cauda, e ela ficou visível ao chegar a zero   [x]
 
@@ -11085,7 +11105,7 @@ why_now: |
   mede a GRAFIA que a lista conhece, nao o defeito.
 
   Registrar isto ao lado do zero e o que impede o zero de mentir.
-status: raw
+status: shipped
 dod:
   - cada palavra da cauda e decidida uma a uma (entra no marcador, ou fica de fora com o motivo —
     `inteiro` e `mostrar` sao candidatas a cognato/prosa e podem legitimamente ficar fora)
@@ -11152,7 +11172,7 @@ why_now: |
   Registrado separado do B-267 de proposito: aquele item mede `pages.smoke.test.ts`, e um teto por
   arquivo. Sao dois arquivos e possivelmente duas causas; junta-los faria a correcao de um parecer
   progresso no outro.
-status: raw
+status: triaged
 dod:
   - `npx vitest run src --sequence.shuffle` verde em 5 execucoes seguidas numa maquina ociosa, com
     o numero de execucoes e a carga registrados

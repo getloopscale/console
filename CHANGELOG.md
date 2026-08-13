@@ -4,28 +4,11 @@
 
 - **theo-cloud/dashboard:** seven more tests that check something is *not* on screen can now actually fail — the signal sheet's label, a project's "Progressing" status and "URL pending" badge, the device-authorisation countdown, the prompt diff's config block, the model-provider refusal title, and the RAG analytics token label (B-242).
 
+- **theo-cloud/dashboard:** 131 of the 378 test files were building a browser environment they never used, which is what starved the workers and made the suite time out under a randomised order — a different file each run. 109 of them now run in a plain Node environment, and a guard keeps new ones from drifting back. The other 22 still need a browser, because a module they import reads a browser global at import time; they are listed by name in the guard and registered as their own item (B-280).
 
-- **theo-cloud/dashboard:** 131 of the 379 test files were building a browser environment they never used, which is what made the suite fail under a randomised order — a different file each time, always by timeout. They now run in a plain Node environment, and a guard keeps new ones from drifting back (B-280).
-
-### Security
-
-- **theo-cloud/dashboard:** the syntax highlighter used by the RAG screens was carrying a vulnerable copy of `prismjs` (DOM Clobbering, GHSA-x7hr-w5r2-h6wg) into the shipped bundle. `react-syntax-highlighter` is now on 16.1.1, which brings a fixed `prismjs` and drops `refractor` entirely (B-278).
-
-### Changed
+- **theo-cloud/dashboard:** the randomised-order failure is *reduced*, not closed. Removing the starvation left a second, unrelated cause — one test file whose cases depend on each other's order — which reproduces on its own and is registered separately (B-280).
 
 - **theo-cloud/dashboard:** the guard that keeps the code named in English learned sixteen more Portuguese words it could not see before, and the 43 declarations they revealed were renamed. The zero it reports is still a zero *by that guard* — the next batch of words it does not know is measured and registered (B-279).
-
-### Fixed
-
-- **theo-cloud/dashboard:** the rule that turns a backend key into a label on screen ("fast_data_transfer" → "Fast Data Transfer") existed in three copies, so a change to one of them was invisible to the tests of the others. It has one home now (B-277).
-
-
-- **theo-cloud/dashboard:** the tool that renamed the codebase to English had two defects that would have corrupted the next migration: it silently threw away edits when two per-file overrides touched the same file, and it rewrote the key of an object being destructured from an untyped response — which compiles, passes tests, and leaves the field `undefined` at runtime. Both are fixed and both now have a test that fails against the old behaviour (B-241).
-
-- **theo-cloud/dashboard:** a local variable on the prompt detail screen was named `window`, shadowing the browser global for the rest of the component. Nothing used the global there yet, so nothing was broken — the name is now `revisionsRange` so nothing can be (B-241).
-
-### Changed
-
 
 - **theo-cloud/dashboard:** the code now reads in one language. 276 declarations that were still named in Portuguese — variables, parameters, functions, types and the fields of internal shapes — were renamed to English across 159 files. Comments stay in Portuguese, which is the repository's convention: the rename went through the TypeScript compiler, which cannot touch a comment or a string. Three files in the same commit were then edited by hand to finish what the compiler could not see, and two of those edits did change a literal and a comment (B-241).
 
@@ -52,53 +35,46 @@
 - **theo-cloud/dashboard:** a refused RAG write no longer passes for a successful one. Creating a collection, ingesting a document, deleting either, triggering a connector sync and connecting a paste-credential source all report a refusal now; previously each one cleared its form and refreshed its list exactly as a successful write does (B-235).
 
 - **theo-cloud/dashboard:** the RAG overview and analytics screens now read the same summary from the same place. They had each declared their own copy of the response and their own cache key, so the identical unfiltered request was fetched twice and Refresh on one screen left the other stale (B-244).
+
 - **theo-cloud/dashboard:** a rejected wiki page save no longer looks like a save that worked. The editor used to close and quietly restore the previous text, leaving no way to tell a refused write from a round-trip. Creating a page or a folder now reports a refusal too (B-235).
 
 - **theo-cloud/dashboard:** the memory overview and the entities list read through one place each. Nothing changes on screen; what changes is that the reason the KPI figures fall back to zero — which is only safe because the strip is hidden on an error — now sits beside the setting that makes it safe, instead of two edits away (B-244).
 
-### Fixed
-
-- **theo-cloud/dashboard:** the memory webhooks screen no longer reports work the server refused. Registering one that was rejected closed the dialog as if it had been saved; revoking one left an endpoint still receiving your events while the screen said it was gone; and replaying a delivery announced "Replay queued" for a replay that was never queued. The sibling screen under settings had the same three and was fixed earlier the same day (B-244, B-235).
-
-### Fixed
-
-- **theo-cloud/dashboard:** forgetting everything about an entity no longer reports memories as forgotten when the server refused to delete them. Every refusal was counted as a success, so the total shown was wrong — and because the operation repeats until nothing is left to delete, one that could delete nothing at all ran to its limit and then reported thousands (B-244, B-235).
-
-### Fixed
-
-- **theo-cloud/dashboard:** asking to permanently erase a memory no longer reports success when the server refused. The confirmation closed and the entry came back on the next read — and for a permanent erase that reads worse than an undone action: you asked for the content to be gone, were told it was, and it is still there (B-244, B-235).
-
-### Changed
-
 - **theo-cloud/dashboard:** the sessions list and the observability charts can no longer show one page's rows, or one period's numbers, under another's label. Which page and which period you are looking at now decide which cached answer is reused, from the same place that builds the request — the two were kept in step by hand before, which works until someone changes one of them (B-244).
-
-### Fixed
-
-- **theo-cloud/dashboard:** creating a monitor the server refuses no longer clears the form. The evaluator, the operator and the threshold were all wiped and the dialog closed, for a monitor that was never created. Deleting one had the opposite symptom: the confirmation closed and the monitor came back on the next read (B-244, B-235).
-
-### Fixed
-
-- **theo-cloud/dashboard:** creating an evaluator that the server refuses no longer wipes the form. Every field you had filled in — name, rule, prompt, model — was cleared and the dialog closed, for something that was never created, with no error and nothing to recover. Deleting one had the familiar opposite symptom: the confirmation closed and the evaluator came back on the next read (B-244, B-235).
-
-### Changed
 
 - **theo-cloud/dashboard:** the evaluators list is described in one place instead of two. The monitors screen carried its own narrower copy of the same payload — enough for the picker it renders, and silently out of date the moment the backend adds a field the other screen needs. Nothing changes on screen (B-244).
 
+- **theo-cloud/dashboard:** the per-user usage report can no longer answer a question about one period with the numbers from another. The window, the page and whether daily detail was requested all decide which cached answer is reused, and that agreement was maintained by hand in two separate places — it held only while one person edited both. Nothing changes on screen today; what changes is that adding a filter can no longer silently leave the cache out of step with what the page says it is showing (B-244).
+
+- **theo-cloud/dashboard:** the count of identifiers still written in Portuguese is now reproducible and frozen. It had been measured five times with five answers, because Portuguese and English share words like "total" and "item" and nothing recorded which of those count. The list that decides already existed in the repository for a neighbouring check; reusing it makes the number derivable instead of remembered, and a new declaration in Portuguese now fails the build (B-241).
+
 ### Fixed
+
+- **theo-cloud/dashboard:** the rule that turns a backend key into a label on screen ("fast_data_transfer" → "Fast Data Transfer") existed in three copies, so a change to one of them was invisible to the tests of the others. It has one home now (B-277).
+
+- **theo-cloud/dashboard:** the tool that renamed the codebase to English had two defects that would have corrupted the next migration: it silently threw away edits when two per-file overrides touched the same file, and it rewrote the key of an object being destructured from an untyped response — which compiles, passes tests, and leaves the field `undefined` at runtime. Both are fixed and both now have a test that fails against the old behaviour (B-241).
+
+- **theo-cloud/dashboard:** a local variable on the prompt detail screen was named `window`, shadowing the browser global for the rest of the component. Nothing used the global there yet, so nothing was broken — the name is now `revisionsRange` so nothing can be (B-241).
+
+- **theo-cloud/dashboard:** the memory webhooks screen no longer reports work the server refused. Registering one that was rejected closed the dialog as if it had been saved; revoking one left an endpoint still receiving your events while the screen said it was gone; and replaying a delivery announced "Replay queued" for a replay that was never queued. The sibling screen under settings had the same three and was fixed earlier the same day (B-244, B-235).
+
+- **theo-cloud/dashboard:** forgetting everything about an entity no longer reports memories as forgotten when the server refused to delete them. Every refusal was counted as a success, so the total shown was wrong — and because the operation repeats until nothing is left to delete, one that could delete nothing at all ran to its limit and then reported thousands (B-244, B-235).
+
+- **theo-cloud/dashboard:** asking to permanently erase a memory no longer reports success when the server refused. The confirmation closed and the entry came back on the next read — and for a permanent erase that reads worse than an undone action: you asked for the content to be gone, were told it was, and it is still there (B-244, B-235).
+
+- **theo-cloud/dashboard:** creating a monitor the server refuses no longer clears the form. The evaluator, the operator and the threshold were all wiped and the dialog closed, for a monitor that was never created. Deleting one had the opposite symptom: the confirmation closed and the monitor came back on the next read (B-244, B-235).
+
+- **theo-cloud/dashboard:** creating an evaluator that the server refuses no longer wipes the form. Every field you had filled in — name, rule, prompt, model — was cleared and the dialog closed, for something that was never created, with no error and nothing to recover. Deleting one had the familiar opposite symptom: the confirmation closed and the evaluator came back on the next read (B-244, B-235).
 
 - **theo-cloud/dashboard:** a note you write on a trace is no longer lost in silence. If the server refused it, the box cleared anyway and the note was gone — no error, no draft to recover, nothing to retry. Adding and removing tags had the same gap: the tag simply did not appear, or reappeared on the next read, which looks like the product undoing what you just did (B-244, B-235).
 
-### Changed
-
-- **theo-cloud/dashboard:** the per-user usage report can no longer answer a question about one period with the numbers from another. The window, the page and whether daily detail was requested all decide which cached answer is reused, and that agreement was maintained by hand in two separate places — it held only while one person edited both. Nothing changes on screen today; what changes is that adding a filter can no longer silently leave the cache out of step with what the page says it is showing (B-244).
-
-### Fixed
-
 - **theo-cloud/dashboard:** creating a dataset the server refuses no longer looks like it worked. The dialog closed and the field cleared either way, so you left believing you had created something that was never there — and the list, on reload, simply did not show it, which reads as "it disappeared" rather than "it was never created". Removing an item from a dataset had the same gap with the opposite symptom: the row vanished from the screen and came back on the next read (B-244, B-235).
 
-### Changed
+### Security
 
-- **theo-cloud/dashboard:** the count of identifiers still written in Portuguese is now reproducible and frozen. It had been measured five times with five answers, because Portuguese and English share words like "total" and "item" and nothing recorded which of those count. The list that decides already existed in the repository for a neighbouring check; reusing it makes the number derivable instead of remembered, and a new declaration in Portuguese now fails the build (B-241).
+- **theo-cloud/dashboard:** the syntax highlighter used by the RAG screens was carrying a vulnerable copy of `prismjs` (DOM Clobbering, GHSA-x7hr-w5r2-h6wg) into the shipped bundle. `react-syntax-highlighter` is now on 16.1.1, which brings `prismjs` 1.30.0 and `refractor` 5.0.0 (B-278).
+
+- **theo-cloud/dashboard:** `nanoid` is on 3.3.18, closing GHSA-2v37-7h3g-55p8. The package is build tooling and never reached the shipped bundle, so nothing users run was exposed; `npm audit --omit=dev` now reports no vulnerabilities at all (B-278).
 
 ## [1.0.2] - 2026-08-12
 
