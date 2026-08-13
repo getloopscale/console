@@ -215,6 +215,36 @@ describe('BillingPage', () => {
     expect(screen.queryByText('Concurrent Builds')).not.toBeInTheDocument();
   });
 
+  // B-242 — a âncora das três asserções acima, e a razão pela qual elas significam alguma coisa.
+  //
+  // Sem um caso que RENDERIZE esses rótulos, as três eram satisfeitas por dois mundos distintos:
+  // o painel lendo as chaves reais (correto) e um painel que parou de renderizar rótulo nenhum
+  // (defeito). Apagar o `map` de `billing.usage` deixava as três verdes.
+  //
+  // O que este caso prova é o invariante de que elas dependem: o rótulo é DERIVADO da chave
+  // (`billing.tsx:192` — `key.replace(/_/g,' ')` com title-case), então o vocabulário do mockup
+  // está ausente porque o backend não o envia, e não porque a tela o proíba por nome.
+  it('test_billing_usage_labels_are_derived_from_the_key_the_backend_sends', () => {
+    mockUseCloudApi.mockReturnValue({ data: {
+      plan: 'pro',
+      team: 'acme',
+      usage: {
+        fast_data_transfer: { used: 1, limit: 10 },
+        edge_requests: { used: 2, limit: 20 },
+        concurrent_builds: { used: 3, limit: 30 },
+      },
+    }, loading: false, error: false });
+    render(<BillingPage />);
+
+    // Literais e não um `for` sobre um array: o detector do B-242 lê o SELETOR, e um seletor que
+    // é uma variável (`rotulo`) não ancora nada — ele não tem texto para casar com a asserção de
+    // ausência lá em cima. Escrever os três por extenso é o que faz o par existir. (Foi medido:
+    // com o laço, as três seguiam contadas como desancoradas.)
+    expect(screen.getAllByText('Fast Data Transfer').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Edge Requests').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Concurrent Builds').length).toBeGreaterThanOrEqual(1);
+  });
+
   it('test_billing_usage_renders_unlimited_when_limit_null', () => {
     // ADR-D1.bis: `limit: null` é o tier Enterprise, e renderiza "Unlimited" em vez de um teto
     // inventado.

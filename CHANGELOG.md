@@ -2,6 +2,10 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** eleven tests that check something is *not* on screen can now actually fail. Each one asked for a piece of copy that no case in its file ever rendered, so it passed whether the screen behaved or the copy had been quietly reworded — the empty state of the datasets, memories, deployments and log screens, the "no evaluators" hint on Monitors, the URL-pending copy on a project, the "Violations by policy" heading on Trust, and the three quota labels on Billing (B-242).
+
+- **theo-cloud/dashboard:** the log viewer's filter message is now covered by a test that actually types a search term. The case that claimed to cover it said in its own comment that it could not, and asserted nothing about the filter (B-242).
+
 - **theo-cloud/dashboard:** four password-recovery tests that check no internal jargon leaks to the user can now actually fail — the mocked upstream errors carry the words they are supposed to strip, which they previously did not (B-242).
 
 - **theo-cloud/dashboard:** the guard that finds tests asserting something is absent without ever proving it can appear no longer misreads a regex. It compared the selector from its first character, so a quantifier at the front hid an anchor that was really there (B-242).

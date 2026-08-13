@@ -63,6 +63,21 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(screen.queryByText(/no items/i)).not.toBeInTheDocument(); // error must NOT read as empty
   });
 
+  // B-242 — the anchor for the assertion above. Without a case that renders "No items", the
+  // absence assertion is satisfied by the right behaviour and by a renamed empty state alike:
+  // change the title to "Nothing here" and the error case still passes, having stopped guarding
+  // anything. This case is what turns that rename red.
+  it('a dataset that loads with ZERO items shows the empty state — the text the error case denies', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 0 }] });
+      if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ items: [] });
+      return Promise.resolve({});
+    });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /open golden/i }));
+    expect(await screen.findByText(/no items/i)).toBeInTheDocument();
+  });
+
   it('an absent item count renders em-dash, a real 0 renders 0 (no fabricated count)', async () => {
     mockCloudFetch.mockResolvedValue({
       datasets: [

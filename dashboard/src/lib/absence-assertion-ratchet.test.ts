@@ -133,7 +133,33 @@ const SELF = 'absence-assertion-ratchet.test.ts';
 // A mudanca foi provada por mutacao (3 mutantes, 3 mortos): sempre-ancorar reprova 3 casos, usar o
 // menor trecho reprova 4, e splitar tambem strings citadas reprova 2. Um detector afrouxado passa
 // nos tres.
-const CEILING_UNANCHORED = 102;
+// 91 desde 2026-08-12 (B-242): ONZE asserções ancoradas, cada uma provada por mutação — a produção
+// foi quebrada e o caso NOVO ficou vermelho enquanto a asserção de ausência antiga seguia verde.
+// Essa segunda metade é o achado: em nenhum dos onze a asserção de ausência reprovou sozinha, que
+// é exatamente o que "não pode falhar" quer dizer.
+//
+//   datasets            "No items"                        — um dataset que carrega com zero itens
+//   memories            "hasn't stored any memories"      — a DESCRIÇÃO, não só o título
+//   log-viewer          "No lines match"                  — a busca é dirigível; o comentário do
+//                                                           próprio caso dizia que não era
+//   deployments         "No deployments yet"              — projeto com zero builds
+//   live-url-hero       "No production deploy yet — …"    — a cópia padrão, ao lado do título
+//   trust/overview × 2  heading "Violations by policy"    — o arquivo só nomeava a TABELA
+//   monitors            "No evaluators — create one first" — leitura que dá certo com zero linhas
+//   billing × 3         "Fast Data Transfer" / "Edge Requests" / "Concurrent Builds"
+//
+// DUAS LIÇÕES MEDIDAS, as duas contra mim:
+//
+//   1. O caso do billing primeiro afirmava os três rótulos num `for` sobre um array. O detector lê
+//      o SELETOR, e um seletor que é variável não tem literal para casar: os três continuaram
+//      contados como desancorados. Escrevê-los por extenso é o que fez o par existir.
+//   2. O caso novo do log-viewer NASCEU com uma asserção de ausência desancorada (`/oops/`), e
+//      quem apontou foi esta catraca. Corrigido afirmando a linha PRESENTE antes de filtrar.
+//
+// E um defeito de produção que só a mutação revelou: a regra que deriva o rótulo da chave de
+// billing existe DUAS VEZES (`billing.tsx:193` e `:315`), então mutar uma sobrevivia. Registrado
+// como B-277 em vez de corrigido aqui — é outro item, com outra evidência.
+const CEILING_UNANCHORED = 91;
 
 /** Files holding at least one absence assertion. Frozen 2026-08-11, remeasured 2026-08-12. */
 const CEILING_FILES = 98;
