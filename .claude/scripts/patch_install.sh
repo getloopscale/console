@@ -94,6 +94,11 @@ is_local_divergence() {
 # Lines starting with `#` and empty lines are ignored.
 read -r -d '' MANIFEST <<'EOF' || true
 # === Brand-new skills (whole folders) ===
+# arch-check — auxiliary (outside every cycle-*.md, see check_xrefs.py AUXILIARY_SKILLS), and
+# absent from this manifest until 2026-08-13 (B-258). `install.sh` copies skills/ wholesale, so a
+# FRESH install always had it; a patch propagation never did. A consumer's copy therefore froze at
+# whatever version they first installed — including a broken one — and no update could reach it.
+skills/arch-check/
 skills/acceptance/SKILL.md
 skills/acceptance/scripts/extract_acceptance_criteria.py
 skills/acceptance/scripts/compute_acceptance_verdict.py

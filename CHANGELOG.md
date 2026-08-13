@@ -54,6 +54,10 @@
 
 ### Fixed
 
+- **theo-cloud kit:** every `/review` run was emitting five knowledge skills that the Claude Code Skills spec rejects — the templates declared conformance while carrying no frontmatter at all. The smoke suite had been failing on it since May, read as five stale files rather than as a generator producing more on demand. Templates fixed, the five existing ones repaired (B-258).
+
+- **theo-cloud kit:** `arch-check` now reaches consumers on update, not only on first install. It was missing from the patch manifest, so a consumer's copy froze at whatever version they installed first — a broken one included (B-258).
+
 - **theo-cloud:** three counters that operators watch were recording nothing. A checkout refused because Stripe is misconfigured, a webhook rejected for a bad signature — including a forged one — and a plan resolution falling back to `starter` all left the dashboards at a flat zero, which reads as "this has never happened" rather than "nobody is measuring it". All three now record the event, success and failure separately (B-256).
 
 - **theo-cloud kit:** propagating a kit update no longer reverts a local fix in silence. The previous guard asked whether the file differed from the last commit, so a fix that had been *committed* — which is what a careful person does before running an installer — was invisible to it and was overwritten without a word. The patcher now compares against what it last wrote, backs up anything that diverged, and names every file it clobbered (B-250).

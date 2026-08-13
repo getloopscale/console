@@ -10071,7 +10071,7 @@ CONFIRMADO FECHADO 2026-08-13: o cabecalho de `rules/code-quality-allowlist.txt`
 `code-quality-golden-rule.md § 4` declaram os SEIS campos, e o golden rule registra a correcao
 com o numero do item.
 
-## B-258 — `arch-check` ships a script with no caller, and the skill itself reaches no consumer   [ ]
+## B-258 — `arch-check` ships a script with no caller, and the skill itself reaches no consumer   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -10096,13 +10096,48 @@ why_now: |
   Arrived with the plugin update adopted at `2940faf5` during B-228, and found by the wiring
   reviewer of that slice. NOT authored here — filed so it has an owner rather than being
   mentioned in a review nobody reads again.
-status: triaged
+status: shipped
 dod:
   - `emit_config.py` has a caller in a real path, or is removed
   - `arch-check` is shipped by the installer and named by a rule, or is explicitly out of scope
     with that recorded
 
 > Registered 2026-08-12 by the wiring review of the B-228 slice.
+
+FECHADO 2026-08-13, e o segundo defeito era maior que o primeiro.
+
+(a) `emit_config.py` GANHOU CHAMADOR — nao foi removido, e a razao importa. Ele e a parte mais
+    valiosa do skill: o docblock enumera as QUATRO tentativas em que adotar uma proposta a mao
+    contra o `theo-cloud` falhou, e nenhuma foi por regra errada — todas por detalhe de traducao
+    (chave sem `:`, `in:` que nao pega subpacotes, autodependencia, allow-list derivada so de
+    producao contra um linter que le testes). O passo mais propenso a falha era o unico que a
+    documentacao nao mencionava. `SKILL.md` agora invoca os dois passos, com as quatro falhas
+    escritas ao lado do segundo.
+
+(b) `arch-check` E ENVIADO E TEM ESCOPO REGISTRADO. `install.sh` copia `skills/` inteiro, entao
+    instalacao NOVA sempre teve; `patch_install.sh` usa manifesto e nao o listava, entao a copia
+    de um consumidor congelava na versao que ele instalou primeiro — inclusive uma quebrada — e
+    nenhuma atualizacao alcancava. Adicionado ao manifesto. O escopo "fora de todo cycle-*.md"
+    saiu de mera pertinencia a um `set` em Python para um comentario que alguem le.
+
+O QUE ISSO REVELOU (o smoke estava vermelho e ninguem tinha olhado): os CINCO templates de
+`skills/review/templates/skill-*-knowledge.md` afirmam "Conforms to Claude Code Skills spec" e
+nenhum tinha frontmatter. Cada `/review` emitia cinco skills que a spec rejeita, cinco por slug,
+acumulando. `test_e2e_smoke.py` reprovava nisso desde o review de `modal-primitive-consolidation`
+em 2026-05-21 — quase tres meses —, e a falha lia como "cinco artefatos velhos" quando era um
+GERADOR produzindo-os sob demanda.
+
+  templates   frontmatter com `name`/`version`/`description`/`user-invocable: false`
+  placeholder `{SLUG}`, a forma que o `substitute` realmente troca (a primeira tentativa usou
+              `{{SLUG}}` e o validador pegou: nome nao casava com o diretorio)
+  teste       passa pelo GERADOR, nao copia o template cru — um copiar-cru testaria um arquivo
+              que nenhum `/review` escreve
+  instancias  as cinco de maio reparadas
+
+  test_e2e_smoke.py         ALL CHECKS PASSED (era SOME CHECKS FAILED)
+  validate_skill_frontmatter  41 skills, 0 errors
+  check_xrefs.py            PASS
+  skills/review             20 passed  ·  skills/arch-check  65 passed
 
 ## B-259 — the plan-snapshot test's uncovered set grew from 40 to 42   [x]
 

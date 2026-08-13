@@ -68,8 +68,32 @@ reported as a finding instead.
 Run it directly:
 
 ```bash
-python3 skills/arch-check/scripts/propose_rules.py <repo> [--language go|typescript]
+# 1 — measure the graph and propose the rules it supports
+python3 skills/arch-check/scripts/propose_rules.py <repo> [--language go|typescript] > proposal.json
+
+# 2 — render the proposal into the linter's own config. NOT optional: this is the step
+#     where the criterion gets lost.
+python3 skills/arch-check/scripts/emit_config.py proposal.json [--measured-on YYYY-MM-DD]
 ```
+
+**Step 2 is where the four failures happened.** Adopting a proposal by hand against `theo-cloud`
+took four attempts, and not one of them was a wrong rule — every failure was a translation detail:
+
+1. a component key written without its `:` — 32 schema errors, reported under `ExecutionWarnings`,
+   a field nothing reads. `ArchWarningsDeps` said 0. Green, having validated nothing.
+2. `in: internal/auth` matches that directory and **not** its subpackages — 24 packages ungoverned.
+3. a unit importing its own subpackages counts as a self-dependency, which `go-arch-lint` forbids
+   unless the unit lists itself — 63 violations that were not boundary crossings at all.
+4. the allow-list was derived from production imports while the linter scanned tests too — 49
+   violations from `_test.go` files alone.
+
+The tempting fix for each is to widen the rule, which is how a gate becomes decoration. The
+generator goes the other way: it emits *exactly* the measured set and declares anything outside it
+out of scope rather than quietly allowing it. Skipping step 2 and hand-writing the config
+reintroduces all four — the script exists because a careful person already failed at it four times.
+
+`emit_config.py` had no caller here until 2026-08-13 (B-258), which meant the most failure-prone
+step in the skill was the one the documentation did not mention.
 
 Go builds its graph from `go list -json ./...` — the toolchain resolves imports exactly, so it
 cannot silently under-read. TypeScript counts relative imports, plus bare specifiers that name a
