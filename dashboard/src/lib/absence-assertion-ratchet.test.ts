@@ -121,7 +121,19 @@ const SELF = 'absence-assertion-ratchet.test.ts';
  * for the wrong reason. One case rendering the root and asserting both present anchors seven at
  * once; removing it puts the count straight back to 113.
  */
-const CEILING_UNANCHORED = 106;
+// 102 desde 2026-08-12, e a queda NAO foi um lote de asserções ancoradas: 3 delas nunca estiveram
+// desancoradas e o DETECTOR e que nao enxergava, e 1 saiu junto com um teste reescrito noutro item.
+//
+// O caso medido esta em `pages/promptly/catalogo.test.tsx`: tres asserções perguntam por
+// `/\d+ neste workspace/i` e o caso positivo afirma `/3 neste workspace/i`. O arquivo DISCRIMINA —
+// apague o elemento da contagem e o caso positivo reprova — mas o core lido do primeiro caractere
+// era `\d+ neste workspac`, que literal nenhum contem. Agora o core e o maior trecho SEM
+// metacaractere, porque so os trechos literais de uma regex e que casam com texto.
+//
+// A mudanca foi provada por mutacao (3 mutantes, 3 mortos): sempre-ancorar reprova 3 casos, usar o
+// menor trecho reprova 4, e splitar tambem strings citadas reprova 2. Um detector afrouxado passa
+// nos tres.
+const CEILING_UNANCHORED = 102;
 
 /** Files holding at least one absence assertion. Frozen 2026-08-11, remeasured 2026-08-12. */
 const CEILING_FILES = 98;
@@ -325,6 +337,32 @@ describe('the detector, exercised — not a copy of it', () => {
   it('`selectorCore` needs 4 characters, so short noise is not an anchor', () => {
     expect(selectorCore("/nothing here/i")).toBe('nothing here');
     expect(selectorCore("'ab'")).toBeNull();
+  });
+
+  it('a regex core is its longest LITERAL run, so a quantifier does not hide the anchor', () => {
+    // Measured on `pages/promptly/catalogo.test.tsx`: the absence assertions query
+    // `/\d+ neste workspace/i` and the presence case asserts `/3 neste workspace/i`. The file
+    // DISCRIMINATES — delete the count element and the presence case fails — but a core taken
+    // from the first character onwards is `\d+ neste workspac`, which no literal ever contains.
+    //
+    // What anchors an absence assertion is that the same TEXT was proven renderable, and only a
+    // regex's literal segments ever match text. So the core is the longest run with no
+    // metacharacter in it.
+    expect(selectorCore(String.raw`/\d+ neste workspace/i`)).toBe(' neste workspace');
+    expect(selectorCore(String.raw`/^Deploy \d+$/`)).toBe('Deploy ');
+    // A selector that is ALL metacharacters anchors nothing, and must not anchor everything.
+    expect(selectorCore(String.raw`/\d+/`)).toBeNull();
+    // In a QUOTED string a dot is literal text, so splitting there would discard specificity the
+    // selector really has. Only a regex gets split.
+    expect(selectorCore("'Save changes.'")).toBe('Save changes.');
+  });
+
+  it('an absence assertion is anchored by a presence case sharing its literal run', () => {
+    const source = [
+      `it('a', async () => { expect(await screen.findByText(/3 neste workspace/i)).toBeInTheDocument(); });`,
+      `it('b', () => { expect(screen.queryByText(/\\d+ neste workspace/i)).not.toBeInTheDocument(); });`,
+    ].join('\n');
+    expect(unanchoredIn('x.test.tsx', source)).toHaveLength(0);
   });
 
   it('recognises the absence matchers, and only those', () => {
