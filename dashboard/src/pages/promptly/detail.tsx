@@ -174,12 +174,16 @@ export function PromptDetailPage() {
   }>(promptName);
   const latestVersion = prompt.data?.version ?? null;
   const promptContent = prompt.data?.content ?? null;
-  const window = revisionsWindow(latestVersion, REVISIONS_LIMIT);
+  // NOT `window`: that shadows the DOM global for the rest of this component, and this file's own
+  // docblock at :91 reasons about `window.location`. Nothing inside the shadowed scope used the
+  // global today, so it was latent — but a future `window.location.href = …` here would silently
+  // resolve against a revisions window. Found by adversarial review 2026-08-13 (B-241).
+  const revisionsRange = revisionsWindow(latestVersion, REVISIONS_LIMIT);
 
   const revisions = usePromptRevisions<unknown>(
     promptName,
     REVISIONS_LIMIT,
-    window.after,
+    revisionsRange.after,
     // Só depois de saber a última versão: pedir antes traria a janela errada e a
     // tela piscaria do histórico velho para o novo, com o operador podendo
     // clicar no intervalo.

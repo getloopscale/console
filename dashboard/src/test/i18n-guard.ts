@@ -96,7 +96,14 @@ export interface AchadoI18n {
   readonly trecho: string;
 }
 
-function arquivosDeProducao(dir: string, out: string[] = []): string[] {
+/**
+ * EXPORTED since 2026-08-13 (B-241) so the guard can assert a floor on its own corpus.
+ *
+ * Review blinded this traversal and the guard stayed green while scanning 4 files instead of 492 —
+ * a guard that cannot tell "clean" from "stopped looking" is a number. The floor lives in
+ * `identifier-language-ratchet.test.ts`, which is the only consumer.
+ */
+export function arquivosDeProducao(dir: string, out: string[] = []): string[] {
   for (const entrada of readdirSync(dir)) {
     // `src/test/` é o ARNÊS da suíte — helpers, setup, o detector de árvore instável. As
     // mensagens de lá vão para o console de quem desenvolve, não para a tela de quem usa o

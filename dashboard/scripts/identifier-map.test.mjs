@@ -37,6 +37,13 @@ describe('identifier-map.json (B-241)', () => {
   });
 
   it('every name the scanner reports is either mapped or deliberately excluded WITH a reason', () => {
+    // VACUOUS TODAY, and said out loud rather than left to be discovered: the population is zero,
+    // so `found` is empty and `missing` is empty no matter what the map holds. Review 2026-08-13
+    // proved it by deleting 40 of the 276 entries — still green.
+    //
+    // It is kept because it stops being vacuous the moment B-279 widens the detector and a new
+    // population appears, which is exactly when a missing entry becomes a silent no-op again. The
+    // case below is the one that has teeth today.
     const found = new Set(varrerIdentificadores(SRC).map((a) => a.nome));
     const missing = [...found].filter((n) => !(n in map) && !DELIBERATELY_UNMAPPED.has(n));
 
@@ -46,6 +53,58 @@ describe('identifier-map.json (B-241)', () => {
         'A missing entry is a silent no-op: the harness reports success and the ratchet does not move.\n' +
         `${missing.slice(0, 20).join(', ')}\n`,
     ).toEqual([]);
+  });
+
+  it('the map still covers what it was written for — 276 entries, none silently dropped', () => {
+    // The teeth the case above lost when the population reached zero. The map is the RECORD of the
+    // migration and the tool B-279 will reuse; deleting entries from it must not be free.
+    expect(Object.keys(map)).toHaveLength(276);
+  });
+
+  it('two names never share a target, except the one pair that is recorded here', () => {
+    // The harness will happily emit a duplicate-identifier program from a map that collides with
+    // itself — review proved it: `erro` and `falha` both mapping to `failure` produced
+    // `export const failure = 1; export function failure() {…}`, both reported `renamed`, no
+    // refusal. It is statically detectable from the map alone, before any code is read.
+    //
+    // One pair is legitimate and stays: `novo` (the NEXT side of a diff, in `diff.ts`) and
+    // `proxima` (the NEXT page/version) are both `next`, in modules that never meet. Recorded here
+    // rather than banned, so a NEW collision fails while this one does not.
+    const byTarget = new Map();
+    for (const [name, target] of Object.entries(map)) {
+      byTarget.set(target, [...(byTarget.get(target) ?? []), name]);
+    }
+    const collisions = [...byTarget.entries()]
+      .filter(([, names]) => names.length > 1)
+      .map(([target, names]) => `${target} <- ${names.sort().join(', ')}`)
+      .sort();
+
+    expect(collisions).toEqual(['next <- novo, proxima']);
+  });
+
+  it('no target shadows a browser global', () => {
+    // `janela -> window` shadowed the DOM `window` in `promptly/detail.tsx`, in a component whose
+    // own docblock reasons about `window.location`. Latent — nothing in the shadowed scope used the
+    // global — but the reserved-word case next door bans `delete` and said nothing about this.
+    // Found by adversarial review 2026-08-13; the site was renamed to `revisionsRange`.
+    const globals = new Set([
+      'window', 'document', 'location', 'history', 'navigator', 'screen', 'origin', 'name',
+      'open', 'close', 'top', 'parent', 'self', 'status', 'length', 'event', 'frames',
+    ]);
+    const shadowing = Object.entries(map)
+      .filter(([, target]) => globals.has(target))
+      .map(([name, target]) => `${name} -> ${target}`);
+
+    // The four that exist today are recorded, not banned: three of them (`name`, `origin`, `open`)
+    // are only ever LOCALS or object fields, where shadowing a global is harmless and the English
+    // word is the right one. `janela -> window` is the one that bit, and its single production site
+    // was renamed. A NEW entry landing here has to be looked at.
+    expect(shadowing.sort()).toEqual([
+      'abrir -> open',
+      'janela -> window',
+      'nome -> name',
+      'origem -> origin',
+    ]);
   });
 
   it('every per-file collision target holds to the same rules as the shared map', () => {

@@ -1,8 +1,15 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** the tool that renamed the codebase to English had two defects that would have corrupted the next migration: it silently threw away edits when two per-file overrides touched the same file, and it rewrote the key of an object being destructured from an untyped response — which compiles, passes tests, and leaves the field `undefined` at runtime. Both are fixed and both now have a test that fails against the old behaviour (B-241).
+
+- **theo-cloud/dashboard:** a local variable on the prompt detail screen was named `window`, shadowing the browser global for the rest of the component. Nothing used the global there yet, so nothing was broken — the name is now `revisionsRange` so nothing can be (B-241).
+
 ### Changed
 
-- **theo-cloud/dashboard:** the code now reads in one language. 276 declarations that were still named in Portuguese — variables, parameters, functions, types and the fields of internal shapes — were renamed to English across 159 files. Comments stay in Portuguese, which is the repository's convention: the migration went through the TypeScript compiler's rename, so not one comment line and not one string literal changed (B-241).
+
+- **theo-cloud/dashboard:** the code now reads in one language. 276 declarations that were still named in Portuguese — variables, parameters, functions, types and the fields of internal shapes — were renamed to English across 159 files. Comments stay in Portuguese, which is the repository's convention: the rename went through the TypeScript compiler, which cannot touch a comment or a string. Three files in the same commit were then edited by hand to finish what the compiler could not see, and two of those edits did change a literal and a comment (B-241).
 
 - **theo-cloud/dashboard:** eleven tests that check something is *not* on screen can now actually fail. Each one asked for a piece of copy that no case in its file ever rendered, so it passed whether the screen behaved or the copy had been quietly reworded — the empty state of the datasets, memories, deployments and log screens, the "no evaluators" hint on Monitors, the URL-pending copy on a project, the "Violations by policy" heading on Trust, and the three quota labels on Billing (B-242).
 

@@ -30,7 +30,7 @@ Two defects were found in my own work by the ratchet and by the mutation:
 - the new log-viewer case was born with an unanchored absence assertion of its own (`/oops/`).
 
 A third, in production, survived a single-site mutation and is registered as **B-277**: the
-usage-label rule exists twice in `billing.tsx` (`:193` and `:315`), so mutating one left all 20
+usage-label rule exists twice in `billing.tsx` (`:193` and `:314`), so mutating one left all 20
 cases green.
 
 **Composition of the 91 that remain**, re-measured after reading the first batch: the "honest
@@ -47,8 +47,9 @@ class" is not one shape but three, and only the first is fixable —
 ### The harness
 
 `dashboard/scripts/rename-identifiers.mjs` — the TypeScript language service's
-`findRenameLocations`, not a substitution. 17 cases, each checked against a deliberately broken
-harness.
+`findRenameLocations`, not a substitution. **21 cases** (13 at the time the harness landed — the
+record said 17, which was wrong and review caught it; the rest arrived with the BLOCKER fixes), each
+checked against a deliberately broken harness.
 
 Three defects were found while building it, all by measurement:
 
@@ -85,16 +86,38 @@ cannot make a page look compliant. Same lesson B-238 and B-243 recorded here, ar
 other direction: last time the guard was too narrow for the code; this time the code moved out from
 under the guard.
 
-### Verified, not asserted
+### Verified — and the first version of this section was wrong, which is the point
+
+What I originally wrote here, and in the commit body, the `CHANGELOG` and the `BACKLOG` block:
 
 ```
 comment lines changed across the whole 159-file diff  ->  0
 string literals changed across the whole diff         ->  0
 ```
 
-Both measured by diffing the multiset of quoted literals and by grepping changed comment lines.
-They are the two lessons the reverted sweep paid for, and they are properties of
-`findRenameLocations(..., findInStrings: false, findInComments: false)` rather than of care.
+**Cross-validation review re-derived it and got 2 and 2.** The measurement was true when I ran it —
+right after the harness, before anything else — and stopped being true half an hour later, when I
+hand-fixed the 25 tests `tsc` could not catch and put them in the same commit. The claim outlived
+its measurement, and the same document names the counter-example three paragraphs below it
+(`toHaveProperty('campo')`). That is the defect this whole slice exists to remove, committed by the
+document reporting the removal.
+
+The corrected claim, scoped to what was actually measured, re-derived by parsing both trees with
+`ts.createSourceFile` and comparing multisets of comments and of literals:
+
+```
+BY THE HARNESS   (2 620 edits, 156 files)   comments changed: 0   literals changed: 0
+BY HAND, same commit (3 files)              comments changed: 2   literals changed: 2
+    guardrail-draft.test.ts              'campo' -> 'field'  — a property name asserted as a STRING
+    identifier-language-ratchet.test.ts  rewritten by hand — ratchet to guard
+    list-state.test.ts                   the guard fix and its comment
+```
+
+The property the tool guarantees is real:
+`findRenameLocations(..., findInStrings: false, findInComments: false)` cannot reach a comment or a
+string. What it does NOT guarantee is that a commit carrying its output touched nothing else — and
+R6 asked for the rename to be committed alone precisely so the two would stay distinguishable. It
+was not, so they are not, and that is the concrete cost of the bundling.
 
 ## Phase 3 — the guard (T3.1, T3.2)
 
@@ -115,7 +138,7 @@ T3.2 — the harness stays: B-279 needs exactly this tool, and `knip` does not s
 | Task | Caller | Integration test | Runtime signal |
 |---|---|---|---|
 | T1.1/T1.2 | the ratchet reads the corpus | the suite itself | ceiling equality, proved live by raising it |
-| T2.1 | `scripts/rename-identifiers.mjs --map …` (used for the migration) | `scripts/rename-identifiers.test.mjs`, 17 cases against a real temp project | per-name outcome (`renamed` / `not-found` / `skipped` + reason) printed by the CLI |
+| T2.1 | `scripts/rename-identifiers.mjs --map …` (used for the migration) | `scripts/rename-identifiers.test.mjs`, 21 cases against a real temp project | per-name outcome (`renamed` / `not-found` / `skipped` + reason) printed by the CLI |
 | T2.2 | consumed by T2.3 | `scripts/identifier-map.test.mjs` | — |
 | T3.1 | the guard runs in the suite | its own three cases | the failure message names the file:line of every finding |
 

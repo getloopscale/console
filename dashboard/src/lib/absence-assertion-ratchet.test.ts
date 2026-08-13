@@ -157,7 +157,7 @@ const SELF = 'absence-assertion-ratchet.test.ts';
 //      quem apontou foi esta catraca. Corrigido afirmando a linha PRESENTE antes de filtrar.
 //
 // E um defeito de produção que só a mutação revelou: a regra que deriva o rótulo da chave de
-// billing existe DUAS VEZES (`billing.tsx:193` e `:315`), então mutar uma sobrevivia. Registrado
+// billing existe DUAS VEZES (`billing.tsx:193` e `:314`), então mutar uma sobrevivia. Registrado
 // como B-277 em vez de corrigido aqui — é outro item, com outra evidência.
 const CEILING_UNANCHORED = 91;
 

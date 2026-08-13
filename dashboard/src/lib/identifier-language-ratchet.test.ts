@@ -8,12 +8,27 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { varrerIdentificadores, ehIdentificadorPT } from '@/test/i18n-guard';
+import { varrerIdentificadores, ehIdentificadorPT, arquivosDeProducao } from '@/test/i18n-guard';
 
 const SRC = resolve(__dirname, '..');
+
+/**
+ * The corpus may not shrink silently.
+ *
+ * Adversarial review 2026-08-13 blinded the traversal — stopped it recursing into subdirectories —
+ * and the guard scanned 4 files instead of 492 with all eight cases GREEN, the rejection case
+ * included. That case scans a temp directory, so it proves the DETECTOR can fail and says nothing
+ * about the scan reaching the corpus. A guard that cannot tell "clean" from "stopped looking" is a
+ * number, not a guard.
+ *
+ * The sibling `absence-assertion-ratchet.test.ts` has defended this exact hole since it was written
+ * ("the CORPUS does not shrink — the number cannot fall by looking away"); this file did not. Set
+ * below today's 492 so adding files is never blocked and losing a directory is.
+ */
+const CORPUS_FLOOR = 460;
 
 /**
  * B-241 — identifiers are written in English. This file used to be a ratchet; it is now a GUARD.
@@ -65,6 +80,13 @@ describe('the dashboard names things in English (B-241)', () => {
         'compiler; a search-and-replace corrupts prose and collides with homonyms, which is\n' +
         'recorded in B-241 as having happened.\n',
     ).toEqual([]);
+  });
+
+  it('the CORPUS does not shrink — the zero cannot be reached by looking away', () => {
+    expect(
+      arquivosDeProducao(SRC).length,
+      'the scan lost files. A guard that stops looking reports the same zero as a clean tree.',
+    ).toBeGreaterThanOrEqual(CORPUS_FLOOR);
   });
 });
 
@@ -145,16 +167,38 @@ describe('the guard, exercised — not a copy of it', () => {
     expect(ehIdentificadorPT('validaçao')).toBe(true);
   });
 
-  it('the KNOWN TAIL is stated rather than implied (B-279)', () => {
-    // The honest limit of the zero above, encoded so it cannot be forgotten: these are Portuguese
-    // and this detector does not see them, because neither list contains the word. Registered as
-    // B-279. If a future change teaches the detector one of them, this case fails and the tail
-    // shrinks with it — which is the point.
-    for (const invisible of ['rotulo', 'linguagem', 'variaveis', 'ultimaVersao', 'resolucao', 'intencao']) {
+  it('the KNOWN TAIL is MEASURED, not merely stated (B-279)', () => {
+    // The honest limit of the zero above. Review 2026-08-13 pointed out that the first version of
+    // this case asserted six strings are absent from a word list — true regardless of what is in
+    // `src/`, so the docblock's claim that the tail is "still in the tree" was documented and never
+    // verified. If the tail were migrated away, the case stayed green and the claim silently became
+    // false.
+    //
+    // Both halves are asserted now: the detector does not see these words (so the zero above is
+    // scoped, not absolute), AND each one is really declared somewhere in the tree. Teach the
+    // detector one of them and the first half fails; migrate one away and the second does.
+    const tail = ['rotulo', 'linguagem', 'variaveis', 'ultimaVersao', 'resolucao', 'intencao'];
+
+    for (const invisible of tail) {
       expect(
         ehIdentificadorPT(invisible),
         `${invisible} is now detected — move it out of this list and migrate the population it reveals`,
       ).toBe(false);
     }
+
+    const declared = new Set<string>();
+    const declaration = new RegExp(
+      `\\b(?:const|let|var|function|readonly|interface|type)\\s+(${tail.join('|')})\\b|` +
+        `\\b(${tail.join('|')})\\s*[:,)]`,
+    );
+    for (const file of arquivosDeProducao(SRC)) {
+      const source = readFileSync(file, 'utf8');
+      for (const word of tail) if (declaration.test(source) && new RegExp(`\\b${word}\\b`).test(source)) declared.add(word);
+    }
+
+    expect(
+      [...declared].sort(),
+      'a word left the tree — B-279 shrank, and this list should shrink with it',
+    ).toEqual([...tail].sort());
   });
 });

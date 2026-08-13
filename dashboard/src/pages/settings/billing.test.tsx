@@ -219,11 +219,22 @@ describe('BillingPage', () => {
   //
   // Sem um caso que RENDERIZE esses rótulos, as três eram satisfeitas por dois mundos distintos:
   // o painel lendo as chaves reais (correto) e um painel que parou de renderizar rótulo nenhum
-  // (defeito). Apagar o `map` de `billing.usage` deixava as três verdes.
+  // (defeito).
   //
-  // O que este caso prova é o invariante de que elas dependem: o rótulo é DERIVADO da chave
-  // (`billing.tsx:192` — `key.replace(/_/g,' ')` com title-case), então o vocabulário do mockup
-  // está ausente porque o backend não o envia, e não porque a tela o proíba por nome.
+  // O que este caso prova é o invariante de que elas dependem: o rótulo é DERIVADO da chave, então
+  // o vocabulário do mockup está ausente porque o backend não o envia, e não porque a tela o proíba
+  // por nome.
+  //
+  // A CONTAGEM, e não a presença — corrigido 2026-08-13 depois que a revisão mediu que a primeira
+  // versão (`getAllByText(...).length >= 1`) NÃO detectava a regressão que este comentário afirmava
+  // detectar. A derivação chave -> rótulo existe em DOIS lugares (`billing.tsx:193`, no
+  // `UsageMeter`, e `:314`, na lista "Includes"), então mutar um deixava os 20 casos verdes: o
+  // `getAllByText` era satisfeito pelo outro. Só mutando os dois é que ficava vermelho — e a
+  // afirmação "cada uma provada por mutação" era, para estas três, falsa.
+  //
+  // Cada rótulo renderiza exatamente DUAS vezes, uma por renderizador (medido). Asserir 2 faz a
+  // regressão de um site só reprovar. A duplicação em si é o B-277; esta é a rede enquanto ela
+  // existe.
   it('test_billing_usage_labels_are_derived_from_the_key_the_backend_sends', () => {
     mockUseCloudApi.mockReturnValue({ data: {
       plan: 'pro',
@@ -240,9 +251,9 @@ describe('BillingPage', () => {
     // é uma variável (`rotulo`) não ancora nada — ele não tem texto para casar com a asserção de
     // ausência lá em cima. Escrever os três por extenso é o que faz o par existir. (Foi medido:
     // com o laço, as três seguiam contadas como desancoradas.)
-    expect(screen.getAllByText('Fast Data Transfer').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Edge Requests').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Concurrent Builds').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Fast Data Transfer')).toHaveLength(2);
+    expect(screen.getAllByText('Edge Requests')).toHaveLength(2);
+    expect(screen.getAllByText('Concurrent Builds')).toHaveLength(2);
   });
 
   it('test_billing_usage_renders_unlimited_when_limit_null', () => {

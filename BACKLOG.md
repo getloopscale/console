@@ -9074,11 +9074,23 @@ closed: 2026-08-13 — **484 -> 0 ocorrencias, 277 -> 0 nomes**, em 159 arquivos
 REPROVAR. O que a tentativa_1 nao tinha: o rename passou pela language service do TypeScript
 (`dashboard/scripts/rename-identifiers.mjs`), nao por substituicao de texto.
 
-AS DUAS LICOES DA TENTATIVA REVERTIDA MORRERAM POR CONSTRUCAO, e isso foi VERIFICADO por diff em
-vez de afirmado:
+AS DUAS LICOES DA TENTATIVA REVERTIDA MORRERAM POR CONSTRUCAO — mas a primeira versao deste bloco
+media isso ERRADO, e a correcao importa mais que o numero.
+
+O que este bloco dizia:
 
     linhas de COMENTARIO alteradas em todo o diff  ->  0
     literais de STRING alterados em todo o diff    ->  0
+
+A revisao de validacao cruzada re-derivou e achou 2 e 2. A medicao era verdadeira quando eu a fiz,
+logo depois do harness — e deixou de ser meia hora depois, quando corrigi a mao os 25 testes que o
+`tsc` nao pega e coloquei tudo no MESMO commit. A afirmacao sobreviveu a propria medicao, e o
+contra-exemplo estava tres paragrafos abaixo, neste mesmo bloco (`toHaveProperty('campo')`).
+
+O numero correto, com o escopo que ele sempre deveria ter tido:
+
+    PELO HARNESS      (2 620 edicoes, 156 arquivos)  comentarios: 0   literais: 0
+    A MAO, mesmo commit (3 arquivos)                 comentarios: 2   literais: 2
 
 `findRenameLocations(..., findInStrings: false, findInComments: false)` nao pula um comentario, ele
 nunca o considera candidato. E um homonimo noutro escopo e outro SIMBOLO, entao a colisao que
@@ -10917,7 +10929,7 @@ source: discover-review
 severity: low
 category: code
 evidence: |
-  `dashboard/src/pages/settings/billing.tsx:193` e `:315` carregam a MESMA expressão:
+  `dashboard/src/pages/settings/billing.tsx:193` e `:314` carregam a MESMA expressão:
 
       key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
@@ -11010,3 +11022,49 @@ dod:
     alargar a lista aperta os dois consumidores de uma vez
 
 > Registrado 2026-08-13 ao fechar o B-241. A cauda so ficou mensuravel depois que o corpo saiu.
+
+## B-280 — Sob shuffle a suite reprova por TIMEOUT, em arquivo variavel, e nenhum reprova isolado   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: medium
+category: test
+evidence: |
+  DUAS execucoes de shuffle em 2026-08-13, e o arquivo que reprova MUDA:
+
+    revisao de validacao cruzada   FAIL src/pages/lens/overview.test.tsx > M60 — renders ONE shared
+                                        trend chart …            (timeout de `findByText`)
+    minha execucao, mesma tarde     FAIL src/pages/lens/evaluators.test.tsx:52 > M76 — selecting the
+                                        LLM-judge kind …          `Test timed out in 20000ms`
+                                        377 passed | 1 failed (378)
+
+  NENHUM DOS DOIS reprova sozinho. `npx vitest run src/pages/lens/evaluators.test.tsx
+  --sequence.shuffle` -> 15 passed, TRES vezes seguidas. E nenhum dos dois foi tocado pela fatia
+  (`git diff face8c87..HEAD -- <os dois arquivos>` vazio).
+
+  As tres coisas juntas dizem o que e: nao e dependencia de ordem (isolado passa), nao e regressao
+  da fatia (nao tocados), e a falha e sempre TIMEOUT e nunca asserção. E inanicao de worker sob
+  carga — o modo que o proprio `vitest.config.ts` documenta no docblock, e que ja motivou subir os
+  timeouts para 20 s uma vez. A maquina tinha outras duas sessoes rodando suites nas duas medicoes.
+why_now: |
+  A DoD do B-241 exige "a suite verde em ordem fixa E sob shuffle". A ordem fixa esta verde
+  (3340/3340); o shuffle nao, e a causa e este arquivo. Sem um item, a linha da DoD ficaria
+  permanentemente inatingivel por uma razao que ninguem registrou — e a proxima pessoa a rodar
+  shuffle leria o vermelho como defeito da propria fatia.
+
+  Registrado separado do B-267 de proposito: aquele item mede `pages.smoke.test.ts`, e um teto por
+  arquivo. Sao dois arquivos e possivelmente duas causas; junta-los faria a correcao de um parecer
+  progresso no outro.
+status: raw
+dod:
+  - `npx vitest run src --sequence.shuffle` verde em 5 execucoes seguidas numa maquina ociosa, com
+    o numero de execucoes e a carga registrados
+  - a correcao ataca a INANICAO e nao o sintoma: ou o custo por arquivo cai (o `setup.ts` e
+    `import` somam 570 s e 144 s na suite inteira), ou a concorrencia e limitada, ou o teto de
+    tempo passa a ser justificado por medicao em vez de ser subido de novo
+  - o B-267 (`pages.smoke.test.ts`) e re-lido a luz disto: pode ser a mesma causa vista num
+    terceiro arquivo, e nesse caso os dois itens viram um
+
+> Registrado 2026-08-13 pela revisao de validacao cruzada da fatia dashboard-ratchet-burndown.
