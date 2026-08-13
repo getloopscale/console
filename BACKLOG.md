@@ -10733,3 +10733,17 @@ dod:
 status: triaged
 
 > Registrado 2026-08-12 ao concluir o release da v1.0.2.
+
+## B-275 — Apagar um projeto sem contrato leva o usuário a uma lista onde ele ainda está   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: dashboard/src/hooks/projects/use-project-actions.ts:13 — `deleteProject` roda em modo `T | null`; o chamador em `dashboard/src/pages/projects/project-detail.tsx:76` faz `await deleteProject(name)` e navega para `/projects` no bloco seguinte, sem olhar o retorno.
+why_now: encontrado ao mover o transporte desta tela para fora da página (B-244). O DELETE é a única escrita destrutiva do repo que ficou sem contrato depois daquele lote, e ficou de propósito: adicionar `throwOnError` aqui exige DESENHAR a superfície de erro de uma ação destrutiva (o que a tela mostra, para onde vai, se o diálogo fecha), e fazer isso no meio de um refactor mecânico seria mudar comportamento sem medir.
+status: raw
+dod:
+  - um DELETE recusado não navega para `/projects`
+  - a recusa aparece na tela com a mensagem do serviço quando houver
+  - teste de regressão que falha no estado atual (DELETE recusado → ainda navega)

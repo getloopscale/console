@@ -1,12 +1,15 @@
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 
 import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useAskTrace,
+  useAskFeedback,
+  useClearAskFeedback,
+} from '@/hooks/lens/use-trace-actions';
 import { shortId } from '@/lib/formatting/format';
 import { Markdown } from '@/pages/lens/components/markdown';
 import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
@@ -87,64 +90,45 @@ export function AskThread({
 
   const entityMap = useMemo(() => (spans ? buildEntityMap(spans) : new Map<string, string>()), [spans]);
 
-  const ask = useMutation({
-    // The ask carries the trace id it was invoked for (`askedTraceId`) so a resolving answer can be
-    // matched to the still-docked trace — never landing under a different trace opened mid-flight (R1).
-    mutationFn: (vars: { question: string; spanId?: string; askedTraceId: string }) =>
-      cloudFetch<{ answer: string }>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(vars.askedTraceId)}/ask`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ question: vars.question, ...(vars.spanId ? { spanId: vars.spanId } : {}) }),
-        },
-        { throwOnError: true },
-      ),
-    retry: false, // ADR D1 / R4 — a billable provider call is NEVER auto-retried.
-    onSuccess: (data, vars) => {
+  const ask = useAskTrace();
+  // R1 — the ask carries the trace id it was invoked for, so a resolving answer can be matched to
+  // the still-docked trace and a stale one is dropped rather than landing under another trace.
+  const onAsked = {
+    onSuccess: (data: { answer: string } | null, vars: { spanId?: string; askedTraceId: string }) => {
+
       if (vars.askedTraceId !== traceId) return; // R1 — the docked trace changed mid-flight; drop the stale answer.
       const answer = (data?.answer ?? '').trim();
       if (answer === '') return; // never append an empty assistant turn.
       setTurns((t) => [...t, { id: nextId(), role: 'assistant', content: answer, spanId: vars.spanId }]);
     },
-  });
+  };
 
   // M83 — record thumbs feedback on ONE answer. The feedback is keyed by the client-side turn id
   // (the M33 ask is stateless, so the thread's turn ordinal is the stable per-answer key). Optimistic:
   // the pressed state shows immediately; a failed POST fails closed to a typed error AND reverts the
   // local state (no fabricated success, R4). Independent of the LLM provider (risk-2) — a 502 on the
   // ask never blocks feedback, and vice-versa.
-  const feedback = useMutation({
-    mutationFn: (vars: { turnId: string; label: 'up' | 'down'; spanId?: string }) =>
-      cloudFetch<{ label: string }>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/ask/feedback`,
-        { method: 'POST', body: JSON.stringify({ turnId: vars.turnId, label: vars.label, ...(vars.spanId ? { spanId: vars.spanId } : {}) }) },
-        { throwOnError: true },
-      ),
-    retry: false,
-    onError: (_e, vars) => {
+  const feedback = useAskFeedback(traceId);
+  const onFeedbackFailed = {
+    onError: (_e: unknown, vars: { turnId: string }) => {
       // revert the optimistic toggle for this turn (honest — the vote did not persist).
       setTurns((t) => t.map((x) => (x.id === vars.turnId ? { ...x, feedback: undefined } : x)));
     },
-  });
+  };
 
   // M83 — retract a vote (the UI "clear"). Persists via DELETE so the store never diverges from the
   // shown thumb (review H-1). Optimistic; a failed DELETE reverts to the prior label + typed error.
-  const clearFeedback = useMutation({
-    mutationFn: (vars: { turnId: string }) =>
-      cloudFetch<void>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/ask/feedback?turnId=${encodeURIComponent(vars.turnId)}`,
-        { method: 'DELETE' },
-        { throwOnError: true },
-      ),
-    retry: false,
-  });
+  const clearFeedback = useClearAskFeedback(traceId);
 
   const vote = (turn: Turn, label: 'up' | 'down') => {
     const prev = turn.feedback;
     const next = prev === label ? undefined : label; // click the active thumb again → clear
     setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, feedback: next } : x)));
     if (next !== undefined) {
-      feedback.mutate({ turnId: turn.id, label: next, ...(turn.spanId ? { spanId: turn.spanId } : {}) });
+      feedback.mutate(
+        { turnId: turn.id, label: next, ...(turn.spanId ? { spanId: turn.spanId } : {}) },
+        onFeedbackFailed,
+      );
     } else {
       // clear → DELETE; revert to the prior label on failure (no silent UI/DB divergence).
       clearFeedback.mutate(
@@ -174,7 +158,7 @@ export function AskThread({
     const q = draft.trim();
     if (!q || ask.isPending) return;
     setTurns((t) => [...t, { id: nextId(), role: 'user', content: q, spanId: initialSpanId }]);
-    ask.mutate({ question: q, spanId: initialSpanId, askedTraceId: traceId });
+    ask.mutate({ question: q, spanId: initialSpanId, askedTraceId: traceId }, onAsked);
     setDraft('');
   };
 

@@ -197,7 +197,25 @@ exatamente a classe "grep casa prosa".
 // dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
 // forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
 // diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
-// 7 desde 2026-08-12, agora com `lens/session-detail.tsx`, `workspace/overview.tsx` e
+// 3 desde 2026-08-12. Restaram `lens/alerts.tsx` (uma leitura de promptly na tela de alertas),
+// `workspace/overview.tsx` (que INJETA `cloudFetch` no helper de presign — dependencia explicita,
+// nao transporte inline) e `settings/components/invite-member-sheet.tsx`.
+//
+// O lote que trouxe o numero ate aqui: `lens/{trace-detail/span-detail,components/ask-thread,
+// playground/variant-column}.tsx` e `projects/project-detail.tsx`.
+//
+// As cinco escritas de trace ficaram no MESMO modulo por causa do `retry: false`, e o motivo vale
+// escrever uma vez: tres sao chamadas COBRADAS ao provedor (ask, replay) ou trabalho upstream
+// (enqueue), e as outras duas registram o voto de uma pessoa. Nenhuma das duas classes pode ser
+// reenviada em silencio — reenviar um voto e contar duas vezes.
+//
+// O DELETE de projeto ficou DE PROPOSITO sem contrato, e esta registrado como B-275: o chamador
+// navega para `/projects` logo depois, entao uma recusa que resolve deixa a pessoa numa lista onde
+// o projeto que ela acabou de apagar continua listado. Isso e uma contradicao VISIVEL, nao
+// silenciosa — a forma que o B-235 justamente nao cobre — e fechar exige desenhar a superficie de
+// erro de uma acao destrutiva, o que nao se faz no meio de um refactor mecanico.
+//
+// Antes disso, com `lens/session-detail.tsx`, `workspace/overview.tsx` e
 // `projects/project-connect.tsx`.
 //
 // Em `workspace`, o teto de 1000 objetos mudou de lugar junto com a leitura, e isso e o achado: o
@@ -294,7 +312,7 @@ exatamente a classe "grep casa prosa".
 // Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
 // cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
 // memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
-const TETO_PAGINAS_COM_TRANSPORTE = 7;
+const TETO_PAGINAS_COM_TRANSPORTE = 3;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

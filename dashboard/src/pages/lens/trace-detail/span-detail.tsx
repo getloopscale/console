@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { AttributesTable, Badge, Button, IOCards, TokenCostBreakdown } from '@usetheo/ui';
 import { ClipboardCheck } from 'lucide-react';
 
-import { cloudFetch } from '@/lib/http/api';
+import { useEnqueueForLabeling } from '@/hooks/lens/use-trace-actions';
 import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/formatting/format';
 import { spanOwnCostUsd } from '@/hooks/lens/trace-layout';
 import { detectPii } from '@/pages/lens/otel-attributes';
@@ -31,15 +30,7 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
   const events = span.events ?? [];
   const canReplay = !!span.inputValue;
   const [pgOpen, setPgOpen] = useState(false);
-  const enqueue = useMutation({
-    mutationFn: () =>
-      cloudFetch(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(span.traceId)}/enqueue-for-labeling`,
-        { method: 'POST', body: JSON.stringify({ spanId: span.spanId }) },
-        { throwOnError: true },
-      ),
-    retry: false,
-  });
+  const enqueue = useEnqueueForLabeling(span.traceId);
   const renderMarkdown = (text: string) => <Markdown source={text} />;
 
   return (
@@ -54,7 +45,7 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
           className="ml-auto"
           aria-label={`Add ${span.name} to labeling queue`}
           disabled={enqueue.isPending || enqueue.isSuccess}
-          onClick={() => enqueue.mutate()}
+          onClick={() => enqueue.mutate(span.spanId)}
         >
           <ClipboardCheck className="mr-1 h-4 w-4" />
           {enqueue.isSuccess ? 'Queued' : enqueue.isPending ? 'Queuing…' : 'Add to labeling queue'}

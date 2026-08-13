@@ -1,12 +1,11 @@
 import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { forwardRef, useImperativeHandle, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { useDatasets } from '@/hooks/lens/use-datasets';
 import { Braces, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
-import { cloudFetch } from '@/lib/http/api';
+import { useReplaySpan, useSaveToDataset } from '@/hooks/lens/use-trace-actions';
 import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
 import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 import { type EditableMessage, isStale, runKey, updateVariant, type Variant } from './variant-model';
@@ -84,30 +83,19 @@ export const VariantColumn = forwardRef<
   const [dataset, setDataset] = useState('');
   const schema = parseSchema(variant.responseSchema);
 
-  const replay = useMutation({
-    // The run carries the runKey it was invoked with (`ranKey`) so a resolving run marks the LATEST
-    // variant stale-or-fresh against the inputs AT RUN TIME — an edit made mid-flight is preserved and
-    // correctly shows the output as stale (ADR D3; the run never rebuilds the variant from a stale closure).
-    mutationFn: (_vars: { ranKey: string }) =>
-      cloudFetch<ReplayResult>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(span.traceId)}/replay`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            messages: variant.messages.map((m) => ({ role: m.role, content: m.content })),
-            ...(variant.model.trim() ? { model: variant.model.trim() } : {}),
-            ...(schema.value ? { responseSchema: schema.value } : {}),
-          }),
-        },
-        { throwOnError: true },
-      ),
-    retry: false,
-    onSuccess: (_data, vars) => onRan(vars.ranKey),
-  });
+  const replay = useReplaySpan<ReplayResult>(span.traceId);
 
   const run = () => {
     if (replay.isPending || !schema.ok) return;
-    replay.mutate({ ranKey: runKey(variant) });
+    replay.mutate(
+      {
+        ranKey: runKey(variant),
+        messages: variant.messages.map((m) => ({ role: m.role, content: m.content })),
+        ...(variant.model.trim() ? { model: variant.model.trim() } : {}),
+        ...(schema.value ? { responseSchema: schema.value } : {}),
+      },
+      { onSuccess: (_data, vars) => onRan(vars.ranKey) },
+    );
   };
   useImperativeHandle(ref, () => ({ run }), [run]);
 
@@ -115,15 +103,7 @@ export const VariantColumn = forwardRef<
   const datasets = useDatasets({ enabled: replay.isSuccess });
   const datasetOptions = datasets.data?.datasets ?? [];
   const targetDataset = dataset || datasetOptions[0]?.id || '';
-  const save = useMutation({
-    mutationFn: (dsId: string) =>
-      cloudFetch(
-        `/v1/dashboard/lens/datasets/${encodeURIComponent(dsId)}/items`,
-        { method: 'POST', body: JSON.stringify({ input: JSON.stringify(variant.messages), output: replay.data?.output ?? '' }) },
-        { throwOnError: true },
-      ),
-    retry: false,
-  });
+  const save = useSaveToDataset();
 
   const setMsg = (i: number, patch: Partial<EditableMessage>) =>
     onChange(updateVariant(variant, { messages: variant.messages.map((m, j) => (j === i ? { ...m, ...patch } : m)) }));
@@ -253,7 +233,14 @@ export const VariantColumn = forwardRef<
                 variant="secondary"
                 size="sm"
                 disabled={!targetDataset || save.isPending}
-                onClick={() => targetDataset && save.mutate(targetDataset)}
+                onClick={() =>
+                  targetDataset &&
+                  save.mutate({
+                    datasetId: targetDataset,
+                    input: JSON.stringify(variant.messages),
+                    output: replay.data?.output ?? '',
+                  })
+                }
               >
                 {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : 'Save as dataset item'}
               </Button>
