@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** seven more tests that check something is *not* on screen can now actually fail — the signal sheet's label, a project's "Progressing" status and "URL pending" badge, the device-authorisation countdown, the prompt diff's config block, the model-provider refusal title, and the RAG analytics token label (B-242).
+
+
+- **theo-cloud/dashboard:** 131 of the 379 test files were building a browser environment they never used, which is what made the suite fail under a randomised order — a different file each time, always by timeout. They now run in a plain Node environment, and a guard keeps new ones from drifting back (B-280).
+
 ### Security
 
 - **theo-cloud/dashboard:** the syntax highlighter used by the RAG screens was carrying a vulnerable copy of `prismjs` (DOM Clobbering, GHSA-x7hr-w5r2-h6wg) into the shipped bundle. `react-syntax-highlighter` is now on 16.1.1, which brings a fixed `prismjs` and drops `refractor` entirely (B-278).

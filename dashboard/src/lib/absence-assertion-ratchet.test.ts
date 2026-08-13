@@ -1,3 +1,4 @@
+// @vitest-environment node
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
@@ -159,7 +160,37 @@ const SELF = 'absence-assertion-ratchet.test.ts';
 // E um defeito de produção que só a mutação revelou: a regra que deriva o rótulo da chave de
 // billing existe DUAS VEZES (`billing.tsx:193` e `:314`), então mutar uma sobrevivia. Registrado
 // como B-277 em vez de corrigido aqui — é outro item, com outra evidência.
-const CEILING_UNANCHORED = 91;
+// 84 desde 2026-08-13 (B-242): SETE asserções ancoradas, cada uma provada por mutação — a produção
+// foi quebrada e o caso NOVO ficou vermelho enquanto a assercao de ausencia antiga seguia verde.
+//
+//   signal-detail-sheet  'Replicas'                   o rotulo do sinal com open={true}
+//   project-status       /^Progressing$/              um release presente e NAO ativo
+//   project-detail       /URL pending/i               projeto COM ambiente de producao e sem URL
+//   device-success       'device-success-countdown'   o estado padrao, com animacao permitida
+//   promptly/diff        'promptly-diff-config'       o BLOCO, pelo mesmo tipo de query que a nega
+//   promptly/playground  /provedor do modelo recusou/ o TITULO, e nao so a descricao
+//   rag/analytics        /extraction tokens/i         o ROTULO, e nao so o valor
+//
+// UMA MUTACAO MINHA FOI INVALIDA E QUASE PASSOU POR PROVA: trocar a primeira ocorrencia de
+// "URL pending" em `live-url-hero.tsx` atingiu um COMENTARIO na linha 14, nao o Badge na 109. O
+// teste ficou verde e por um instante isso pareceu "a ancora nao discrimina". Mutar o lugar certo
+// derrubou o caso. Uma mutacao que nao muda comportamento nao prova nada, e a diferenca entre as
+// duas leituras e a mesma que este arquivo inteiro persegue.
+//
+// A COMPOSICAO DAS 84 QUE FICAM, medida e nao estimada. Classificando cada uma por onde o texto
+// consultado existe:
+//
+//    8  ancoraveis    — a TELA que o teste possui renderiza o texto (7 fechadas aqui, 1 restante)
+//   25  fixture       — o proprio arquivo introduz o texto num mock: classe do B-276
+//   ~50 sem texto     — copia REMOVIDA que nao pode voltar, seletor vindo de VARIAVEL (falso
+//                       positivo documentado do detector), ou texto de um componente que o teste
+//                       nao possui
+//
+// O classificador que produziu isso erra nos DOIS sentidos e esta escrito aqui para nao ser lido
+// como exato: ele leu `spend` em `overview-kpi-strip.tsx` que so existe em COMENTARIO (falso
+// ancoravel), e chamou `project-detail.tsx` de sem-texto quando a copia mora no componente FILHO
+// que a pagina renderiza (falso sem-texto) — essa foi ancorada mesmo assim, e a mutacao provou.
+const CEILING_UNANCHORED = 84;
 
 /** Files holding at least one absence assertion. Frozen 2026-08-11, remeasured 2026-08-12. */
 const CEILING_FILES = 98;

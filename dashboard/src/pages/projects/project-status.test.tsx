@@ -87,6 +87,30 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
     expect(screen.queryByText(/auto-refresh every 5s/i)).not.toBeInTheDocument();
   });
 
+  // B-242 — the anchor for `queryByText(/^Progressing$/)` above. No case in this file ever rendered
+  // that word, so the denial was satisfied by the honest empty state AND by a page that stopped
+  // producing the label at all: rename it at `project-status.tsx:220` and the #98 regression test
+  // stays green while having stopped guarding #98. This case renders it, so the word is now under
+  // test on both sides.
+  it('B-242 — a release that is present but NOT active DOES show "Progressing"', () => {
+    mockUseProjectStatus.mockReturnValue({
+      status: makeStatus({
+        active_release: {
+          id: 'rel-1',
+          build_id: 'bld-1',
+          status: 'PENDING', // present, not ACTIVE — the branch that produces the label
+          created_at: '2026-06-27T10:00:00Z',
+        },
+      }),
+      loading: false,
+      error: null,
+    });
+
+    renderAt('/projects/theokit-example/status');
+
+    expect(screen.getByText(/^Progressing$/)).toBeInTheDocument();
+  });
+
   // Negative-axis regression-protector: when a real production active_release
   // is present AND there is at least one proof of serving (replicas_ready > 0),
   // the existing UI continues to render (Status: Healthy + the auto-refresh

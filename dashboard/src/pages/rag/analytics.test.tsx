@@ -83,7 +83,12 @@ describe('RagAnalyticsPage (/rag/analytics)', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
 
     // Extraction tokens, community totals, corpus figures — all visible.
-    expect(await screen.findByText('12,345')).toBeInTheDocument(); // extraction tokens
+    // B-242 — the LABEL, by the same selector the denial above uses. This case asserted only the
+    // VALUE (`12,345`), so `queryByText(/extraction tokens/i)` up there was satisfied by the section
+    // being gated AND by the label disappearing from the section entirely — leaving a bare number
+    // on screen with nothing saying what it counts.
+    expect(await screen.findByText(/extraction tokens/i)).toBeInTheDocument();
+    expect(screen.getByText('12,345')).toBeInTheDocument(); // extraction tokens
     // Per-level rows — a Level N label + its count share the same list item.
     const perLevelItems = await screen.findAllByRole('listitem');
     const rowTexts = perLevelItems.map((el) => el.textContent ?? '');
