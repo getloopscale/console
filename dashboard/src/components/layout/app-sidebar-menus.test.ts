@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
 import { MENUS, resolveActiveMenu } from './app-sidebar-menus';

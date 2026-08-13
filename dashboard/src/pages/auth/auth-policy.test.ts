@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * T1.2 hermetic test for auth-policy constants.
  *

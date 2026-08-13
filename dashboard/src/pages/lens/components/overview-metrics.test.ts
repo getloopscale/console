@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 
 import { cardMode, periodDelta, costByPeriod, deltaTooSparse, MIN_BUCKETS_FOR_DELTA } from './overview-metrics';

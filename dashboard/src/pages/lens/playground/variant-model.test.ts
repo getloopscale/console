@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 
 import { newVariant, updateVariant, runKey, isStale, type EditableMessage } from './variant-model';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi } from 'vitest';
 
 import { presignedUpload, presignedDownloadURL, type PresignDeps } from './workspace-presign';

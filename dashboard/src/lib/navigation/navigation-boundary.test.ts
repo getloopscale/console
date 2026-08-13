@@ -1,3 +1,4 @@
+// @vitest-environment node
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 

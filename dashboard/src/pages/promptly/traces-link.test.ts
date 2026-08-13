@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { decodeColumns } from '../lens/traces/view-encoding';
 import { linkToPromptTraces } from './traces-link';

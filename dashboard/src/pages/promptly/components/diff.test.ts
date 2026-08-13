@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { diffLines, diffConfig, DIFF_LINE_CEILING } from './diff';
 

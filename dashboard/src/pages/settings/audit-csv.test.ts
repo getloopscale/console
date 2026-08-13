@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { auditEntriesToCsv } from './audit-csv';
 import type { AuditEntry } from '@/lib/api/types';

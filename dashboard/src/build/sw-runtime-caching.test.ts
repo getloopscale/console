@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { SW_RUNTIME_CACHING } from './sw-runtime-caching';
 

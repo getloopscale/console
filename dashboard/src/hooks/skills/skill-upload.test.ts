@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
 import { evaluateFile, publicationBody, toBase64, ZIP_BYTES_CEILING } from './skill-upload';

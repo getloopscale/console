@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { variableFields, renderTemplate, textVariables } from './preview';
 

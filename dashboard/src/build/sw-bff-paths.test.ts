@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 
 import { BFF_NAVIGATION_DENYLIST, BFF_NAVIGATION_REGEXP, isBffNavigationPath } from './sw-bff-paths';

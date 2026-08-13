@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { LENS_CAPABILITIES, LENS_EXPLORE_CARDS, LENS_SIDEBAR_GROUPS } from './lens-capabilities';
 

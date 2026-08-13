@@ -1,3 +1,4 @@
+// @vitest-environment node
 // index.theme-border.test.ts — regression guard for the global themed-border rule.
 //
 // The design tokens are oklch (`--border: oklch(0.28 0 0)`), so wrapping them in

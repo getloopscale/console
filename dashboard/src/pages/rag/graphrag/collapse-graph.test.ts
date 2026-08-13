@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { collapseGraph, isSuperNodeId, type CollapseNode, type CollapseLink } from './collapse-graph';
 

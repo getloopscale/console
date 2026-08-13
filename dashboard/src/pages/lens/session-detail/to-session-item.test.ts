@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { toSessionItem } from './to-session-item';
 import type { Trace } from '../traces/columns';

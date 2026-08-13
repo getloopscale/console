@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { ABAS, abaDaRota, rotaDaAba } from './detail-tabs';
 import { resolveActiveMenu } from '@/components/layout/app-sidebar-menus';

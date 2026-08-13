@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { MENUS } from '@/components/layout/app-sidebar-menus';
 import { CAPACIDADES, estadoDaCapacidade, type EstadoDaCapacidade } from './capabilities';
