@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Security
+- **O control plane deixou de acessar os dados de todos os clientes por um privilégio invisível.** Ele compartilha o banco com o engine e conectava como dono das tabelas — o que lhe dava acesso a todo cliente *e* poder de alterar as próprias proteções que deveriam contê-lo, sem que isso aparecesse em nenhum inventário. Passa a usar um papel próprio cuja travessia entre clientes é uma permissão **declarada e nomeada**: audível, revogável uma tabela por vez, e sem poder de alterar esquema. O alcance é o mesmo de antes — listar contas e agregar faturamento exigem isso —, o que mudou é que deixou de ser implícito. **Não é isolamento por cliente**: as rotas por-cliente ainda dependem do filtro escrito à mão, e isso está registrado como o próximo passo. (migration 000063 no engine)
+- **O serviço se recusa a subir com privilégio amplo demais.** Se o banco apontar para o papel dono, o processo falha na inicialização nomeando causa e correção. Existe porque esse erro não tem sintoma: tudo continua funcionando, e a única diferença é o quanto de dado alheio fica ao alcance de um processo comprometido. (`internal/dbrole`)
+
 ### Changed
 
 - **theo-cloud/dashboard:** seven more tests that check something is *not* on screen can now actually fail — the signal sheet's label, a project's "Progressing" status and "URL pending" badge, the device-authorisation countdown, the prompt diff's config block, the model-provider refusal title, and the RAG analytics token label (B-242).

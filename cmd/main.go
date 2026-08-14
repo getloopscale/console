@@ -32,6 +32,7 @@ import (
 	"github.com/usetheoai/theo-cloud/internal/billing"
 	"github.com/usetheoai/theo-cloud/internal/config"
 	"github.com/usetheoai/theo-cloud/internal/consent"
+	"github.com/usetheoai/theo-cloud/internal/dbrole"
 	"github.com/usetheoai/theo-cloud/internal/deploy_event_enqueuer"
 	"github.com/usetheoai/theo-cloud/internal/lens_alert_evaluator"
 	"github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
@@ -376,6 +377,20 @@ func main() {
 			logger.Warn("database not reachable at startup (will retry on requests)", "error", err)
 		} else {
 			logger.Info("database connected")
+
+			// Which role we connect as decides how much of every tenant's data
+			// this process can reach — and getting it wrong is invisible at
+			// runtime, because the owner still works. Engine migration 000063
+			// created `theo_cloud` for exactly this: the cross-tenant reach the
+			// control plane needs, as named policies, without DDL.
+			//
+			// Fail closed: refusing to boot is loud and fixed by repointing
+			// DATABASE_URL; running as the owner is silent and permanent.
+			if err := dbrole.AssertControlPlaneRole(ctx, db); err != nil {
+				logger.Error("database role check failed", "error", err)
+				os.Exit(1)
+			}
+			logger.Info("database role verified — cross-tenant reach is policy-named")
 		}
 	} else {
 		logger.Warn("DATABASE_URL not set — billing, enforcement, and metering disabled")
