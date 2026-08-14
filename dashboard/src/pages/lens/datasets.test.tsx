@@ -97,7 +97,19 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
       if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ id: 'ds_1', name: 'golden', items: [{ traceId: 'tr_9' }] });
       return Promise.resolve({});
     });
-    // deep-link straight to an open dataset via the URL param — the items panel loads without a click
+    // Deep-link straight to an open dataset via the URL param — the items panel loads without a
+    // click.
+    //
+    // B-283 — `initialEntries` feeds the MemoryRouter and NOTHING else. nuqs's react-router
+    // adapter reads `window.location.search` at mount (see `src/test/render.tsx`), so the param
+    // has to be in jsdom's URL or the page mounts with no dataset selected.
+    //
+    // This case was GREEN for three months without that line, and for a reason worth naming: the
+    // `open golden` clicks in the cases above left `?dataset=ds_1` in the shared jsdom URL, and
+    // nothing reset it between cases. A test titled "deep-linkable" was passing on state another
+    // test had left behind — in isolation it fails, and it always would have. Closing the leak is
+    // what surfaced it.
+    window.history.replaceState(null, '', '/observability/datasets?dataset=ds_1');
     render(<LensDatasetsPage />, { initialEntries: ['/observability/datasets?dataset=ds_1'] });
     expect(await screen.findByText('tr_9')).toBeInTheDocument(); // the ds_1 items panel is open from the URL
   });
