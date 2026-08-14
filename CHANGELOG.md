@@ -5,6 +5,7 @@
 - **O serviço se recusa a subir com privilégio amplo demais.** Se o banco apontar para o papel dono, o processo falha na inicialização nomeando causa e correção. Existe porque esse erro não tem sintoma: tudo continua funcionando, e a única diferença é o quanto de dado alheio fica ao alcance de um processo comprometido. (`internal/dbrole`)
 
 ### Changed
+- **A verificação do arquivo de build local passou a derivar o que ele precisa copiar, em vez de repetir uma lista escrita à mão.** As três verificações anteriores fixavam três erros passados; nenhuma percebia um diretório de código novo que o binário passasse a usar e o arquivo de build não copiasse — a imagem falharia a construir por um pacote ausente, que é a mesma forma dos erros que elas fixam. Agora o conjunto necessário vem do compilador (#B-017)
 
 - **theo-cloud/dashboard:** seven more tests that check something is *not* on screen can now actually fail — the signal sheet's label, a project's "Progressing" status and "URL pending" badge, the device-authorisation countdown, the prompt diff's config block, the model-provider refusal title, and the RAG analytics token label (B-242).
 

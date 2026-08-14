@@ -26,6 +26,7 @@ package ci
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -103,5 +104,79 @@ func TestDockerfileLocalStagesContractsLocally(t *testing.T) {
 	if !regexp.MustCompile(`(?m)^COPY\s+theo-contracts/`).MatchString(dockerfile) {
 		t.Error("Dockerfile.local não copia `theo-contracts/` para dentro do contexto; " +
 			"o `replace` apontaria para um caminho inexistente e o build voltaria a buscar remoto")
+	}
+}
+
+// TestDockerfileLocalCopiesEverySourceDirTheBinaryNeeds closes the class the
+// three sibling guards above cannot see.
+//
+// They assert three specific past defects: the build target is the package and
+// not one file, the replace directive points at the right module path, and the
+// contracts sibling is staged locally. All three are frozen mistakes. None of
+// them notices a NEW top-level source directory that `cmd` starts importing and
+// the Dockerfile never copies — the build then fails inside the image with a
+// missing-package error, which is the same shape as the defects the item exists
+// to prevent.
+//
+// The B-017 bullet asked for a check that BUILDS this Dockerfile without the
+// token. This is not that: a real build needs Docker, and pretending a static
+// check is a build would be the kind of substitution this whole item is about.
+// What it does instead is derive the required set instead of restating it —
+// `go list -deps ./cmd` reports exactly the packages the binary reaches, so the
+// answer comes from the compiler rather than from someone remembering to update
+// a list.
+//
+// Directories NOT reached by ./cmd are deliberately not required. `tests/` holds
+// Go files and is correctly absent from the image.
+func TestDockerfileLocalCopiesEverySourceDirTheBinaryNeeds(t *testing.T) {
+	modBytes, err := os.ReadFile(filepath.Clean("../../go.mod"))
+	if err != nil {
+		t.Fatalf("reading go.mod: %v", err)
+	}
+	var modPath string
+	for _, line := range strings.Split(string(modBytes), "\n") {
+		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			modPath = strings.TrimSpace(after)
+			break
+		}
+	}
+	if modPath == "" {
+		t.Fatal("go.mod declares no module path — the deps below cannot be attributed to this module")
+	}
+
+	// Run from the MODULE ROOT: the test's working directory is internal/ci, where
+	// `./cmd` does not exist. The first version of this check skipped for exactly
+	// that reason and reported ok — a silent pass, which is the failure mode this
+	// whole item is about.
+	cmd := exec.Command("go", "list", "-deps", "./cmd")
+	cmd.Dir = "../.."
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list -deps ./cmd failed in the module root: %v — a check that cannot run must say "+
+			"so loudly, because a skip reads as a pass", err)
+	}
+
+	needed := map[string]bool{}
+	for _, pkg := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		rest, ok := strings.CutPrefix(pkg, modPath+"/")
+		if !ok {
+			continue // stdlib or an external module — not copied from this tree
+		}
+		needed[strings.SplitN(rest, "/", 2)[0]] = true
+	}
+	if len(needed) == 0 {
+		t.Fatal("go list reported no package of this module under ./cmd — the check measured nothing, " +
+			"which is not the same as measuring a clean result")
+	}
+
+	dockerfile := readDockerfileLocal(t)
+	for dir := range needed {
+		want := "COPY theo-cloud/" + dir + "/"
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("./cmd transitively imports %s/ and Dockerfile.local never copies it (%q absent).\n"+
+				"    The image build fails with a missing package, and the three guards above cannot see\n"+
+				"    it because each pins one past defect rather than the set the binary needs (B-017).",
+				dir, want)
+		}
 	}
 }
