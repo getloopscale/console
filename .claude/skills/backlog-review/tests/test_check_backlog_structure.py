@@ -226,61 +226,28 @@ def test_every_finding_declares_its_kind(tmp_path: Path) -> None:
         assert f["kind"] in ("deterministic", "heuristic"), f
 
 
-# --- checkbox_contradicts_status (2026-08-12) ---
+def test_a_duplicated_status_is_a_blocker(tmp_path: Path) -> None:
+    """Two `status:` lines leave the block with two answers, and every reader takes the last.
+
+    Measured on theo-db: B-021 carries `raw` then `triaged`, B-022 `planned` then `raw`. The
+    index buckets on status, so an ambiguous one makes the summary arbitrary rather than
+    wrong-in-a-way-you-can-see.
+    """
+    backlog = write_backlog(tmp_path, item_block("B-001", status="raw", extra="status: triaged\n"))
+    report = check_backlog(backlog)
+    dup = [f for f in report["findings"] if f["check"] == "duplicate_field"]
+    assert len(dup) == 1
+    assert dup[0]["severity"] == "blocker"
+    assert "raw then triaged" in dup[0]["message"]
 
 
-def test_checkbox_marcada_num_item_raw_e_acusada(tmp_path):
-    """A direção perigosa: a caixa diz feito, o status diz que ninguém mediu."""
-    backlog = write_backlog(tmp_path, """## B-001 — algo   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-evidence: none-yet
-why_now: |
-  porque sim
-status: raw
-dod:
-  - um criterio verificavel
-""")
-    ids = {f["check"] for f in check_backlog(backlog)["findings"]}
-    assert "checkbox_contradicts_status" in ids
-
-
-def test_checkbox_vazia_num_item_shipped_e_acusada(tmp_path):
-    """A outra direção: trabalho entregue que some de qualquer contagem por checkbox."""
-    backlog = write_backlog(tmp_path, """## B-002 — algo   [ ]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-evidence: src/a.ts:1
-why_now: |
-  porque sim
-status: shipped
-dod:
-  - um criterio verificavel
-""")
-    ids = {f["check"] for f in check_backlog(backlog)["findings"]}
-    assert "checkbox_contradicts_status" in ids
-
-
-def test_checkbox_coerente_nao_e_acusada(tmp_path):
-    """O contraponto: sem ele, um detector que acusasse tudo passaria nos dois casos acima."""
-    backlog = write_backlog(tmp_path, """## B-003 — algo   [x]
-
-domain: frontend-dashboard
-repo: theo-cloud/dashboard
-suggested_mode: review
-source: human
-evidence: src/a.ts:1
-why_now: |
-  porque sim
-status: shipped
-dod:
-  - um criterio verificavel
-""")
-    ids = {f["check"] for f in check_backlog(backlog)["findings"]}
-    assert "checkbox_contradicts_status" not in ids
+def test_other_repeated_fields_are_not_reported(tmp_path: Path) -> None:
+    """`partial_progress` four times on theo-cloud's B-031 is an append-one-line-per-increment
+    log the team keeps on purpose, and `evidence: none-yet` followed by a pointer is an item that
+    advanced. A gate that reports those is one people learn to override."""
+    backlog = write_backlog(
+        tmp_path,
+        item_block("B-001", extra="partial_progress: primeira metade\npartial_progress: segunda\n"),
+    )
+    report = check_backlog(backlog)
+    assert [f for f in report["findings"] if f["check"] == "duplicate_field"] == []
