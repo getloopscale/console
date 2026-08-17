@@ -177,7 +177,7 @@ class RustDetector(BaseDetector):
         for src_file in changed_files:
             if not src_file.exists():
                 continue
-            rel = to_rel_path(src_file)
+            rel = to_rel_path(src_file, self.repo_root)
             try:
                 src_text = src_file.read_text(encoding="utf-8", errors="replace")
             except OSError:

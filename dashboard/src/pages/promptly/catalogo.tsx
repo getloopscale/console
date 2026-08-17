@@ -33,7 +33,7 @@ import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
  * segundo. "Crie o primeiro prompt" oferecido a quem acabou de filtrar afirma que o workspace está
  * vazio quando ele está cheio, e manda criar quando o que falta é limpar o filtro.
  */
-type EstadoVazio = 'falha-de-leitura' | 'catalogo-vazio' | 'filtro-sem-resultado';
+type EmptyStateCopy = 'falha-de-leitura' | 'catalogo-vazio' | 'filtro-sem-resultado';
 
 /**
  * Os recortes que o painel sabe nomear — e que, sem esta tela, seriam números sem destino.
@@ -55,9 +55,9 @@ const RECORTES = {
   },
 } as const;
 
-type Recorte = keyof typeof RECORTES;
+type Scope = keyof typeof RECORTES;
 
-function recorteValido(v: string | null): v is Recorte {
+function isValidScope(v: string | null): v is Scope {
   return v !== null && Object.prototype.hasOwnProperty.call(RECORTES, v);
 }
 
@@ -68,7 +68,7 @@ function recorteValido(v: string | null): v is Recorte {
  * serviço recusa, e a tela erraria por um endereço editado. `CATALOG_PAGE_LIMIT` é o padrão e por
  * isso não aparece no endereço — um link sem `?porPagina=` é o mesmo link de sempre.
  */
-const TAMANHOS_DE_PAGINA = [10, 25, 50, CATALOG_PAGE_LIMIT] as const;
+const PAGE_SIZES = [10, 25, 50, CATALOG_PAGE_LIMIT] as const;
 
 /**
  * A pausa antes de a busca virar navegação.
@@ -78,12 +78,12 @@ const TAMANHOS_DE_PAGINA = [10, 25, 50, CATALOG_PAGE_LIMIT] as const;
  */
 const DEBOUNCE_MS = 300;
 
-function tamanhoValido(v: string | null): number {
+function isValidSize(v: string | null): number {
   const n = Number(v);
-  return TAMANHOS_DE_PAGINA.some((t) => t === n) ? n : CATALOG_PAGE_LIMIT;
+  return PAGE_SIZES.some((t) => t === n) ? n : CATALOG_PAGE_LIMIT;
 }
 
-export function PromptlyCatalogoPage() {
+export function PromptlyCatalogPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Prompt catalog'), [setPageTitle]);
   useRequireAuth();
@@ -95,34 +95,34 @@ export function PromptlyCatalogoPage() {
   // justamente para ser colável — um link já mandado num chat não pode deixar de filtrar
   // porque o produto mudou de idioma. Mesmo raciocínio dos redirects de rota (ADR D2), na
   // escala menor de um parâmetro: aqui o custo de aceitar os dois é um mapa de duas linhas.
-  const ANTIGOS: Record<string, Recorte> = {
+  const ANTIGOS: Record<string, Scope> = {
     'nao-promovidos': 'not-promoted',
     'sem-ambiente': 'no-environment',
   };
-  const bruto = params.get('recorte');
-  const normalizado = bruto !== null && bruto in ANTIGOS ? ANTIGOS[bruto] : bruto;
-  const recorte = recorteValido(normalizado) ? normalizado : null;
-  const porPagina = tamanhoValido(params.get('porPagina'));
+  const raw = params.get('recorte');
+  const normalizado = raw !== null && raw in ANTIGOS ? ANTIGOS[raw] : raw;
+  const scope = isValidScope(normalizado) ? normalizado : null;
+  const perPage = isValidSize(params.get('porPagina'));
 
   // M16 — os três filtros de SERVIDOR vivem no endereço, pela mesma razão do recorte: o link é
   // colável. Antes deste milestone o termo era estado local e o filtro rodava sobre a página já
   // carregada — a tela dizia isso com todas as letras, e essa honestidade era o sintoma.
-  const busca = params.get('busca') ?? '';
+  const search = params.get('busca') ?? '';
   const tag = params.get('tag') ?? '';
-  const pasta = params.get('pasta') ?? '';
+  const folder = params.get('pasta') ?? '';
 
   // O que o campo mostra ENQUANTO se digita. O endereço só recebe o termo depois da pausa: uma
   // navegação por tecla encheria o histórico e dispararia uma busca por caractere.
-  const [rascunho, setRascunho] = useState(busca);
-  useEffect(() => { setRascunho(busca); }, [busca]);
+  const [rascunho, setRascunho] = useState(search);
+  useEffect(() => { setRascunho(search); }, [search]);
 
   const trocarParam = useCallback(
     (mudancas: Record<string, string>) => {
       setParams((atuais) => {
         const proximos = new URLSearchParams(atuais);
-        for (const [chave, valor] of Object.entries(mudancas)) {
-          if (valor === '') proximos.delete(chave);
-          else proximos.set(chave, valor);
+        for (const [key, value] of Object.entries(mudancas)) {
+          if (value === '') proximos.delete(key);
+          else proximos.set(key, value);
         }
         return proximos;
       }, { replace: true });
@@ -131,31 +131,31 @@ export function PromptlyCatalogoPage() {
   );
 
   useEffect(() => {
-    if (rascunho === busca) return;
+    if (rascunho === search) return;
     const t = setTimeout(() => { trocarParam({ busca: rascunho.trim() }); }, DEBOUNCE_MS);
     return () => { clearTimeout(t); };
-  }, [rascunho, busca, trocarParam]);
+  }, [rascunho, search, trocarParam]);
 
   // Preserva o tamanho de página: limpar o recorte é sobre o RECORTE. Apagar os dois faria a tela
   // voltar a pedir cem sem ninguém ter pedido — e a marca de parcialidade sumiria junto, que é
   // exatamente o sinal que este milestone existe para não perder.
-  const limparRecorte = () => {
-    setParams(porPagina === CATALOG_PAGE_LIMIT ? {} : { porPagina: String(porPagina) }, { replace: true });
+  const clearScope = () => {
+    setParams(perPage === CATALOG_PAGE_LIMIT ? {} : { porPagina: String(perPage) }, { replace: true });
   };
-  const escolherTamanho = (valor: string) => {
-    const proximo = tamanhoValido(valor);
+  const chooseSize = (value: string) => {
+    const upcoming = isValidSize(value);
     const atual = Object.fromEntries(params);
-    if (proximo === CATALOG_PAGE_LIMIT) delete atual['porPagina'];
-    else atual['porPagina'] = String(proximo);
+    if (upcoming === CATALOG_PAGE_LIMIT) delete atual['porPagina'];
+    else atual['porPagina'] = String(upcoming);
     setParams(atual, { replace: true });
   };
 
-  const query = usePromptlyCatalog<unknown>({ search: busca, tag, folder: pasta }, porPagina);
+  const query = usePromptlyCatalog<unknown>({ search: search, tag, folder: folder }, perPage);
 
   // `useMemo` sobre `query.data`, não sobre um array recriado a cada render — senão o memo do
   // filtro logo abaixo depende de uma identidade sempre nova e não memoriza nada.
   const rows = useMemo(() => catalogRows(query.data?.data), [query.data]);
-  const temContinuacao = query.data?.temContinuacao ?? false;
+  const hasContinuation = query.data?.hasContinuation ?? false;
   const failed = Boolean(query.error);
 
   // M16 — a busca, a tag e a pasta são do SERVIDOR; só o recorte segue local.
@@ -165,8 +165,8 @@ export function PromptlyCatalogoPage() {
   // existe — trabalho antes da necessidade. A honestidade que isso pede está na contagem, não numa
   // desculpa: com recorte ativo a tela não afirma total algum.
   const filtradas = useMemo(
-    () => (recorte === null ? rows : rows.filter(RECORTES[recorte].casa)),
-    [rows, recorte],
+    () => (scope === null ? rows : rows.filter(RECORTES[scope].casa)),
+    [rows, scope],
   );
 
   /**
@@ -176,16 +176,16 @@ export function PromptlyCatalogoPage() {
    * do dado que a tela já tem. Um endpoint de pastas seria uma segunda fonte de verdade que pode
    * divergir do nome — e a primeira divergência é silenciosa.
    */
-  const pastas = useMemo(() => {
-    const vistas = new Set<string>();
+  const folders = useMemo(() => {
+    const seen = new Set<string>();
     for (const r of rows) {
       const i = r.name.indexOf('/');
-      if (i > 0) vistas.add(r.name.slice(0, i));
+      if (i > 0) seen.add(r.name.slice(0, i));
     }
-    return [...vistas].sort();
+    return [...seen].sort();
   }, [rows]);
 
-  const filtrando = busca !== '' || tag !== '' || pasta !== '' || recorte !== null;
+  const filtrando = search !== '' || tag !== '' || folder !== '' || scope !== null;
   // M16 — com o filtro NO SERVIDOR, zero linhas com filtro ativo significa "o filtro não achou",
   // não "o workspace está vazio".
   //
@@ -194,7 +194,7 @@ export function PromptlyCatalogoPage() {
   // devolve zero linhas para uma busca sem resultado, e a condição antiga cairia em
   // `catalogo-vazio` — afirmando ausência no workspace a partir de um filtro. É exatamente o
   // defeito que o M13 fechou, reaberto pela mudança de lado.
-  const estadoVazio: EstadoVazio = failed
+  const emptyState: EmptyStateCopy = failed
     ? 'falha-de-leitura'
     : filtrando
       ? 'filtro-sem-resultado'
@@ -296,7 +296,7 @@ export function PromptlyCatalogoPage() {
           {/* asChild → <h2>: o PageShell já rende o <h1>; pular para o h3 padrão do Card.Title
               quebraria a hierarquia de cabeçalhos (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>{recorte === null ? 'Catalog' : RECORTES[recorte].titulo}</h2>
+            <h2>{scope === null ? 'Catalog' : RECORTES[scope].titulo}</h2>
           </Card.Title>
           {/* A contagem só aparece no estado ASSENTADO. Renderizá-la sempre imprimia
               "0 neste workspace" durante o carregamento e durante a falha — duas linhas abaixo de
@@ -310,10 +310,10 @@ export function PromptlyCatalogoPage() {
                 // M16 — sob filtro, a tela NÃO conhece o total do workspace: o servidor devolveu
                 // uma página do conjunto filtrado. Dizer "neste workspace" aqui seria o limite
                 // inferior apresentado como total que o M13 existe para eliminar.
-                ? temContinuacao
+                ? hasContinuation
                   ? `${filtradas.length} on this page — there is more on the server`
                   : `${filtradas.length} no filtro`
-                : temContinuacao
+                : hasContinuation
                   ? `${rows.length} loaded — there is more on the server`
                   : `${rows.length} neste workspace`
               : '—'}
@@ -325,15 +325,15 @@ export function PromptlyCatalogoPage() {
           {filtrando ? (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <p className="text-xs text-muted-foreground">
-                {recorte !== null
-                  ? RECORTES[recorte].descricao
+                {scope !== null
+                  ? RECORTES[scope].descricao
                   : tag !== ''
                     ? `Only prompts tagged “${tag}”.`
-                    : pasta !== ''
-                      ? `Only prompts in the “${pasta}/” folder.`
-                      : `Server-side search for “${busca}”.`}
+                    : folder !== ''
+                      ? `Only prompts in the “${folder}/” folder.`
+                      : `Server-side search for “${search}”.`}
               </p>
-              <Button variant="secondary" size="sm" onClick={limparRecorte}>
+              <Button variant="secondary" size="sm" onClick={clearScope}>
                 See all
               </Button>
             </div>
@@ -366,11 +366,11 @@ export function PromptlyCatalogoPage() {
               <span>Prompts per page</span>
               <select
                 aria-label="Prompts per page"
-                value={String(porPagina)}
-                onChange={(e) => escolherTamanho(e.target.value)}
+                value={String(perPage)}
+                onChange={(e) => chooseSize(e.target.value)}
                 className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
               >
-                {TAMANHOS_DE_PAGINA.map((t) => (
+                {PAGE_SIZES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
@@ -385,10 +385,10 @@ export function PromptlyCatalogoPage() {
           {/* M16 — as pastas desta página, como atalho. Um catálogo plano continua navegável: os
               prompts soltos seguem na tabela abaixo, e a pasta é um caminho A MAIS, nunca um nível
               obrigatório. Quem nunca criou pasta não encontra a raiz vazia. */}
-          {pasta === '' && pastas.length > 0 ? (
+          {folder === '' && folders.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <span className="text-xs text-muted-foreground">Folders:</span>
-              {pastas.map((f) => (
+              {folders.map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -409,11 +409,11 @@ export function PromptlyCatalogoPage() {
           rowKey={(row) => row.name}
           loading={query.loading}
           emptyState={
-          <VazioDoCatalogo
-            estado={estadoVazio}
-            termo={busca}
-            temContinuacao={temContinuacao}
-            onLimpar={limparRecorte}
+          <CatalogEmptyState
+            estado={emptyState}
+            termo={search}
+            hasContinuation={hasContinuation}
+            onLimpar={clearScope}
             onTentarNovamente={() => void query.refetch()}
           />
         }
@@ -430,16 +430,16 @@ export function PromptlyCatalogoPage() {
  * porque o workspace pode estar cheio; num filtro sem resultado ela some porque o workspace ESTÁ
  * cheio — e a saída certa é limpar o filtro, não criar mais um prompt.
  */
-function VazioDoCatalogo({
+function CatalogEmptyState({
   estado,
   termo,
-  temContinuacao,
+  hasContinuation,
   onLimpar,
   onTentarNovamente,
 }: {
-  estado: EstadoVazio;
+  estado: EmptyStateCopy;
   termo: string;
-  temContinuacao: boolean;
+  hasContinuation: boolean;
   onLimpar: () => void;
   onTentarNovamente: () => void;
 }) {
@@ -472,7 +472,7 @@ function VazioDoCatalogo({
           // frase virou uma desculpa por uma limitação que não existe mais. O que a continuação
           // significa hoje é outra coisa, e é ela que o operador precisa saber: o servidor achou
           // MAIS do que coube nesta página.
-          temContinuacao
+          hasContinuation
             ? 'The server found more than fit on this page. Refine the term or ask for a larger page.'
             : 'The search ran across the whole workspace, not just this page. Clear the filter to see the full list.'
         }

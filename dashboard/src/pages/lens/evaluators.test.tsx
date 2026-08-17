@@ -113,6 +113,9 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/evaluators/ev_1',
       expect.objectContaining({ method: 'DELETE' }),
+      // B-244/B-235 — o contrato de erro. Sem ele uma recusa RESOLVIA `null`, o diálogo fechava e o
+      // avaliador voltava na leitura seguinte: o produto desfazendo a ação do usuário.
+      { throwOnError: true },
     );
   });
 

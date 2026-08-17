@@ -4,25 +4,17 @@
  * high-cardinality models into an "Others" series (opik convergence) so the line count stays legible.
  */
 import type {PercentileBucket, TrendSeries} from '@usetheo/ui';
+import type { ScoreBucket } from '@/hooks/lens/use-evaluator-scores';
+// B-244 — as formas dos buckets moram com os ENDPOINTS que as devolvem. Esta aritmética consome.
+import type {
+  TrafficBucket,
+  LatencyBucket,
+  ModelBucket,
+} from '@/hooks/lens/use-observability';
 
-export interface TrafficBucket {
-  periodStart: string;
-  traceCount: number;
-  errorCount: number;
-  errorRate: number;
-}
-export interface LatencyBucket {
-  periodStart: string;
-  p50Ms: number;
-  p95Ms: number;
-  p99Ms: number;
-}
-export interface ModelBucket {
-  periodStart: string;
-  model: string;
-  totalTokens: number;
-  costUsd: number;
-}
+
+
+
 
 // A fixed, colorblind-conscious palette; series index maps into it (wraps for safety).
 const PALETTE = ['#6366f1', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ec4899'];
@@ -131,14 +123,11 @@ export function tokensByModelSeries(rows: ModelBucket[], topN = 5): TrendSeries[
 }
 
 /** One `(period, evaluator)` cell of the M90 score time-series (mirrors theo-lens's `ScoreBucket`). */
-export interface ScoreBucket {
-  periodStart: string;
-  name: string;
-  sampleCount: number;
-  /** Mean of the numeric scores in this bucket — absent for a categorical-only evaluator. */
-  avgScore?: number;
-  labels: Record<string, number>;
-}
+// B-244 — a forma do bucket passou a morar com o ENDPOINT que a devolve
+// (`hooks/lens/use-evaluator-scores.ts`). Esta aritmética é consumidora dela, não dona: cinco
+// módulos leem `ScoreBucket`, e com a forma junto do endpoint o próximo campo do backend alcança
+// os cinco numa edição só.
+export type { ScoreBucket, TrafficBucket, LatencyBucket, ModelBucket };
 
 /**
  * Score over time (M90): one line per evaluator that recorded a numeric mean, over the shared
@@ -169,15 +158,15 @@ export function scoresToSeries(buckets: ScoreBucket[], topN = 6): TrendSeries[] 
   //
   // `NaN` e não `0`: uma média sobre zero amostras é **indefinida**, não zero. É a distinção que o
   // próprio produto já aplica nos KPIs — contagem aceita zero honesto, taxa não (`widgets.ts`).
-  const porNome = new Map<string, Map<number, number>>();
-  for (const n of names) porNome.set(n, new Map());
+  const byName = new Map<string, Map<number, number>>();
+  for (const n of names) byName.set(n, new Map());
   for (const b of numeric) {
     if (!nameSet.has(b.name)) continue;
-    porNome.get(b.name)!.set(idx.get(b.periodStart)!, b.avgScore!);
+    byName.get(b.name)!.set(idx.get(b.periodStart)!, b.avgScore!);
   }
   return names.map((n, i) => ({
     name: n,
     color: PALETTE[i % PALETTE.length],
-    points: periods.map((_, x) => ({ x, y: porNome.get(n)!.get(x) ?? Number.NaN })),
+    points: periods.map((_, x) => ({ x, y: byName.get(n)!.get(x) ?? Number.NaN })),
   }));
 }

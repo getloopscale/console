@@ -13,7 +13,7 @@
  *    clicar. A única rota faturável do produto é `POST /evaluations/runs`, fora desta jornada.
  */
 
-export type CamposPreview = Record<string, string>;
+export type PreviewFields = Record<string, string>;
 
 /**
  * Um campo por variável DECLARADA, na ordem em que a API as devolveu.
@@ -21,13 +21,13 @@ export type CamposPreview = Record<string, string>;
  * O `conteudo` entra só para manter a assinatura honesta com o chamador (ele tem o texto em
  * mãos) — e deliberadamente NÃO é lido: quem decide quais campos existem é a API.
  */
-export function camposDeVariaveis(
-  variaveis: readonly string[],
-  _conteudo: string,
-): CamposPreview {
-  const campos: CamposPreview = {};
-  for (const nome of variaveis) campos[nome] = '';
-  return campos;
+export function variableFields(
+  variables: readonly string[],
+  _content: string,
+): PreviewFields {
+  const fields: PreviewFields = {};
+  for (const name of variables) fields[name] = '';
+  return fields;
 }
 
 /** `{{ nome }}` com espaços internos tolerados — é o que a API aceita ao extrair `variables`. */
@@ -46,8 +46,8 @@ const MARCADOR = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
  *
  * Deduplicado e na ordem da 1ª aparição — o mesmo contrato que a API cumpre (medido).
  */
-export function variaveisDoTexto(conteudo: string): string[] {
-  const achadas = conteudo.match(MARCADOR) ?? [];
+export function textVariables(content: string): string[] {
+  const achadas = content.match(MARCADOR) ?? [];
   return [...new Set(achadas.map((m) => m.replace(/[{}\s]/g, '')))];
 }
 
@@ -58,10 +58,10 @@ export function variaveisDoTexto(conteudo: string): string[] {
  * segunda substituição. Reprocessar a saída seria injeção de template a partir de entrada do
  * operador.
  */
-export function renderTemplate(conteudo: string, valores: CamposPreview): string {
-  return conteudo.replace(MARCADOR, (marcador, nome: string) => {
-    const valor = valores[nome];
+export function renderTemplate(content: string, values: PreviewFields): string {
+  return content.replace(MARCADOR, (marcador, name: string) => {
+    const value = values[name];
     // Vazio ⇒ o marcador PERMANECE. Apagá-lo esconderia o buraco que o modelo receberia.
-    return valor === undefined || valor === '' ? marcador : valor;
+    return value === undefined || value === '' ? marcador : value;
   });
 }

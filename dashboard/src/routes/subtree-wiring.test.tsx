@@ -1,3 +1,9 @@
+// @vitest-environment node
+//
+// No JSX, no render, no DOM global. The classifier short-circuited on the `.tsx` extension
+// until the /review of 2026-08-13 refuted that axiom; widened, it found this file paying for
+// a browser it never opens (B-280).
+
 import { describe, it, expect } from 'vitest';
 import { createRoutesFromChildren } from 'react-router-dom';
 import { rotasDeTrust } from './trust-routes';

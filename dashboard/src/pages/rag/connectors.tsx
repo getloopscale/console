@@ -1,6 +1,6 @@
 import { useCollections } from '@/hooks/rag/use-collections';
+import { humanizeKey } from '@/lib/formatting/format';
 import { type ChangeEvent, useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plug, RefreshCw, Trash2 } from 'lucide-react';
 import {
   Button,
@@ -22,8 +22,15 @@ import { ProviderLogo } from '@/pages/rag/components/provider-logo';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, getApiBase } from '@/lib/http/api';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import { getApiBase } from '@/lib/http/api';
+import {
+  useConnections,
+  useOAuthProviders,
+  useSyncConnection,
+  useDisconnectConnection,
+  useConnectCredential,
+  type Connection,
+} from '@/hooks/rag/use-connectors';
 
 /**
  * #191 + M8 — /rag/connectors. See and manage the workspace's connector connections (list +
@@ -35,22 +42,8 @@ import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
  * (`GET .../connectors/providers`), so a "Connect with X" button never dead-ends on a 422.
  */
 
-interface Connection {
-  id: string;
-  provider_id: string;
-  collection_id: string;
-  status: string;
-  created_at?: string;
-}
-
-interface ConnectionsResult {
-  items: Connection[];
-}
 
 
-interface OAuthProvidersResult {
-  providers: string[];
-}
 
 // Human labels for the OAuth-refresh providers the broker knows. Fallback title-cases the slug so
 // a provider added server-side still renders sensibly before this map is updated.
@@ -66,7 +59,7 @@ const OAUTH_PROVIDER_LABELS: Record<string, string> = {
 };
 
 function providerLabel(provider: string): string {
-  return OAUTH_PROVIDER_LABELS[provider] ?? provider.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return OAUTH_PROVIDER_LABELS[provider] ?? humanizeKey(provider);
 }
 
 // Human messages for the broker's ?connect_error=<reason> redirect (rag_connectors_oauth.go). An
@@ -126,7 +119,6 @@ export function RagConnectorsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('RAG · Connectors'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const [pendingDelete, setPendingDelete] = useState<Connection | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -154,59 +146,34 @@ export function RagConnectorsPage() {
     window.history.replaceState({}, '', url.pathname + url.search + url.hash);
   }, [connected, connectError]);
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/connectors'] as const,
-    queryFn: () => cloudFetch<ConnectionsResult>(`/v1/dashboard/rag/connectors?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
-  const providersQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/connectors/providers'] as const,
-    queryFn: () => cloudFetch<OAuthProvidersResult>(`/v1/dashboard/rag/connectors/providers?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
+  const query = useConnections();
+  const providersQuery = useOAuthProviders();
   const collectionsQuery = useCollections();
 
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/connectors'] });
 
-  const sync = useMutation({
-    mutationFn: (c: Connection) =>
-      cloudFetch<unknown>(`/v1/dashboard/rag/connectors/${encodeURIComponent(c.id)}/sync`, {
-        method: 'POST',
-      }),
-    onSuccess: () => invalidate(),
-  });
-
-  const remove = useMutation({
-    mutationFn: (c: Connection) =>
-      cloudFetch<null>(`/v1/dashboard/rag/connectors/${encodeURIComponent(c.id)}`, {
-        method: 'DELETE',
-      }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
+  const sync = useSyncConnection();
+  const remove = useDisconnectConnection();
 
   // M12 — connect a paste-credential (non-OAuth) source. The BFF proxies the body opaquely to
   // theo-rag's POST /v1/connectors/{provider}/connect (credential encrypted at rest; never logged).
-  const connectCredential = useMutation({
-    mutationFn: () => {
-      const body: Record<string, string> = { collection_id: collectionID };
-      for (const f of CRED_PROVIDERS[credProvider]?.fields ?? []) {
-        const v = credFields[f.key]?.trim() ?? '';
-        if (v !== '') body[f.key] = v;
-      }
-      return cloudFetch<{ id: string }>(
-        `/v1/dashboard/rag/connectors/${encodeURIComponent(credProvider)}/connect`,
-        { method: 'POST', body: JSON.stringify(body) },
-      );
-    },
-    onSuccess: () => {
-      setCredProvider('');
-      setCredFields({});
-      setAddOpen(false);
-      invalidate();
-    },
-  });
+  const connectCredential = useConnectCredential();
+  const submitCredential = () => {
+    const body: Record<string, string> = { collection_id: collectionID };
+    for (const f of CRED_PROVIDERS[credProvider]?.fields ?? []) {
+      const v = credFields[f.key]?.trim() ?? '';
+      if (v !== '') body[f.key] = v;
+    }
+    connectCredential.mutate(
+      { provider: credProvider, body },
+      {
+        onSuccess: () => {
+          setCredProvider('');
+          setCredFields({});
+          setAddOpen(false);
+        },
+      },
+    );
+  };
 
   const credSpec = CRED_PROVIDERS[credProvider];
   const credComplete =
@@ -241,7 +208,7 @@ export function RagConnectorsPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => sync.mutate(row)}
+            onClick={() => sync.mutate(row.id)}
             disabled={sync.isPending}
             aria-label={`Sync ${row.id}`}
           >
@@ -412,7 +379,7 @@ export function RagConnectorsPage() {
                       </div>
                     ))}
                     <div className="flex justify-end pt-1">
-                      <Button disabled={!credComplete || connectCredential.isPending} onClick={() => connectCredential.mutate()}>
+                      <Button disabled={!credComplete || connectCredential.isPending} onClick={submitCredential}>
                         {connectCredential.isPending ? 'Connecting…' : `Connect ${credSpec.label}`}
                       </Button>
                     </div>
@@ -444,7 +411,10 @@ export function RagConnectorsPage() {
           cancelLabel="Cancel"
           intent="destructive"
           loading={remove.isPending}
-          onConfirm={() => remove.mutate(pendingDelete)}
+          onConfirm={async () => {
+            await remove.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+          }}
         />
       ) : null}
     </>

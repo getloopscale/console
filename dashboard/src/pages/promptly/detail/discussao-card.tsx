@@ -8,11 +8,11 @@ interface Props {
   comentando: UseMutationResult<unknown, unknown, string, unknown>;
   comentarios: ReturnType<typeof comentarioRows>;
   comentariosFalharam: boolean;
-  erroDeComentario: string | null;
-  novoComentario: string;
-  setNovoComentario: (v: string) => void;
+  commentError: string | null;
+  newComment: string;
+  setNewComment: (v: string) => void;
 
-  revisaoDiscutida: number | null;
+  discussedRevision: number | null;
 }
 
 /**
@@ -28,12 +28,12 @@ interface Props {
  * cada um responde uma pergunta própria e recebe entre um e seis símbolos.
  * Cortar por tamanho teria produzido metades sem nome.
  */
-export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comentariosFalharam, erroDeComentario, novoComentario, setNovoComentario }: Props) {
+export function DiscussaoCard({ discussedRevision, comentando, comentarios, comentariosFalharam, commentError, newComment, setNewComment }: Props) {
   return (
     <Card>
       <Card.Header>
         <Card.Title asChild>
-          <h2>Discussion {revisaoDiscutida !== null ? `on v${String(revisaoDiscutida)}` : ''}</h2>
+          <h2>Discussion {discussedRevision !== null ? `on v${String(discussedRevision)}` : ''}</h2>
         </Card.Title>
         <Card.Description>
           Why this revision exists, was rejected, or is ready. A comment belongs to the
@@ -48,8 +48,8 @@ export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comen
             description="The absence below is ignorance, not silence: there may be comments this screen failed to load."
           />
         ) : null}
-        {erroDeComentario !== null ? (
-          <Alert intent="destructive" title="The comment was not saved" description={erroDeComentario} />
+        {commentError !== null ? (
+          <Alert intent="destructive" title="The comment was not saved" description={commentError} />
         ) : null}
         {comentarios.length === 0 && !comentariosFalharam ? (
           <p className="text-sm text-muted-foreground">No comments on this revision.</p>
@@ -61,7 +61,7 @@ export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comen
                 <p className="pt-1 text-xs text-muted-foreground">
                   {/* Autor ausente é DITO: uma credencial sem identidade humana não tem autor,
                       e inventar um apareceria numa auditoria como fato. */}
-                  {c.author ?? 'author not recorded'}{c.quando === '' ? '' : ` · ${c.quando}`}
+                  {c.author ?? 'author not recorded'}{c.when === '' ? '' : ` · ${c.when}`}
                 </p>
               </li>
             ))}
@@ -69,8 +69,8 @@ export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comen
         )}
         <div className="flex flex-wrap items-start gap-2">
           <textarea
-            value={novoComentario}
-            onChange={(e) => { setNovoComentario(e.target.value); }}
+            value={newComment}
+            onChange={(e) => { setNewComment(e.target.value); }}
             aria-label="Comment on this revision"
             placeholder="why this revision exists, or why it should not go live"
             rows={2}
@@ -79,8 +79,8 @@ export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comen
           <Button
             variant="secondary"
             size="sm"
-            disabled={novoComentario.trim() === '' || comentando.isPending || revisaoDiscutida === null}
-            onClick={() => { comentando.mutate(novoComentario.trim()); }}
+            disabled={newComment.trim() === '' || comentando.isPending || discussedRevision === null}
+            onClick={() => { comentando.mutate(newComment.trim()); }}
           >
             Comentar
           </Button>

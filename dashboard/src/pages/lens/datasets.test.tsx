@@ -22,6 +22,10 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/datasets',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'reports' }) }),
+      // B-244/B-235 — o terceiro argumento é o contrato de erro. Sem ele uma recusa RESOLVIA
+      // `null`, o `onSuccess` disparava, o diálogo fechava e o campo era limpo: o usuário saía
+      // acreditando ter criado um dataset que não existe.
+      { throwOnError: true },
     );
   });
 
@@ -59,6 +63,21 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(screen.queryByText(/no items/i)).not.toBeInTheDocument(); // error must NOT read as empty
   });
 
+  // B-242 — the anchor for the assertion above. Without a case that renders "No items", the
+  // absence assertion is satisfied by the right behaviour and by a renamed empty state alike:
+  // change the title to "Nothing here" and the error case still passes, having stopped guarding
+  // anything. This case is what turns that rename red.
+  it('a dataset that loads with ZERO items shows the empty state — the text the error case denies', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 0 }] });
+      if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ items: [] });
+      return Promise.resolve({});
+    });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /open golden/i }));
+    expect(await screen.findByText(/no items/i)).toBeInTheDocument();
+  });
+
   it('an absent item count renders em-dash, a real 0 renders 0 (no fabricated count)', async () => {
     mockCloudFetch.mockResolvedValue({
       datasets: [
@@ -78,7 +97,19 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
       if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ id: 'ds_1', name: 'golden', items: [{ traceId: 'tr_9' }] });
       return Promise.resolve({});
     });
-    // deep-link straight to an open dataset via the URL param — the items panel loads without a click
+    // Deep-link straight to an open dataset via the URL param — the items panel loads without a
+    // click.
+    //
+    // B-283 — `initialEntries` feeds the MemoryRouter and NOTHING else. nuqs's react-router
+    // adapter reads `window.location.search` at mount (see `src/test/render.tsx`), so the param
+    // has to be in jsdom's URL or the page mounts with no dataset selected.
+    //
+    // This case was GREEN for three months without that line, and for a reason worth naming: the
+    // `open golden` clicks in the cases above left `?dataset=ds_1` in the shared jsdom URL, and
+    // nothing reset it between cases. A test titled "deep-linkable" was passing on state another
+    // test had left behind — in isolation it fails, and it always would have. Closing the leak is
+    // what surfaced it.
+    window.history.replaceState(null, '', '/observability/datasets?dataset=ds_1');
     render(<LensDatasetsPage />, { initialEntries: ['/observability/datasets?dataset=ds_1'] });
     expect(await screen.findByText('tr_9')).toBeInTheDocument(); // the ds_1 items panel is open from the URL
   });
@@ -151,6 +182,8 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/datasets/ds_1/items/tr_9',
       expect.objectContaining({ method: 'DELETE' }),
+      // Mesma falta, efeito oposto: a linha sumia da tela e voltava na leitura seguinte.
+      { throwOnError: true },
     );
   });
 });

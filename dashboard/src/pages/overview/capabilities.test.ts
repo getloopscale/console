@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { MENUS } from '@/components/layout/app-sidebar-menus';
 import { CAPACIDADES, estadoDaCapacidade, type EstadoDaCapacidade } from './capabilities';
@@ -92,39 +93,39 @@ describe('o estado de uma capacidade nunca confunde ignorância com ausência', 
     // porque a leitura caiu convida o usuário a concluir que a capacidade não serve para nada —
     // e ele não volta para conferir. É a mesma distinção que este repositório defende em toda
     // superfície de leitura: "não consegui ler" ≠ "não há".
-    expect(estadoDaCapacidade(contagem, { falhou: true, carregando: false, dados: null })).toBe('nao-lida');
-    expect(estadoDaCapacidade(presenca, { falhou: true, carregando: false, dados: null })).toBe('nao-lida');
+    expect(estadoDaCapacidade(contagem, { failed: true, loading: false, dados: null })).toBe('nao-lida');
+    expect(estadoDaCapacidade(presenca, { failed: true, loading: false, dados: null })).toBe('nao-lida');
   });
 
   it('consulta ASSENTADA sem dado também é falha, não vazio', () => {
     // O caso que `system-status-indicator.tsx` documenta: um 2xx sem corpo, ou um erro que a
     // camada engoliu, chega como "assentada e vazia". Tratá-lo como capacidade não adotada é
     // publicar uma afirmação sobre o workspace a partir de uma resposta que não a sustenta.
-    expect(estadoDaCapacidade(contagem, { falhou: false, carregando: false, dados: null })).toBe('nao-lida');
+    expect(estadoDaCapacidade(contagem, { failed: false, loading: false, dados: null })).toBe('nao-lida');
   });
 
   it('zero é zero — capacidade lida e genuinamente vazia é "não adotada"', () => {
     // A contraparte. Sem ela, o conserto acima poderia ter sido "tudo vira não-lida", e a tela
     // deixaria de distinguir quem nunca usou de quem não conseguiu ler.
     expect(
-      estadoDaCapacidade(contagem, { falhou: false, carregando: false, dados: { total_memories: 0 } }),
+      estadoDaCapacidade(contagem, { failed: false, loading: false, dados: { total_memories: 0 } }),
     ).toBe('nao-adotada');
     expect(
-      estadoDaCapacidade(contagem, { falhou: false, carregando: false, dados: { total_memories: 12 } }),
+      estadoDaCapacidade(contagem, { failed: false, loading: false, dados: { total_memories: 12 } }),
     ).toBe('em-uso');
   });
 
   it('`em-breve` ignora a consulta — não há o que ler', () => {
     const emBreve = CAPACIDADES.find((c) => c.sinal.tipo === 'em-breve')!.sinal;
-    expect(estadoDaCapacidade(emBreve, { falhou: true, carregando: true, dados: null })).toBe('em-breve');
+    expect(estadoDaCapacidade(emBreve, { failed: true, loading: true, dados: null })).toBe('em-breve');
   });
 
   it('presença responde ADOÇÃO, e não finge quantidade', () => {
     expect(
-      estadoDaCapacidade(presenca, { falhou: false, carregando: false, dados: { traffic: [] } }),
+      estadoDaCapacidade(presenca, { failed: false, loading: false, dados: { traffic: [] } }),
     ).toBe('nao-adotada');
     expect(
-      estadoDaCapacidade(presenca, { falhou: false, carregando: false, dados: { traffic: [{}] } }),
+      estadoDaCapacidade(presenca, { failed: false, loading: false, dados: { traffic: [{}] } }),
     ).toBe('em-uso');
   });
 });

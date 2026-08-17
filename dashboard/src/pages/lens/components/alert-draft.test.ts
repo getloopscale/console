@@ -1,9 +1,10 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
   EMPTY_ALERT_DRAFT,
   METRICA_DE_PROMPT,
   alertProblems,
-  exigeNomeDePrompt,
+  requiresPromptName,
   toCreateBody,
   visibleAlertProblems,
 } from './alert-draft';
@@ -17,9 +18,9 @@ import {
 
 describe('exigeNomeDePrompt', () => {
   it('é verdadeiro só para a métrica de prompt', () => {
-    expect(exigeNomeDePrompt(METRICA_DE_PROMPT)).toBe(true);
+    expect(requiresPromptName(METRICA_DE_PROMPT)).toBe(true);
     for (const m of ['error_rate', 'cost', 'p95_latency', '']) {
-      expect(exigeNomeDePrompt(m)).toBe(false);
+      expect(requiresPromptName(m)).toBe(false);
     }
   });
 
@@ -27,7 +28,7 @@ describe('exigeNomeDePrompt', () => {
     // `startsWith('prompt_')` passaria em tudo acima e ainda assim estaria errado: uma métrica
     // futura de nome parecido — mas de outra fonte — pediria um campo que não lhe serve.
     for (const m of ['prompt_', 'prompt_p50_latency', 'prompt_resolutions_v2']) {
-      expect(exigeNomeDePrompt(m)).toBe(false);
+      expect(requiresPromptName(m)).toBe(false);
     }
   });
 });

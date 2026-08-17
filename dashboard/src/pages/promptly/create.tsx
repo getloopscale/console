@@ -7,9 +7,9 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { createRevision } from '@/hooks/promptly/promptly-api';
-import { DESCRICAO_MAX, validarCriacao, fraseDePermanencia } from '@/pages/promptly/components/create-form';
-import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from '@/pages/promptly/components/preview';
-import { mensagemDeRecusa } from '@/pages/promptly/components/rollback';
+import { DESCRIPTION_MAX, validarCriacao, fraseDePermanencia } from '@/pages/promptly/components/create-form';
+import { variableFields, renderTemplate, textVariables } from '@/pages/promptly/components/preview';
+import { rejectionMessage } from '@/pages/promptly/components/rollback';
 
 /**
  * M12 T3 — `/promptly/new`: autorar uma revisão.
@@ -33,15 +33,15 @@ export function PromptlyCreatePage() {
 
   // Vindo do detalhe de um prompt, o nome chega pronto e o operador não o redigita — redigitar
   // um nome é como se cria um prompt novo por engano.
-  const nomeSugerido = params.get('name') ?? '';
-  const proximaVersao = Number(params.get('next') ?? '1') || 1;
+  const suggestedName = params.get('name') ?? '';
+  const nextVersion = Number(params.get('next') ?? '1') || 1;
 
-  const [nome, setNome] = useState(nomeSugerido);
-  const [conteudo, setConteudo] = useState('');
-  const [valores, setValores] = useState<Record<string, string>>({});
+  const [name, setNome] = useState(suggestedName);
+  const [content, setConteudo] = useState('');
+  const [values, setValores] = useState<Record<string, string>>({});
   const [recusa, setRecusa] = useState<string | null>(null);
   // M17 — o porquê desta revisão. Obrigatório NESTA tela (ADR-3): quem decide está aqui.
-  const [descricao, setDescricao] = useState('');
+  const [description, setDescricao] = useState('');
 
   // `useMutation` e não `async/await` cru num handler: é a convenção do repositório para escritas
   // (`detail.tsx` faz assim na promoção e na reversão) e dispensa dois `useState` mantidos à mão.
@@ -51,32 +51,32 @@ export function PromptlyCreatePage() {
   // pelo mesmo motivo depois da troca. A hipótese estava errada, e fica registrada como errada
   // para ninguém a repetir. A mudança permanece porque se sustenta sozinha (consistência com as
   // outras duas escritas do módulo, menos estado à mão), não pelo motivo que me trouxe até ela.
-  const criar = useMutation({
-    mutationFn: () => createRevision<unknown>(nome.trim(), conteudo, { changeDescription: descricao.trim() }),
-    onSuccess: () => navigate(`/promptly/${encodeURIComponent(nome.trim())}`),
-    onError: (err: unknown) => setRecusa(mensagemDeRecusa(err)),
+  const create = useMutation({
+    mutationFn: () => createRevision<unknown>(name.trim(), content, { changeDescription: description.trim() }),
+    onSuccess: () => navigate(`/promptly/${encodeURIComponent(name.trim())}`),
+    onError: (err: unknown) => setRecusa(rejectionMessage(err)),
   });
 
-  const validacao = validarCriacao({ nome, descricao });
+  const validacao = validarCriacao({ name, description });
 
   // As variáveis desta tela ainda não têm resposta da API para consultar — o conteúdo está sendo
   // digitado agora. Aqui, e SÓ aqui, elas são extraídas do texto; em toda tela de leitura a
   // lista vem de `variables`, que o serviço declara.
-  const declaradas = useMemo(() => variaveisDoTexto(conteudo), [conteudo]);
+  const declaradas = useMemo(() => textVariables(content), [content]);
 
-  const campos = camposDeVariaveis(declaradas, conteudo);
-  const renderizado = renderTemplate(conteudo, { ...campos, ...valores });
+  const fields = variableFields(declaradas, content);
+  const renderizado = renderTemplate(content, { ...fields, ...values });
 
-  function salvar() {
+  function save() {
     if (!validacao.ok) return;
     setRecusa(null);
-    criar.mutate();
+    create.mutate();
   }
 
   return (
     <PageShell
       title="New revision"
-      description={fraseDePermanencia(nomeSugerido !== '', proximaVersao)}
+      description={fraseDePermanencia(suggestedName !== '', nextVersion)}
     >
       {recusa ? (
         <Alert intent="destructive" title="The revision was not created" description={recusa} />
@@ -99,14 +99,14 @@ export function PromptlyCreatePage() {
               <input
                 aria-label="Prompt name"
                 className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
-                value={nome}
+                value={name}
                 onChange={(e) => setNome(e.target.value)}
-                readOnly={nomeSugerido !== ''}
+                readOnly={suggestedName !== ''}
                 placeholder="onboarding.welcome"
               />
             </FormField.Control>
-            {nome !== '' && validacao.erroNome !== null ? (
-              <FormField.Error>{validacao.erroNome}</FormField.Error>
+            {name !== '' && validacao.nameError !== null ? (
+              <FormField.Error>{validacao.nameError}</FormField.Error>
             ) : null}
           </FormField>
 
@@ -116,18 +116,18 @@ export function PromptlyCreatePage() {
               <input
                 aria-label="Why this revision exists"
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                value={descricao}
+                value={description}
                 onChange={(e) => setDescricao(e.target.value)}
-                maxLength={DESCRICAO_MAX}
+                maxLength={DESCRIPTION_MAX}
                 placeholder="shortened the preamble to reduce tokens"
               />
             </FormField.Control>
             {/* O teto é dito ANTES de o operador estourar, não depois de a submissão falhar. */}
             <FormField.Hint>
-              {`${String(descricao.trim().length)}/${String(DESCRICAO_MAX)} — the diff shows what changed; this explains why.`}
+              {`${String(description.trim().length)}/${String(DESCRIPTION_MAX)} — the diff shows what changed; this explains why.`}
             </FormField.Hint>
-            {descricao !== '' && validacao.erroDescricao !== null ? (
-              <FormField.Error>{validacao.erroDescricao}</FormField.Error>
+            {description !== '' && validacao.descriptionError !== null ? (
+              <FormField.Error>{validacao.descriptionError}</FormField.Error>
             ) : null}
           </FormField>
 
@@ -138,7 +138,7 @@ export function PromptlyCreatePage() {
                 aria-label="Prompt text"
                 rows={12}
                 className="font-mono text-sm"
-                value={conteudo}
+                value={content}
                 onChange={(e) => setConteudo(e.target.value)}
                 placeholder={'You are a {{product}} assistant. Answer in {{language}}.'}
               />
@@ -171,7 +171,7 @@ export function PromptlyCreatePage() {
                   <input
                     aria-label={v}
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={valores[v] ?? ''}
+                    value={values[v] ?? ''}
                     onChange={(e) => setValores((atual) => ({ ...atual, [v]: e.target.value }))}
                   />
                 </FormField.Control>
@@ -192,13 +192,13 @@ export function PromptlyCreatePage() {
       </Card>
 
       <div className="flex gap-3">
-        <Button onClick={salvar} disabled={!validacao.ok || criar.isPending}>
-          {criar.isPending ? 'Creating…' : `Create revision v${proximaVersao}`}
+        <Button onClick={save} disabled={!validacao.ok || create.isPending}>
+          {create.isPending ? 'Creating…' : `Create revision v${nextVersion}`}
         </Button>
         {/* Saída explícita. Um formulário sem volta prende o operador na tela que ele abriu por
             engano — e aqui a tecla de escape é voltar, não gravar algo imutável. */}
         <Button variant="ghost" asChild>
-          <Link to={nomeSugerido ? `/promptly/${encodeURIComponent(nomeSugerido)}` : '/promptly'}>
+          <Link to={suggestedName ? `/promptly/${encodeURIComponent(suggestedName)}` : '/promptly'}>
             Cancelar
           </Link>
         </Button>

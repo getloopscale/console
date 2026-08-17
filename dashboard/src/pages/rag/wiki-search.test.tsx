@@ -60,7 +60,7 @@ describe('B-238 — "não achei" e "não consegui ler" não são a mesma frase',
   // "No matching pages" — a afirmação mais confiante possível sobre um acervo que ninguém leu.
 
   it('com a leitura FALHA, diz que a busca não percorreu o acervo', () => {
-    render(<WikiSearch open onClose={vi.fn()} pages={[]} onSelect={vi.fn()} leituraFalhou />);
+    render(<WikiSearch open onClose={vi.fn()} pages={[]} onSelect={vi.fn()} readFailed />);
 
     expect(screen.getByText(/could not be read/i)).toBeInTheDocument();
     expect(screen.queryByText('No matching pages.')).toBeNull();

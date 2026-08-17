@@ -47,12 +47,12 @@ export function BundlesPage() {
   useRequireAuth();
 
   const invalidarBundles = useInvalidateBundles();
-  const [nome, setNome] = useState('');
+  const [name, setNome] = useState('');
   const [erroCriacao, setErroCriacao] = useState<string | null>(null);
 
     const query = useBundles<BundlesPayload>();
 
-  const criar = useMutation({
+  const create = useMutation({
     mutationFn: (name: string) => createBundle<BundleSummary>(name),
     onSuccess: () => {
       setNome('');
@@ -156,21 +156,21 @@ export function BundlesPage() {
           className="flex gap-2 px-6 pb-6"
           onSubmit={(e) => {
             e.preventDefault();
-            const limpo = nome.trim();
+            const limpo = name.trim();
             if (limpo === '') return;
-            criar.mutate(limpo);
+            create.mutate(limpo);
           }}
         >
           <Input
             aria-label="Bundle name"
             placeholder="e.g. support skills"
-            value={nome}
+            value={name}
             onChange={(e) => setNome(e.target.value)}
           />
           {/* Desabilitado enquanto vazio: o backend recusaria, e deixar clicável ensinaria o
               operador a descobrir a regra pelo erro. */}
-          <Button type="submit" disabled={nome.trim() === '' || criar.isPending}>
-            {criar.isPending ? 'Creating…' : 'Create bundle'}
+          <Button type="submit" disabled={name.trim() === '' || create.isPending}>
+            {create.isPending ? 'Creating…' : 'Create bundle'}
           </Button>
         </form>
       </Card>

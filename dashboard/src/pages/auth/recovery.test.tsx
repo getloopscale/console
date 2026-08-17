@@ -300,7 +300,12 @@ describe('RecoveryPage', () => {
     mockSubmitFlow.mockResolvedValueOnce({ state: 'passed_challenge' });
     mockInitFlow.mockResolvedValueOnce(passwordPhaseFlow());
     mockSubmitFlow.mockResolvedValueOnce(
-      passwordPhaseFlowWithError('the password is too similar to the user identifier'),
+      // The upstream text carries BOTH leak words on purpose. Without them this test's
+      // "no internal jargon" assertions below could not fail: they would be querying for strings
+      // the case never introduced, and would pass just as well with the mapping deleted.
+      passwordPhaseFlowWithError(
+        'kratos: identifier similarity check failed — the password is too similar to the user identifier',
+      ),
     );
 
     const user = userEvent.setup();
@@ -319,7 +324,9 @@ describe('RecoveryPage', () => {
         screen.getByText(/doesn't contain your email or username/i),
       ).toBeInTheDocument();
     });
-    // EC-2 Rule 3: NO mention of internal "identifier similarity" / Kratos in UI
+    // EC-2 Rule 3: NO mention of internal "identifier similarity" / Kratos in the UI. These can
+    // fail because the upstream message above contains both words — remove the mapping and the raw
+    // text renders here.
     expect(screen.queryByText(/identifier similarity/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/kratos/i)).not.toBeInTheDocument();
   });
@@ -508,7 +515,11 @@ describe('RecoveryPage', () => {
   // D6: Kratos 5xx → product-language
   it('test_recovery_kratos_5xx_shows_product_language', async () => {
     mockGetFlow.mockResolvedValueOnce(emailPhaseFlow());
-    mockSubmitFlow.mockRejectedValueOnce(new Error('Internal Server Error: 500'));
+    // Same reasoning as EC-2: the raw error names the internal component and the credential
+    // method, so the leakage assertions below are able to fail.
+    mockSubmitFlow.mockRejectedValueOnce(
+      new Error('Internal Server Error: 500 — kratos credential method "code" failed'),
+    );
 
     const user = userEvent.setup();
     render(<RecoveryPage />, { initialEntries: ['/recovery?flow=rec-flow-1'] });

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { ApiError } from '@/lib/http/api';
 
-import { camposDeVariaveis, podeRodar, classificarFalha } from './playground';
+import { variableFields, canRun, classificarFalha } from './playground';
 
 /**
  * M14 T3.1 — a lógica que decide se um botão FATURÁVEL está habilitado, e como
@@ -15,14 +15,14 @@ import { camposDeVariaveis, podeRodar, classificarFalha } from './playground';
  */
 describe('camposDeVariaveis — DoD-2: os campos vêm do que a API DECLARA', () => {
   it('deriva exatamente um campo por variavel declarada, na ordem de declaracao', () => {
-    expect(camposDeVariaveis(['topico', 'artigo'], []).map((c) => c.nome)).toEqual([
+    expect(variableFields(['topico', 'artigo'], []).map((c) => c.name)).toEqual([
       'topico',
       'artigo',
     ]);
   });
 
   it('prompt sem variavel alguma nao produz campo algum', () => {
-    expect(camposDeVariaveis([], [])).toEqual([]);
+    expect(variableFields([], [])).toEqual([]);
   });
 
   /**
@@ -32,29 +32,29 @@ describe('camposDeVariaveis — DoD-2: os campos vêm do que a API DECLARA', () 
    */
   it('ao trocar de prompt, descarta a variavel que sumiu e preserva o valor da que ficou', () => {
     const antes = [
-      { nome: 'topico', valor: 'chuva' },
-      { nome: 'antiga', valor: 'x' },
+      { name: 'topico', value: 'chuva' },
+      { name: 'antiga', value: 'x' },
     ];
 
-    expect(camposDeVariaveis(['topico', 'nova'], antes)).toEqual([
-      { nome: 'topico', valor: 'chuva' },
-      { nome: 'nova', valor: '' },
+    expect(variableFields(['topico', 'nova'], antes)).toEqual([
+      { name: 'topico', value: 'chuva' },
+      { name: 'nova', value: '' },
     ]);
   });
 
   it('a ordem segue a DECLARACAO, nao a ordem do que ja estava digitado', () => {
     const antes = [
-      { nome: 'b', valor: '2' },
-      { nome: 'a', valor: '1' },
+      { name: 'b', value: '2' },
+      { name: 'a', value: '1' },
     ];
 
-    expect(camposDeVariaveis(['a', 'b'], antes).map((c) => c.nome)).toEqual(['a', 'b']);
+    expect(variableFields(['a', 'b'], antes).map((c) => c.name)).toEqual(['a', 'b']);
   });
 });
 
 describe('podeRodar — DoD-5: não dá para gastar sem preencher', () => {
   it('e falso quando qualquer variavel esta vazia', () => {
-    expect(podeRodar([{ nome: 'topico', valor: '' }], 'sk-x')).toBe(false);
+    expect(canRun([{ name: 'topico', value: '' }], 'sk-x')).toBe(false);
   });
 
   /**
@@ -64,19 +64,19 @@ describe('podeRodar — DoD-5: não dá para gastar sem preencher', () => {
    * operador achando que gastou.
    */
   it('e falso quando a variavel tem so espacos', () => {
-    expect(podeRodar([{ nome: 'topico', valor: '   ' }], 'sk-x')).toBe(false);
+    expect(canRun([{ name: 'topico', value: '   ' }], 'sk-x')).toBe(false);
   });
 
   it('e falso sem credencial', () => {
-    expect(podeRodar([{ nome: 'topico', valor: 'chuva' }], '')).toBe(false);
+    expect(canRun([{ name: 'topico', value: 'chuva' }], '')).toBe(false);
   });
 
   it('e verdadeiro com tudo preenchido', () => {
-    expect(podeRodar([{ nome: 'topico', valor: 'chuva' }], 'sk-x')).toBe(true);
+    expect(canRun([{ name: 'topico', value: 'chuva' }], 'sk-x')).toBe(true);
   });
 
   it('prompt sem variavel alguma pode rodar so com a credencial', () => {
-    expect(podeRodar([], 'sk-x')).toBe(true);
+    expect(canRun([], 'sk-x')).toBe(true);
   });
 });
 
@@ -110,13 +110,13 @@ describe('classificarFalha — DoD-5: o motivo do provider, ou o genérico hones
       new ApiError(422, { error: 'model_refused', providerStatus: 401, message: 'chave inválida' }),
     );
 
-    expect(f).toMatchObject({ tipo: 'provider', mensagem: 'chave inválida', providerStatus: 401 });
+    expect(f).toMatchObject({ tipo: 'provider', message: 'chave inválida', providerStatus: 401 });
   });
 
   it('nomeia a variavel faltante, para a tela poder apontar o campo', () => {
     const f = classificarFalha(new ApiError(400, { error: 'missing_variable', variable: 'artigo' }));
 
-    expect(f).toMatchObject({ tipo: 'validacao', variavelFaltante: 'artigo' });
+    expect(f).toMatchObject({ tipo: 'validacao', missingVariable: 'artigo' });
   });
 
   /**
@@ -149,7 +149,7 @@ describe('classificarFalha — DoD-5: o motivo do provider, ou o genérico hones
     const f = classificarFalha(new ApiError(413, undefined));
 
     expect(f).toMatchObject({ tipo: 'validacao' });
-    expect((f as { motivo?: string }).motivo).toMatch(/too large/i);
+    expect((f as { reason?: string }).reason).toMatch(/too large/i);
   });
 
   it('um erro que nao e ApiError cai em transporte, sem estourar', () => {

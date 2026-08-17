@@ -19,7 +19,7 @@ export interface ConfigTabProps {
   readonly ilegivel: boolean;
   readonly versao: number | null;
   readonly modelConfig: ModelConfigLido | null;
-  readonly variaveis: readonly string[];
+  readonly variables: readonly string[];
 }
 
 /**
@@ -33,7 +33,7 @@ export interface ConfigTabProps {
  * mudar de prompt para prompt, e o operador aprenderia que "às vezes tem config". Uma aba honesta e
  * curta é melhor que uma navegação que varia.
  */
-export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTabProps) {
+export function ConfigTab({ ilegivel, versao, modelConfig, variables }: ConfigTabProps) {
   if (ilegivel) {
     return (
       <Alert
@@ -44,7 +44,7 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
     );
   }
 
-  const temConfig =
+  const hasConfig =
     modelConfig !== null &&
     (modelConfig.model !== undefined ||
       modelConfig.temperature !== undefined ||
@@ -63,7 +63,7 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
-          {!temConfig ? (
+          {!hasConfig ? (
             // Dito, nunca em branco: espaço vazio lê-se como "não carregou". A ausência é um fato
             // sobre a revisão — as anteriores ao M17 não têm config, e inventar uma retroativamente
             // apareceria numa auditoria como se alguém a tivesse escolhido.
@@ -106,13 +106,13 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
-          {variaveis.length === 0 ? (
+          {variables.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No variables — the prompt is served exactly as written.
             </p>
           ) : (
             <ul className="flex flex-wrap gap-2">
-              {variaveis.map((v) => (
+              {variables.map((v) => (
                 <li key={v} className="rounded-full border px-2 py-0.5 font-mono text-xs">
                   {v}
                 </li>

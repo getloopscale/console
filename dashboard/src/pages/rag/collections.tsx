@@ -1,6 +1,10 @@
-import { useCollections, collectionsQueryKey } from '@/hooks/rag/use-collections';
+import {
+  useCollections,
+  useCreateCollection,
+  useDeleteCollection,
+  type Collection,
+} from '@/hooks/rag/use-collections';
 import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import {
   Button,
@@ -18,7 +22,6 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
 
 /**
  * M21 — /rag/collections. Create, list, and delete the workspace's RAG collections
@@ -26,49 +29,20 @@ import { cloudFetch } from '@/lib/http/api';
  * theo-memory dashboard's list + ConfirmDialog-delete pattern.
  */
 
-interface Collection {
-  id: string;
-  name: string | null;
-  created_at?: string;
-}
 
 
 export function RagCollectionsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('RAG · Collections'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Collection | null>(null);
 
   const query = useCollections();
 
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: collectionsQueryKey });
-
-  const create = useMutation({
-    mutationFn: (n: string) =>
-      cloudFetch<Collection>('/v1/dashboard/rag/collections', {
-        method: 'POST',
-        body: JSON.stringify({ name: n }),
-      }),
-    onSuccess: () => {
-      setName('');
-      invalidate();
-    },
-  });
-
-  const remove = useMutation({
-    mutationFn: (c: Collection) =>
-      cloudFetch<null>(`/v1/dashboard/rag/collections/${encodeURIComponent(c.id)}`, {
-        method: 'DELETE',
-      }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
+  const create = useCreateCollection();
+  const remove = useDeleteCollection();
 
   const columns: DataTableColumn<Collection>[] = [
     { key: 'name', label: 'Name', render: (row) => <span>{row.name ?? '—'}</span> },
@@ -102,7 +76,7 @@ export function RagCollectionsPage() {
                 className="flex items-end gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (name.trim()) create.mutate(name.trim());
+                  if (name.trim()) create.mutate(name.trim(), { onSuccess: () => setName('') });
                 }}
               >
                 <div className="flex-1">
@@ -155,7 +129,10 @@ export function RagCollectionsPage() {
           cancelLabel="Cancel"
           intent="destructive"
           loading={remove.isPending}
-          onConfirm={() => remove.mutate(pendingDelete)}
+          onConfirm={async () => {
+            await remove.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+          }}
         />
       ) : null}
     </>

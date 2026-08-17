@@ -206,7 +206,7 @@ describe('onboarding com fonte indisponivel (B-094)', () => {
   it('nao aparece quando a leitura de whoami falhou', () => {
     mockUseWhoami.mockReturnValue({ whoami: null, loading: false, error: true });
     const { result } = renderHook(() => useOnboardingState());
-    expect(result.current.fonteIndisponivel).toBe(true);
+    expect(result.current.sourceUnavailable).toBe(true);
     expect(
       result.current.isVisible,
         'O painel apareceu com a leitura de whoami falhando — ele diria "faca login" a alguem que ja esta logado, porque `logged_in` deriva de `!!whoami`.',
@@ -216,7 +216,7 @@ describe('onboarding com fonte indisponivel (B-094)', () => {
   it('nao aparece quando a leitura de projetos falhou', () => {
     mockUseProjects.mockReturnValue({ projects: [], total: 0, loading: false, error: true });
     const { result } = renderHook(() => useOnboardingState());
-    expect(result.current.fonteIndisponivel).toBe(true);
+    expect(result.current.sourceUnavailable).toBe(true);
     expect(
       result.current.isVisible,
       'O painel apareceu com a leitura de projetos falhando — ele diria "crie um projeto" a quem talvez ja tenha varios.',
@@ -227,7 +227,7 @@ describe('onboarding com fonte indisponivel (B-094)', () => {
     mockUseWhoami.mockReturnValue({ whoami: { user_id: 'u1' }, loading: false, error: false });
     mockUseProjects.mockReturnValue({ projects: [], total: 0, loading: false, error: false });
     const { result } = renderHook(() => useOnboardingState());
-    expect(result.current.fonteIndisponivel).toBe(false);
+    expect(result.current.sourceUnavailable).toBe(false);
     expect(
       result.current.isVisible,
       'O guarda do lado oposto: esconder o painel quando as leituras funcionam tiraria o onboarding de quem de fato precisa dele.',

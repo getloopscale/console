@@ -25,9 +25,9 @@ import { attentionItems, ATTENTION_SOURCES, type AttentionReading } from './atte
  */
 
 const semNada: AttentionReading = {
-  observability: { falhou: false, carregando: false, dados: null },
-  rag: { falhou: false, carregando: false, dados: null },
-  trust: { falhou: false, carregando: false, dados: null },
+  observability: { failed: false, loading: false, dados: null },
+  rag: { failed: false, loading: false, dados: null },
+  trust: { failed: false, loading: false, dados: null },
 };
 
 /** Tráfego com `n` erros em `total` traces, num balde só. */
@@ -71,7 +71,7 @@ describe('nenhum item é inventado', () => {
   it('leitura que FALHOU não vira item de atenção', () => {
     const falhou: AttentionReading = {
       ...semNada,
-      observability: { falhou: true, carregando: false, dados: null },
+      observability: { failed: true, loading: false, dados: null },
     };
     expect(attentionItems(falhou)).toEqual([]);
   });
@@ -88,7 +88,7 @@ describe('os três sinais que o dado sustenta', () => {
   it('erro de agente vira item quando passa do limiar', () => {
     const itens = attentionItems({
       ...semNada,
-      observability: { falhou: false, carregando: false, dados: trafego(1000, 120) },
+      observability: { failed: false, loading: false, dados: trafego(1000, 120) },
     });
     const erro = itens.find((i) => i.id === 'agent-errors');
     expect(erro, '12% de erro e nenhum item').toBeDefined();
@@ -101,7 +101,7 @@ describe('os três sinais que o dado sustenta', () => {
     // que ninguém lê, e aí ela deixa de mostrar o caso real.
     const itens = attentionItems({
       ...semNada,
-      observability: { falhou: false, carregando: false, dados: trafego(1000, 2) },
+      observability: { failed: false, loading: false, dados: trafego(1000, 2) },
     });
     expect(itens.find((i) => i.id === 'agent-errors')).toBeUndefined();
   });
@@ -110,8 +110,8 @@ describe('os três sinais que o dado sustenta', () => {
     const itens = attentionItems({
       ...semNada,
       rag: {
-        falhou: false,
-        carregando: false,
+        failed: false,
+        loading: false,
         dados: { totals: { retrievals: 4000, answers: 3800, empty_retrieval_rate: 0.12 } },
       },
     });
@@ -126,8 +126,8 @@ describe('os três sinais que o dado sustenta', () => {
     const itens = attentionItems({
       ...semNada,
       trust: {
-        falhou: false,
-        carregando: false,
+        failed: false,
+        loading: false,
         dados: {
           events: [
             { decision: 'block', validatorName: 'pii-email' },
@@ -146,7 +146,7 @@ describe('os três sinais que o dado sustenta', () => {
   it('zero bloqueios não vira item', () => {
     const itens = attentionItems({
       ...semNada,
-      trust: { falhou: false, carregando: false, dados: { events: [{ decision: 'allow' }] } },
+      trust: { failed: false, loading: false, dados: { events: [{ decision: 'allow' }] } },
     });
     expect(itens.find((i) => i.id === 'blocked')).toBeUndefined();
   });
@@ -157,13 +157,13 @@ describe('a ordem é por severidade, não por fonte', () => {
     // Quem lê a faixa lê de cima. Ordenar pela ordem em que as fontes foram declaradas colocaria
     // um aviso acima de um crítico por acidente de código.
     const itens = attentionItems({
-      observability: { falhou: false, carregando: false, dados: trafego(1000, 120) },
+      observability: { failed: false, loading: false, dados: trafego(1000, 120) },
       rag: {
-        falhou: false,
-        carregando: false,
+        failed: false,
+        loading: false,
         dados: { totals: { retrievals: 100, answers: 95, empty_retrieval_rate: 0.06 } },
       },
-      trust: { falhou: false, carregando: false, dados: { events: [] } },
+      trust: { failed: false, loading: false, dados: { events: [] } },
     });
     expect(itens.length).toBeGreaterThanOrEqual(2);
     expect(itens[0].severity).toBe('critical');

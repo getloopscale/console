@@ -1,3 +1,4 @@
+// @vitest-environment node
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
@@ -60,12 +61,50 @@ const SRC = resolve(__dirname, '../..');
  * 35 later the same day, with `memory/exports.tsx` migrated (B-244). Both of its calls were in the
  * set, and one of them was swallowing a refused export in silence.
  *
+ * 33 with `lens/datasets.tsx` migrated — creating a dataset and removing an item from one, both
+ * reporting a success the server had refused.
+ *
+ * 30 with `lens/traces/metadata-card.tsx`. Three of its four calls were in the set, and one of the
+ * three cleared a textarea the user had typed into — the first case where the missing contract
+ * destroyed work rather than misreporting state.
+ *
+ * 28 with `lens/evaluators.tsx`, which raised that bar: its create cleared FIVE fields. Two of the
+ * ~11 closed so far destroy user input rather than misreport state, and both were found by
+ * migrating rather than by anyone reporting them.
+ *
+ * 26 with `lens/monitors.tsx`, whose create had the same shape as its neighbour's — a third form
+ * cleared on a refusal. Three of ~13 now, all found the same way.
+ *
+ * 25 with `memory/memories.tsx`, whose `forget` accepts `hard=true`. On a permanent erase the
+ * reading is worse than "the product undid my action": the user asked for the content to be gone,
+ * was shown success, and it is still there.
+ *
+ * 24 with `memory/entity-cascade.ts`, the worst of the series: it counted a delete as successful
+ * when the call RESOLVED, so every refusal was tallied as a memory forgotten — and because the
+ * loop ends when the filtered listing empties, a cascade that could delete NOTHING ran to its
+ * 50-round ceiling and reported thousands.
+ *
+ * 21 with `memory/webhooks.tsx` — three at once, and its replay is the subtlest instance yet: the
+ * page had already reasoned about the `null` and defended against the wrong cause. Its comment
+ * called it an empty body; it was a refusal.
+ *
  * The pattern is now measured rather than asserted: every B-244 migration lowers this number, and
  * every one so far uncovered a user-visible defect on the way. A call with no error contract and a
  * screen that reports a success it did not observe are the same defect seen from two sides — which
  * is why this item's open question resolved to "migrate them one at a time", not "flip the flag".
  */
-const CEILING_WITHOUT_CONTRACT = 35;
+// 8 desde 2026-08-12. As duas ultimas eram as saved views de traces: um POST recusado fechava o
+// dialogo, limpava o nome e recarregava a lista — e numa lista que para em 100, a view faltando
+// se le como "bati no limite", nao como "o servidor recusou".
+// As tres de `wiki` eram escritas: criar pasta, criar pagina, salvar pagina. A de salvar era a
+// pior — um PUT recusado resolvia `null`, o editor fechava e o texto ANTIGO voltava por
+// invalidacao. O usuario via a propria edicao ser desfeita, sem erro nenhum na tela.
+// 4 desde 2026-08-12. A ultima fechada foi o editor de chunks: um PATCH recusado resolvia `null`,
+// o editor fechava, o rascunho era limpo e a lista rebuscava o texto ORIGINAL. O usuario via a
+// propria correcao ser substituida pelo que ele acabara de corrigir, sem nada na tela dizendo por
+// que — e o `reembedded` da resposta, a unica coisa que diz se a edicao chegou ao indice, nunca era
+// consultado porque nao havia resposta bem-sucedida de onde ler.
+const CEILING_WITHOUT_CONTRACT = 4;
 
 /**
  * The corpus may not shrink silently.

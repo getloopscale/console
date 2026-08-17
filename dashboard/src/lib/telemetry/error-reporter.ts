@@ -52,7 +52,7 @@ export function reportError(error: Error, info: ErrorInfo): void {
   }
 }
 
-interface PayloadDeErro {
+interface ErrorPayload {
   type: 'react-error';
   message: string;
   stack: string | null;
@@ -62,7 +62,7 @@ interface PayloadDeErro {
   userAgent: string | null;
 }
 
-function montarPayload(error: Error, info: ErrorInfo): PayloadDeErro {
+function montarPayload(error: Error, info: ErrorInfo): ErrorPayload {
   return {
     type: 'react-error',
     message: error.message,
@@ -81,7 +81,7 @@ function montarPayload(error: Error, info: ErrorInfo): PayloadDeErro {
  * quando um erro fatal costuma acontecer; `fetch` com `keepalive` é a alternativa quando não há
  * beacon.
  */
-function despachar(payload: PayloadDeErro): void {
+function despachar(payload: ErrorPayload): void {
   if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console
     console.error('[error-reporter]', payload);

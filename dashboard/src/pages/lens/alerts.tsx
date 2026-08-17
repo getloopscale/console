@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { History, Trash2 } from 'lucide-react';
 import {
@@ -23,7 +23,7 @@ import {
   METRICA_DE_PROMPT,
   alertProblems,
   visibleAlertProblems,
-  exigeNomeDePrompt,
+  requiresPromptName,
   toCreateBody,
 } from '@/pages/lens/components/alert-draft';
 import { Alert } from '@/components/ui/alert-guard';
@@ -31,7 +31,15 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { ApiError, cloudFetch } from '@/lib/http/api';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import {
+  useAlertRules,
+  useAlertRuleHistory,
+  useCreateAlertRule,
+  useDeleteAlertRule,
+  useToggleAlertRule,
+  type AlertRule,
+} from '@/hooks/lens/use-alert-rules';
+import { useWorkspaceWebhooks } from '@/hooks/settings/use-workspace-webhooks';
 
 /**
  * M53 — /observability/alerts. Threshold alert rules on observability metrics. A rule
@@ -40,19 +48,6 @@ import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
  * (fire-once-until-cleared — no storm). CRUD via `/v1/dashboard/lens/alert-rules`.
  */
 
-interface AlertRule {
-  id: string;
-  name: string;
-  metric: string;
-  comparator: string;
-  threshold: number;
-  window_seconds: number;
-  webhook_id: string;
-  enabled: boolean;
-  status: string;
-  last_evaluated_at: string | null;
-  last_triggered_at: string | null;
-}
 /**
  * The honest status→severity map (issue #alerts-badge): a badge must reflect the rule's TRUE state,
  * not "TRIGGERED-or-green". A disabled rule is paused (inert, neutral), a cleared rule is ok, a firing
@@ -66,23 +61,7 @@ export function alertSeverity(status: string, enabled: boolean): Severity {
   return 'unknown'; // unknown / pending → neutral, never a fabricated success
 }
 
-interface AlertRulesResult {
-  alert_rules: AlertRule[];
-}
 
-/** M84 — one firing in a rule's history (metric value at fire time vs threshold, when). */
-interface FiredAlert {
-  id: string;
-  metric: string;
-  comparator: string;
-  threshold: number;
-  value: number;
-  fired_at: string;
-}
-interface FiredAlertsResult {
-  firings: FiredAlert[];
-  total: number;
-}
 
 /**
  * M84 — the expandable per-rule firing history. Reads the paginated `…/{id}/history` endpoint; honest
@@ -90,12 +69,7 @@ interface FiredAlertsResult {
  * error must NEVER render as "never fired"). Loaded lazily (only when the row is expanded).
  */
 function RuleHistory({ ruleId, comparatorLabel }: { ruleId: string; comparatorLabel: (c: string) => string }) {
-  const history = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/alert-rules', ruleId, 'history'] as const,
-    queryFn: () =>
-      cloudFetch<FiredAlertsResult>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(ruleId)}/history`, {}, { throwOnError: true }),
-    retry: false,
-  });
+  const history = useAlertRuleHistory(ruleId);
   if (history.isPending) return <Skeleton className="h-16 w-full" aria-label="Loading firing history" />;
   if (history.isError) {
     return <Alert intent="warning" title="Could not load the firing history" description="Retry, or check your access to this workspace." data-testid="history-error" />;
@@ -123,14 +97,6 @@ function RuleHistory({ ruleId, comparatorLabel }: { ruleId: string; comparatorLa
     />
   );
 }
-interface WorkspaceWebhook {
-  id: string;
-  url?: string;
-  label?: string;
-}
-interface WebhooksResult {
-  webhooks: WorkspaceWebhook[];
-}
 
 const METRICS = [
   { value: 'error_rate', label: 'Error rate (%)' },
@@ -157,7 +123,7 @@ const COMPARATORS = [
  * "Last hour" (3600 s) vira 1 dia, e é por isso que a tela DIZ a janela consultada em vez de
  * repetir o rótulo escolhido: o sistema mede 24 h, e esconder isso seria mentir sobre o período.
  */
-function janelaEmDias(windowSeconds: number): number {
+function windowInDays(windowSeconds: number): number {
   return Math.max(1, Math.ceil(windowSeconds / 86400));
 }
 
@@ -172,7 +138,6 @@ export function LensAlertsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Alerts'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   // M22 DoD-3 — o CONSUMIDOR do deep-link que `promptly/tabs/producao.tsx` produz.
   //
@@ -198,66 +163,22 @@ export function LensAlertsPage() {
   const [pendingDelete, setPendingDelete] = useState<AlertRule | null>(null);
   const [openHistory, setOpenHistory] = useState<AlertRule | null>(null); // M84 — expanded rule's history
 
-  const rulesKey = ['cloud', '/v1/dashboard/lens/alert-rules'] as const;
-  const rules = useQuery({
-    queryKey: rulesKey,
-    queryFn: () => cloudFetch<AlertRulesResult>('/v1/dashboard/lens/alert-rules', {}, { throwOnError: true }),
-  });
-  const webhooks = useQuery({
-    queryKey: ['cloud', '/v1/settings/webhooks/list'] as const,
-    queryFn: () => cloudFetch<WebhooksResult>(`/v1/settings/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: rulesKey });
+  const rules = useAlertRules();
+  const webhooks = useWorkspaceWebhooks();
 
-  const create = useMutation({
-    mutationFn: (input: Record<string, unknown>) =>
-      cloudFetch<AlertRule>('/v1/dashboard/lens/alert-rules', { method: 'POST', body: JSON.stringify(input) }, { throwOnError: true }),
-    retry: false,
-    onSuccess: () => {
-      setName('');
-      setThreshold('');
-      setWebhookId('');
-      setPromptName('');
-      invalidate();
-    },
-  });
-  const remove = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' }, { throwOnError: true }),
-    retry: false,
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
-  // M98 (D-H3) — the On/Off toggle flips OPTIMISTICALLY (the binary interaction where optimism clearly
-  // pays: no stale RTT gap). onMutate flips the cached rule immediately; onError rolls back to the
-  // snapshot so a failed PATCH never leaves the UI diverged from the server (the M83 no-silent-
-  // divergence pattern); onSettled re-syncs. The button is disabled while its own toggle is pending
-  // (no double-fire).
-  const toggle = useMutation({
-    mutationFn: (r: AlertRule) =>
-      cloudFetch<unknown>(
-        `/v1/dashboard/lens/alert-rules/${encodeURIComponent(r.id)}`,
-        { method: 'PATCH', body: JSON.stringify({ enabled: !r.enabled }) },
-        { throwOnError: true },
-      ),
-    retry: false,
-    onMutate: async (r: AlertRule) => {
-      await queryClient.cancelQueries({ queryKey: rulesKey });
-      const prev = queryClient.getQueryData<AlertRulesResult>(rulesKey);
-      queryClient.setQueryData<AlertRulesResult>(rulesKey, (old) =>
-        old
-          ? { ...old, alert_rules: old.alert_rules.map((x) => (x.id === r.id ? { ...x, enabled: !x.enabled } : x)) }
-          : old,
-      );
-      return { prev };
-    },
-    onError: (_e, _r, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(rulesKey, ctx.prev); // rollback — never diverge from server
-    },
-    onSettled: invalidate,
-  });
+  const create = useCreateAlertRule();
+  const submitCreate = (input: Record<string, unknown>) =>
+    create.mutate(input, {
+      onSuccess: () => {
+        setName('');
+        setThreshold('');
+        setWebhookId('');
+        setPromptName('');
+      },
+    });
+
+  const remove = useDeleteAlertRule();
+  const toggle = useToggleAlertRule();
 
   // M72 — a write-action must not fail silently. Surface the first failing mutation's error.
   const writeError = create.isError ? 'create' : toggle.isError ? 'toggle' : remove.isError ? 'delete' : null;
@@ -266,10 +187,10 @@ export function LensAlertsPage() {
   // (`INVALID_PROMPT` diz exatamente o que falta); colapsar tudo num verbo e renderizar "check
   // your access" anuncia um 400 de VALIDAÇÃO como problema de PERMISSÃO — e manda o operador
   // investigar o lado errado. O genérico continua sendo o fallback, para o 500 sem corpo.
-  const razaoDoServico = ((create.error ?? toggle.error ?? remove.error) as ApiError | null)?.body;
-  const mensagemDoServico =
-    razaoDoServico && typeof razaoDoServico === 'object' && 'message' in razaoDoServico
-      ? String((razaoDoServico as { message: unknown }).message)
+  const serviceRationale = ((create.error ?? toggle.error ?? remove.error) as ApiError | null)?.body;
+  const serviceMessage =
+    serviceRationale && typeof serviceRationale === 'object' && 'message' in serviceRationale
+      ? String((serviceRationale as { message: unknown }).message)
       : null;
 
   const availableWebhooks = webhooks.data?.webhooks ?? [];
@@ -296,7 +217,7 @@ export function LensAlertsPage() {
    * marcação de `touched` por sete lugares — três dos quais eu havia esquecido, deixando o botão
    * desabilitar sem dizer por quê em `name`, `threshold` e `webhookId`.
    */
-  function aoMudarCampo(campo: keyof AlertDraft, valor: string) {
+  function onFieldChange(field: keyof AlertDraft, value: string) {
     const setters: Record<keyof AlertDraft, (v: string) => void> = {
       name: setName,
       metric: setMetric,
@@ -306,26 +227,26 @@ export function LensAlertsPage() {
       windowSeconds: setWindowSeconds,
       webhookId: setWebhookId,
     };
-    setters[campo](valor);
+    setters[field](value);
     // Só os campos que o módulo puro modela como problema entram em `touched` — os demais não
     // têm mensagem a exibir, e marcá-los seria estado sem consumidor.
-    if (campo === 'name' || campo === 'promptName' || campo === 'threshold' || campo === 'webhookId') {
-      setTouched((t) => new Set(t).add(campo));
+    if (field === 'name' || field === 'promptName' || field === 'threshold' || field === 'webhookId') {
+      setTouched((t) => new Set(t).add(field));
     }
   }
 
   // O valor MEDIDO agora, ao lado do campo de limiar. Risco #2 do milestone: um limite escolhido
   // as cegas e o alerta mal calibrado, e alerta que dispara sem motivo ensina o time a ignorar o
   // canal. Le o MESMO agregado que a aba de producao do prompt mostra.
-  const promptAlvo = exigeNomeDePrompt(metric) ? promptName.trim() : '';
-  const janelaDoValorMedido = janelaEmDias(Number(windowSeconds));
-  const usoAtual = useQuery({
-    queryKey: ['cloud', 'promptly-usage', promptAlvo, janelaDoValorMedido] as const,
-    enabled: promptAlvo !== '',
+  const targetPrompt = requiresPromptName(metric) ? promptName.trim() : '';
+  const measuredValueWindow = windowInDays(Number(windowSeconds));
+  const currentUsage = useQuery({
+    queryKey: ['cloud', 'promptly-usage', targetPrompt, measuredValueWindow] as const,
+    enabled: targetPrompt !== '',
     retry: false,
     queryFn: () =>
       cloudFetch<{ rows?: { resolutions?: number }[] } | null>(
-        `/v1/dashboard/promptly/prompts/${encodeURIComponent(promptAlvo)}/usage?windowDays=${janelaDoValorMedido}`,
+        `/v1/dashboard/promptly/prompts/${encodeURIComponent(targetPrompt)}/usage?windowDays=${measuredValueWindow}`,
         {},
         { throwOnError: true },
       ),
@@ -334,11 +255,11 @@ export function LensAlertsPage() {
   // contrato quebrado — e devolver um número aqui imprimiria "Hoje: undefined resoluções", ou pior,
   // um total plausível calculado sobre linhas incompletas. É o mesmo motivo pelo qual o avaliador
   // Go usa ponteiros (`prompt_metric.go`): a distinção entre ausente e zero é a única que importa.
-  const linhas = usoAtual.data?.rows;
-  const resolucoesAgora =
-    linhas === undefined || linhas.some((r) => typeof r.resolutions !== 'number')
+  const usageRows = currentUsage.data?.rows;
+  const resolutionsNow =
+    usageRows === undefined || usageRows.some((r) => typeof r.resolutions !== 'number')
       ? undefined
-      : linhas.reduce((t, r) => t + (r.resolutions as number), 0);
+      : usageRows.reduce((t, r) => t + (r.resolutions as number), 0);
 
   const columns: DataTableColumn<AlertRule>[] = [
     { key: 'name', label: 'Name', render: (r) => <span className="font-medium">{r.name}</span> },
@@ -429,7 +350,7 @@ export function LensAlertsPage() {
               intent="destructive"
               title={`Could not ${writeError} the alert rule`}
               description={
-                mensagemDoServico ??
+                serviceMessage ??
                 'The change was not saved — try again, or check your access to this workspace.'
               }
               data-testid="alerts-write-error"
@@ -451,22 +372,22 @@ export function LensAlertsPage() {
               ) : (
                 <AlertCreateForm
                   draft={draft}
-                  onChange={aoMudarCampo}
+                  onChange={onFieldChange}
                   problems={problemasVisiveis}
                   webhooks={availableWebhooks}
                   metrics={METRICS}
                   comparators={COMPARATORS}
                   windows={WINDOWS}
                   canCreate={canCreate}
-                  onSubmit={() => create.mutate(toCreateBody(draft))}
-                  usoAtual={
-                    promptAlvo !== ''
+                  onSubmit={() => submitCreate(toCreateBody(draft))}
+                  currentUsage={
+                    targetPrompt !== ''
                       ? {
-                          carregando: usoAtual.isLoading,
+                          loading: currentUsage.isLoading,
                           // Contrato quebrado é leitura falha, não medição — mesmo com 200.
-                          erro: usoAtual.isError || (!usoAtual.isLoading && resolucoesAgora === undefined),
-                          resolucoes: resolucoesAgora,
-                          janelaDias: janelaDoValorMedido,
+                          failure: currentUsage.isError || (!currentUsage.isLoading && resolutionsNow === undefined),
+                          resolucoes: resolutionsNow,
+                          windowDays: measuredValueWindow,
                         }
                       : undefined
                   }
@@ -515,7 +436,10 @@ export function LensAlertsPage() {
           cancelLabel="Cancel"
           intent="destructive"
           loading={remove.isPending}
-          onConfirm={() => remove.mutate(pendingDelete.id)}
+          onConfirm={async () => {
+            await remove.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+          }}
         />
       ) : null}
     </>

@@ -32,7 +32,7 @@ import { promotionConfirmation, promotionPhrase } from '@/pages/skills/component
 import { useSkillVersions, useSkillChannels, useInvalidateSkills } from '@/hooks/skills/use-skills';
 
 /** O canal que a tela promove. Um só, e declarado: `stable` é o que os consumidores resolvem. */
-const CANAL_ALVO = 'stable';
+const TARGET_CHANNEL = 'stable';
 
 /**
  * M26 — `/skills/:skillId/versions`: quais versões existem e qual canal serve cada uma.
@@ -66,13 +66,13 @@ export function SkillVersionsPage() {
   const [pending, setPending] = useState<VersionRow | null>(null);
   const [promotionError, setPromotionError] = useState<string | null>(null);
 
-  const vigente = currentChannelOf(channels.data, CANAL_ALVO);
+  const vigente = currentChannelOf(channels.data, TARGET_CHANNEL);
 
   async function confirmPromotion() {
     if (!pending) return;
     setPromotionError(null);
     try {
-      await promoteChannel(skillId, CANAL_ALVO, pending.revisionId);
+      await promoteChannel(skillId, TARGET_CHANNEL, pending.revisionId);
       // Invalida AMBAS: a promoção muda o canal, e a tabela de versões deriva dele. Recarregar
       // só uma deixaria a tela mostrando o estado anterior como se fosse o atual.
       // B-052 — invalida a RAIZ do dominio. As chaves literais que estavam aqui
@@ -127,17 +127,17 @@ export function SkillVersionsPage() {
       align: 'right',
       width: '1%',
       render: (row) =>
-        row.channels.includes(CANAL_ALVO) ? null : (
+        row.channels.includes(TARGET_CHANNEL) ? null : (
           <Button
             variant="ghost"
             size="sm"
-            aria-label={`Promote ${row.version} to ${CANAL_ALVO}`}
+            aria-label={`Promote ${row.version} to ${TARGET_CHANNEL}`}
             onClick={() => {
               setPromotionError(null);
               setPending(row);
             }}
           >
-            Promote to {CANAL_ALVO}
+            Promote to {TARGET_CHANNEL}
           </Button>
         ),
     },
@@ -237,14 +237,14 @@ export function SkillVersionsPage() {
           if (!o) setPending(null);
         }}
         intent="destructive"
-        title={`Promote ${pending?.version ?? ''} to «${CANAL_ALVO}»`}
+        title={`Promote ${pending?.version ?? ''} to «${TARGET_CHANNEL}»`}
         // O texto vem da lógica pura (T2.2) e diz O QUE DEIXA DE VALER — nomeando a revisão que
         // sai e a que entra. NÃO afirma quantos consumidores são afetados: esse número não existe
         // na API, e derivá-lo aqui seria a interface inventando um dado que o serviço não afirma.
         description={
           pending
             ? promotionConfirmation({
-                channel: CANAL_ALVO,
+                channel: TARGET_CHANNEL,
                 fromRevision: vigente?.revision_id ?? null,
                 // A versão da que SAI vem do dado JÁ CARREGADO (`rows`) — nenhuma requisição
                 // nova. `null` quando a revisão vigente não tem linha em `/versions`, que é um
@@ -260,7 +260,7 @@ export function SkillVersionsPage() {
         }
         // A frase é o NOME DO CANAL. "PROMOVER" seria a mesma digitação em qualquer canal — vira
         // reflexo, e devolve ao gate a força de um botão comum.
-        confirmationPhrase={promotionPhrase(CANAL_ALVO)}
+        confirmationPhrase={promotionPhrase(TARGET_CHANNEL)}
         confirmLabel="Promote channel"
         onConfirm={confirmPromotion}
       />

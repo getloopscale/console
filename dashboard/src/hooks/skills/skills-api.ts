@@ -1,9 +1,9 @@
 import { ApiError, cloudFetch } from '@/lib/http/api';
 import {
-  corpoDoDiagnostico,
+  diagnosticBody,
   type EstadoDaCandidata,
 } from '@/hooks/skills/discoverability-request';
-import { corpoDaPublicacao } from '@/hooks/skills/skill-upload';
+import { publicationBody } from '@/hooks/skills/skill-upload';
 
 /**
  * M26 — o único ponto por onde as telas de skills falam com o BFF.
@@ -271,7 +271,7 @@ export function validateSkill<T>(skillMd: string): Promise<T | null> {
  * HTTP faria o autor esperar sem saber por quê. Quem chama precisa acompanhar a operação.
  */
 export function createSkill<T>(skillId: string, skillMd: string): Promise<T | null> {
-  return publishSkill<T>(corpoDaPublicacao(skillId, { tipo: 'markdown', conteudo: skillMd }));
+  return publishSkill<T>(publicationBody(skillId, { tipo: 'markdown', content: skillMd }));
 }
 
 /**
@@ -286,13 +286,13 @@ export function createSkill<T>(skillId: string, skillMd: string): Promise<T | nu
  * e descartaria os scripts em silêncio.
  */
 export function createSkillFromZip<T>(skillId: string, zipBase64: string): Promise<T | null> {
-  return publishSkill<T>(corpoDaPublicacao(skillId, { tipo: 'zip', base64: zipBase64 }));
+  return publishSkill<T>(publicationBody(skillId, { tipo: 'zip', base64: zipBase64 }));
 }
 
-function publishSkill<T>(corpo: Record<string, string>): Promise<T | null> {
+function publishSkill<T>(body: Record<string, string>): Promise<T | null> {
   return cloudFetch<T>(
     BASE,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
     { throwOnError: true },
   );
 }
@@ -343,7 +343,7 @@ export function diagnoseDiscoverability<T>(
       // O corpo é montado por uma função PURA e testada: o defeito da theo-skills#144 era
       // exatamente ele — `has_embedding: false` fixo para um rascunho — e, montado inline aqui,
       // nenhum teste o alcançava.
-      body: JSON.stringify(corpoDoDiagnostico(name, description, estado)),
+      body: JSON.stringify(diagnosticBody(name, description, estado)),
     },
     { throwOnError: true },
   );

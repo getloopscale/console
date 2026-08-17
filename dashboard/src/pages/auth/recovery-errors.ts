@@ -36,9 +36,9 @@ export const SERVICE_UNAVAILABLE_MESSAGE =
  * Aquele `if` era o único dos três cujos ramos diferiam de verdade, e uniformizar os três teria
  * apagado a única distinção que já estava correta.
  */
-export function recoveryErrorMessage(err: unknown, seNaoForServico?: string): string {
-  if (ehFalhaDeServico(err)) return SERVICE_UNAVAILABLE_MESSAGE;
-  return seNaoForServico ?? FLUXO_INVALIDO;
+export function recoveryErrorMessage(err: unknown, unlessServiceFailure?: string): string {
+  if (isServiceFailure(err)) return SERVICE_UNAVAILABLE_MESSAGE;
+  return unlessServiceFailure ?? FLUXO_INVALIDO;
 }
 
 /** O texto padrão do lado não-serviço, quando o chamador não tem um mais específico. */
@@ -52,7 +52,7 @@ const FLUXO_INVALIDO =
  * busca por três dígitos numa mensagem. A varredura textual fica como rede para erros que não
  * passam por `submitFlow`, e a rejeição de rede do `fetch` chega como `TypeError`.
  */
-function ehFalhaDeServico(err: unknown): boolean {
+function isServiceFailure(err: unknown): boolean {
   if (err instanceof FlowSubmitError) return err.status >= 500;
   if (err instanceof TypeError) return true; // rejeição de rede
   const msg = err instanceof Error ? err.message : String(err);

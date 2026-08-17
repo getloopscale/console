@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, RotateCw, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -14,7 +14,7 @@ import {
   useToast,
 } from '@usetheo/ui';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
-import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
+import { DELIVERIES_READ_FAILURE } from '@/pages/settings/webhook-copy';
 import type { Delivery } from '@/lib/webhooks/delivery';
 import { deliveryStatusVariant, canReplay } from '@/lib/webhooks/delivery';
 import { colunasDeWebhook } from '@/lib/webhooks/columns';
@@ -22,8 +22,14 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import {
+  useMemoryWebhooks,
+  useCreateMemoryWebhook,
+  useRevokeMemoryWebhook,
+  useMemoryWebhookDeliveries,
+  useReplayMemoryDelivery,
+  type MemoryWebhook as Webhook,
+} from '@/hooks/memory/use-memory-webhooks';
 
 /**
  * Plan 3 of dashboard-memory-section-roadmap.md, T3.7.
@@ -33,27 +39,6 @@ import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
  * /memory/webhooks — webhook registration + delivery inspection UI.
  */
 
-interface Webhook {
-  id: string;
-  url: string;
-  label: string;
-  events: string[];
-  created_at?: string;
-}
-
-interface ListResult {
-  webhooks: Webhook[];
-}
-
-interface DeliveriesResult {
-  deliveries: Delivery[];
-}
-
-interface ReplayResult {
-  id: string;
-  status: 'pending' | 'delivering';
-  noop: boolean;
-}
 
 const AVAILABLE_EVENTS = [
   { id: 'memory.remembered', label: 'memory.remembered' },
@@ -65,40 +50,16 @@ export function WebhooksPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Webhooks'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
-  const list = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/webhooks/list'] as const,
-    // throwOnError so a failed fetch is query.isError, not an empty list rendered
-    // as "no webhooks" (theo-cloud#250).
-    queryFn: () =>
-      cloudFetch<ListResult>(`/v1/dashboard/memory/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
+  const list = useMemoryWebhooks();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Webhook | null>(null);
   const [viewingFor, setViewingFor] = useState<Webhook | null>(null);
 
-  const create = useMutation({
-    mutationFn: (input: { url: string; label: string; events: string[] }) =>
-      cloudFetch<Webhook>('/v1/dashboard/memory/webhooks', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(input),
-      }),
-    onSuccess: () => {
-      setCreateOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/webhooks/list'] });
-    },
-  });
+  const create = useCreateMemoryWebhook();
 
-  const revoke = useMutation({
-    mutationFn: (id: string) => cloudFetch<null>(`/v1/dashboard/memory/webhooks/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/webhooks/list'] });
-    },
-  });
+  const revoke = useRevokeMemoryWebhook();
 
   const webhooks = list.data?.webhooks ?? [];
 
@@ -168,7 +129,7 @@ export function WebhooksPage() {
         onSubmit={(input) => create.mutate(input)}
         description="Register a URL to be notified when memory events occur."
         events={AVAILABLE_EVENTS}
-        exemploUrl="https://hook.example.com/memory"
+        exampleUrl="https://hook.example.com/memory"
       />
 
       {pendingDelete ? (
@@ -217,10 +178,7 @@ function RecentDeliveriesBadge({
   webhookId: string;
   onClick: () => void;
 }) {
-  const query = useQuery({
-    queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhookId}/deliveries`] as const,
-    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhookId}/deliveries`, {}, { throwOnError: true }),
-  });
+  const query = useMemoryWebhookDeliveries(webhookId);
   const deliveries = query.data?.deliveries ?? [];
   if (query.isLoading) {
     return <span className="text-xs text-muted-foreground">…</span>;
@@ -266,43 +224,34 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
   const { toast } = useToast();
   const [pendingReplay, setPendingReplay] = useState<Delivery | null>(null);
 
-  const query = useQuery({
-    queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`] as const,
-    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`, {}, { throwOnError: true }),
-    enabled: open,
-  });
+  const query = useMemoryWebhookDeliveries(webhook.id, open);
 
-  const replay = useMutation({
-    mutationFn: (deliveryId: string) =>
-      cloudFetch<ReplayResult>(
-        `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries/${deliveryId}/replay`,
-        { method: 'POST' },
-      ),
-    onSuccess: (data) => {
-      setPendingReplay(null);
-      // cloudFetch returns T | null on empty response; on success we expect
-      // the JSON body with status + noop. Default to noop=false when null
-      // so the toast still surfaces — failure-mode is the destructive toast.
-      const noop = data?.noop ?? false;
-      toast({
-        title: noop ? 'Delivery already queued' : 'Replay queued',
-        description: noop
-          ? 'This delivery is already pending. No action taken.'
-          : 'The delivery has been re-queued and will be dispatched shortly.',
-        variant: 'default',
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`],
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'Could not replay delivery',
-        description: 'Please try again. If the problem persists, contact support.',
-        variant: 'destructive',
-      });
-    },
-  });
+  const replay = useReplayMemoryDelivery(webhook.id);
+
+  // Os efeitos de UI ficam AQUI, e só rodam no desfecho que de fato aconteceu. Antes viviam no
+  // `onSuccess` da mutação — que, sem o contrato de erro, disparava também numa recusa: o diálogo
+  // fechava e o toast dizia "Replay queued" para um replay que nunca foi enfileirado (B-235).
+  const onReplayed = (data: { noop: boolean }) => {
+    setPendingReplay(null);
+    toast({
+      title: data.noop ? 'Delivery already queued' : 'Replay queued',
+      description: data.noop
+        ? 'This delivery is already pending. No action taken.'
+        : 'The delivery has been re-queued and will be dispatched shortly.',
+      variant: 'default',
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`],
+    });
+  };
+
+  const onReplayFailed = () => {
+    toast({
+      title: 'Could not replay delivery',
+      description: 'Please try again. If the problem persists, contact support.',
+      variant: 'destructive',
+    });
+  };
 
   const deliveries = query.data?.deliveries ?? [];
 
@@ -320,7 +269,7 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
             {query.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading deliveries…</p>
             ) : query.isError ? (
-              <EmptyState title="Could not read this webhook's deliveries" description={FALHA_AO_LER_ENTREGAS} />
+              <EmptyState title="Could not read this webhook's deliveries" description={DELIVERIES_READ_FAILURE} />
             ) : deliveries.length === 0 ? (
               <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
             ) : (
@@ -365,7 +314,9 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
           intent="default"
           confirmationPhrase="replay"
           loading={replay.isPending}
-          onConfirm={() => replay.mutate(pendingReplay.id)}
+          onConfirm={() => {
+            replay.mutate(pendingReplay.id, { onSuccess: onReplayed, onError: onReplayFailed });
+          }}
         />
       ) : null}
     </>

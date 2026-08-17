@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
-import { cloudFetch } from '@/lib/http/api';
+import { useDocumentChunks, useSaveChunk, type Chunk } from '@/hooks/rag/use-chunks';
 
 /**
  * chunk-editor — view a document's chunks and edit a chunk's text. On save the BFF
@@ -12,11 +11,6 @@ import { cloudFetch } from '@/lib/http/api';
  * history) by design for the dev tier.
  */
 
-interface Chunk {
-  id: string;
-  index: number;
-  text: string;
-}
 
 // KB4 — inline chunk editor (replaces the right-side Sheet slide-over).
 export function ChunksPanel({
@@ -28,29 +22,22 @@ export function ChunksPanel({
   documentName: string;
   onClose: () => void;
 }) {
-  const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
-  const chunksQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/chunks', documentID] as const,
-    queryFn: () =>
-      cloudFetch<{ items: Chunk[] }>(`/v1/dashboard/rag/documents/${encodeURIComponent(documentID)}/chunks`, {}, { throwOnError: true }),
-    enabled: documentID !== '',
-  });
+  const chunksQuery = useDocumentChunks(documentID);
 
-  const save = useMutation({
-    mutationFn: (chunk: Chunk) =>
-      cloudFetch<{ id: string; reembedded: boolean }>(`/v1/dashboard/rag/chunks/${encodeURIComponent(chunk.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ text: draft }),
-      }),
-    onSuccess: () => {
-      setEditingId(null);
-      setDraft('');
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/chunks', documentID] });
-    },
-  });
+  const save = useSaveChunk(documentID);
+  const submitSave = (chunk: Chunk) =>
+    save.mutate(
+      { id: chunk.id, text: draft },
+      {
+        onSuccess: () => {
+          setEditingId(null);
+          setDraft('');
+        },
+      },
+    );
 
   const chunks = chunksQuery.data?.items ?? [];
 
@@ -113,7 +100,7 @@ export function ChunksPanel({
                       <Button
                         size="sm"
                         disabled={draft.trim() === '' || draft === chunk.text || save.isPending}
-                        onClick={() => save.mutate(chunk)}
+                        onClick={() => submitSave(chunk)}
                       >
                         {save.isPending ? 'Re-embedding…' : 'Save & re-embed'}
                       </Button>

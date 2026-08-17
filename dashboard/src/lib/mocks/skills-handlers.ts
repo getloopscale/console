@@ -110,10 +110,10 @@ function registerSkillsRoutes(base: string) {
     const url = new URL(req.url, 'http://x');
     const limit = Math.max(1, Number(url.searchParams.get('limit') ?? '100'));
     const token = url.searchParams.get('page_token');
-    const inicio = token === null ? 0 : Number(token);
-    const fatia = skillsDb.skills.slice(inicio, inicio + limit);
-    const proximo = inicio + limit < skillsDb.skills.length ? String(inicio + limit) : null;
-    return Response.json({ skills: fatia, next_page_token: proximo });
+    const start = token === null ? 0 : Number(token);
+    const fatia = skillsDb.skills.slice(start, start + limit);
+    const upcoming = start + limit < skillsDb.skills.length ? String(start + limit) : null;
+    return Response.json({ skills: fatia, next_page_token: upcoming });
   });
 
   // M31 — AUTORIA. `:validate` NÃO cria nada: um mock que criasse deixaria a tela verde sobre um
@@ -128,13 +128,13 @@ function registerSkillsRoutes(base: string) {
         { status: 422 },
       );
     }
-    const nome = /name:\s*(.+)/.exec(md)?.[1]?.trim() ?? 'unnamed';
+    const name = /name:\s*(.+)/.exec(md)?.[1]?.trim() ?? 'unnamed';
     // A `description` sai do frontmatter, como o `name`. Devolver um `'d'` fixo — que era o que
     // este mock fazia — tornava impossível exercitar o caminho "descrição boa": o diagnóstico do
     // M34 recebia 1 caractere e acusava descrição genérica em TODO teste, inclusive nos que
     // deveriam provar o contrário.
     const desc = /description:\s*(.+)/.exec(md)?.[1]?.trim() ?? '';
-    return Response.json({ ok: true, name: nome, description: desc, execution: 'remote' });
+    return Response.json({ ok: true, name: name, description: desc, execution: 'remote' });
   });
 
   // M34 — o diagnóstico de descobribilidade, no momento da autoria. NÃO executa a skill: o mock
@@ -181,9 +181,9 @@ function registerSkillsRoutes(base: string) {
     // priorizaria `skillMd` e descartaria os scripts em silêncio. Um mock permissivo aqui deixaria
     // o e2e verde sobre um corpo que a produção recusa — a assimetria que este ciclo já pagou caro
     // três vezes.
-    const temMd = (body.skill_md ?? '').trim() !== '';
-    const temZip = (body.zipped_filesystem ?? '').trim() !== '';
-    if (temMd && temZip) {
+    const hasMarkdown = (body.skill_md ?? '').trim() !== '';
+    const hasZip = (body.zipped_filesystem ?? '').trim() !== '';
+    if (hasMarkdown && hasZip) {
       return Response.json(
         {
           code: 'INVALID_REQUEST',
@@ -192,7 +192,7 @@ function registerSkillsRoutes(base: string) {
         { status: 400 },
       );
     }
-    if (!temMd && !temZip) return Response.json({ error: 'invalid_input' }, { status: 400 });
+    if (!hasMarkdown && !hasZip) return Response.json({ error: 'invalid_input' }, { status: 400 });
     skillsDb.skills.push({
       skill_id: id,
       // Um zip não tem frontmatter legível daqui — o nome cai no identificador, como o registro faz
@@ -324,8 +324,8 @@ function registerSkillsRoutes(base: string) {
   });
 
   registerRoute('PUT', `${base}/{skillId}/lifecycle`, async (req, params) => {
-    const alvo = skillsDb.skills.find((sk) => sk.skill_id === params.skillId);
-    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const target = skillsDb.skills.find((sk) => sk.skill_id === params.skillId);
+    if (target === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
     const body = (await req.json()) as { lifecycle?: string; reason?: string; superseded_by?: string };
     if (typeof body.lifecycle !== 'string' || body.lifecycle === '') {
       return Response.json({ code: 'INVALID_REQUEST', message: 'provide the stage' }, { status: 400 });
@@ -335,7 +335,7 @@ function registerSkillsRoutes(base: string) {
     if (body.lifecycle === 'deprecated' && (body.reason ?? '') === '') {
       return Response.json({ code: 'INVALID_REQUEST', message: 'reason is required' }, { status: 400 });
     }
-    const mutavel = alvo as { lifecycle?: string; deprecation_reason?: string | null; superseded_by?: string | null };
+    const mutavel = target as { lifecycle?: string; deprecation_reason?: string | null; superseded_by?: string | null };
     mutavel.lifecycle = body.lifecycle;
     mutavel.deprecation_reason = body.lifecycle === 'deprecated' ? (body.reason ?? null) : null;
     mutavel.superseded_by = body.superseded_by ?? null;
@@ -517,25 +517,25 @@ export function registerSkillsDistributionHandlers() {
   registerRoute('DELETE', `${base}/{bundleId}/tokens/{tokenId}`, async (_req, params) => {
     const lista = distribuicaoDb.tokens[params.bundleId];
     if (lista === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
-    const alvo = lista.find((t) => t.token_id === params.tokenId);
-    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const target = lista.find((t) => t.token_id === params.tokenId);
+    if (target === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
     // Revogar NÃO remove da lista: o registro mantém para auditoria, e a tela precisa refletir
     // isso, senão o operador acha que o token sumiu do histórico.
-    alvo.revoked_at = '2026-08-04T12:05:00.000Z';
+    target.revoked_at = '2026-08-04T12:05:00.000Z';
     return Response.json({ revoked: true });
   });
 
   registerRoute('PUT', `${base}/{bundleId}/items`, async (req, params) => {
-    const alvo = distribuicaoDb.bundles.find((b) => b.bundle_id === params.bundleId);
-    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const target = distribuicaoDb.bundles.find((b) => b.bundle_id === params.bundleId);
+    if (target === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
     const body = (await req.json()) as { items?: { skill_id: string; channel: string }[] };
     if (!Array.isArray(body.items)) {
       return Response.json({ code: 'INVALID_REQUEST', message: 'items must be a list' }, { status: 400 });
     }
     // SUBSTITUI, não mescla — como o registro. Um mock que mesclasse deixaria a tela verde sobre
     // um contrato que não existe, e a remoção só falharia contra o serviço real.
-    alvo.items = body.items;
-    return Response.json({ bundle_id: params.bundleId, items: alvo.items });
+    target.items = body.items;
+    return Response.json({ bundle_id: params.bundleId, items: target.items });
   });
 
   registerRoute('GET', `${base}/{bundleId}/adoption`, async (_req, params) => {

@@ -257,12 +257,12 @@ export function useBundleTokens<T>(bundleId: string | undefined): SkillsQuery<T>
 
 export function useBundleAdoption<T>(
   bundleId: string | undefined,
-  dias: number,
+  days: number,
 ): SkillsQuery<T> {
   const query = useQuery({
-    queryKey: queryKeys.bundles.adoption(bundleId, dias),
+    queryKey: queryKeys.bundles.adoption(bundleId, days),
     enabled: Boolean(bundleId),
-    queryFn: () => fetchBundleAdoption<T>(bundleId ?? '', dias),
+    queryFn: () => fetchBundleAdoption<T>(bundleId ?? '', days),
   });
   return {
     data: query.data,

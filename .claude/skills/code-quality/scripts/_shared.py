@@ -409,14 +409,39 @@ def sanitize_symbol(symbol: str) -> str:
     return symbol.replace("|", "\\|")
 
 
-def to_rel_path(p: Path) -> str:
-    """Strip leading slash so absolute paths satisfy Finding's repo-relative invariant.
+EXTERNAL_PATH_PREFIX = "<outside-repo>:"
 
-    Detectors invoked with `tmp_path` from tests pass absolute paths; production
-    orchestrator (T5.1) passes already-relative paths so this is a no-op there.
+
+def to_rel_path(p: Path, anchor: Path | None = None) -> str:
+    """Express `p` relative to the repository root, or mark it as outside one.
+
+    B-253 — this used to be `s.lstrip("/")`, and its docstring said production passed
+    already-relative paths "so this is a no-op there". It is not: the orchestrator enumerates
+    sources with `repo_root.rglob`, so every production path is absolute. Deleting one character
+    satisfied `Finding`'s no-leading-slash invariant and produced a citation resolvable from
+    nowhere — the audit at `release-version-detection-code-quality-2026-08-12.md:28` cites
+    `home/paulo/Projetos/theo/theo-platform/theo-cloud/cmd/main.go`, which is not a path on any
+    machine and is not clickable.
+
+    The invariant was never the problem; satisfying it by truncation was. A finding's path exists
+    to be opened, so:
+
+    - already relative      -> unchanged (the no-op the old docstring described, now real)
+    - absolute under anchor -> relative to it, and `anchor / result` opens the file
+    - absolute outside      -> the full path behind `EXTERNAL_PATH_PREFIX`
+
+    The marker carries no leading slash, so the invariant still holds, and it says the one thing
+    truncation destroyed: that there is no repo-relative form of this path, rather than pretending
+    to have found one.
     """
-    s = p.as_posix()
-    return s.lstrip("/") if s.startswith("/") else s
+    if not p.is_absolute():
+        return p.as_posix()
+    base = (anchor if anchor is not None else Path.cwd()).resolve()
+    resolved = p.resolve()
+    try:
+        return resolved.relative_to(base).as_posix()
+    except ValueError:
+        return f"{EXTERNAL_PATH_PREFIX}{resolved.as_posix()}"
 
 
 # ---------------------------------------------------------------------------
@@ -538,5 +563,6 @@ __all__ = [
     "safe_parse_json",
     "sanitize_symbol",
     "to_rel_path",
+    "EXTERNAL_PATH_PREFIX",
     "write_atomic",
 ]

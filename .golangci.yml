@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# This file did not exist until 2026-08-13 (B-273), and its absence was invisible for a reason
+# worth writing down: the lint step had not actually run. The binary was downloaded from a GitHub
+# release asset, that download hung (`socket hang up`, three attempts, job 94258930430), and the
+# step went red as though the code had findings. Nobody saw what a real run would say.
+#
+# The first real run said this:
+#
+#   dashboard/node_modules/flatted/golang/pkg/flatted/flatted.go:35:88  govet
+#   dashboard/node_modules/flatted/golang/pkg/flatted/flatted.go:62:20  govet
+#
+# `flatted` is an npm package that happens to ship a Go file, and `go list ./...` walks into it
+# because it is a package with `.go` files under the module root. It is somebody else's code,
+# installed by `npm ci`, and linting it reports findings nobody here can fix.
+version: "2"
+
+linters:
+  exclusions:
+    paths:
+      # npm dependencies. Not ours, not editable, and present only because `dashboard/` shares
+      # the repository root with the Go module.
+      - dashboard/node_modules

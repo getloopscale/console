@@ -70,7 +70,7 @@ describe('toda capacidade da Overview é legível em modo mock', () => {
       expect(res.status, `${c.path} → ${c.sinal.rota}`).toBe(200);
 
       const dados: unknown = await res.json();
-      const estado = estadoDaCapacidade(c.sinal, { falhou: false, carregando: false, dados });
+      const estado = estadoDaCapacidade(c.sinal, { failed: false, loading: false, dados });
 
       // `em-uso` e não apenas "não é nao-lida": um fixture com zero deixaria a tela dizendo "not
       // set up yet" para tudo, e o estado `em-uso` — o que o dono quer ver ao validar — nunca

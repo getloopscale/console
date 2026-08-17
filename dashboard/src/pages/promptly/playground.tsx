@@ -8,13 +8,13 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { createRevision, runPlayground } from '@/hooks/promptly/promptly-api';
 import {
-  camposDeVariaveis,
+  variableFields,
   classificarFalha,
-  podeRodar,
-  type CampoVariavel,
+  canRun,
+  type VariableField,
   type Falha,
 } from '@/pages/promptly/components/playground';
-import { variaveisDoTexto } from '@/pages/promptly/components/preview';
+import { textVariables } from '@/pages/promptly/components/preview';
 import { usePrompt, useInvalidatePrompt } from '@/hooks/promptly/use-promptly';
 
 interface PromptWire {
@@ -59,15 +59,15 @@ export function PromptlyPlaygroundPage() {
   const navigate = useNavigate();
   const invalidarPrompt = useInvalidatePrompt();
 
-  const [conteudo, setConteudo] = useState('');
-  const [campos, setCampos] = useState<readonly CampoVariavel[]>([]);
+  const [content, setConteudo] = useState('');
+  const [fields, setCampos] = useState<readonly VariableField[]>([]);
   const [credencial, setCredencial] = useState('');
   const [saida, setSaida] = useState<SaidaModelo | null>(null);
   const [falha, setFalha] = useState<Falha | null>(null);
   const [recusaAoSalvar, setRecusaAoSalvar] = useState<string | null>(null);
   // M17 — a afinação desta execução, e o porquê da revisão que ela pode virar.
   const [temperatura, setTemperatura] = useState('');
-  const [descricao, setDescricao] = useState('');
+  const [description, setDescricao] = useState('');
 
 
   // B-052 — chave da factory, a mesma que `detail.tsx` usa para o mesmo prompt.
@@ -92,10 +92,10 @@ export function PromptlyPlaygroundPage() {
    * conteúdo está sendo digitado agora, ele é a única fonte que existe. E reusa a
    * mesma função — `variaveisDoTexto` — em vez de uma segunda derivação.
    */
-  const editado = prompt.data != null && conteudo !== prompt.data.content;
+  const editado = prompt.data != null && content !== prompt.data.content;
   const declaradas = useMemo(
-    () => (editado ? variaveisDoTexto(conteudo) : ((prompt.data?.variables ?? []) as readonly string[])),
-    [editado, conteudo, prompt.data],
+    () => (editado ? textVariables(content) : ((prompt.data?.variables ?? []) as readonly string[])),
+    [editado, content, prompt.data],
   );
 
   // Semeia o editor quando o prompt chega. Depois disso o operador é o dono do
@@ -108,7 +108,7 @@ export function PromptlyPlaygroundPage() {
   // Os campos acompanham a lista vigente, preservando o que já foi digitado para
   // as variáveis que sobreviveram.
   useEffect(() => {
-    setCampos((atuais) => camposDeVariaveis(declaradas, atuais));
+    setCampos((atuais) => variableFields(declaradas, atuais));
   }, [declaradas]);
 
   /**
@@ -120,12 +120,12 @@ export function PromptlyPlaygroundPage() {
    */
   const configUsada = temperatura === '' ? null : { temperature: Number(temperatura) };
 
-  const rodar = useMutation({
+  const run = useMutation({
     mutationFn: () =>
       runPlayground<SaidaModelo>(
         promptName,
-        conteudo,
-        Object.fromEntries(campos.map((c) => [c.nome, c.valor])),
+        content,
+        Object.fromEntries(fields.map((c) => [c.name, c.value])),
         credencial,
         configUsada,
       ),
@@ -141,10 +141,10 @@ export function PromptlyPlaygroundPage() {
     },
   });
 
-  const salvar = useMutation({
+  const save = useMutation({
     mutationFn: () =>
-      createRevision<unknown>(promptName, conteudo, {
-        changeDescription: descricao.trim(),
+      createRevision<unknown>(promptName, content, {
+        changeDescription: description.trim(),
         // A config QUE ESTÁ NO CAMPO — a mesma que `rodar` usa. Uma versão anterior
         // gravava só a de uma execução bem-sucedida; era invariante minha, além do
         // ADR-2, e fazia a temperatura digitada sumir sem aviso quando o operador
@@ -168,10 +168,10 @@ export function PromptlyPlaygroundPage() {
       setRecusaAoSalvar('Could not create the revision. Try again in a moment.'),
   });
 
-  const habilitado = podeRodar(campos, credencial) && !rodar.isPending;
+  const habilitado = canRun(fields, credencial) && !run.isPending;
 
-  function alterarCampo(nome: string, valor: string) {
-    setCampos((atuais) => atuais.map((c) => (c.nome === nome ? { ...c, valor } : c)));
+  function changeField(name: string, value: string) {
+    setCampos((atuais) => atuais.map((c) => (c.name === name ? { ...c, value } : c)));
   }
 
   return (
@@ -221,7 +221,7 @@ export function PromptlyPlaygroundPage() {
                 <Textarea
                   aria-label="Prompt content"
                   className="min-h-32 font-mono text-sm"
-                  value={conteudo}
+                  value={content}
                   onChange={(e) => setConteudo(e.target.value)}
                 />
               </FormField.Control>
@@ -242,18 +242,18 @@ export function PromptlyPlaygroundPage() {
           </Card.Description>
         </Card.Header>
         <div className="space-y-4 p-6 pt-0">
-          {campos.map((campo) => (
-            <FormField key={campo.nome} id={`playground-var-${campo.nome}`}>
-              <FormField.Label>{campo.nome}</FormField.Label>
+          {fields.map((field) => (
+            <FormField key={field.name} id={`playground-var-${field.name}`}>
+              <FormField.Label>{field.name}</FormField.Label>
               <FormField.Control>
                 <input
-                  aria-label={campo.nome}
+                  aria-label={field.name}
                   className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
-                  value={campo.valor}
-                  onChange={(e) => alterarCampo(campo.nome, e.target.value)}
+                  value={field.value}
+                  onChange={(e) => changeField(field.name, e.target.value)}
                 />
               </FormField.Control>
-              {falha?.tipo === 'validacao' && falha.variavelFaltante === campo.nome ? (
+              {falha?.tipo === 'validacao' && falha.missingVariable === field.name ? (
                 <FormField.Error>Fill this field before running.</FormField.Error>
               ) : null}
             </FormField>
@@ -286,7 +286,7 @@ export function PromptlyPlaygroundPage() {
               <input
                 aria-label="Why this revision exists"
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                value={descricao}
+                value={description}
                 onChange={(e) => setDescricao(e.target.value)}
                 maxLength={500}
                 placeholder="tuned for extraction"
@@ -324,18 +324,18 @@ export function PromptlyPlaygroundPage() {
           </p>
 
           <div className="flex gap-2">
-            <Button onClick={() => rodar.mutate()} disabled={!habilitado}>
-              {rodar.isPending ? 'Running…' : 'Run'}
+            <Button onClick={() => run.mutate()} disabled={!habilitado}>
+              {run.isPending ? 'Running…' : 'Run'}
             </Button>
             <Button
               variant="secondary"
               onClick={() => {
                 setRecusaAoSalvar(null);
-                salvar.mutate();
+                save.mutate();
               }}
-              disabled={salvar.isPending || conteudo.trim() === ''}
+              disabled={save.isPending || content.trim() === ''}
             >
-              {salvar.isPending ? 'Saving…' : 'Save as a new revision'}
+              {save.isPending ? 'Saving…' : 'Save as a new revision'}
             </Button>
           </div>
         </div>
@@ -348,7 +348,7 @@ export function PromptlyPlaygroundPage() {
           </Card.Title>
         </Card.Header>
         <div className="p-6 pt-0" data-testid="playground-saida">
-          <SaidaDoModelo pendente={rodar.isPending} falha={falha} saida={saida} />
+          <SaidaDoModelo pendente={run.isPending} falha={falha} saida={saida} />
         </div>
       </Card>
     </PageShell>
@@ -381,7 +381,7 @@ function SaidaDoModelo({
           intent="destructive"
           title="O provedor do modelo recusou a chamada"
           description={
-            falha.mensagem ??
+            falha.message ??
             `The provider replied ${String(falha.providerStatus ?? '')} and refused the invocation. Check the key and the quota on your account.`
           }
         />
@@ -393,9 +393,9 @@ function SaidaDoModelo({
           intent="destructive"
           title="Nothing was sent to the model"
           description={
-            falha.variavelFaltante !== undefined
-              ? `Variable "${falha.variavelFaltante}" was left blank. No call was made, and nothing was charged.`
-              : (falha.motivo ??
+            falha.missingVariable !== undefined
+              ? `Variable "${falha.missingVariable}" was left blank. No call was made, and nothing was charged.`
+              : (falha.reason ??
                 'The prompt could not be prepared. No call was made, and nothing was charged.')
           }
         />

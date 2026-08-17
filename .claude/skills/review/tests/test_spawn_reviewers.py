@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).parent.parent / "scripts" / "spawn_reviewers.py"
+SKILL_DIR = Path(__file__).parent.parent
 
 
 def _run(
@@ -474,3 +475,73 @@ def test_no_skills_flag_suppresses_skill_generation(
         assert children == [], f"Expected no skill dirs, found: {children}"
     # But agents should still be generated
     assert (output_dir / "architecture.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# B-258 follow-on — the paired knowledge skills were never spec-compliant
+# ---------------------------------------------------------------------------
+
+
+def test_every_knowledge_template_carries_frontmatter() -> None:
+    """Each template says it "Conforms to Claude Code Skills spec". None of them did.
+
+    The spec requires YAML frontmatter with `name:` and `description:`. All five templates opened
+    on an `# H1`, so every `/review` run emitted five spec-violating skills — five per slug,
+    accumulating for ever. `test_e2e_smoke.py` had been red on exactly this since the
+    `modal-primitive-consolidation` review of 2026-05-21, and the failure was read as five stale
+    artifacts rather than as a generator producing them on demand.
+    """
+    templates = sorted((SKILL_DIR / "templates").glob("skill-*-knowledge.md"))
+    assert len(templates) == 5, f"expected 5 knowledge templates, found {len(templates)}"
+
+    offenders = []
+    for template in templates:
+        text = template.read_text(encoding="utf-8-sig")
+        if not text.startswith("---\n"):
+            offenders.append(f"{template.name}: no opening frontmatter")
+            continue
+        block = text.split("---\n", 2)[1]
+        for required in ("name:", "description:"):
+            if required not in block:
+                offenders.append(f"{template.name}: frontmatter has no {required}")
+
+    assert not offenders, "\n".join(offenders)
+
+
+def test_a_generated_knowledge_skill_passes_the_repository_validator(tmp_path) -> None:
+    """The generator's output, checked by the same oracle `test_e2e_smoke.py` uses."""
+    import importlib.util
+    import sys
+
+    scripts = SKILL_DIR.parent.parent / "scripts"
+    fake_eco = tmp_path / ".claude"
+    (fake_eco / "skills").mkdir(parents=True)
+
+    # Through the GENERATOR, not by copying the template: the template carries `{SLUG}`, and a
+    # raw copy would test a file no /review run ever writes.
+    generator_spec = importlib.util.spec_from_file_location(
+        "spawn_reviewers", SKILL_DIR / "scripts" / "spawn_reviewers.py"
+    )
+    assert generator_spec is not None and generator_spec.loader is not None
+    generator = importlib.util.module_from_spec(generator_spec)
+    generator_spec.loader.exec_module(generator)
+
+    for template in sorted((SKILL_DIR / "templates").glob("skill-*-knowledge.md")):
+        role = template.stem.replace("skill-", "").replace("-knowledge", "")
+        generator.write_skill_file(
+            SKILL_DIR, template.name, fake_eco / "skills", "probe", role,
+            {"SLUG": "probe", "DOMAIN": "web", "MODEL": "sonnet", "DATE": "2026-08-13"},
+        )
+
+    # Import the module rather than shelling out: the CLI resolves the ecosystem itself and
+    # ignores its argument, so a subprocess would validate THIS repository — conflating "the
+    # templates are broken" with "five stale instances of them are still on disk".
+    spec = importlib.util.spec_from_file_location(
+        "validate_skill_frontmatter", scripts / "validate_skill_frontmatter.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["validate_skill_frontmatter"] = module
+    spec.loader.exec_module(module)
+
+    assert module.validate_all(fake_eco) == 0

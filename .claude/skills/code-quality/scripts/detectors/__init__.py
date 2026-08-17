@@ -29,6 +29,17 @@ class BaseDetector:
     language: str = ""
     manifest_marker: str = ""
 
+    #: Repository root, set by the orchestrator. Findings cite paths relative to it.
+    #:
+    #: B-253 — `to_rel_path` fell back to `Path.cwd()`, and `_find_repo_root` walks UP from the
+    #: cwd, so `/code-quality` run from a subdirectory produced citations relative to wherever
+    #: the operator was standing. The root is known at construction; nothing needs to guess it.
+    #: `None` keeps the cwd fallback for a detector built directly in a test.
+    repo_root: Path | None = None
+
+    def __init__(self, repo_root: Path | None = None) -> None:
+        self.repo_root = repo_root
+
     def detect_dead_code(self, manifest_dir: Path) -> list:
         """Run D1 — language-specific dead code detector.
 

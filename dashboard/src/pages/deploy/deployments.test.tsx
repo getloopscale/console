@@ -150,6 +150,18 @@ describe('DeploymentsPage', () => {
     expect(screen.getByText('1234567')).toBeInTheDocument();
   });
 
+  // B-242 — the anchor for the absence assertion above. No case in this file ever showed the
+  // empty state, so `queryByText(/no deployments/i)` was satisfied by a list that rendered AND by
+  // a `semDeploysAinda` whose title had been reworded — the second one silently. This case renders
+  // it, so the wording is now under test on both sides.
+  it('a project with zero builds shows the empty state the case above denies', async () => {
+    mockedEngineFetch.mockResolvedValue({ builds: [], total: 0 } as BuildListResponse);
+
+    renderPage();
+
+    expect(await screen.findByText(/no deployments yet/i)).toBeInTheDocument();
+  });
+
   it('test_new_build_appends_in_realtime', async () => {
     let callCount = 0;
     mockedEngineFetch.mockImplementation(async () => {

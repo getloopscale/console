@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/hooks/memory/use-debounced-value';
 import { Boxes, Eye, Trash2 } from 'lucide-react';
 import {
@@ -18,7 +17,12 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useSkills,
+  useForgetSkill,
+  SKILLS_PAGE_SIZE,
+  type SkillWithRepo,
+} from '@/hooks/memory/use-skills';
 
 /**
  * skills-cross-repo-flat-list-gateway — /memory/skills browse + CURATE.
@@ -32,32 +36,13 @@ import { cloudFetch } from '@/lib/http/api';
  *  - EC-3: skills with null code (derived/consolidated) render gracefully.
  */
 
-interface SkillWithRepo {
-  id: string;
-  hash: string;
-  description: string;
-  code: string | null;
-  codeLanguage: string | null;
-  createdAt: string;
-  derivedFrom: string[];
-  supersededBy: string | null;
-  repoId: string;
-}
 
-interface SkillsAllResult {
-  skills: SkillWithRepo[];
-  total: number;
-  truncated: boolean;
-}
-
-const PAGE_SIZE = 25;
 
 export function SkillsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Skills'), [setPageTitle]);
   useRequireAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryClient = useQueryClient();
   const [pendingDelete, setPendingDelete] = useState<SkillWithRepo | null>(null);
   // Code/instructions belong in a details view, NOT a table column (keeps the
   // list scannable). A row's "View details" opens this dialog with the full code.
@@ -92,22 +77,7 @@ export function SkillsPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/skills/all', { q, offset }] as const,
-    queryFn: () => {
-      const params = new URLSearchParams();
-      params.set('limit', String(PAGE_SIZE));
-      if (offset > 0) params.set('offset', String(offset));
-      if (q !== '') params.set('q', q);
-      // throwOnError so a failed fetch is query.isError, not an empty list rendered
-      // as "no skills" (theo-cloud#250).
-      return cloudFetch<SkillsAllResult>(
-        `/v1/dashboard/memory/skills/all?${params.toString()}`,
-        {},
-        { throwOnError: true },
-      );
-    },
-  });
+  const query = useSkills({ q, offset });
 
   const skills = query.data?.skills ?? [];
   const total = query.data?.total ?? 0;
@@ -115,18 +85,7 @@ export function SkillsPage() {
   const hasNext = offset + skills.length < total;
 
   // D2 curation: forget (delete) a bad skill via its OWN repoId. NO create/edit.
-  const forgetSkill = useMutation({
-    mutationFn: async (skill: SkillWithRepo) => {
-      await cloudFetch<null>(
-        `/v1/dashboard/memory/skills/${encodeURIComponent(skill.id)}?repoId=${encodeURIComponent(skill.repoId)}`,
-        { method: 'DELETE' },
-      );
-    },
-    onSuccess: () => {
-      setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/skills/all'] });
-    },
-  });
+  const forgetSkill = useForgetSkill();
 
   const columns: DataTableColumn<SkillWithRepo>[] = [
     {
@@ -239,7 +198,7 @@ export function SkillsPage() {
                   variant="secondary"
                   size="sm"
                   disabled={!hasPrev}
-                  onClick={() => updateParam('offset', String(Math.max(0, offset - PAGE_SIZE)))}
+                  onClick={() => updateParam('offset', String(Math.max(0, offset - SKILLS_PAGE_SIZE)))}
                 >
                   Previous
                 </Button>
@@ -247,7 +206,7 @@ export function SkillsPage() {
                   variant="secondary"
                   size="sm"
                   disabled={!hasNext}
-                  onClick={() => updateParam('offset', String(offset + PAGE_SIZE))}
+                  onClick={() => updateParam('offset', String(offset + SKILLS_PAGE_SIZE))}
                 >
                   Next
                 </Button>
@@ -317,7 +276,10 @@ export function SkillsPage() {
           cancelLabel="Cancel"
           intent="destructive"
           loading={forgetSkill.isPending}
-          onConfirm={() => forgetSkill.mutate(pendingDelete)}
+          onConfirm={async () => {
+            await forgetSkill.mutateAsync(pendingDelete);
+            setPendingDelete(null);
+          }}
         />
       ) : null}
     </PageShell>

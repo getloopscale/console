@@ -1,0 +1,45 @@
+// @vitest-environment node
+//
+// No JSX, no render, no DOM global — the widened classifier (B-280) found it paying for a
+// browser it never opens.
+
+/**
+ * Phase 1 (#23) — production bundle hygiene tests.
+ *
+ * Closes theo-cloud#23 (defense in depth): even if the runtime gate
+ * `import.meta.env.DEV ? lazy(…) : null` at `src/main.tsx:12-19` regresses or
+ * the Vite build mode is misconfigured, this test catches the leak BEFORE merge.
+ *
+ * Per Sprint 3 plan v1.1 ADR D3, the source-level guard PLUS this bundle test
+ * are both load-bearing — neither alone is sufficient. Test fails hard when
+ * `dist/` is absent so it cannot silently SKIP in CI (per v1.1 EC-1).
+ */
+import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+describe('production bundle hygiene', () => {
+  it('does NOT bundle TanStack Query Devtools button text in production assets', () => {
+    const distDir = join(process.cwd(), 'dist', 'assets');
+    let bundleContent = '';
+    try {
+      const files = readdirSync(distDir).filter((f) => f.endsWith('.js'));
+      for (const f of files) bundleContent += readFileSync(join(distDir, f), 'utf-8');
+    } catch {
+      // v1.1 EC-1 absorbed: HARD throw instead of silent SKIP. Without this throw
+      // the bundle-grep test becomes a no-op in CI (the failure mode it was meant
+      // to prevent). T9.1 ordering MUST produce `dist/` BEFORE this test runs.
+      throw new Error(
+        'dist/ absent — bundle hygiene test cannot run. Run `npm run build` first ' +
+          '(see Phase 9 T9.1 ordering: build → test → lint → tree-shake-check).',
+      );
+    }
+    // The literal button label is too specific to be coincidence — if present, devtools shipped.
+    expect(bundleContent).not.toContain('Open Tanstack query devtools');
+    // Class name fallback — covers any minified variant that strips the button text.
+    expect(bundleContent).not.toContain('ReactQueryDevtools');
+    // v1.1 EC-11 absorbed: literal `__DEV__` token must not survive — if Vite's
+    // `define` block is misconfigured, the runtime gate stays truthy.
+    expect(bundleContent).not.toContain('__DEV__');
+  });
+});

@@ -96,7 +96,7 @@ export function isSafeRedirectUrl(raw: string | null | undefined): boolean {
   // A regra agora diz o que pretendia dizer — proibido DESCER de https para http — em vez de
   // "proibido http", que é o que ela fazia. Numa página http (dev local com o Kratos noutra
   // porta), um destino http configurado pelo operador passa. Numa página https, não passa nunca.
-  if (url.protocol === 'http:' && paginaHttps()) return false;
+  if (url.protocol === 'http:' && httpsPage()) return false;
 
   return PERMISSOES.some((permitir) => permitir(url));
 }
@@ -124,7 +124,7 @@ function analisar(raw: string): URL | null {
   }
 }
 
-function paginaHttps(): boolean {
+function httpsPage(): boolean {
   // Sem `window` não há esquema de página para comparar, e um destino http não é julgável. Tratar
   // como https é a leitura conservadora: recusa.
   return typeof window === 'undefined' || window.location.origin.startsWith('https:');

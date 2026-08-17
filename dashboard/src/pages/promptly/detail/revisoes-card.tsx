@@ -8,7 +8,7 @@ import { DataTable, EmptyState } from '@usetheo/ui';
 interface Props {
   REVISIONS_LIMIT: number;
   columns: ReturnType<typeof revisionColumns>;
-  linhas: ReturnType<typeof revisionRows>;
+  rows: ReturnType<typeof revisionRows>;
   revisionsFailed: boolean;
 
   revisions: RevisionsQuery;
@@ -25,7 +25,7 @@ interface Props {
  * cada um responde uma pergunta própria e recebe entre um e seis símbolos.
  * Cortar por tamanho teria produzido metades sem nome.
  */
-export function RevisoesCard({ revisions, latestVersion, REVISIONS_LIMIT, columns, linhas, revisionsFailed }: Props) {
+export function RevisionsCard({ revisions, latestVersion, REVISIONS_LIMIT, columns, rows, revisionsFailed }: Props) {
   return (
     <Card>
       <Card.Header>
@@ -41,7 +41,7 @@ export function RevisoesCard({ revisions, latestVersion, REVISIONS_LIMIT, column
 
       <DataTable
         columns={columns}
-        data={linhas}
+        data={rows}
         rowKey={(row) => String(row.version)}
         loading={revisions.loading}
         emptyState={

@@ -10,7 +10,7 @@
  */
 
 /** Caracteres seguros num segmento de URL, sem depender de codificação de ninguém. */
-const NOME_SEGURO = /^[A-Za-z0-9._-]+$/;
+const SAFE_NAME = /^[A-Za-z0-9._-]+$/;
 
 /**
  * M17 — o teto da descrição, espelhado do domínio (`CHANGE_DESCRIPTION_MAX`).
@@ -20,17 +20,17 @@ const NOME_SEGURO = /^[A-Za-z0-9._-]+$/;
  * número aparece na mensagem, então uma divergência apareceria na tela — e há teste
  * de fronteira no servidor que recusa acima do teto de qualquer forma.
  */
-export const DESCRICAO_MAX = 500;
+export const DESCRIPTION_MAX = 500;
 
 export interface ValidacaoCriacao {
   readonly ok: boolean;
-  readonly erroNome: string | null;
-  readonly erroDescricao: string | null;
+  readonly nameError: string | null;
+  readonly descriptionError: string | null;
 }
 
 export interface EntradaCriacao {
-  readonly nome: string;
-  readonly descricao: string;
+  readonly name: string;
+  readonly description: string;
 }
 
 /**
@@ -45,28 +45,28 @@ export interface EntradaCriacao {
  * a precisar de texto.
  */
 export function validarCriacao(entrada: EntradaCriacao): ValidacaoCriacao {
-  const nome = entrada.nome.trim();
-  const descricao = entrada.descricao.trim();
+  const name = entrada.name.trim();
+  const description = entrada.description.trim();
 
-  let erroNome: string | null = null;
-  if (nome === '') {
-    erroNome = 'Give the prompt a name.';
-  } else if (!NOME_SEGURO.test(nome)) {
-    erroNome =
+  let nameError: string | null = null;
+  if (name === '') {
+    nameError = 'Give the prompt a name.';
+  } else if (!SAFE_NAME.test(name)) {
+    nameError =
       'Use only letters, digits, dot, hyphen and underscore. ' +
       'Slashes and spaces break the address that reads the prompt back.';
   }
 
-  let erroDescricao: string | null = null;
-  if (descricao === '') {
-    erroDescricao =
+  let descriptionError: string | null = null;
+  if (description === '') {
+    descriptionError =
       'Say why this revision exists. In a rollback at three in the morning, this is what ' +
       'decides which version to go back to.';
-  } else if (entrada.descricao.length > DESCRICAO_MAX) {
-    erroDescricao = `The description exceeds ${String(DESCRICAO_MAX)} characters.`;
+  } else if (entrada.description.length > DESCRIPTION_MAX) {
+    descriptionError = `The description exceeds ${String(DESCRIPTION_MAX)} characters.`;
   }
 
-  return { ok: erroNome === null && erroDescricao === null, erroNome, erroDescricao };
+  return { ok: nameError === null && descriptionError === null, nameError, descriptionError };
 }
 
 /**
@@ -75,9 +75,9 @@ export function validarCriacao(entrada: EntradaCriacao): ValidacaoCriacao {
  * Diz a permanência porque ela é real e não tem desfazer: revisões são imutáveis e o produto não
  * expõe `DELETE`. Um operador que descobre isso DEPOIS de salvar já não pode agir.
  */
-export function fraseDePermanencia(nomeExistente: boolean, proximaVersao: number): string {
-  const base = `This creates revision v${proximaVersao}`;
-  const contexto = nomeExistente
+export function fraseDePermanencia(existingName: boolean, nextVersion: number): string {
+  const base = `This creates revision v${nextVersion}`;
+  const contexto = existingName
     ? ' of this prompt, alongside the ones that already exist.'
     : ' of a new prompt.';
   return (

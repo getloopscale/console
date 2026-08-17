@@ -1,9 +1,9 @@
-import { temProximaPagina } from '@/hooks/promptly/link-header';
+import { hasNextPage } from '@/hooks/promptly/link-header';
 
 // Re-export: B-052 desceu a DECLARACAO para junto do transporte — ler o header
 // `Link rel="next"` e assunto de quem faz o request, nao de quem projeta a
 // tela. O caminho de import das paginas continua valendo.
-export { temProximaPagina };
+export { hasNextPage };
 /**
  * M25 — a lógica de projeção das telas de prompts, FORA do React.
  *
@@ -45,14 +45,14 @@ export interface CatalogRow extends CatalogEntry {
  * próxima página — e marcar de parcial um número correto ensina o operador a desconfiar dele,
  * que é pior do que não marcar.
  */
-export interface ResumoCatalogo {
+export interface CatalogSummary {
   readonly prompts: number;
-  readonly revisoesPublicadas: number;
-  readonly ambientes: number;
+  readonly publishedRevisions: number;
+  readonly environments: number;
   /** Escritos e não servindo ninguém: `latestVersion` acima da maior versão que algum label aponta. */
-  readonly naoPromovidos: number;
+  readonly notPromoted: number;
   /** Nunca promovidos: sem label algum. */
-  readonly semAmbiente: number;
+  readonly withoutEnvironment: number;
   /** Os números acima são de UMA página, e há mais páginas — são limites inferiores, não totais. */
   readonly parcial: boolean;
 }
@@ -74,7 +74,7 @@ export function maiorVersaoServida(labels: CatalogEntry['labels'] | undefined): 
  * quem lê não tem como saber em qual número está. `catalogo.tsx:51-54` já nomeava a fatia sem
  * label de `No environment`; o balde passa a concordar com ela.
  */
-export const SEM_AMBIENTE = 'No environment';
+export const NO_ENVIRONMENT = 'No environment';
 
 /**
  * Os nomes de ambiente que um prompt de fato serve.
@@ -94,15 +94,15 @@ export const SEM_AMBIENTE = 'No environment';
  * Um label em branco não derruba nada — ele ordena. O que ele produz é uma barra sem nome, que é
  * uma leitura sobre a qual ninguém consegue agir, então também não é um ambiente.
  */
-function ambientesServidos(labels: CatalogEntry['labels'] | undefined): Set<string> {
-  const nomes = new Set<string>();
-  if (!Array.isArray(labels)) return nomes;
+function servedEnvironments(labels: CatalogEntry['labels'] | undefined): Set<string> {
+  const names = new Set<string>();
+  if (!Array.isArray(labels)) return names;
   for (const l of labels) {
     if (typeof l?.label !== 'string') continue;
-    const nome = l.label.trim();
-    if (nome !== '') nomes.add(nome);
+    const name = l.label.trim();
+    if (name !== '') names.add(name);
   }
-  return nomes;
+  return names;
 }
 
 /**
@@ -115,20 +115,20 @@ function ambientesServidos(labels: CatalogEntry['labels'] | undefined): Set<stri
  * pergunta que ninguém faz e fica esparso em qualquer workspace pequeno. A distribuição por
  * ambiente é a leitura que os números ao lado não dão.
  */
-export function promptsPorAmbiente(
-  linhas: readonly CatalogRow[],
+export function promptsByEnvironment(
+  rows: readonly CatalogRow[],
 ): { label: string; value: number }[] {
   const counts = new Map<string, number>();
 
-  for (const linha of linhas) {
+  for (const row of rows) {
     // Um Set por prompt: um payload malformado com `prod → v1` duas vezes não pode inflar `prod`
     // para 2. A barra conta PROMPTS; contar linhas de label superestimaria o alcance em silêncio.
-    const ambientes = ambientesServidos(linha.labels);
+    const environments = servedEnvironments(row.labels);
 
     // Servir ninguém é um ESTADO, não uma ausência — e `semAmbiente` já é um KPI na mesma tela.
     // Esconder estes daqui faria as barras discordarem de um número logo acima delas.
-    const chaves = ambientes.size > 0 ? [...ambientes] : [SEM_AMBIENTE];
-    for (const chave of chaves) counts.set(chave, (counts.get(chave) ?? 0) + 1);
+    const keys = environments.size > 0 ? [...environments] : [NO_ENVIRONMENT];
+    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
   return [...counts.entries()]
@@ -136,8 +136,8 @@ export function promptsPorAmbiente(
     .sort((a, b) => {
       // `No environment` é resíduo, não destino. Deixá-lo encabeçar o gráfico responderia "onde
       // meus prompts rodam?" com "em lugar nenhum", enterrando os ambientes que de fato existem.
-      if (a.label === SEM_AMBIENTE) return 1;
-      if (b.label === SEM_AMBIENTE) return -1;
+      if (a.label === NO_ENVIRONMENT) return 1;
+      if (b.label === NO_ENVIRONMENT) return -1;
       return b.value - a.value || a.label.localeCompare(b.label);
     });
 }
@@ -150,33 +150,33 @@ export function promptsPorAmbiente(
  * podem virar `NaN` silencioso: um número errado exibido com a confiança de um certo é pior que a
  * ausência dele.
  */
-export function resumoCatalogo(linhas: readonly CatalogRow[], temContinuacao: boolean): ResumoCatalogo {
-  const ambientes = new Set<string>();
-  let revisoesPublicadas = 0;
-  let naoPromovidos = 0;
-  let semAmbiente = 0;
+export function catalogSummary(rows: readonly CatalogRow[], hasContinuation: boolean): CatalogSummary {
+  const environments = new Set<string>();
+  let publishedRevisions = 0;
+  let notPromoted = 0;
+  let withoutEnvironment = 0;
 
-  for (const linha of linhas) {
-    const ultima = Number.isFinite(linha.latestVersion) ? linha.latestVersion : 0;
-    revisoesPublicadas += ultima;
+  for (const row of rows) {
+    const latest = Number.isFinite(row.latestVersion) ? row.latestVersion : 0;
+    publishedRevisions += latest;
 
-    const labels = Array.isArray(linha.labels) ? linha.labels : [];
-    const servidos = ambientesServidos(labels);
-    for (const nome of servidos) ambientes.add(nome);
+    const labels = Array.isArray(row.labels) ? row.labels : [];
+    const servidos = servedEnvironments(labels);
+    for (const name of servidos) environments.add(name);
     // B-147 — a contagem era `labels.length === 0`, então um prompt carregando UM label inutilizável
     // se reportava como promovido em algum lugar enquanto não servia ninguém. O predicado é "quantos
     // ambientes ele de fato serve", que é o que `ambientesServidos` responde.
-    if (servidos.size === 0) semAmbiente += 1;
-    if (ultima > maiorVersaoServida(labels)) naoPromovidos += 1;
+    if (servidos.size === 0) withoutEnvironment += 1;
+    if (latest > maiorVersaoServida(labels)) notPromoted += 1;
   }
 
   return {
-    prompts: linhas.length,
-    revisoesPublicadas,
-    ambientes: ambientes.size,
-    naoPromovidos,
-    semAmbiente,
-    parcial: temContinuacao,
+    prompts: rows.length,
+    publishedRevisions,
+    environments: environments.size,
+    notPromoted,
+    withoutEnvironment,
+    parcial: hasContinuation,
   };
 }
 
@@ -257,13 +257,13 @@ function resumirLabels(labels: CatalogEntry['labels']): string {
  * corpo inteiro de cada revisão numa lista é o editor que este milestone exclui.
  */
 /** Lê `variables` do corpo do serviço. Ausente ou malformado ⇒ lista vazia — nunca adivinhado. */
-function variaveisDeclaradas(r: unknown): string[] {
-  const bruto = (r as { variables?: unknown }).variables;
-  return Array.isArray(bruto) ? bruto.filter((v): v is string => typeof v === 'string') : [];
+function declaredVariables(r: unknown): string[] {
+  const raw = (r as { variables?: unknown }).variables;
+  return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
 }
 
 /** Extrai a config de uma revisão, tolerando forma inválida (vira `null`). */
-function configDaRevisao(r: unknown): { temperature?: number; model?: string } | null {
+function revisionConfig(r: unknown): { temperature?: number; model?: string } | null {
   const raw = (r as { modelConfig?: unknown }).modelConfig;
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
   const v = raw as Record<string, unknown>;
@@ -280,11 +280,11 @@ export function revisionRows(payload: unknown): RevisionRow[] {
       version: r.version,
       createdAt: r.createdAt,
       content: typeof r.content === 'string' ? r.content : '',
-      variables: variaveisDeclaradas(r),
+      variables: declaredVariables(r),
       // Defensivo: um campo malformado vindo do serviço vira `null` em vez de derrubar
       // a lista inteira. O conteúdo da revisão é o valor central desta tela.
       changeDescription: typeof r.changeDescription === 'string' ? r.changeDescription : null,
-      modelConfig: configDaRevisao(r),
+      modelConfig: revisionConfig(r),
     }))
     .sort((a, b) => b.version - a.version);
 }
@@ -334,21 +334,21 @@ export function labelRows(payload: unknown): LabelPointer[] {
 export function promotionConsequence(args: {
   label: string;
   atual: number | null;
-  alvo: number;
+  target: number;
 }): string {
-  const { label, atual, alvo } = args;
+  const { label, atual, target } = args;
   if (atual === null) {
-    return `Label "${label}" does not point at any revision yet; it starts serving v${alvo}.`;
+    return `Label "${label}" does not point at any revision yet; it starts serving v${target}.`;
   }
-  if (atual === alvo) {
-    return `Label "${label}" already serves v${alvo} — this promotion changes nothing.`;
+  if (atual === target) {
+    return `Label "${label}" already serves v${target} — this promotion changes nothing.`;
   }
-  return `Label "${label}" stops serving v${atual} and starts serving v${alvo}. Every agent that resolves "${label}" receives v${alvo} on the next call, with no redeploy.`;
+  return `Label "${label}" stops serving v${atual} and starts serving v${target}. Every agent that resolves "${label}" receives v${target} on the next call, with no redeploy.`;
 }
 
 export interface PolicySummary {
   readonly livre: boolean;
-  readonly texto: string;
+  readonly text: string;
 }
 
 /**
@@ -360,11 +360,11 @@ export interface PolicySummary {
  */
 export function policySummary(policy: PromotionPolicy | null | undefined): PolicySummary {
   if (!policy) {
-    return { livre: true, texto: 'No rule governs this label — promotion is unrestricted.' };
+    return { livre: true, text: 'No rule governs this label — promotion is unrestricted.' };
   }
   return {
     livre: false,
-    texto: `Promotion requires an evaluation on dataset ${policy.datasetId} with a minimum score of ${policy.minScore}.`,
+    text: `Promotion requires an evaluation on dataset ${policy.datasetId} with a minimum score of ${policy.minScore}.`,
   };
 }
 
@@ -387,7 +387,7 @@ export interface ComentarioRow {
    * não sabe, nunca imprimir "Invalid Date" nem cair para "agora", que apareceria ao leitor como
    * um fato.
    */
-  readonly quando: string;
+  readonly when: string;
 }
 
 /**
@@ -406,7 +406,7 @@ export function comentarioRows(payload: unknown): ComentarioRow[] {
       body: c.body as string,
       author: typeof c.author === 'string' ? c.author : null,
       createdAt: typeof c.createdAt === 'string' ? c.createdAt : '',
-      quando: quandoLegivel(c.createdAt),
+      when: whenReadable(c.createdAt),
     }));
 }
 
@@ -417,9 +417,9 @@ export function comentarioRows(payload: unknown): ComentarioRow[] {
  * carimbo é o único eixo temporal de quem lê a discussão; se ele exige decodificar um ISO de
  * cabeça, ele não está sendo lido, está sendo pulado.
  */
-function quandoLegivel(bruto: unknown): string {
-  if (typeof bruto !== 'string' || bruto === '') return '';
-  const d = new Date(bruto);
+function whenReadable(raw: unknown): string {
+  if (typeof raw !== 'string' || raw === '') return '';
+  const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleString('pt-BR', {
     day: '2-digit',

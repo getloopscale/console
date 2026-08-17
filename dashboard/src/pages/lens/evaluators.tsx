@@ -1,5 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -19,11 +19,25 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 import { TrendChart } from '@usetheo/ui';
-import { scoresToSeries, type ScoreBucket } from '@/pages/lens/components/lens-series';
+import { scoresToSeries } from '@/pages/lens/components/lens-series';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useEvaluators,
+  useCreateEvaluator,
+  useDeleteEvaluator,
+  useRenameEvaluator,
+  useRunEvaluator,
+  useEvaluatorRunJob,
+  type Evaluator,
+} from '@/hooks/lens/use-evaluators';
+import {
+  useEvaluatorScores,
+  SCORES_RANGES,
+  scoresQueryKey,
+  type ScoresRange,
+} from '@/hooks/lens/use-evaluator-scores';
 
 /**
  * M44 — /lens/evaluators. List / create / run / delete online evaluators via the read+write
@@ -31,15 +45,6 @@ import { cloudFetch } from '@/lib/http/api';
  * create body matches theo-lens: {name, kind:"rule"|"llm_judge", config:{predicate}|{prompt,model}}.
  */
 
-interface Evaluator {
-  id: string;
-  name: string;
-  kind?: string;
-  enabled?: boolean;
-  // The evaluator's rule config — passed through verbatim from theo-lens (BFF `json.RawMessage`).
-  // rule → { predicate }; llm_judge → { prompt, model }. Optional/loose since it's an upstream shape.
-  config?: { predicate?: string; prompt?: string; model?: string };
-}
 
 /** A short, one-line summary of an evaluator's rule for the list column. */
 function ruleSummary(ev: Evaluator): string {
@@ -49,33 +54,14 @@ function ruleSummary(ev: Evaluator): string {
 }
 
 /** M133 — an async evaluator-run job (POST /run returns this queued; the client polls for progress). */
-interface RunJob {
-  id: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
-  total: number;
-  scored: number;
-  skipped: number;
-  errors: number;
-  truncated: boolean;
-  errorMessage?: string;
-}
-interface EvaluatorsResult {
-  evaluators: Evaluator[];
-}
 
 // M90 — score-over-time range presets (theo-lens whitelist) + the BFF response shape.
-const SCORES_RANGES = ['1h', '24h', '7d', '30d'] as const;
-type ScoresRange = (typeof SCORES_RANGES)[number];
 const SCORES_RANGE_LABEL: Record<ScoresRange, string> = {
   '1h': 'Last hour',
   '24h': 'Last 24h',
   '7d': 'Last 7 days',
   '30d': 'Last 30 days',
 };
-interface ScoresResult {
-  range?: string;
-  scores: ScoreBucket[];
-}
 
 /** Map a write error's HTTP status to a typed, actionable message (M82 — a 409 name-conflict must
  *  read as "already in use", NEVER a generic failure). */
@@ -125,19 +111,12 @@ export function LensEvaluatorsPage() {
       ? { name: name.trim(), kind, config: { predicate: predicate.trim() } }
       : { name: name.trim(), kind, config: { prompt: prompt.trim(), model: model.trim() } };
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
-    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators', {}, { throwOnError: true }),
-  });
+  const query = useEvaluators();
 
   // M90 — score-over-time: a range-selectable per-evaluator mean trend (theo-lens
   // GET /v1/metrics/scores via the BFF). Range drives the server-side bucketing.
   const [scoresRange, setScoresRange] = useState<ScoresRange>('7d');
-  const scoresQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/metrics/scores', scoresRange] as const,
-    queryFn: () =>
-      cloudFetch<ScoresResult>(`/v1/dashboard/lens/metrics/scores?range=${scoresRange}`, {}, { throwOnError: true }),
-  });
+  const scoresQuery = useEvaluatorScores(scoresRange);
   const scoreSeries = scoresToSeries(scoresQuery.data?.scores ?? []);
   // Honest disclosure: scoresToSeries caps at topN numeric evaluators for legibility. If more
   // numeric evaluators exist in the range than are plotted, say so (no silent truncation).
@@ -146,83 +125,26 @@ export function LensEvaluatorsPage() {
   ).size;
   const hiddenEvaluatorCount = Math.max(0, numericEvaluatorCount - scoreSeries.length);
 
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] });
-
-  const create = useMutation({
-    mutationFn: (body: ReturnType<typeof buildCreateBody>) =>
-      cloudFetch<Evaluator>('/v1/dashboard/lens/evaluators', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      setName('');
-      setPredicate('');
-      setPrompt('');
-      setModel('');
-      setCreateOpen(false);
-      invalidate();
-    },
-  });
+  const create = useCreateEvaluator();
 
   // M133 — a manual run is async: POST registers a job (202); we then poll GET /evaluator-run-jobs/:id
   // for status + scored/total progress. `activeRun` tracks the in-flight job for the inline status region.
   const [activeRun, setActiveRun] = useState<{ evaluatorName: string; jobId: string } | null>(null);
-  const run = useMutation({
-    mutationFn: (ev: { id: string; name: string }) =>
-      cloudFetch<RunJob>(
-        `/v1/dashboard/lens/evaluators/${encodeURIComponent(ev.id)}/run`,
-        { method: 'POST', body: JSON.stringify({ limit: 100 }) },
-        { throwOnError: true },
-      ),
-    retry: false,
-    onSuccess: (job, ev) => {
-      if (job) setActiveRun({ evaluatorName: ev.name, jobId: job.id });
-    },
-  });
+  const run = useRunEvaluator();
 
   // Poll the async run job until terminal; on completion, refresh the scores chart so the new verdicts show.
-  const runJobQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/evaluator-run-jobs', activeRun?.jobId] as const,
-    queryFn: () => cloudFetch<RunJob>(`/v1/dashboard/lens/evaluator-run-jobs/${encodeURIComponent(activeRun!.jobId)}`, {}, { throwOnError: true }),
-    enabled: activeRun !== null,
-    refetchInterval: (q) => {
-      const s = (q.state.data as RunJob | undefined)?.status;
-      return s === 'completed' || s === 'failed' ? false : 1500; // poll ~1.5s until terminal
-    },
-  });
+  const runJobQuery = useEvaluatorRunJob(activeRun?.jobId ?? null);
   const runJob = runJobQuery.data ?? null;
   useEffect(() => {
     if (runJob?.status === 'completed') {
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/metrics/scores'] });
+      void queryClient.invalidateQueries({ queryKey: scoresQueryKey });
     }
   }, [runJob?.status, queryClient]);
   const runInFlight = run.isPending || (runJob !== null && runJob.status !== 'completed' && runJob.status !== 'failed');
 
-  const remove = useMutation({
-    mutationFn: (e: Evaluator) =>
-      cloudFetch<null>(`/v1/dashboard/lens/evaluators/${encodeURIComponent(e.id)}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
+  const remove = useDeleteEvaluator();
 
-  // M82 — rename an evaluator (PUT {name}, a bare rename in the theo-lens partial-update union).
-  // throwOnError so a 409 rejects and surfaces the typed Alert.
-  const rename = useMutation({
-    mutationFn: (r: { id: string; name: string }) =>
-      cloudFetch<Evaluator>(
-        `/v1/dashboard/lens/evaluators/${encodeURIComponent(r.id)}`,
-        { method: 'PUT', body: JSON.stringify({ name: r.name }) },
-        { throwOnError: true },
-      ),
-    retry: false,
-    onSuccess: () => {
-      setRenaming(null);
-      invalidate();
-    },
-  });
+  const rename = useRenameEvaluator();
 
   const commitRename = () => {
     if (!renaming) return;
@@ -292,7 +214,15 @@ export function LensEvaluatorsPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => run.mutate({ id: row.id, name: row.name })}
+            onClick={() => {
+              // `setActiveRun` vive AQUI porque é estado DA TELA: qual execução esta página está
+              // acompanhando. O hook devolve o job; decidir exibi-lo é decisão de quem exibe.
+              run.mutate(row.id, {
+                onSuccess: (job) => {
+                  if (job) setActiveRun({ evaluatorName: row.name, jobId: job.id });
+                },
+              });
+            }}
             disabled={runInFlight}
             aria-label={`Run ${row.name}`}
           >
@@ -577,7 +507,13 @@ export function LensEvaluatorsPage() {
           cancelLabel="Cancel"
           intent="destructive"
           loading={remove.isPending}
-          onConfirm={() => remove.mutate(pendingDelete)}
+          onConfirm={async () => {
+            // `mutateAsync`: o `ConfirmDialog` dá `await` no `onConfirm`, e só assim uma recusa o
+            // mantém aberto com o motivo (B-105). Com `mutate` a rejeição é engolida e o diálogo
+            // fecha sobre uma remoção que não aconteceu.
+            await remove.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+          }}
         />
       ) : null}
     </>

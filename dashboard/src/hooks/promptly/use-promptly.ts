@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchCatalogPage,
   fetchPrompt,
-  fetchPromptResolvido,
+  fetchResolvedPrompt,
   fetchPromptUsage,
   fetchRevisions,
   fetchDependentes,
@@ -89,11 +89,11 @@ function envolver<T>(query: {
 
 export function usePromptlyCatalog<T>(
   filtros: Record<string, unknown>,
-  limite: number,
+  limit: number,
 ): PromptlyQuery<CatalogPage<T>> {
   const query = useQuery({
-    queryKey: queryKeys.promptly.catalog({ ...filtros, limite }),
-    queryFn: () => fetchCatalogPage<T>(limite, filtros),
+    queryKey: queryKeys.promptly.catalog({ ...filtros, limit }),
+    queryFn: () => fetchCatalogPage<T>(limit, filtros),
   });
   return envolver(query);
 }
@@ -119,7 +119,7 @@ export function usePrompt<T>(name: string | undefined): PromptlyQuery<T> {
  * apanharam, e é o tipo de perda que passaria despercebida numa revisão: o
  * comportamento visível não muda, só a conta no fim do mês.
  */
-export function usePromptResolvido<T>(
+export function useResolvedPrompt<T>(
   name: string | undefined,
   habilitado = true,
 ): PromptlyQuery<T> {
@@ -127,7 +127,7 @@ export function usePromptResolvido<T>(
     queryKey: queryKeys.promptly.resolved(name),
     enabled: Boolean(name) && habilitado,
     retry: false,
-    queryFn: () => fetchPromptResolvido<T>(name ?? ''),
+    queryFn: () => fetchResolvedPrompt<T>(name ?? ''),
   });
   return envolver(query);
 }
@@ -165,7 +165,7 @@ export function usePromptLabels<T>(name: string | undefined): PromptlyQuery<T> {
  */
 export function usePromptRevisions<T>(
   name: string | undefined,
-  limite: number,
+  limit: number,
   after = 0,
   habilitado = true,
 ): PromptlyQuery<T> {
@@ -175,9 +175,9 @@ export function usePromptRevisions<T>(
     // o mesmo dado. `after` foi acrescentado depois de medir — a primeira versão
     // do hook o descartava, o que teria quebrado a paginação de `detail.tsx` sem
     // erro de tipo, porque o parâmetro tem valor padrão.
-    queryKey: queryKeys.promptly.revisions(name, limite, after),
+    queryKey: queryKeys.promptly.revisions(name, limit, after),
     enabled: Boolean(name) && habilitado,
-    queryFn: () => fetchRevisions<T>(name ?? '', limite, after),
+    queryFn: () => fetchRevisions<T>(name ?? '', limit, after),
   });
   return envolver(query);
 }
@@ -196,12 +196,12 @@ export function usePromptPolicy<T>(
 
 export function usePromptUsage<T>(
   name: string | undefined,
-  dias: number,
+  days: number,
 ): PromptlyQuery<T> {
   const query = useQuery({
-    queryKey: queryKeys.promptly.usage(name, dias),
+    queryKey: queryKeys.promptly.usage(name, days),
     enabled: Boolean(name),
-    queryFn: () => fetchPromptUsage<T>(name ?? '', dias),
+    queryFn: () => fetchPromptUsage<T>(name ?? '', days),
   });
   return envolver(query);
 }

@@ -11,7 +11,7 @@
  * Descoberta — que é busca semântica, não filtro de texto.
  */
 
-export interface SkillLinha {
+export interface SkillRow {
   readonly skill_id: string;
   readonly name: string;
   readonly description: string;
@@ -33,11 +33,11 @@ export interface SkillLinha {
  * A versão mais RECENTE vence — entre uma página e outra a skill pode ter sido editada, e manter
  * a antiga exibiria dado velho ao lado de dado novo sem nada indicando qual é qual.
  */
-export function mesclarPaginas(
-  atual: readonly SkillLinha[],
-  nova: readonly SkillLinha[],
+export function mergePages(
+  atual: readonly SkillRow[],
+  incomingPage: readonly SkillRow[],
   opts: { readonly primeira?: boolean } = {},
-): SkillLinha[] {
+): SkillRow[] {
   // A PRIMEIRA página SUBSTITUI, não mescla — e isto não é detalhe.
   //
   // Medido no CI em 2026-08-04: depois de apagar uma skill, o refetch da primeira página era
@@ -45,13 +45,13 @@ export function mesclarPaginas(
   //
   // A primeira página é o começo da lista: recarregá-la significa "o acervo mudou". Páginas
   // SEGUINTES acumulam, que é o que faz "carregar mais" funcionar.
-  if (opts.primeira === true) return [...nova];
+  if (opts.primeira === true) return [...incomingPage];
 
-  if (nova.length === 0) return [...atual];
+  if (incomingPage.length === 0) return [...atual];
 
-  const porId = new Map<string, SkillLinha>();
+  const porId = new Map<string, SkillRow>();
   for (const s of atual) porId.set(s.skill_id, s);
-  for (const s of nova) porId.set(s.skill_id, s);
+  for (const s of incomingPage) porId.set(s.skill_id, s);
 
   // A ORDEM de inserção original é preservada pelo `Map`, e é a ordem em que o servidor
   // devolveu — reordenar aqui inventaria um critério que o servidor não usou.
@@ -64,7 +64,7 @@ export function mesclarPaginas(
  * Quem digita com pressa não acentua. Sem isso, "cotacao" não acha "Cotação" e o filtro parece
  * quebrado justamente para quem está com pressa.
  */
-function normalizar(s: string): string {
+function normalize(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFD')
@@ -77,14 +77,14 @@ function normalizar(s: string): string {
  * Os três campos porque o operador chega por caminhos diferentes: lembra do **nome**, lembra do
  * que a skill **faz**, ou tem o **identificador** copiado de um log ou de uma mensagem de erro.
  */
-export function filtrarAcervo(acervo: readonly SkillLinha[], termo: string): SkillLinha[] {
-  const t = normalizar(termo.trim());
+export function filterCollection(acervo: readonly SkillRow[], termo: string): SkillRow[] {
+  const t = normalize(termo.trim());
   if (t === '') return [...acervo];
 
   return acervo.filter(
     (s) =>
-      normalizar(s.name).includes(t) ||
-      normalizar(s.description).includes(t) ||
-      normalizar(s.skill_id).includes(t),
+      normalize(s.name).includes(t) ||
+      normalize(s.description).includes(t) ||
+      normalize(s.skill_id).includes(t),
   );
 }

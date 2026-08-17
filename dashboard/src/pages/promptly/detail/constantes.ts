@@ -21,9 +21,9 @@ export const USAGE_WINDOW_DAYS = 7;
  * Um conjunto, e não um `===`, porque os dois convivem no catálogo real deste
  * ambiente — há prompts servindo `production` e outros servindo `prod`.
  */
-export const AMBIENTES_DE_PRODUCAO = new Set(['production', 'prod']);
+export const PRODUCTION_ENVIRONMENTS = new Set(['production', 'prod']);
 
-export const BASE_DE_CONSUMO =
+export const CONSUMPTION_BASE =
   typeof window === 'undefined' ? '/v1/promptly' : `${window.location.origin}/v1/promptly`;
 
 /**
@@ -35,10 +35,10 @@ export const BASE_DE_CONSUMO =
  * versão fixa seria pior —, e o que faltava era a tela DIZER que não é produção. Ver
  * `ambienteEProducao`.
  */
-export function ambienteDoTrecho(
+export function snippetEnvironment(
   ponteiros: readonly { readonly label: string; readonly version: number }[],
 ): string | null {
   return (
-    ponteiros.find((p) => AMBIENTES_DE_PRODUCAO.has(p.label))?.label ?? ponteiros[0]?.label ?? null
+    ponteiros.find((p) => PRODUCTION_ENVIRONMENTS.has(p.label))?.label ?? ponteiros[0]?.label ?? null
   );
 }

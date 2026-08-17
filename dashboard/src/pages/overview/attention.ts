@@ -29,8 +29,8 @@
 
 /** A leitura de uma consulta, no mesmo formato que `capabilities.ts` já usa. */
 export interface SignalReading {
-  readonly falhou: boolean;
-  readonly carregando: boolean;
+  readonly failed: boolean;
+  readonly loading: boolean;
   readonly dados: unknown;
 }
 
@@ -86,34 +86,34 @@ const AGENT_ERROR_WARN = 0.02;
 const AGENT_ERROR_CRIT = 0.1;
 const EMPTY_RETRIEVAL_WARN = 0.05;
 
-function lidoComSucesso(r: SignalReading): boolean {
+function readSuccessfully(r: SignalReading): boolean {
   // Uma consulta assentada sem dado é uma leitura que FALHOU, não um sistema saudável — o mesmo
   // raciocínio de `capabilities.ts`. Um "nada a reportar" derivado de ignorância é pior que
   // silêncio: ele afirma saúde.
-  return !r.falhou && !r.carregando && r.dados != null;
+  return !r.failed && !r.loading && r.dados != null;
 }
 
 function porcentagem(v: number): string {
   return `${(v * 100).toFixed(1).replace(/\.0$/, '')}%`;
 }
 
-function taxaDeErro(dados: unknown): { total: number; erros: number } | null {
+function errorRate(dados: unknown): { total: number; failures: number } | null {
   if (typeof dados !== 'object' || dados === null) return null;
   const traffic = (dados as { traffic?: unknown }).traffic;
   if (!Array.isArray(traffic) || traffic.length === 0) return null;
 
   let total = 0;
-  let erros = 0;
+  let failures = 0;
   for (const b of traffic) {
     if (typeof b !== 'object' || b === null) continue;
     const bucket = b as { traceCount?: unknown; errorCount?: unknown };
     if (typeof bucket.traceCount === 'number') total += bucket.traceCount;
-    if (typeof bucket.errorCount === 'number') erros += bucket.errorCount;
+    if (typeof bucket.errorCount === 'number') failures += bucket.errorCount;
   }
-  return total === 0 ? null : { total, erros };
+  return total === 0 ? null : { total, failures };
 }
 
-function taxaDeRetrievalVazio(dados: unknown): { taxa: number; retrievals: number } | null {
+function emptyRetrievalRate(dados: unknown): { taxa: number; retrievals: number } | null {
   if (typeof dados !== 'object' || dados === null) return null;
   const totals = (dados as { totals?: unknown }).totals;
   if (typeof totals !== 'object' || totals === null) return null;
@@ -139,14 +139,14 @@ function bloqueios(dados: unknown): { total: number; principal: string | null } 
 
   const porGuardrail = new Map<string, number>();
   for (const e of barrados) {
-    const nome = (e as { validatorName?: unknown }).validatorName;
-    if (typeof nome === 'string') porGuardrail.set(nome, (porGuardrail.get(nome) ?? 0) + 1);
+    const name = (e as { validatorName?: unknown }).validatorName;
+    if (typeof name === 'string') porGuardrail.set(name, (porGuardrail.get(name) ?? 0) + 1);
   }
   const principal = [...porGuardrail.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   return { total: barrados.length, principal };
 }
 
-const ORDEM: Record<AttentionSeverity, number> = { critical: 0, warning: 1 };
+const ORDER: Record<AttentionSeverity, number> = { critical: 0, warning: 1 };
 
 /**
  * Os itens que precisam do operador, mais severo primeiro.
@@ -158,16 +158,16 @@ const ORDEM: Record<AttentionSeverity, number> = { critical: 0, warning: 1 };
 export function attentionItems(leitura: AttentionReading): AttentionItem[] {
   const itens: AttentionItem[] = [];
 
-  if (lidoComSucesso(leitura.observability)) {
-    const erro = taxaDeErro(leitura.observability.dados);
-    if (erro !== null) {
-      const taxa = erro.erros / erro.total;
+  if (readSuccessfully(leitura.observability)) {
+    const failure = errorRate(leitura.observability.dados);
+    if (failure !== null) {
+      const taxa = failure.failures / failure.total;
       if (taxa >= AGENT_ERROR_WARN) {
         itens.push({
           id: 'agent-errors',
           severity: taxa >= AGENT_ERROR_CRIT ? 'critical' : 'warning',
           headline: `${porcentagem(taxa)} of agent runs failed`,
-          detail: `${String(erro.erros)} of ${String(erro.total)} runs returned an error.`,
+          detail: `${String(failure.failures)} of ${String(failure.total)} runs returned an error.`,
           path: '/observability',
           cta: 'Open Observability',
         });
@@ -175,16 +175,16 @@ export function attentionItems(leitura: AttentionReading): AttentionItem[] {
     }
   }
 
-  if (lidoComSucesso(leitura.rag)) {
-    const vazio = taxaDeRetrievalVazio(leitura.rag.dados);
-    if (vazio !== null && vazio.taxa >= EMPTY_RETRIEVAL_WARN) {
+  if (readSuccessfully(leitura.rag)) {
+    const empty = emptyRetrievalRate(leitura.rag.dados);
+    if (empty !== null && empty.taxa >= EMPTY_RETRIEVAL_WARN) {
       itens.push({
         id: 'empty-retrievals',
         severity: 'warning',
-        headline: `${porcentagem(vazio.taxa)} of retrievals came back empty`,
+        headline: `${porcentagem(empty.taxa)} of retrievals came back empty`,
         detail:
-          vazio.retrievals > 0
-            ? `Your knowledge base was asked ${String(vazio.retrievals)} times and had nothing to answer with.`
+          empty.retrievals > 0
+            ? `Your knowledge base was asked ${String(empty.retrievals)} times and had nothing to answer with.`
             : 'Your knowledge base was asked and had nothing to answer with.',
         path: '/rag',
         cta: 'Open Knowledge Base',
@@ -192,7 +192,7 @@ export function attentionItems(leitura: AttentionReading): AttentionItem[] {
     }
   }
 
-  if (lidoComSucesso(leitura.trust)) {
+  if (readSuccessfully(leitura.trust)) {
     const barrado = bloqueios(leitura.trust.dados);
     if (barrado !== null) {
       itens.push({
@@ -209,5 +209,5 @@ export function attentionItems(leitura: AttentionReading): AttentionItem[] {
     }
   }
 
-  return itens.sort((a, b) => ORDEM[a.severity] - ORDEM[b.severity]);
+  return itens.sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
 }

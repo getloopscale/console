@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 
 import { deriveWikiEntries, leafName, breadcrumbSegments, prefixForCrumb, type WikiEntry } from './wiki-entries';

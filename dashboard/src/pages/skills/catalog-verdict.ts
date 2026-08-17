@@ -79,14 +79,14 @@ export function catalogVerdict(reading: CatalogReading): CatalogVerdict {
   // A regra: uma skill publicada deveria ser carregável. Sem revisão vigente, ela não é.
   // Depreciada COM revisão continua carregável — contá-la aqui inflaria o alarme com casos que
   // funcionam, e um alarme que inclui o que está certo deixa de ser lido.
-  const semRevisao = reading.skills.filter(
+  const withoutRevision = reading.skills.filter(
     (s) => s.latest_revision_id === null || s.latest_revision_id === undefined,
   ).length;
 
-  if (semRevisao > 0) {
+  if (withoutRevision > 0) {
     return {
       kind: 'problem',
-      headline: `${plural(semRevisao, 'skill', 'skills')} cannot be loaded`,
+      headline: `${plural(withoutRevision, 'skill', 'skills')} cannot be loaded`,
       detail: partial
         ? 'They are published with no current revision. There may be more beyond this page.'
         : 'They are published with no current revision, so no agent can use them.',

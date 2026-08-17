@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LogViewer } from './log-viewer';
 import type { LogLine } from '@/lib/api/types';
@@ -175,7 +175,7 @@ describe('LogViewer empty-state 3s delay (J-19 T1.4 — R4 MUST)', () => {
     );
     // No filter applied → no message
     expect(screen.queryByText(/No lines match/i)).toBeNull();
-    // Search filter excluding everything → message immediate
+    // Same props again: a rerender on its own must not conjure the filter message.
     rerender(
       <LogViewer
         {...mkProps({
@@ -185,11 +185,37 @@ describe('LogViewer empty-state 3s delay (J-19 T1.4 — R4 MUST)', () => {
         })}
       />,
     );
-    // We can't easily trigger the search filter from outside; this test
-    // documents that EC-7 reconnection race is for `lines.length === 0`
-    // branch (delay applies) AND the filter branch is immediate (no
-    // change). Coverage by static branch inspection.
+    // The 3s-delayed branch belongs to `lines.length === 0`; with a line present it never arms.
     expect(screen.queryByText(/No log lines yet/i)).toBeNull();
+  });
+
+  // B-242 — the anchor the case above lacked, and the coverage its own comment admitted was
+  // missing ("we can't easily trigger the search filter from outside … coverage by static branch
+  // inspection"). The search box is in the component, so it CAN be driven: typing a term that
+  // matches nothing renders the message immediately, with no timer involved. Without this case
+  // the absence assertion above could not fail — rewrite the sentence in `log-viewer.tsx` and
+  // nothing goes red.
+  it('B-242 — a search term matching nothing shows "No lines match" IMMEDIATELY, with no delay', () => {
+    // `fireEvent.change` and not `userEvent.type`: this describe block installs fake timers, and
+    // user-event's per-keystroke delay deadlocks against them (measured — the first attempt timed
+    // out at 20s). What the case is about is the search STATE, not the keystrokes that produce it.
+    render(
+      <LogViewer
+        {...mkProps({
+          lines: [{ ts: '2026-06-12T20:00:00.000Z', level: 'error', msg: 'oops' }],
+        })}
+      />,
+    );
+
+    // The line is visible BEFORE the filter — without this the assertion that it disappears is
+    // satisfied by a viewer that never rendered it at all.
+    expect(screen.getByText(/oops/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'zzz-no-such-line' } });
+
+    // Immediate: asserted BEFORE any timer advance, which is what "no delay" means here.
+    expect(screen.getByText(/No lines match/i)).toBeInTheDocument();
+    expect(screen.queryByText(/oops/)).toBeNull();
   });
 
   it('test_log_viewer_empty_state_cancelled_on_disconnect_EC7', () => {

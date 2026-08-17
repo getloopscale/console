@@ -42,12 +42,12 @@ export const SLO: Record<'uptime' | 'p95LatencyMs' | 'errorRatePct', FaixaSLO> =
  * ter medido mal, e pintar de vermelho o que não se sabe é a afirmação que esta varredura inteira
  * está removendo do produto.
  */
-export function sloTone(valor: number | null | undefined, faixa: FaixaSLO): Tone {
-  if (typeof valor !== 'number' || !Number.isFinite(valor)) return 'muted';
+export function sloTone(value: number | null | undefined, faixa: FaixaSLO): Tone {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'muted';
   if (faixa.direcao === 'higher') {
-    if (valor >= faixa.bom) return 'success';
-    return valor >= faixa.aceitavel ? 'warning' : 'destructive';
+    if (value >= faixa.bom) return 'success';
+    return value >= faixa.aceitavel ? 'warning' : 'destructive';
   }
-  if (valor >= faixa.aceitavel) return 'destructive';
-  return valor >= faixa.bom ? 'warning' : 'success';
+  if (value >= faixa.aceitavel) return 'destructive';
+  return value >= faixa.bom ? 'warning' : 'success';
 }

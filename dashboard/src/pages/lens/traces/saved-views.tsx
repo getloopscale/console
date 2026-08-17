@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookmarkPlus, Trash2 } from 'lucide-react';
 import {
   Button,
@@ -9,22 +8,13 @@ import { AppModal } from '@/components/ui/app-modal';
 import { ListTruncationNotice } from '@/components/ui/list-truncation-notice';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
-import { cloudFetch } from '@/lib/http/api';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import {
+  useSavedViews,
+  useCreateSavedView,
+  useDeleteSavedView,
+  type SavedView,
+} from '@/hooks/lens/use-saved-views';
 
-export interface SavedView {
-  id: string;
-  name: string;
-  query_string: string;
-}
-interface SavedViewsResult {
-  saved_views: SavedView[];
-  /**
-   * B-114 — o servidor aplica um teto de 100 e passou a DIZER quando ele mordeu. Antes a 101ª
-   * view sumia em silêncio: a tela mostrava 100 e nada indicava que havia mais.
-   */
-  has_more?: boolean;
-}
 
 /** Return the query string with a `viewId=` handle set (so the applied view is shareable by URL). */
 function withViewId(queryString: string, id: string): string {
@@ -47,17 +37,11 @@ export interface SavedViewsBarProps {
  * only the current search params + an apply callback. Behavior-preserving in Phase 0.
  */
 export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
-  const queryClient = useQueryClient();
   const [saveOpen, setSaveOpen] = useState(false);
   const [viewName, setViewName] = useState('');
   const [pendingView, setPendingView] = useState<SavedView | null>(null);
 
-  const savedViewsKey = ['cloud', '/v1/dashboard/lens/saved-views'] as const;
-  const savedViews = useQuery({
-    queryKey: savedViewsKey,
-    queryFn: () => cloudFetch<SavedViewsResult>(`/v1/dashboard/lens/saved-views?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
-  const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
+  const savedViews = useSavedViews();
 
   const views = savedViews.data?.saved_views ?? [];
   const truncou = savedViews.data?.has_more === true;
@@ -82,28 +66,23 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
     onApply(withViewId(v.query_string, v.id));
   };
 
-  const createView = useMutation({
-    mutationFn: (name: string) =>
-      cloudFetch<SavedView>('/v1/dashboard/lens/saved-views', {
-        method: 'POST',
+  const createView = useCreateSavedView();
+  const submitView = (name: string) =>
+    createView.mutate(
+      {
+        name,
         // the query string IS the view — the current filter URL (or a bare "?" when no filter is set).
-        body: JSON.stringify({ name, query_string: searchParams.toString() ? `?${searchParams.toString()}` : '?' }),
-      }),
-    onSuccess: () => {
-      setSaveOpen(false);
-      setViewName('');
-      invalidateViews();
-    },
-  });
+        query_string: searchParams.toString() ? `?${searchParams.toString()}` : '?',
+      },
+      {
+        onSuccess: () => {
+          setSaveOpen(false);
+          setViewName('');
+        },
+      },
+    );
 
-  const deleteView = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/saved-views/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingView(null);
-      invalidateViews();
-    },
-  });
+  const deleteView = useDeleteSavedView();
 
   return (
     <>
@@ -132,7 +111,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
           Save current view
         </Button>
       </div>
-      <ListTruncationNotice temMais={truncou} total={views.length} substantivo="saved views" />
+      <ListTruncationNotice hasMore={truncou} total={views.length} substantivo="saved views" />
 
       {/* M59 P3 — the naming Dialog (replaces the inline form). The stored query_string is the whole
           filter URL — including the M59 `cols=` (column visibility) + `density=` params — so a saved
@@ -152,7 +131,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
               id="save-view-form"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (viewName.trim()) createView.mutate(viewName.trim());
+                if (viewName.trim()) submitView(viewName.trim());
               }}
             >
               <label htmlFor="saved-view-name" className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -179,7 +158,10 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
           cancelLabel="Cancel"
           intent="destructive"
           loading={deleteView.isPending}
-          onConfirm={() => deleteView.mutate(pendingView.id)}
+          onConfirm={async () => {
+            await deleteView.mutateAsync(pendingView.id);
+            setPendingView(null);
+          }}
         />
       ) : null}
     </>

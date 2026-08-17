@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
 import { promotionConfirmation, promotionPhrase } from './confirm-text';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
@@ -121,7 +122,86 @@ const SELF = 'absence-assertion-ratchet.test.ts';
  * for the wrong reason. One case rendering the root and asserting both present anchors seven at
  * once; removing it puts the count straight back to 113.
  */
-const CEILING_UNANCHORED = 106;
+// 102 desde 2026-08-12, e a queda NAO foi um lote de asserções ancoradas: 3 delas nunca estiveram
+// desancoradas e o DETECTOR e que nao enxergava, e 1 saiu junto com um teste reescrito noutro item.
+//
+// O caso medido esta em `pages/promptly/catalogo.test.tsx`: tres asserções perguntam por
+// `/\d+ neste workspace/i` e o caso positivo afirma `/3 neste workspace/i`. O arquivo DISCRIMINA —
+// apague o elemento da contagem e o caso positivo reprova — mas o core lido do primeiro caractere
+// era `\d+ neste workspac`, que literal nenhum contem. Agora o core e o maior trecho SEM
+// metacaractere, porque so os trechos literais de uma regex e que casam com texto.
+//
+// A mudanca foi provada por mutacao (3 mutantes, 3 mortos): sempre-ancorar reprova 3 casos, usar o
+// menor trecho reprova 4, e splitar tambem strings citadas reprova 2. Um detector afrouxado passa
+// nos tres.
+// 91 desde 2026-08-12 (B-242): ONZE asserções ancoradas, cada uma provada por mutação — a produção
+// foi quebrada e o caso NOVO ficou vermelho enquanto a asserção de ausência antiga seguia verde.
+// Essa segunda metade é o achado: em nenhum dos onze a asserção de ausência reprovou sozinha, que
+// é exatamente o que "não pode falhar" quer dizer.
+//
+//   datasets            "No items"                        — um dataset que carrega com zero itens
+//   memories            "hasn't stored any memories"      — a DESCRIÇÃO, não só o título
+//   log-viewer          "No lines match"                  — a busca é dirigível; o comentário do
+//                                                           próprio caso dizia que não era
+//   deployments         "No deployments yet"              — projeto com zero builds
+//   live-url-hero       "No production deploy yet — …"    — a cópia padrão, ao lado do título
+//   trust/overview × 2  heading "Violations by policy"    — o arquivo só nomeava a TABELA
+//   monitors            "No evaluators — create one first" — leitura que dá certo com zero linhas
+//   billing × 3         "Fast Data Transfer" / "Edge Requests" / "Concurrent Builds"
+//
+// DUAS LIÇÕES MEDIDAS, as duas contra mim:
+//
+//   1. O caso do billing primeiro afirmava os três rótulos num `for` sobre um array. O detector lê
+//      o SELETOR, e um seletor que é variável não tem literal para casar: os três continuaram
+//      contados como desancorados. Escrevê-los por extenso é o que fez o par existir.
+//   2. O caso novo do log-viewer NASCEU com uma asserção de ausência desancorada (`/oops/`), e
+//      quem apontou foi esta catraca. Corrigido afirmando a linha PRESENTE antes de filtrar.
+//
+// E um defeito de produção que só a mutação revelou: a regra que deriva o rótulo da chave de
+// billing existe DUAS VEZES (`billing.tsx:193` e `:314`), então mutar uma sobrevivia. Registrado
+// como B-277 em vez de corrigido aqui — é outro item, com outra evidência.
+// 84 desde 2026-08-13 (B-242): SETE asserções ancoradas, cada uma provada por mutação — a produção
+// foi quebrada e o caso NOVO ficou vermelho enquanto a assercao de ausencia antiga seguia verde.
+//
+//   signal-detail-sheet  'Replicas'                   o rotulo do sinal com open={true}
+//   project-status       /^Progressing$/              um release presente e NAO ativo
+//   project-detail       /URL pending/i               projeto COM ambiente de producao e sem URL
+//   device-success       'device-success-countdown'   o estado padrao, com animacao permitida
+//   promptly/diff        'promptly-diff-config'       o BLOCO, pelo mesmo tipo de query que a nega
+//   promptly/playground  /provedor do modelo recusou/ o TITULO, e nao so a descricao
+//   rag/analytics        /extraction tokens/i         o ROTULO, e nao so o valor
+//
+// UMA MUTACAO MINHA FOI INVALIDA E QUASE PASSOU POR PROVA: trocar a primeira ocorrencia de
+// "URL pending" em `live-url-hero.tsx` atingiu um COMENTARIO na linha 14, nao o Badge na 109. O
+// teste ficou verde e por um instante isso pareceu "a ancora nao discrimina". Mutar o lugar certo
+// derrubou o caso. Uma mutacao que nao muda comportamento nao prova nada, e a diferenca entre as
+// duas leituras e a mesma que este arquivo inteiro persegue.
+//
+// A COMPOSICAO, classificando cada asserção por onde o texto consultado existe. E das **91** que
+// havia ANTES desta fatia, nao das 84 que ficam:
+//
+//    16  ancoraveis    — a TELA que o teste possui renderiza o texto
+//    25  fixture       — o proprio arquivo introduz o texto num mock: classe do B-276
+//   ~50  sem texto     — copia REMOVIDA que nao pode voltar, seletor vindo de VARIAVEL (falso
+//                        positivo documentado do detector), ou texto de um componente que o teste
+//                        nao possui
+//
+// 7 das 16 ancoraveis foram fechadas aqui, cada uma provada por mutacao: 91 - 7 = 84. Restam 9 da
+// classe ancoravel, e delas apenas UMA tem razao escrita (o `spend` de `overview-kpi-strip.tsx`,
+// falso positivo — o texto so existe em comentario). As outras oito nao estao ancoradas nem
+// explicadas, e e por isso que o item continua aberto.
+//
+// CORRECAO 2026-08-13, no /review: esta tabela dizia "8 ancoraveis (7 fechadas, 1 restante)" e
+// apresentava 8 + 25 + 50 como a composicao DAS 84. Errado duas vezes — a soma da 83, e as 7
+// fechadas por definicao ja nao estao entre as 84. Misturar a populacao de antes com a de depois
+// na mesma tabela e como o numero deixou de fechar.
+//
+// O classificador que produziu isso erra nos DOIS sentidos e esta escrito aqui para nao ser lido
+// como exato (o `~50` e literalmente aproximado, entao 16+25+50 fecha 91 por arredondamento e nao
+// por contagem): ele leu `spend` em `overview-kpi-strip.tsx` que so existe em COMENTARIO (falso
+// ancoravel), e chamou `project-detail.tsx` de sem-texto quando a copia mora no componente FILHO
+// que a pagina renderiza (falso sem-texto) — essa foi ancorada mesmo assim, e a mutacao provou.
+const CEILING_UNANCHORED = 84;
 
 /** Files holding at least one absence assertion. Frozen 2026-08-11, remeasured 2026-08-12. */
 const CEILING_FILES = 98;
@@ -325,6 +405,53 @@ describe('the detector, exercised — not a copy of it', () => {
   it('`selectorCore` needs 4 characters, so short noise is not an anchor', () => {
     expect(selectorCore("/nothing here/i")).toBe('nothing here');
     expect(selectorCore("'ab'")).toBeNull();
+  });
+
+  it('a regex core is its longest LITERAL run, so a quantifier does not hide the anchor', () => {
+    // Measured on `pages/promptly/catalogo.test.tsx`: the absence assertions query
+    // `/\d+ neste workspace/i` and the presence case asserts `/3 neste workspace/i`. The file
+    // DISCRIMINATES — delete the count element and the presence case fails — but a core taken
+    // from the first character onwards is `\d+ neste workspac`, which no literal ever contains.
+    //
+    // What anchors an absence assertion is that the same TEXT was proven renderable, and only a
+    // regex's literal segments ever match text. So the core is the longest run with no
+    // metacharacter in it.
+    expect(selectorCore(String.raw`/\d+ neste workspace/i`)).toBe(' neste workspace');
+    expect(selectorCore(String.raw`/^Deploy \d+$/`)).toBe('Deploy ');
+    // A selector that is ALL metacharacters anchors nothing, and must not anchor everything.
+    expect(selectorCore(String.raw`/\d+/`)).toBeNull();
+    // In a QUOTED string a dot is literal text, so splitting there would discard specificity the
+    // selector really has. Only a regex gets split.
+    expect(selectorCore("'Save changes.'")).toBe('Save changes.');
+  });
+
+  it('an absence assertion is anchored by a presence case sharing its literal run', () => {
+    const source = [
+      `it('a', async () => { expect(await screen.findByText(/3 neste workspace/i)).toBeInTheDocument(); });`,
+      `it('b', () => { expect(screen.queryByText(/\\d+ neste workspace/i)).not.toBeInTheDocument(); });`,
+    ].join('\n');
+    expect(unanchoredIn('x.test.tsx', source)).toHaveLength(0);
+  });
+
+  it('a never-leak assertion stays unanchored, and the reason is recorded not fixed', () => {
+    // The SECOND discriminating shape, which the presence rule cannot express. Nothing on the
+    // recovery screen may ever render the word `kratos`, so there is no positive case to point
+    // at — yet the assertion can still fail, because the mocked upstream error contains the word.
+    // Delete the message mapping and the raw text renders.
+    //
+    // It is still counted here, and that is a decision. The rule that would clear it — anchor an
+    // absence assertion when any string literal in the file contains its core — was implemented
+    // and MEASURED before being rejected: it moved 50 of the 102 assertions at once and broke the
+    // query-kind invariant the case below protects (fixture text has no kind, so a `queryByRole`
+    // absence would be anchored by an unrelated `getByText` string). Fifty is not a population of
+    // never-leak assertions; it is a rule that anchors almost everything.
+    //
+    // Registered as B-276. Until it has a rule that discriminates, the honest number counts them.
+    const source = [
+      "mockSubmitFlow.mockRejectedValueOnce(new Error('kratos credential method failed'));",
+      'expect(screen.queryByText(/kratos/i)).not.toBeInTheDocument();',
+    ].join('\n');
+    expect(unanchoredIn('x.test.tsx', source)).toHaveLength(1);
   });
 
   it('recognises the absence matchers, and only those', () => {

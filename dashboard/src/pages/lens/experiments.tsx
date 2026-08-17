@@ -1,6 +1,5 @@
 import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDatasets } from '@/hooks/lens/use-datasets';
 import { useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
@@ -10,7 +9,13 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useExperimentRuns,
+  useCompareExperimentRuns,
+  useStartExperimentRun,
+  type ExperimentRun,
+  type RunItem,
+} from '@/hooks/lens/use-experiment-runs';
 import { formatCost, formatDuration, formatScore, formatTokens, shortId } from '@/lib/formatting/format';
 import { TracePeekSheet } from './traces/peek-sheet';
 
@@ -22,43 +27,6 @@ import { TracePeekSheet } from './traces/peek-sheet';
  * write is Principal-scoped upstream; a provider/scope error fails closed to a typed Alert.
  */
 
-interface RunScore {
-  name: string;
-  score?: number;
-  label?: string;
-}
-interface RunItem {
-  datasetItemTraceId: string;
-  output?: string;
-  totalTokens: number;
-  costUsd?: number;
-  latencyMs: number;
-  model: string;
-  scores: RunScore[];
-  error?: string;
-}
-interface ExperimentRun {
-  id: string;
-  datasetId: string;
-  name: string;
-  variant: { model?: string; promptOverride?: string };
-  status: 'completed' | 'partial' | 'failed';
-  truncated: boolean;
-  itemCount: number;
-  passCount: number;
-  avgScore?: number;
-  totalCostUsd: number;
-  createdAt: string;
-  items?: RunItem[];
-}
-/** The signed aggregate deltas the compare API returns (A minus B); score/latency null when absent. */
-interface RunCompareDeltas {
-  passCountDelta: number;
-  passRateDelta: number;
-  avgScoreDelta: number | null;
-  totalCostDelta: number;
-  avgLatencyDelta: number | null;
-}
 
 /** Mean of a row's numeric scores, or undefined when the row has none (mirrors the domain `rowMeanScore`). */
 function rowMeanScore(item: RunItem): number | undefined {
@@ -111,7 +79,6 @@ export function LensExperimentsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Experiments'), [setPageTitle]);
   useRequireAuth();
-  const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const datasetId = params.get('datasetId') ?? '';
   const compareIds = (params.get('compare') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -135,39 +102,23 @@ export function LensExperimentsPage() {
   const datasets = datasetsQuery.data?.datasets ?? [];
 
   // Runs list (or dataset-filtered when arriving from "create regression dataset").
-  const runsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs', datasetId] as const,
-    queryFn: () =>
-      cloudFetch<{ runs: ExperimentRun[] }>(`/v1/dashboard/lens/experiment-runs${datasetId ? `?datasetId=${encodeURIComponent(datasetId)}` : ''}`, {}, { throwOnError: true }),
-    enabled: compareIds.length < 2,
-  });
+  const runsQuery = useExperimentRuns(datasetId, compareIds.length < 2);
 
   // Compare view: two+ runs (with items) aligned by source trace id.
-  const compareQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs/compare', compareIds.join(',')] as const,
-    queryFn: () => cloudFetch<{ runs: ExperimentRun[]; deltas: RunCompareDeltas | null }>(`/v1/dashboard/lens/experiment-runs/compare?ids=${encodeURIComponent(compareIds.join(','))}`, {}, { throwOnError: true }),
-    enabled: compareIds.length >= 2,
-  });
+  const compareQuery = useCompareExperimentRuns(compareIds);
 
-  const run = useMutation({
-    mutationFn: () =>
-      cloudFetch<ExperimentRun>(
-        '/v1/dashboard/lens/experiment-runs',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            datasetId: runDatasetId,
-            variant: { ...(model.trim() ? { model: model.trim() } : {}), ...(prompt.trim() ? { promptOverride: prompt.trim() } : {}) },
-          }),
+  const run = useStartExperimentRun();
+  const startRun = () =>
+    run.mutate(
+      {
+        datasetId: runDatasetId,
+        variant: {
+          ...(model.trim() ? { model: model.trim() } : {}),
+          ...(prompt.trim() ? { promptOverride: prompt.trim() } : {}),
         },
-        { throwOnError: true },
-      ),
-    retry: false,
-    onSuccess: () => {
-      setRunOpen(false);
-      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs'] });
-    },
-  });
+      },
+      { onSuccess: () => setRunOpen(false) },
+    );
   const latest = run.data ?? null;
 
   /**
@@ -345,7 +296,7 @@ export function LensExperimentsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={() => run.mutate()} disabled={!runDatasetId || run.isPending}>
+            <Button onClick={startRun} disabled={!runDatasetId || run.isPending}>
               {run.isPending ? 'Running…' : 'Run experiment'}
             </Button>
           </>

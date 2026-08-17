@@ -40,7 +40,7 @@ vi.mock('@/hooks/promptly/promptly-api', async (importOriginal) => {
     fetchCatalogPage: (...a: unknown[]) => mockCatalog(...a),
     fetchComments: (...a: unknown[]) => mockComments(...a),
     addComment: (...a: unknown[]) => mockAddComment(...a),
-    fetchPromptResolvido: (...a: unknown[]) => mockResolvido(...a),
+    fetchResolvedPrompt: (...a: unknown[]) => mockResolvido(...a),
     fetchDependentes: (...a: unknown[]) => mockDependentes(...a),
   };
 });
@@ -514,7 +514,7 @@ describe('PromptDetailPage — tags (M16)', () => {
     // seria trabalho antes da necessidade — o dado já está a um `search` de distância.
     mockCatalog.mockResolvedValue({
       data: [{ name: 'saudacao', latestVersion: 3, labels: [], tags, updatedAt: 'd' }],
-      temContinuacao: false,
+      hasContinuation: false,
     });
   }
 

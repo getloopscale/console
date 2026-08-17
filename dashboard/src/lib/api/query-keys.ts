@@ -136,8 +136,8 @@ export const queryKeys = {
     all: ['bundles'] as const,
     list: () => ['bundles', 'list'] as const,
     tokens: (bundleId: string | undefined) => ['bundles', bundleId, 'tokens'] as const,
-    adoption: (bundleId: string | undefined, dias: number) =>
-      ['bundles', bundleId, 'adoption', dias] as const,
+    adoption: (bundleId: string | undefined, days: number) =>
+      ['bundles', bundleId, 'adoption', days] as const,
   },
   // B-052 — promptly era o unico dos tres com UMA chave declarada
   // (`CATALOG_QUERY_KEY`, promptly-api.ts:23) e o resto escrito a mao nas telas.
@@ -157,8 +157,8 @@ export const queryKeys = {
     diff: (name: string | undefined) => ['promptly', 'prompt', name, 'diff'] as const,
     policy: (name: string | undefined, label: string | undefined) =>
       ['promptly', 'prompt', name, 'policy', label] as const,
-    usage: (name: string | undefined, dias: number) =>
-      ['promptly', 'prompt', name, 'usage', dias] as const,
+    usage: (name: string | undefined, days: number) =>
+      ['promptly', 'prompt', name, 'usage', days] as const,
     comments: (name: string | undefined, version: number) =>
       ['promptly', 'prompt', name, 'comments', version] as const,
   },

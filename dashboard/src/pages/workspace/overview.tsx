@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   RefreshCw, Trash2, Link2, Upload, Folder, FileText, FileCode, FileImage,
   FolderPlus, ChevronRight, Home,
@@ -18,7 +18,17 @@ import { triggerBlobDownload } from '@/lib/export/download';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, cloudFetchRaw } from '@/lib/http/api';
+import { cloudFetch } from '@/lib/http/api';
+import {
+  useStorageObjects,
+  useStorageUsage,
+  useRefreshStorage,
+  fetchStorageObject,
+  createFolderMarker,
+  shareObject,
+  deleteObject,
+  STORAGE_OBJECT_LIMIT,
+} from '@/hooks/workspace/use-storage';
 import { presignedUpload, presignedDownloadURL, type PresignDeps } from './workspace-presign';
 import { useWorkspaceSelection } from './use-workspace-selection';
 
@@ -29,7 +39,6 @@ import { useWorkspaceSelection } from './use-workspace-selection';
 import {
   FOLDER_MARKER,
   deriveEntries,
-  STORAGE_OBJECT_LIMIT,
   formatBytes,
   previewKind,
   type StorageFile,
@@ -51,21 +60,7 @@ import { NewFolderDialog } from '@/components/dialogs/new-folder-dialog';
  * upload, in-app New-folder dialog, and a side-panel preview. Product language only.
  */
 
-interface ListResult {
-  files: StorageFile[];
-  next_cursor: string;
-}
 
-interface UsageInfo {
-  used_bytes: number;
-  aggregate_limit: number;
-  tier: string;
-  unlimited: boolean;
-}
-
-function encodePath(p: string): string {
-  return p.split('/').map(encodeURIComponent).join('/');
-}
 
 function fileIcon(ct: string) {
   const k = previewKind(ct);
@@ -78,7 +73,6 @@ export function WorkspacePage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Workspace'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const [prefix, setPrefix] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -97,18 +91,8 @@ export function WorkspacePage() {
   const [deleteTarget, setDeleteTarget] = useState<StorageFile | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const filesQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/storage/objects'] as const,
-    queryFn: () => cloudFetch<ListResult>(
-        `/v1/dashboard/storage/objects?limit=${STORAGE_OBJECT_LIMIT}`,
-        {},
-        { throwOnError: true },
-      ),
-  });
-  const usageQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/storage/usage'] as const,
-    queryFn: () => cloudFetch<UsageInfo>('/v1/dashboard/storage/usage', {}, { throwOnError: true }),
-  });
+  const filesQuery = useStorageObjects<StorageFile>();
+  const usageQuery = useStorageUsage();
 
   const entries = useMemo(
     () => deriveEntries(filesQuery.data?.files ?? [], prefix),
@@ -116,10 +100,7 @@ export function WorkspacePage() {
   );
   const crumbs = prefix ? prefix.replace(/\/$/, '').split('/') : [];
 
-  const onRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/storage/objects'] });
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/storage/usage'] });
-  };
+  const onRefresh = useRefreshStorage();
 
   // Multi-select + bulk / folder delete (state + mutation live in the hook).
   const sel = useWorkspaceSelection({
@@ -141,7 +122,7 @@ export function WorkspacePage() {
     queryKey: ['cloud', '/v1/dashboard/storage/objects', preview?.path] as const,
     enabled: !!preview && previewKind(preview.content_type) !== 'none',
     queryFn: async () => {
-      const res = await cloudFetchRaw(`/v1/dashboard/storage/objects/${encodePath(preview!.path)}`);
+      const res = await fetchStorageObject(preview!.path);
       if (!res || !res.ok) throw new Error(res ? String(res.status) : 'unauthenticated');
       if (previewKind(preview!.content_type) === 'image') {
         return { kind: 'image' as const, url: URL.createObjectURL(await res.blob()) };
@@ -166,13 +147,7 @@ export function WorkspacePage() {
     setCreatingFolder(true);
     setNewFolderError(null);
     try {
-      await cloudFetch(
-        `/v1/dashboard/storage/objects/${encodePath(`${prefix}${name}/${FOLDER_MARKER}`)}`,
-        // 1-byte marker: the store rejects a 0-byte object (503); a newline is enough
-        // to materialize an empty folder (the marker stays hidden from the file list).
-        { method: 'PUT', body: new Uint8Array([10]), headers: { 'Content-Type': 'application/octet-stream' } },
-        { throwOnError: true },
-      );
+      await createFolderMarker(`${prefix}${name}/${FOLDER_MARKER}`);
       setNewFolderOpen(false);
       setNewFolderName('');
       onRefresh();
@@ -230,11 +205,7 @@ export function WorkspacePage() {
   };
 
   const onShare = async (path: string) => {
-    const res = await cloudFetch<{ url: string; expires_at: string }>(
-      '/v1/dashboard/storage/share',
-      { method: 'POST', body: JSON.stringify({ path, expires_in_seconds: 3600 }) },
-      { throwOnError: true },
-    );
+    const res = await shareObject(path);
     if (res) setShareUrl(res.url);
   };
 
@@ -242,11 +213,7 @@ export function WorkspacePage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await cloudFetch(
-        `/v1/dashboard/storage/objects/${encodePath(deleteTarget.path)}`,
-        { method: 'DELETE' },
-        { throwOnError: true },
-      );
+      await deleteObject(deleteTarget.path);
       if (preview?.path === deleteTarget.path) setPreview(null);
       setDeleteTarget(null);
       onRefresh();

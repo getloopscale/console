@@ -50,8 +50,8 @@ export function calcularPaginacao(total: number, page: number, pageSize: number)
 
 export interface EstadoDePaginacao extends Paginacao {
   readonly page: number;
-  readonly irParaAnterior: () => void;
-  readonly irParaProxima: () => void;
+  readonly goToPrevious: () => void;
+  readonly goToNext: () => void;
 }
 
 /**
@@ -71,25 +71,25 @@ export function usePaginacao(args: {
   total: number;
   pageSize: number;
   page: number;
-  setPage: (proxima: number) => void;
+  setPage: (next: number) => void;
   /** Dados ainda não assentados: buscando, ou sem resposta nenhuma. */
-  naoAssentado: boolean;
+  notSettled: boolean;
 }): EstadoDePaginacao {
-  const { total, pageSize, page, setPage, naoAssentado } = args;
+  const { total, pageSize, page, setPage, notSettled } = args;
   const calculada = calcularPaginacao(total, page, pageSize);
   const { pageCount } = calculada;
 
   useEffect(() => {
-    if (!naoAssentado && page > pageCount) setPage(pageCount);
+    if (!notSettled && page > pageCount) setPage(pageCount);
     // `setPage` é estável (setter de useState / nuqs); incluí-lo só faria o efeito depender de uma
     // identidade que não muda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [naoAssentado, page, pageCount]);
+  }, [notSettled, page, pageCount]);
 
   return {
     ...calculada,
     page,
-    irParaAnterior: () => { setPage(Math.max(1, page - 1)); },
-    irParaProxima: () => { setPage(page + 1); },
+    goToPrevious: () => { setPage(Math.max(1, page - 1)); },
+    goToNext: () => { setPage(page + 1); },
   };
 }

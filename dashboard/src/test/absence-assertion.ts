@@ -65,10 +65,37 @@ const ABSENCE = new Set(['toBeNull', 'toBeFalsy', 'not.toBeInTheDocument', 'not.
 /** …and the ones that assert it is PRESENT. A `queryBy` used this way is a legitimate anchor. */
 const PRESENCE = new Set(['toBeInTheDocument', 'toBeTruthy', 'toBeVisible', 'not.toBeNull']);
 
-/** The literal core of a selector: the first quoted run of at least 4 characters. */
+/** Regex syntax — a run containing any of these is not literal text and cannot match text. */
+const REGEX_META = /[\\^$.|?*+()[\]{}]/;
+
+/**
+ * The literal core of a selector: the longest run of at least 4 characters that a matcher could
+ * actually find in the DOM.
+ *
+ * For a string selector that is the whole thing. For a REGEX it is the longest metacharacter-free
+ * run, and taking the longest rather than the first is what makes an anchor survive a quantifier.
+ * Measured on `pages/promptly/catalogo.test.tsx`: the absence assertions query
+ * `/\d+ neste workspace/i` while the presence case asserts `/3 neste workspace/i`. That file
+ * discriminates — delete the count and the presence case fails — but a core read from the first
+ * character was `\d+ neste workspac`, which no literal ever contains, so every one of those
+ * assertions was reported unanchored.
+ *
+ * A selector made entirely of metacharacters yields `null`: it anchors nothing, and the alternative
+ * (a short or empty core) would make it anchor everything.
+ */
 export function selectorCore(selector: string): string | null {
-  const m = /[/'"`]([^/'"`]{4,})/.exec(selector);
-  return m ? m[1].slice(0, 18) : null;
+  const m = /([/'"`])([^/'"`]+)/.exec(selector);
+  if (m === null) return null;
+
+  // Only a REGEX has metacharacters. In a quoted string a `.` or a `+` is literal text, and
+  // splitting on it there would throw away specificity the selector actually has.
+  const inner = m[2];
+  const core =
+    m[1] === '/'
+      ? inner.split(REGEX_META).reduce((best, run) => (run.length > best.length ? run : best), '')
+      : inner;
+
+  return core.length >= 4 ? core.slice(0, 18) : null;
 }
 
 interface Assertion {

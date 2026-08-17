@@ -142,6 +142,11 @@ describe('M14 — o playground', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
 
     const saida = await screen.findByTestId('playground-saida');
+    // B-242 — the TITLE too, and not only the description. The transport case below denies
+    // `/provedor do modelo recusou/i` by name, and nothing here ever asserted it PRESENT: reword
+    // the title in `playground.tsx:382` and that denial keeps passing while it has stopped telling
+    // the two failure classes apart, which is the whole point of the pair.
+    expect(within(saida).getByText(/provedor do modelo recusou/i)).toBeInTheDocument();
     expect(within(saida).getByText(/Incorrect API key provided/)).toBeInTheDocument();
   });
 

@@ -61,6 +61,10 @@ describe('MemoryListPage (/memory/memories)', () => {
     respondList({ memories: [] });
     render(<MemoryListPage />);
     expect(await screen.findByText(/No memories yet/i)).toBeInTheDocument();
+    // B-242 — the DESCRIPTION is asserted here too, and not only the title, because the error
+    // case below denies both. Without this line, `queryByText(/hasn't stored any memories/i)`
+    // there could never fail: rewrite the sentence and the guard silently stops guarding.
+    expect(screen.getByText(/hasn't stored any memories/i)).toBeInTheDocument();
   });
 
   it('a failed fetch shows an error state, NOT an empty state (theo-cloud#250)', async () => {

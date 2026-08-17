@@ -8,7 +8,7 @@ import { CategoryBars } from '@/components/charts/category-bars';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { CATALOG_PAGE_LIMIT } from '@/hooks/promptly/promptly-api';
-import { catalogRows, resumoCatalogo, promptsPorAmbiente, SEM_AMBIENTE } from '@/pages/promptly/components/projections';
+import { catalogRows, catalogSummary, promptsByEnvironment, NO_ENVIRONMENT } from '@/pages/promptly/components/projections';
 import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
 
 /**
@@ -55,10 +55,10 @@ export function PromptlyOverviewPage() {
   // um refetch unico no primeiro carregamento apos o deploy. Esta no CHANGELOG.
   const query = usePromptlyCatalog<unknown>({}, CATALOG_PAGE_LIMIT);
 
-  const linhas = catalogRows(query.data?.data);
-  const resumo = resumoCatalogo(linhas, query.data?.temContinuacao ?? false);
+  const rows = catalogRows(query.data?.data);
+  const resumo = catalogSummary(rows, query.data?.hasContinuation ?? false);
   // B-129 — o mesmo catálogo já carregado, agrupado. Nenhuma requisição nova.
-  const porAmbiente = promptsPorAmbiente(linhas);
+  const byEnvironment = promptsByEnvironment(rows);
 
   return (
     <PageShell
@@ -123,7 +123,7 @@ export function PromptlyOverviewPage() {
             <Link to="/promptly/catalog?recorte=not-promoted" aria-label="See the prompts that were never promoted">
               <MetricCard
                 title="Not promoted"
-                value={resumo.naoPromovidos}
+                value={resumo.notPromoted}
                 data-testid="kpi-nao-promovidos"
                 icon={<Rocket className="h-4 w-4" aria-hidden="true" />}
               />
@@ -135,13 +135,13 @@ export function PromptlyOverviewPage() {
                 em vez de fingido aqui. */}
             <MetricCard
               title="Revisions written"
-              value={resumo.revisoesPublicadas}
+              value={resumo.publishedRevisions}
               data-testid="kpi-revisoes"
               icon={<Layers className="h-4 w-4" aria-hidden="true" />}
             />
             <MetricCard
               title="Environments"
-              value={resumo.ambientes}
+              value={resumo.environments}
               data-testid="kpi-ambientes"
               icon={<Server className="h-4 w-4" aria-hidden="true" />}
             />
@@ -167,8 +167,8 @@ export function PromptlyOverviewPage() {
                   palavras o que a cor dizia só para quem enxerga. */}
               <CategoryBars
                 title="By environment"
-                bars={porAmbiente.map((b) =>
-                  b.label === SEM_AMBIENTE
+                bars={byEnvironment.map((b) =>
+                  b.label === NO_ENVIRONMENT
                     ? { ...b, tone: 'muted' as const, toneLabel: 'serving nobody' }
                     : b,
                 )}
@@ -188,11 +188,11 @@ export function PromptlyOverviewPage() {
                     revisões que não existem — no primeiro contato de quem acabou de chegar. */}
                 {resumo.prompts === 0
                   ? 'Create the first revision and it takes effect at runtime, with no redeploy.'
-                  : resumo.naoPromovidos === 0
+                  : resumo.notPromoted === 0
                     ? 'Every latest revision is serving at least one environment.'
-                    : `${String(resumo.naoPromovidos)} ${resumo.naoPromovidos === 1 ? 'prompt has a revision' : 'prompts have revisions'} that no label serves` +
-                      (resumo.semAmbiente > 0
-                        ? ` — ${String(resumo.semAmbiente)} of them ${resumo.semAmbiente === 1 ? 'was' : 'were'} never promoted.`
+                    : `${String(resumo.notPromoted)} ${resumo.notPromoted === 1 ? 'prompt has a revision' : 'prompts have revisions'} that no label serves` +
+                      (resumo.withoutEnvironment > 0
+                        ? ` — ${String(resumo.withoutEnvironment)} of them ${resumo.withoutEnvironment === 1 ? 'was' : 'were'} never promoted.`
                         : '.')}
               </Card.Description>
             </Card.Header>

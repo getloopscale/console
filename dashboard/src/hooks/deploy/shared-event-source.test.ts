@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SharedEventSource, __resetSharedEventSources, __setTransporte } from './shared-event-source';
 

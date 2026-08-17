@@ -76,13 +76,13 @@ class Finding:
 class Item:
     item_id: str
     title: str
-    #: `x` quando a caixa do cabeçalho está marcada, ` ` quando vazia, `None` quando ausente.
-    #: `title` NÃO a contém — `BLOCK_RE` a captura à parte.
-    checkbox: str | None = None
     fields: dict[str, str] = field(default_factory=dict)
     dod: list[str] = field(default_factory=list)
     registered_on: date | None = None
     line: int = 0
+    #: Fields declared more than once in the block. `fields` keeps the LAST value, so without
+    #: this the earlier ones vanish and nothing says the block held two answers.
+    duplicated: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _parse_items(content: str) -> list[Item]:
@@ -96,11 +96,14 @@ def _parse_items(content: str) -> list[Item]:
         item = Item(
             item_id=match.group(1),
             title=match.group(2).strip(),
-            checkbox=match.group(3),
             line=content[: match.start()].count("\n") + 1,
         )
+        seen_values: dict[str, list[str]] = {}
         for fmatch in FIELD_RE.finditer(body):
-            item.fields[fmatch.group(1)] = fmatch.group(2).strip()
+            key, value = fmatch.group(1), fmatch.group(2).strip()
+            item.fields[key] = value
+            seen_values.setdefault(key, []).append(value)
+        item.duplicated = {k: v for k, v in seen_values.items() if len(v) > 1}
 
         dod_match = re.search(r"^dod:\s*$(.*?)(?=^[a-z_]+:|\Z)", body, re.MULTILINE | re.DOTALL)
         if dod_match:
@@ -198,6 +201,23 @@ def check_backlog(backlog_path: Path, today: date | None = None) -> dict[str, An
                 findings.append(Finding("missing_field", "deterministic", "major", iid,
                     f"`{required}` is absent"))
 
+        # `status` twice leaves the block with two answers, and every reader — this gate, the
+        # index generator, a human skimming — silently takes the last one. Measured on theo-db:
+        # `B-021` carries `raw` then `triaged`, `B-022` carries `planned` then `raw`. The index
+        # buckets on `status`, so an ambiguous one makes the summary arbitrary rather than
+        # wrong-in-a-way-you-can-see.
+        #
+        # ONLY `status`, deliberately. The first draft flagged every repeated field and lit up
+        # theo-cloud: `partial_progress` four times on B-031 is an append-one-line-per-increment
+        # log the team keeps on purpose, and `evidence: none-yet` followed by a pointer is an item
+        # that advanced. Neither is a defect, and a gate that reports them is a gate people learn
+        # to override — which is how the real one gets waved through.
+        if "status" in item.duplicated:
+            values = item.duplicated["status"]
+            findings.append(Finding("duplicate_field", "deterministic", "blocker", iid,
+                f"`status` is declared {len(values)} times ({' then '.join(values)}). "
+                "Every reader takes the last one; the block has to say one thing."))
+
         status = item.fields.get("status", "")
         if status and status not in LEGAL_STATUS:
             findings.append(Finding("illegal_status", "deterministic", "blocker", iid,
@@ -216,18 +236,6 @@ def check_backlog(backlog_path: Path, today: date | None = None) -> dict[str, An
             findings.append(Finding("triaged_without_evidence", "deterministic", "blocker", iid,
                 "triaged but evidence is still `none-yet`. Triaged means measured; "
                 "without evidence the status is a claim nobody made."))
-        # A caixa do cabeçalho é uma SEGUNDA declaração do mesmo fato, e ela derivou 37 vezes
-        # antes de alguém olhar (medido 2026-08-12). As duas direções enganam, e a segunda engana
-        # perigosamente: dez itens `raw` com `evidence: none-yet` exibiam `[x]`, então quem
-        # percorresse os checkboxes — que é como um humano lê um backlog — via como entregue um
-        # programa inteiro que ninguém tinha medido.
-        marcada = item.checkbox == "x"
-        fechado = status in ("shipped", "killed")
-        if status and item.checkbox is not None and marcada != fechado:
-            findings.append(Finding("checkbox_contradicts_status", "deterministic", "major", iid,
-                f"a caixa diz `{'[x]' if marcada else '[ ]'}` e o status diz `{status}`. "
-                "A caixa é o que um humano lê primeiro; ela deriva do status, nunca o contrário."))
-
         if status == "raw" and evidence not in ("", "none-yet"):
             findings.append(Finding("raw_with_evidence", "deterministic", "major", iid,
                 f"raw but carries evidence (`{evidence}`) — measurement happened and the "
@@ -266,6 +274,20 @@ def check_backlog(backlog_path: Path, today: date | None = None) -> dict[str, An
                 findings.append(Finding("possible_duplicate", "heuristic", "minor", a.item_id,
                     f"title overlaps heavily with {b.item_id} (\"{b.title}\") — the intake "
                     "dedup may have missed it"))
+
+    # The index at the top has to agree with the blocks below it. Nothing forces the two to move
+    # together — the index is regenerated by a command someone has to remember to run — so a
+    # registry whose summary says "3 open" while 11 items are open reads as authoritative and is
+    # wrong. That is strictly worse than having no index, because a reader stops at the summary.
+    # Imported here rather than at module scope: `backlog_index` imports this module for the item
+    # parser, and a top-level import in both directions is a cycle.
+    from backlog_index import index_is_current  # noqa: PLC0415
+
+    index_current, _ = index_is_current(content)
+    if not index_current:
+        findings.append(Finding("index_stale", "deterministic", "major", "—",
+            "the index at the top does not match the items below it (or is absent). "
+            "Regenerate with `python3 backlog_index.py BACKLOG.md --write`."))
 
     counts = {"blocker": 0, "major": 0, "minor": 0}
     for f in findings:

@@ -63,13 +63,13 @@ export function spendByModel(dados: unknown): Spend | null {
     .map(([model, costUsd]) => ({ model, costUsd }))
     .sort((a, b) => b.costUsd - a.costUsd);
 
-  const bruto = (dados as { unpricedSpans?: unknown }).unpricedSpans;
+  const raw = (dados as { unpricedSpans?: unknown }).unpricedSpans;
 
   return {
     total: models.reduce((acc, m) => acc + m.costUsd, 0),
     models,
     // Ausente é zero, não desconhecido: o campo é opcional na resposta, e tratá-lo como incerteza
     // faria a tela avisar sobre um risco que não existe — e um aviso que sempre aparece some.
-    unpricedSpans: typeof bruto === 'number' && Number.isFinite(bruto) ? bruto : 0,
+    unpricedSpans: typeof raw === 'number' && Number.isFinite(raw) ? raw : 0,
   };
 }

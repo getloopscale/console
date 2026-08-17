@@ -105,7 +105,13 @@ describe('diff — a config aparece ao lado do texto (M17 DoD-4)', () => {
 
     render(<PromptlyDiffPage />);
 
-    expect(await screen.findByText(/temperature/i)).toBeInTheDocument();
+    // B-242 — the BLOCK, by the same query kind the control case denies. The control below asserts
+    // `queryByTestId('promptly-diff-config')` is absent, and nothing here ever asserted that testid
+    // PRESENT: a page that stopped rendering the block while still printing the word "temperature"
+    // somewhere satisfied both. Asserting the testid is what makes the pair discriminate; the text
+    // assertions stay because they check the VALUES, which the testid does not.
+    expect(await screen.findByTestId('promptly-diff-config')).toBeInTheDocument();
+    expect(screen.getByText(/temperature/i)).toBeInTheDocument();
     expect(screen.getByText(/0\.2/)).toBeInTheDocument();
     expect(screen.getByText(/0\.9/)).toBeInTheDocument();
   });

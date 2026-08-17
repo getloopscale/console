@@ -120,6 +120,12 @@ describe('LiveUrlHero', () => {
   it('renders default URL-pending state when isPreviewOnly=false and url absent', () => {
     render(<LiveUrlHero status={makeStatus({ url: undefined })} loading={false} />);
     expect(screen.getByText(/URL pending/i)).toBeInTheDocument();
+    // B-242 — the DESCRIPTION is asserted here, not only the title, because the preview-only case
+    // above denies it by name. Without this line that denial could not fail: reword the sentence
+    // in `live-url-hero.tsx` and the case above still passes, no longer guarding anything.
+    expect(
+      screen.getByText(/No production deploy yet — URL appears after/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Preview only/i)).not.toBeInTheDocument();
   });
 

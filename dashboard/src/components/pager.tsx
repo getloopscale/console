@@ -16,7 +16,7 @@ export function Pager({
   paginacao,
   ocupado,
   testId,
-  mostrarPagina = true,
+  showPage = true,
 }: {
   paginacao: EstadoDePaginacao;
   /** Uma busca em andamento: navegar agora pularia uma página que ainda não chegou. */
@@ -27,9 +27,9 @@ export function Pager({
    * mostra `Page X of Y · N records` num rodapé à esquerda, com os botões à direita. Repetir o
    * `Page X / Y` entre eles diria a mesma coisa duas vezes na mesma linha.
    */
-  mostrarPagina?: boolean;
+  showPage?: boolean;
 }) {
-  const { page, pageCount, irParaAnterior, irParaProxima } = paginacao;
+  const { page, pageCount, goToPrevious, goToNext } = paginacao;
   if (pageCount <= 1) return null;
 
   return (
@@ -38,18 +38,18 @@ export function Pager({
         variant="ghost"
         size="sm"
         disabled={page <= 1 || ocupado}
-        onClick={irParaAnterior}
+        onClick={goToPrevious}
       >
         Previous
       </Button>
-      {mostrarPagina ? (
+      {showPage ? (
         <span className="tabular-nums" data-testid={testId}>{`Page ${String(page)} / ${String(pageCount)}`}</span>
       ) : null}
       <Button
         variant="ghost"
         size="sm"
         disabled={page >= pageCount || ocupado}
-        onClick={irParaProxima}
+        onClick={goToNext}
       >
         Next
       </Button>

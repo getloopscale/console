@@ -1,6 +1,5 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
@@ -18,7 +17,13 @@ import { NewFolderDialog } from '@/components/dialogs/new-folder-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useWikiPages,
+  useWikiPage,
+  useInvalidateWikiPages,
+  useCreateWikiPage,
+  useSaveWikiPage,
+} from '@/hooks/rag/use-wiki-pages';
 
 /**
  * Open Wiki — /rag/wiki. A single folder-browser (like /workspaces) over per-tenant
@@ -28,13 +33,6 @@ import { cloudFetch } from '@/lib/http/api';
  * path; a "folder" is a path prefix (empty folders carry a hidden `.keep` marker).
  */
 
-interface OkfMeta {
-  type?: string;
-  title?: string;
-  description?: string;
-  tags?: string[];
-  timestamp?: string;
-}
 type WikiPage = WikiEntry & { updated_at?: string };
 
 /** Folder prefix (with trailing slash) that a page path lives in ('api/auth.md' → 'api/'). */
@@ -66,7 +64,6 @@ export function withOkfFrontmatter(body: string, type: string, tags: string, des
 
 export function RagWikiPage() {
   useRequireAuth();
-  const queryClient = useQueryClient();
   const [collectionID, setCollectionID] = useState('');
   const [prefix, setPrefix] = useState('');
   const [openPageID, setOpenPageID] = useState<string | null>(null);
@@ -91,39 +88,29 @@ export function RagWikiPage() {
 
   const collectionsQuery = useCollections();
 
-  const pagesQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', collectionID] as const,
-    queryFn: () =>
-      cloudFetch<{ items: WikiPage[] }>(`/v1/dashboard/rag/wiki/pages?collection_id=${encodeURIComponent(collectionID)}`, {}, { throwOnError: true }),
-    enabled: collectionID !== '',
-  });
+  const pagesQuery = useWikiPages<WikiPage>(collectionID);
 
   const collections = collectionsQuery.data?.items ?? [];
   const pages = useMemo(() => pagesQuery.data?.items ?? [], [pagesQuery.data]);
 
-  const invalidatePages = () =>
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', collectionID] });
+  const invalidatePages = useInvalidateWikiPages(collectionID);
 
   // New folder = a hidden `.keep` marker page under the current prefix (Workspace parity).
-  const folderCreate = useMutation({
-    mutationFn: () =>
-      cloudFetch('/v1/dashboard/rag/wiki/pages', {
-        method: 'POST',
-        body: JSON.stringify({
-          collection_id: collectionID,
-          name: `${prefix}${folderName.trim()}/${WIKI_FOLDER_MARKER}`,
-          // Content MUST be unique per folder: the RAG store is content-addressed (dedups by
-          // sha256), so a fixed marker string would collapse every folder's `.keep` onto the
-          // first one created — only one folder would ever persist. Include the path.
-          content: `Folder marker for ${prefix}${folderName.trim()}`,
-        }),
-      }),
-    onSuccess: () => {
-      setFolderOpen(false);
-      setFolderName('');
-      invalidatePages();
-    },
-  });
+  const folderCreate = useCreateWikiPage(collectionID);
+  const createFolder = () =>
+    folderCreate.mutate({
+      name: `${prefix}${folderName.trim()}/${WIKI_FOLDER_MARKER}`,
+      // Content MUST be unique per folder: the RAG store is content-addressed (dedups by
+      // sha256), so a fixed marker string would collapse every folder's `.keep` onto the
+      // first one created — only one folder would ever persist. Include the path.
+      content: `Folder marker for ${prefix}${folderName.trim()}`,
+    }, {
+      onSuccess: () => {
+        setFolderOpen(false);
+        setFolderName('');
+        invalidatePages();
+      },
+    });
 
   // Reading a page opens the split; CREATING now opens a modal (M14) — it no longer
   // takes over the detail pane, so the browser stays put behind the New-page modal.
@@ -151,7 +138,7 @@ export function RagWikiPage() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         pages={pages}
-        leituraFalhou={pagesQuery.isError}
+        readFailed={pagesQuery.isError}
         onSelect={(id) => {
           const pg = pages.find((p) => p.id === id);
           if (pg) setPrefix(folderOf(pg.name));
@@ -167,7 +154,7 @@ export function RagWikiPage() {
         creating={folderCreate.isPending}
         onNameChange={setFolderName}
         onCreate={() => {
-          if (folderName.trim() !== '' && !folderName.includes('/')) folderCreate.mutate();
+          if (folderName.trim() !== '' && !folderName.includes('/')) createFolder();
         }}
         onClose={() => setFolderOpen(false)}
       />
@@ -283,20 +270,15 @@ function NewPageEditor({
   const [description, setDescription] = useState('');
   const [docTheme] = useDocTheme();
 
-  const create = useMutation({
-    mutationFn: () =>
-      cloudFetch<{ id: string }>('/v1/dashboard/rag/wiki/pages', {
-        method: 'POST',
-        body: JSON.stringify({
-          collection_id: collectionID,
-          name: `${prefix}${title.trim()}`,
-          content: withOkfFrontmatter(content, type, tags, description),
-        }),
-      }),
-    onSuccess: (res) => {
-      if (res?.id) onCreated(res.id);
-    },
-  });
+  const create = useCreateWikiPage(collectionID);
+  const submit = () =>
+    create.mutate(
+      {
+        name: `${prefix}${title.trim()}`,
+        content: withOkfFrontmatter(content, type, tags, description),
+      },
+      { onSuccess: (res) => { if (res?.id) onCreated(res.id); } },
+    );
 
   const pick = (id: string) => {
     const fill = applyTemplate(id);
@@ -355,7 +337,7 @@ function NewPageEditor({
         <Button variant="secondary" onClick={onCancel} disabled={create.isPending}>
           Cancel
         </Button>
-        <Button disabled={!canCreate} onClick={() => create.mutate()}>
+        <Button disabled={!canCreate} onClick={submit}>
           {create.isPending ? 'Creating…' : 'Create page'}
         </Button>
       </div>
@@ -366,38 +348,28 @@ function NewPageEditor({
 // The page reader + editor shown in the detail pane. Read/Edit toggle (KB14), OKF
 // header, and an autosave-style status indicator; saves via the KB0 update endpoint.
 function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }) {
-  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [docTheme] = useDocTheme();
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] as const,
-    queryFn: () =>
-      cloudFetch<{ id: string; name: string; content: string; status: string; okf?: OkfMeta }>(
-        `/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID)}`, {}, { throwOnError: true }),
-    enabled: pageID !== '',
-  });
+  const query = useWikiPage(pageID);
   const page = query.data;
 
-  const save = useMutation({
-    mutationFn: () => {
-      const okf = page?.okf;
-      const content = withOkfFrontmatter(
-        draft,
-        okf?.type ?? 'concept',
-        (okf?.tags ?? []).join(', '),
-        okf?.description ?? '',
-      );
-      return cloudFetch(`/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID)}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name: page?.name, content }),
-      });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] });
-      setEditing(false);
-    },
-  });
+  const save = useSaveWikiPage(pageID);
+  const submitSave = () => {
+    const okf = page?.okf;
+    save.mutate(
+      {
+        name: page?.name,
+        content: withOkfFrontmatter(
+          draft,
+          okf?.type ?? 'concept',
+          (okf?.tags ?? []).join(', '),
+          okf?.description ?? '',
+        ),
+      },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
 
   const dirty = editing && draft.trim() !== (page?.content ?? '').trim();
 
@@ -442,7 +414,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
               </div>
             ) : null}
             {editing ? (
-              <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} aria-label="Save page">
+              <Button size="sm" onClick={submitSave} disabled={save.isPending} aria-label="Save page">
                 {save.isPending ? 'Saving…' : 'Save'}
               </Button>
             ) : null}

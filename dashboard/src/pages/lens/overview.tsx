@@ -1,5 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ExploreCard } from '@/components/explore-card';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
@@ -10,7 +10,12 @@ import { LENS_EXPLORE_CARDS } from '@/components/layout/lens-capabilities';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useObservability,
+  OBSERVABILITY_RANGES,
+  type ObservabilityRange,
+  type ObservabilityResult,
+} from '@/hooks/lens/use-observability';
 import { formatCost, formatDuration, formatNumber } from '@/lib/formatting/format';
 import { TrendChart, type TrendSeries } from '@usetheo/ui';
 import {
@@ -18,9 +23,6 @@ import {
   errorRateSeries,
   latencySeries,
   costByModelSeries,
-  type TrafficBucket,
-  type LatencyBucket,
-  type ModelBucket,
 } from '@/pages/lens/components/lens-series';
 import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from '@/pages/lens/components/overview-kpi-strip';
 import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/pages/lens/components/overview-metrics';
@@ -46,16 +48,8 @@ import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/pages/
 
 // The full observability time-series (already bucketed server-side by theo-lens; M51 plots it — the
 // KPI tiles reduce it to current values). `tokensByModel` carries the by-model cost breakdown.
-interface ObservabilityResult {
-  range?: string;
-  traffic: TrafficBucket[];
-  latency: LatencyBucket[];
-  tokensByModel: ModelBucket[];
-}
 
-const RANGES = ['1h', '24h', '7d', '30d'] as const;
-type Range = (typeof RANGES)[number];
-const RANGE_LABEL: Record<Range, string> = { '1h': 'Last hour', '24h': 'Last 24h', '7d': 'Last 7 days', '30d': 'Last 30 days' };
+const RANGE_LABEL: Record<ObservabilityRange, string> = { '1h': 'Last hour', '24h': 'Last 24h', '7d': 'Last 7 days', '30d': 'Last 30 days' };
 
 function sum(ns: number[]): number {
   return ns.reduce((a, b) => a + b, 0);
@@ -97,19 +91,14 @@ export function LensOverviewPage() {
   const queryClient = useQueryClient();
 
   // M51 — URL-persisted range; drives the server-side bucketing (theo-lens truncs per range).
-  const [range, setRange] = useQueryState('range', parseAsStringEnum([...RANGES]).withDefault('24h'));
+  const [range, setRange] = useQueryState('range', parseAsStringEnum([...OBSERVABILITY_RANGES]).withDefault('24h'));
   // M60 — URL-persisted selected metric: which series the ONE shared trend chart plots (a KPI-tile click swaps it).
   const [selectedMetric, setSelectedMetric] = useQueryState(
     'metric',
     parseAsStringEnum([...METRICS]).withDefault('throughput'),
   );
 
-  const obsKey = ['cloud', '/v1/dashboard/lens/observability', range] as const;
-  const obs = useQuery({
-    queryKey: obsKey,
-    queryFn: () =>
-      cloudFetch<ObservabilityResult>(`/v1/dashboard/lens/observability?range=${range}`, {}, { throwOnError: true }),
-  });
+  const obs = useObservability(range);
 
   const onRefresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/observability'] });
@@ -175,12 +164,12 @@ export function LensOverviewPage() {
             <span className="sr-only" id="range-label">
               Time range
             </span>
-            <Select value={range} onValueChange={(v) => void setRange(v as Range)}>
+            <Select value={range} onValueChange={(v) => void setRange(v as ObservabilityRange)}>
               <Select.Trigger className="w-[150px]" aria-label="Time range">
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
-                {RANGES.map((r) => (
+                {OBSERVABILITY_RANGES.map((r) => (
                   <Select.Item key={r} value={r}>
                     {RANGE_LABEL[r]}
                   </Select.Item>

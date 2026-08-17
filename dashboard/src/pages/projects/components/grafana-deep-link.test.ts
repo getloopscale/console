@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * grafana-deep-link.test.ts — vitest hermetic tests for T2.3.
  *

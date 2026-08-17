@@ -154,13 +154,13 @@ export function useOnboardingState() {
   // nao falsos. O painel some em vez de cobrar algo que talvez ja esteja feito —
   // "nao consegui saber" e um estado diferente de "nao foi feito", e so um deles
   // justifica pedir acao ao usuario.
-  const fonteIndisponivel = Boolean(erroWhoami || erroProjetos);
+  const sourceUnavailable = Boolean(erroWhoami || erroProjetos);
 
-  const isVisible = !state.dismissed && completed < total && !fonteIndisponivel;
+  const isVisible = !state.dismissed && completed < total && !sourceUnavailable;
 
   return {
     /** true quando uma das leituras falhou — os passos derivados dela nao valem. */
-    fonteIndisponivel,
+    sourceUnavailable,
     state,
     completed,
     total,

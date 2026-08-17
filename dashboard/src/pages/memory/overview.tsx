@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ExploreCard } from '@/components/explore-card';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
@@ -9,7 +8,12 @@ import { CategoryBars } from '@/components/charts/category-bars';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useMemoryMetrics,
+  useRefreshMemoryMetrics,
+  ZERO_METRICS,
+  type MemoryMetrics,
+} from '@/hooks/memory/use-memory-metrics';
 
 /**
  * @overview-answers: kpi
@@ -39,40 +43,20 @@ import { cloudFetch } from '@/lib/http/api';
  * usage-aggregator background job).
  */
 
-interface MemoryMetrics {
-  total_memories: number;
-  retrieval_api_usage: number;
-  add_events: number;
-  entity_count: number;
-}
 
 export function MemoryPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Memory'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
-  const metricsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/metrics'] as const,
-    // dashboard-memory-error-surfacing T1.3 (decisão D2 do plano): opt into throwOnError so a
-    // backend non-2xx routes to `isError` (showing the error Alert) instead of
-    // resolving to null + masking the outage as fabricated zeros.
-    queryFn: () => cloudFetch<MemoryMetrics>('/v1/dashboard/memory/metrics', {}, { throwOnError: true }),
-  });
+  const metricsQuery = useMemoryMetrics();
 
   // A successful-but-empty 2xx (null body edge) falls back to zeros so the
   // dashboard never renders NaN. On ERROR the KPI strip is NOT rendered (decisão D2 do plano),
   // so these zeros are never used to mask an outage.
-  const metrics: MemoryMetrics = metricsQuery.data ?? {
-    total_memories: 0,
-    retrieval_api_usage: 0,
-    add_events: 0,
-    entity_count: 0,
-  };
+  const metrics: MemoryMetrics = metricsQuery.data ?? ZERO_METRICS;
 
-  const onRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/metrics'] });
-  };
+  const onRefresh = useRefreshMemoryMetrics();
 
   // UX pass 2026-07-22: the previous TokenUsageChart pair plotted MEMORY counts
   // under the chart's baked-in "Input tokens / Output tokens" copy — semantically

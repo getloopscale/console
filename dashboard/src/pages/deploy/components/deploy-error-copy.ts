@@ -20,40 +20,40 @@
  */
 export interface OperacaoDeploy {
   /** Como a operação se chama na frase: `Promote`, `Rollback`. */
-  readonly nome: string;
+  readonly name: string;
   /** O que continua valendo quando ela falha — a informação que acalma quem está lendo. */
   readonly estadoPreservado: string;
   /** Códigos específicos desta operação, na ordem em que devem ser testados. */
   readonly codigos: readonly { readonly code?: string; readonly padrao?: RegExp; readonly frase: string }[];
   /** Copy para 403, que difere por operação. */
-  readonly semPermissao: string;
+  readonly noPermission: string;
   /** Copy para 404, que difere por operação. */
-  readonly naoEncontrado: string;
+  readonly notFound: string;
   /** Copy para 409; ausente quando a operação não tem conflito de concorrência. */
   readonly emAndamento?: string;
 }
 
 export const PROMOTE: OperacaoDeploy = {
-  nome: 'Promote',
+  name: 'Promote',
   estadoPreservado: 'The current production release remains active.',
   codigos: [
     { code: 'NO_ACTIVE_RELEASE', padrao: /no active release/i, frase: 'No active release in the source environment yet. Wait for the build to finish and retry.' },
     { code: 'SAME_ENVIRONMENT', padrao: /same environment/i, frase: 'This deploy is already on production. Pick a preview deploy to promote.' },
   ],
-  semPermissao: 'You do not have permission to promote in this project.',
-  naoEncontrado: 'Project or build not found. Refresh the page.',
+  noPermission: 'You do not have permission to promote in this project.',
+  notFound: 'Project or build not found. Refresh the page.',
   emAndamento: 'Another deploy is already in progress on production. Wait for it to finish and retry.',
 };
 
 export const ROLLBACK: OperacaoDeploy = {
-  nome: 'Rollback',
+  name: 'Rollback',
   estadoPreservado: 'The current release remains active.',
   codigos: [
     { code: 'NO_ACTIVE_RELEASE', padrao: /no active release/i, frase: 'No active release to rollback. Deploy something first, then try again.' },
     { code: 'NO_PREVIOUS_RELEASE', padrao: /no previous release/i, frase: 'No previous release available. This build is the first deploy — nothing to fall back to.' },
   ],
-  semPermissao: 'You do not have permission to rollback this project.',
-  naoEncontrado: 'Project or build not found. The build may have been deleted — refresh the page.',
+  noPermission: 'You do not have permission to rollback this project.',
+  notFound: 'Project or build not found. The build may have been deleted — refresh the page.',
 };
 
 /** O que a regra recebe para decidir e para escrever. Uma leitura só do corpo, compartilhada. */
@@ -76,47 +76,47 @@ interface Contexto {
  * na indentação, e acrescentar uma situação é acrescentar uma linha (OCP).
  */
 const REGRAS: readonly {
-  readonly quando: (c: Contexto) => boolean;
+  readonly when: (c: Contexto) => boolean;
   readonly frase: (c: Contexto) => string;
 }[] = [
   {
-    quando: ({ op, code, detail }) =>
+    when: ({ op, code, detail }) =>
       op.codigos.some((r) => (r.code !== undefined && code === r.code) || (r.padrao?.test(detail) ?? false)),
     frase: ({ op, code, detail }) =>
       op.codigos.find((r) => (r.code !== undefined && code === r.code) || (r.padrao?.test(detail) ?? false))!.frase,
   },
   {
     // A infraestrutura aceitou e não terminou: o estado é INCERTO, e dizer isso é o ponto.
-    quando: ({ detail }) => /sync wait failed/i.test(detail) || /sync timeout/i.test(detail),
+    when: ({ detail }) => /sync wait failed/i.test(detail) || /sync timeout/i.test(detail),
     frase: ({ op, n }) =>
       `${n} started but the deployment infrastructure did not finish in time. ${
         n === 'Rollback' ? 'The current release is in a degraded state' : op.estadoPreservado.replace(/\.$/, '')
       } — please retry in a few seconds. If the issue persists, contact support.`,
   },
   {
-    quando: ({ detail }) => /sync trigger failed/i.test(detail),
+    when: ({ detail }) => /sync trigger failed/i.test(detail),
     frase: ({ op, n }) =>
       `${n} could not contact the deployment infrastructure. ${op.estadoPreservado} Retry, or contact support if it persists.`,
   },
   {
-    quando: ({ code, status }) => code === 'MISSING_FIELD' || status === 400,
+    when: ({ code, status }) => code === 'MISSING_FIELD' || status === 400,
     frase: ({ n, detail }) =>
       detail
         ? `${n} rejected: ${detail}. Refresh the page and retry.`
         : `${n} rejected: the request was malformed. Refresh the page and retry.`,
   },
   {
-    quando: ({ status }) => status === 401,
+    when: ({ status }) => status === 401,
     frase: ({ n }) => `Session expired. Sign in again and retry the ${n.toLowerCase()}.`,
   },
-  { quando: ({ status }) => status === 403, frase: ({ op }) => op.semPermissao },
-  { quando: ({ status }) => status === 404, frase: ({ op }) => op.naoEncontrado },
+  { when: ({ status }) => status === 403, frase: ({ op }) => op.noPermission },
+  { when: ({ status }) => status === 404, frase: ({ op }) => op.notFound },
   {
-    quando: ({ status, op }) => status === 409 && op.emAndamento !== undefined,
+    when: ({ status, op }) => status === 409 && op.emAndamento !== undefined,
     frase: ({ op }) => op.emAndamento!,
   },
   {
-    quando: ({ status }) => status >= 500,
+    when: ({ status }) => status >= 500,
     frase: ({ n, status, detail, op }) =>
       detail
         ? `${n} failed (HTTP ${String(status)}): ${detail}. ${op.estadoPreservado} Retry, or contact support if it persists.`
@@ -130,14 +130,14 @@ export function formatDeployError(
   body: { message?: string; code?: string; error?: string } | null,
 ): string {
   const detail = body?.message ?? body?.error ?? '';
-  const contexto: Contexto = { op, status, code: body?.code ?? '', detail, n: op.nome };
+  const contexto: Contexto = { op, status, code: body?.code ?? '', detail, n: op.name };
 
-  const regra = REGRAS.find((r) => r.quando(contexto));
+  const regra = REGRAS.find((r) => r.when(contexto));
   if (regra) return regra.frase(contexto);
 
   // O fundo da escada: nenhuma situação reconhecida. Ainda assim diz o status e o que o servidor
   // mandou — uma frase genérica sem nenhum dos dois não deixa ninguém agir.
   return detail
-    ? `${op.nome} failed (HTTP ${String(status)}): ${detail}`
-    : `${op.nome} failed (HTTP ${String(status)}). Please retry.`;
+    ? `${op.name} failed (HTTP ${String(status)}): ${detail}`
+    : `${op.name} failed (HTTP ${String(status)}). Please retry.`;
 }

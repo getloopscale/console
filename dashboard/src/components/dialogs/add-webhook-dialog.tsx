@@ -48,8 +48,8 @@ export interface AddWebhookDialogProps {
   description: string;
   events: readonly EventoDeWebhook[];
   /** Exemplo mostrado no campo de URL — o caminho difere por domínio. */
-  exemploUrl?: string;
-  exemploLabel?: string;
+  exampleUrl?: string;
+  exampleLabel?: string;
 }
 
 /**
@@ -58,7 +58,7 @@ export interface AddWebhookDialogProps {
  * Exportada para que o teste a exercite diretamente, sem montar o diálogo — as faixas de uma
  * validação são o tipo de coisa que se cobre mal por clique.
  */
-export function podeCadastrarWebhook(input: {
+export function canRegisterWebhook(input: {
   url: string;
   label: string;
   eventos: ReadonlySet<string>;
@@ -76,8 +76,8 @@ export function AddWebhookDialog({
   errorMessage = null,
   description,
   events,
-  exemploUrl = 'https://hook.example.com/events',
-  exemploLabel = 'prod-events',
+  exampleUrl = 'https://hook.example.com/events',
+  exampleLabel = 'prod-events',
 }: AddWebhookDialogProps) {
   const idFormulario = useId();
   const idUrl = useId();
@@ -105,7 +105,7 @@ export function AddWebhookDialog({
   };
 
   const submitDisabled =
-    submitting || !podeCadastrarWebhook({ url, label, eventos: selected });
+    submitting || !canRegisterWebhook({ url, label, eventos: selected });
 
   return (
     <AppModal
@@ -134,7 +134,7 @@ export function AddWebhookDialog({
           </label>
           <Input
             id={idUrl}
-            placeholder={exemploUrl}
+            placeholder={exampleUrl}
             value={url}
             onChange={(e) => { setUrl(e.target.value); }}
           />
@@ -145,7 +145,7 @@ export function AddWebhookDialog({
           </label>
           <Input
             id={idLabel}
-            placeholder={exemploLabel}
+            placeholder={exampleLabel}
             value={label}
             onChange={(e) => { setLabel(e.target.value); }}
             maxLength={64}

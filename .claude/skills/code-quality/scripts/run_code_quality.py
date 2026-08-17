@@ -94,11 +94,11 @@ def _resolve_plan_path(slug: str, repo_root: Path) -> Path:
     )
 
 
-def _build_detector(language: str):
+def _build_detector(language: str, repo_root: Path | None = None):
     cls = _DETECTOR_CLASSES.get(language)
     if cls is None:
         return None
-    return cls()
+    return cls(repo_root=repo_root)
 
 
 def _safe_call(label: str, func, *args, language: str = "") -> tuple[list[Finding], Finding | None]:
@@ -212,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     for language in enabled_languages:
         manifest_marker = cfg[language]["manifest"]
         manifest_present = (repo_root / manifest_marker).exists()
-        detector = _build_detector(language)
+        detector = _build_detector(language, repo_root)
         if detector is None:
             languages_skipped[language] = "no detector implementation"
             continue

@@ -23,7 +23,7 @@ export function SBOMTab() {
   const sbomQuery = useBuildSBOM(id);
   const sbom = sbomQuery.data ?? null;
   const loading = sbomQuery.isLoading;
-  const naoConsegiuLer = sbomQuery.isError;
+  const couldNotRead = sbomQuery.isError;
 
   if (loading) {
     return (
@@ -36,7 +36,7 @@ export function SBOMTab() {
   // B-244 — a FAILED read is not an absent SBOM, and for a supply-chain artifact the two are
   // opposite conclusions: "this build shipped without provenance" is a compliance finding,
   // "I could not read the provenance" is a retry. They used to share a title.
-  if (naoConsegiuLer) {
+  if (couldNotRead) {
     return (
       <EmptyState
         icon={FileText}

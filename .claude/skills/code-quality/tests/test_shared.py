@@ -363,3 +363,118 @@ def test_the_shipped_template_parses_when_you_follow_its_own_instructions(tmp_pa
     for language, entry in cfg.items():
         assert entry["manifest"], f"{language} example declares no manifest marker"
         assert entry["status"] == "ENABLED"
+
+
+# ---------------------------------------------------------------------------
+# B-253 — to_rel_path relativises against the repository root
+# ---------------------------------------------------------------------------
+
+
+def test_to_rel_path_relativises_an_absolute_path_under_the_anchor(tmp_path: Path) -> None:
+    """The B-253 repro: the audit cited `home/paulo/.../cmd/main.go`, resolvable from nowhere.
+
+    `lstrip("/")` satisfied Finding's no-leading-slash invariant by deleting one character, which
+    turned an absolute path into a relative one that points at a directory nobody has. The
+    docstring claimed production passes already-relative paths "so this is a no-op there"; the
+    orchestrator enumerates with `repo_root.rglob`, so every production path is absolute.
+    """
+    from scripts._shared import to_rel_path
+
+    repo = tmp_path / "theo-cloud"
+    (repo / "cmd").mkdir(parents=True)
+    target = repo / "cmd" / "main.go"
+    target.write_text("package main\n")
+
+    rel = to_rel_path(target, anchor=repo)
+
+    assert rel == "cmd/main.go"
+    assert (repo / rel).exists(), "a cited path must resolve from the repository root"
+
+
+def test_to_rel_path_marks_a_path_outside_the_repository_instead_of_truncating(
+    tmp_path: Path,
+) -> None:
+    """Outside the anchor there IS no repo-relative form, and inventing one is the defect."""
+    from scripts._shared import EXTERNAL_PATH_PREFIX, to_rel_path
+
+    repo = tmp_path / "theo-cloud"
+    repo.mkdir()
+    outsider = tmp_path / "elsewhere" / "vendor.go"
+    outsider.parent.mkdir()
+    outsider.write_text("package vendor\n")
+
+    rel = to_rel_path(outsider, anchor=repo)
+
+    assert rel.startswith(EXTERNAL_PATH_PREFIX)
+    assert "elsewhere/vendor.go" in rel
+    # Finding's invariant still holds — the marker is not a leading slash.
+    assert not rel.startswith("/")
+
+
+def test_to_rel_path_leaves_an_already_relative_path_alone() -> None:
+    """The no-op the old docstring described. It is real, it was just never the production path."""
+    from scripts._shared import to_rel_path
+
+    assert to_rel_path(Path("internal/config/config.go")) == "internal/config/config.go"
+
+
+def test_an_external_marked_path_is_accepted_by_Finding() -> None:
+    """The marker must not trip the invariant it exists to respect."""
+    from scripts._shared import EXTERNAL_PATH_PREFIX, Finding
+
+    path = f"{EXTERNAL_PATH_PREFIX}/opt/toolchain/pkg.go"
+    f = Finding(
+        detector="d1_dead_code",
+        language="go",
+        severity="SOFT_CAP",
+        file_path=path,
+        symbol_or_line="Thing",
+        message="unreachable symbol in a file outside the repository",
+        allowlist_key=f"go|{path}|dead_code|Thing",
+    )
+    assert f.file_path.startswith(EXTERNAL_PATH_PREFIX)
+
+
+def test_no_detector_calls_to_rel_path_without_an_anchor() -> None:
+    """B-253, second half: the anchor has to REACH the detectors or the fix is cosmetic.
+
+    `_find_repo_root` walks UP from the cwd, so `/code-quality` run from a subdirectory left
+    `to_rel_path`'s cwd fallback pointing below the root, and every citation came out relative to
+    whatever directory the operator happened to be standing in. Fixing the helper without fixing
+    its four call sites would move the defect rather than close it.
+
+    Structural rather than behavioural, and deliberately so: reproducing it end to end needs a real
+    fabricated import and a network lookup, and a guard nobody can run is a guard nobody runs.
+    """
+    import re
+
+    offenders = []
+    for detector in sorted((Path(__file__).parent.parent / "scripts" / "detectors").glob("*.py")):
+        for number, line in enumerate(detector.read_text().splitlines(), 1):
+            if re.search(r"to_rel_path\([^,)]*\)", line):
+                offenders.append(f"{detector.name}:{number}: {line.strip()}")
+
+    assert not offenders, (
+        "to_rel_path called with no anchor — the cwd fallback is not the repository root:\n"
+        + "\n".join(f"  {o}" for o in offenders)
+    )
+
+
+def test_the_cwd_fallback_really_is_wrong_from_a_subdirectory(tmp_path: Path) -> None:
+    """The measurement behind the guard above, so it is not folklore."""
+    import os
+
+    from scripts._shared import to_rel_path
+
+    repo = tmp_path / "repo"
+    (repo / "internal" / "config").mkdir(parents=True)
+    target = repo / "internal" / "config" / "config.go"
+    target.write_text("package config\n")
+
+    previous = Path.cwd()
+    try:
+        os.chdir(repo / "internal")
+        assert to_rel_path(target, anchor=repo) == "internal/config/config.go"
+        assert to_rel_path(target) == "config/config.go"  # the bug, reproduced
+    finally:
+        os.chdir(previous)

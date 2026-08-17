@@ -37,7 +37,7 @@ export interface CatalogCard {
 }
 
 /** Minúsculas sem acento — para ordenar "Ágil" antes de "zulu", e não depois. */
-function chaveDeOrdem(s: string): string {
+function orderKey(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFD')
@@ -51,7 +51,7 @@ function chaveDeOrdem(s: string): string {
  * `internal`, e traduzi-lo para "privada" ou "pública" afirmaria algo falso sobre quem enxerga a
  * skill. Ausente vira "não informada" — nunca um dos dois valores conhecidos.
  */
-function textoDeVisibilidade(v: string | undefined): string {
+function visibilityText(v: string | undefined): string {
   if (v === undefined || v === '') return 'not reported';
   if (v === 'private') return 'private';
   if (v === 'public') return 'public';
@@ -76,7 +76,7 @@ export function catalogCards(skills: readonly CatalogSkill[] | null | undefined)
       description: s.description,
       category: s.category !== undefined && s.category !== '' ? s.category : null,
       execution: s.execution !== undefined && s.execution !== '' ? s.execution : null,
-      visibilityText: textoDeVisibilidade(s.visibility),
+      visibilityText: visibilityText(s.visibility),
       // `=== true` e não truthy: ausente NÃO conta como descobrível. Um registro que não devolve
       // o campo não afirmou que há vetor, e prometer descoberta que pode não existir é pior que
       // admitir que não se sabe.
@@ -84,8 +84,8 @@ export function catalogCards(skills: readonly CatalogSkill[] | null | undefined)
       lifecycle: s.lifecycle,
     }))
     .sort((a, b) => {
-      const na = chaveDeOrdem(a.name);
-      const nb = chaveDeOrdem(b.name);
+      const na = orderKey(a.name);
+      const nb = orderKey(b.name);
       return na !== nb ? na.localeCompare(nb) : a.skillId.localeCompare(b.skillId);
     });
 }
@@ -103,15 +103,15 @@ export interface CategoryChips {
  * afirmaria sobre o ACERVO um número que só vale para o que está na tela. Fica adiada até vir do
  * servidor junto da listagem.
  */
-export function categoryChips(skills: readonly CatalogSkill[], teto: number): CategoryChips {
+export function categoryChips(skills: readonly CatalogSkill[], ceiling: number): CategoryChips {
   const unicas = [
     ...new Set(
       skills
         .map((s) => s.category)
         .filter((c): c is string => typeof c === 'string' && c.trim() !== ''),
     ),
-  ].sort((a, b) => chaveDeOrdem(a).localeCompare(chaveDeOrdem(b)));
+  ].sort((a, b) => orderKey(a).localeCompare(orderKey(b)));
 
-  const limite = Math.max(0, teto);
-  return { visiveis: unicas.slice(0, limite), excedente: Math.max(0, unicas.length - limite) };
+  const limit = Math.max(0, ceiling);
+  return { visiveis: unicas.slice(0, limit), excedente: Math.max(0, unicas.length - limit) };
 }

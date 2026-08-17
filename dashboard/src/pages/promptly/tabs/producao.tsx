@@ -1,17 +1,17 @@
 import { Link } from 'react-router-dom';
-import { linkParaTracesDoPrompt } from '../traces-link';
+import { linkToPromptTraces } from '../traces-link';
 import { Card } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import type { LinhaDeUso } from '@/pages/promptly/components/usage';
+import type { UsageRow } from '@/pages/promptly/components/usage';
 import type { Dependente } from '@/pages/promptly/components/composicao';
 
-export interface ProducaoTabProps {
-  readonly janelaDias: number;
-  readonly linhas: readonly LinhaDeUso[];
+export interface ProductionTabProps {
+  readonly windowDays: number;
+  readonly rows: readonly UsageRow[];
   /** Quem referencia este prompt (M20 DoD-4). */
   readonly dependentes: readonly Dependente[];
   readonly dependentesIlegiveis: boolean;
-  readonly dependentesCarregando: boolean;
+  readonly dependentsLoading: boolean;
   /** O nome do prompt. Alimenta DOIS caminhos: o monitor (M22) e os traces (M23).
    *  Pode chegar vazio — `detail.tsx` declara `const { promptName = '' }`; os dois caminhos
    *  lidam com isso sem derrubar a aba. */
@@ -26,20 +26,20 @@ export interface ProducaoTabProps {
  * aqui?"*. Empilhadas na aba de conteúdo, as duas competiam com o texto; separadas, cada uma é lida
  * quando a pergunta é feita.
  */
-export function ProducaoTab({
-  janelaDias,
-  linhas,
+export function ProductionTab({
+  windowDays,
+  rows,
   dependentes,
   dependentesIlegiveis,
-  dependentesCarregando,
+  dependentsLoading,
   promptName,
-}: ProducaoTabProps) {
+}: ProductionTabProps) {
   // M23 — `null` quando não há prompt; o helper não lança (ver traces-link.ts).
-  const linkDosTraces = linkParaTracesDoPrompt(promptName);
+  const linkDosTraces = linkToPromptTraces(promptName);
   // M23 — houve chamada MEDIDA? `com-uso` é o único estado que autoriza falar em "cada uma delas".
   // `sem-chamadas` e `nao-lido` são fatos diferentes entre si e ambos diferentes de "houve uso" —
   // a distinção que este arquivo defende em dois outros lugares.
-  const houveChamada = linhas.some((l) => l.estado === 'com-uso');
+  const houveChamada = rows.some((l) => l.estado === 'com-uso');
 
   return (
     <div className="space-y-4">
@@ -49,13 +49,13 @@ export function ProducaoTab({
             <h2>Usage by revision</h2>
           </Card.Title>
           <Card.Description>
-            A <strong>{`${janelaDias}-day`}</strong> window, stated rather than implied: an “all time”
+            A <strong>{`${windowDays}-day`}</strong> window, stated rather than implied: an “all time”
             aggregate scans the span table of the whole ecosystem, and a window that does not
             declare itself makes the operator attribute the number to the wrong period.
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
-          {linhas.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No revisions to report.</p>
           ) : (
             <table className="w-full text-sm">
@@ -69,14 +69,14 @@ export function ProducaoTab({
                 </tr>
               </thead>
               <tbody>
-                {linhas.map((l) => (
+                {rows.map((l) => (
                   <tr key={l.revision} className="border-t">
                     <td className="py-1.5 font-mono text-xs">v{l.revision}</td>
                     {l.estado === 'nao-lido' ? (
                       // "Não consegui ler" e "não houve uso" são fatos DIFERENTES. Um zero aqui
                       // afirmaria uma medição que ninguém fez, e o operador leria "ninguém usa".
                       <td colSpan={4} className="py-1.5 text-xs text-muted-foreground">
-                        {l.razao ?? 'could not read the usage of this revision'}
+                        {l.rationale ?? 'could not read the usage of this revision'}
                       </td>
                     ) : l.estado === 'sem-chamadas' ? (
                       <td colSpan={4} className="py-1.5 text-xs text-muted-foreground">
@@ -90,15 +90,15 @@ export function ProducaoTab({
                           {l.latenciaP50Ms === undefined ? '—' : `${String(l.latenciaP50Ms)} ms`}
                         </td>
                         <td className="py-1.5">
-                          {l.custoUsd === undefined ? (
+                          {l.costUsd === undefined ? (
                             <span
                               className="text-xs text-muted-foreground"
-                              title={l.razaoDoCusto ?? undefined}
+                              title={l.costRationale ?? undefined}
                             >
                               —
                             </span>
                           ) : (
-                            `US$ ${l.custoUsd.toFixed(4)}`
+                            `US$ ${l.costUsd.toFixed(4)}`
                           )}
                         </td>
                       </>
@@ -179,7 +179,7 @@ export function ProducaoTab({
               title="Could not read the dependents"
               description="This list is what tells you who is affected by a promotion. Do not read its absence as an absence of dependents."
             />
-          ) : dependentesCarregando ? (
+          ) : dependentsLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : dependentes.length === 0 ? (
             <p className="text-sm text-muted-foreground">

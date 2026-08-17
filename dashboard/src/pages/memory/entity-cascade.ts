@@ -1,4 +1,4 @@
-import { cloudFetch } from '@/lib/http/api';
+import { fetchEntityMemories, forgetMemoryOnce } from '@/hooks/memory/use-memories';
 
 /**
  * Real per-entity cascade forget (#252). The previous implementation ignored
@@ -39,11 +39,7 @@ export async function cascadeForgetEntity(
       params.set('session_id', sessionId);
     }
     // Always offset 0 — each round's deletions shrink the filtered set.
-    const listResp = await cloudFetch<{ memories: { id: string }[]; entity?: string }>(
-      `/v1/dashboard/memory/list?${params.toString()}`,
-      {},
-      { throwOnError: true },
-    );
+    const listResp = await fetchEntityMemories(params);
     // FAIL-CLOSED echo guard (incident 2026-07-23): a provider that does not
     // support `?entity=` silently IGNORES it and returns the unfiltered scope
     // — deleting that set destroyed 60+ unrelated memories. The provider now
@@ -62,7 +58,10 @@ export async function cascadeForgetEntity(
       const batch = ids.slice(i, i + FORGET_CONCURRENCY);
       const results = await Promise.all(
         batch.map((id) =>
-          cloudFetch<null>(`/v1/dashboard/memory/forget/${id}`, { method: 'DELETE' })
+          // `.catch(() => false)` só era verdade com o contrato de erro presente: sem ele uma
+          // recusa RESOLVE `null` e o `.then(() => true)` contava como esquecida. Ver
+          // `forgetMemoryOnce` — cada 403 e cada 500 entrava no total (B-235).
+          forgetMemoryOnce(id)
             .then(() => true)
             .catch(() => false),
         ),

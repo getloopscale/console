@@ -9,9 +9,9 @@
 import { ApiError } from '@/lib/http/api';
 
 /** Um campo de variável na tela: o nome que a API declarou e o que foi digitado. */
-export interface CampoVariavel {
-  readonly nome: string;
-  readonly valor: string;
+export interface VariableField {
+  readonly name: string;
+  readonly value: string;
 }
 
 /**
@@ -24,8 +24,8 @@ export interface CampoVariavel {
  * sabe, em vez de inventar um motivo.
  */
 export type Falha =
-  | { readonly tipo: 'validacao'; readonly variavelFaltante?: string; readonly motivo?: string }
-  | { readonly tipo: 'provider'; readonly mensagem?: string; readonly providerStatus?: number }
+  | { readonly tipo: 'validacao'; readonly missingVariable?: string; readonly reason?: string }
+  | { readonly tipo: 'provider'; readonly message?: string; readonly providerStatus?: number }
   | { readonly tipo: 'sessao' }
   | { readonly tipo: 'transporte' };
 
@@ -38,12 +38,12 @@ export type Falha =
  * apagar o que ainda serve —, e a variável que sumiu é descartada, para que um
  * valor órfão não viaje no corpo da invocação.
  */
-export function camposDeVariaveis(
+export function variableFields(
   declaradas: readonly string[],
-  atuais: readonly CampoVariavel[],
-): CampoVariavel[] {
-  const porNome = new Map(atuais.map((c) => [c.nome, c.valor]));
-  return declaradas.map((nome) => ({ nome, valor: porNome.get(nome) ?? '' }));
+  atuais: readonly VariableField[],
+): VariableField[] {
+  const byName = new Map(atuais.map((c) => [c.name, c.value]));
+  return declaradas.map((name) => ({ name, value: byName.get(name) ?? '' }));
 }
 
 /**
@@ -57,19 +57,19 @@ export function camposDeVariaveis(
  * de conhecimento: um desabilita um botão, o outro recusa uma requisição que pode
  * chegar sem passar por botão nenhum.
  */
-export function podeRodar(campos: readonly CampoVariavel[], credencial: string): boolean {
+export function canRun(fields: readonly VariableField[], credencial: string): boolean {
   if (credencial.trim() === '') return false;
-  return campos.every((c) => c.valor.trim() !== '');
+  return fields.every((c) => c.value.trim() !== '');
 }
 
 /** Extrai `{error, message, variable, providerStatus, reason}` de um corpo desconhecido. */
-function corpoDe(erro: ApiError): Record<string, unknown> {
-  return typeof erro.body === 'object' && erro.body !== null
-    ? (erro.body as Record<string, unknown>)
+function bodyOf(failure: ApiError): Record<string, unknown> {
+  return typeof failure.body === 'object' && failure.body !== null
+    ? (failure.body as Record<string, unknown>)
     : {};
 }
 
-function texto(v: unknown): string | undefined {
+function text(v: unknown): string | undefined {
   return typeof v === 'string' && v !== '' ? v : undefined;
 }
 
@@ -85,21 +85,21 @@ function texto(v: unknown): string | undefined {
  * controle. A quota do provider chega como `422` com `providerStatus: 429` —
  * confundir os dois mandaria o operador trocar uma chave que está boa.
  */
-export function classificarFalha(erro: unknown): Falha {
-  if (!(erro instanceof ApiError)) return { tipo: 'transporte' };
+export function classificarFalha(failure: unknown): Falha {
+  if (!(failure instanceof ApiError)) return { tipo: 'transporte' };
 
-  const corpo = corpoDe(erro);
-  const code = texto(corpo.error);
+  const body = bodyOf(failure);
+  const code = text(body.error);
 
-  if (erro.status === 401) return { tipo: 'sessao' };
+  if (failure.status === 401) return { tipo: 'sessao' };
 
-  if (erro.status === 422 && code === 'model_refused') {
-    const status = typeof corpo.providerStatus === 'number' ? corpo.providerStatus : undefined;
+  if (failure.status === 422 && code === 'model_refused') {
+    const status = typeof body.providerStatus === 'number' ? body.providerStatus : undefined;
     return {
       tipo: 'provider',
       // Nada é inventado: sem mensagem no corpo, a tela usa o texto dela e diz
       // apenas o que sabe — que o provider recusou.
-      ...(texto(corpo.message) !== undefined ? { mensagem: texto(corpo.message) } : {}),
+      ...(text(body.message) !== undefined ? { message: text(body.message) } : {}),
       ...(status !== undefined ? { providerStatus: status } : {}),
     };
   }
@@ -109,17 +109,17 @@ export function classificarFalha(erro: unknown): Falha {
    * operador precisa saber que o prompt é grande demais, não que a rede caiu.
    * Cair no genérico dava um diagnóstico falso para um problema de tamanho.
    */
-  if (erro.status === 413) {
-    return { tipo: 'validacao', motivo: 'The prompt is too large to send. Shorten the text and try again.' };
+  if (failure.status === 413) {
+    return { tipo: 'validacao', reason: 'The prompt is too large to send. Shorten the text and try again.' };
   }
 
-  if (erro.status === 400) {
+  if (failure.status === 400) {
     if (code === 'missing_variable') {
-      const variavel = texto(corpo.variable);
-      return { tipo: 'validacao', ...(variavel !== undefined ? { variavelFaltante: variavel } : {}) };
+      const variable = text(body.variable);
+      return { tipo: 'validacao', ...(variable !== undefined ? { missingVariable: variable } : {}) };
     }
-    const motivo = texto(corpo.reason) ?? texto(corpo.message);
-    return { tipo: 'validacao', ...(motivo !== undefined ? { motivo } : {}) };
+    const reason = text(body.reason) ?? text(body.message);
+    return { tipo: 'validacao', ...(reason !== undefined ? { reason } : {}) };
   }
 
   // Tudo o mais é transporte: rede, serviço fora, bug nosso, rate limit nosso.

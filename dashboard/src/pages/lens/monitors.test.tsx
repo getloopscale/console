@@ -130,6 +130,9 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/monitors/gd_1',
       expect.objectContaining({ method: 'DELETE' }),
+      // B-244/B-235 — o contrato de erro. Sem ele a confirmação fechava e o monitor voltava na
+      // leitura seguinte: o produto desfazendo a ação do usuário.
+      { throwOnError: true },
     );
   });
 });
@@ -389,5 +392,25 @@ describe('#261 — a null-resolving monitors list must not read as "No monitors 
       screen.queryByText(/no evaluators — create one first/i),
       'a failed evaluators read told the operator to create an evaluator that may already exist',
     ).not.toBeInTheDocument();
+  });
+
+  // B-242 — the other half of the pair, and the anchor the case above lacked. The whole point of
+  // #261 is that "none exist" and "could not ask" say DIFFERENT things; only one of the two was
+  // ever asserted. With no case rendering the genuine-empty copy, rewording it in `monitors.tsx`
+  // left the denial above green while it had stopped guarding the distinction it names.
+  it('an evaluators read that SUCCEEDS with zero rows does say "No evaluators — create one first"', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (isPath(url, '/v1/dashboard/lens/monitors')) return Promise.resolve({ monitors: [] });
+      if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [] });
+      return Promise.resolve({});
+    });
+    render(<LensMonitorsPage />);
+
+    expect(await screen.findByText(/no monitors yet/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /new monitor/i }));
+
+    expect(await screen.findByText(/no evaluators — create one first/i)).toBeInTheDocument();
+    // …and the failure copy must NOT be what an honest empty list shows.
+    expect(screen.queryByText(/could not load evaluators/i)).not.toBeInTheDocument();
   });
 });

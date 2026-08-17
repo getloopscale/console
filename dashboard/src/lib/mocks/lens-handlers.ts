@@ -60,7 +60,7 @@ export function registerLensHandlers() {
       Response.json({ alert_rules: regrasDeAlerta }),
     );
     registerRoute('POST', `${prefix}/v1/dashboard/lens/alert-rules`, async (req) => {
-      const corpo = (await req.json()) as Record<string, unknown>;
+      const body = (await req.json()) as Record<string, unknown>;
       const regra = {
         id: `lar-${regrasDeAlerta.length + 1}`,
         enabled: true,
@@ -69,7 +69,7 @@ export function registerLensHandlers() {
         // distinção que impede o operador de concluir que a regra falhou e criar a segunda.
         last_evaluated_at: null,
         last_triggered_at: null,
-        ...corpo,
+        ...body,
       };
       regrasDeAlerta.push(regra);
       return Response.json(regra);
@@ -107,7 +107,7 @@ export function registerLensHandlers() {
     registerRoute('GET', `${prefix}/v1/dashboard/lens/traces`, async (req) => {
       const sp = new URL(req.url).searchParams;
       const casa = /^attr:prompt\.id=(.+)$/.exec(sp.get('span_query') ?? '');
-      const resolucao = (id: string, ms: number) => ({
+      const resolution = (id: string, ms: number) => ({
         traceId: id,
         name: 'prompt.resolve',
         status: 'OK',
@@ -127,9 +127,9 @@ export function registerLensHandlers() {
           return Response.json({ traces: [], total: 0, limit: 50, offset: 0 });
         }
         const traces = [
-          resolucao('b8596693b566091c223ddc5e200e556e', 6),
-          resolucao('5a75856a2739f58e6960cc28a08949dd', 15),
-          resolucao('9bd90e39fb31648c9507e7ebdc62a564', 11),
+          resolution('b8596693b566091c223ddc5e200e556e', 6),
+          resolution('5a75856a2739f58e6960cc28a08949dd', 15),
+          resolution('9bd90e39fb31648c9507e7ebdc62a564', 11),
         ];
         return Response.json({ traces, total: traces.length, limit: 50, offset: 0 });
       }
@@ -143,7 +143,7 @@ export function registerLensHandlers() {
       return Response.json({
         traces: [
           { traceId: 'aaaa1111bbbb2222cccc3333dddd4444', name: 'chat.completion', status: 'OK', statusCode: 'OK', model: 'claude-opus-5', durationMs: 1840, totalTokens: 512, costUsd: 0.0123 },
-          resolucao('b8596693b566091c223ddc5e200e556e', 6),
+          resolution('b8596693b566091c223ddc5e200e556e', 6),
         ],
         total: 2, limit: 50, offset: 0,
       });
@@ -168,9 +168,9 @@ export function registerLensHandlers() {
       const bucket = new URL(req.url).searchParams.get("bucket");
       if (bucket !== "day") return Response.json({ ...USAGE_BY_USER, windowDays: days });
 
-      const dia = (n: number) => new Date(Date.UTC(2026, 6, n)).toISOString();
+      const day = (n: number) => new Date(Date.UTC(2026, 6, n)).toISOString();
       const ponto = (n: number, i: number, o: number, c: number) => ({
-        periodStart: dia(n), inputTokens: i, outputTokens: o,
+        periodStart: day(n), inputTokens: i, outputTokens: o,
         cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: c,
       });
       return Response.json({

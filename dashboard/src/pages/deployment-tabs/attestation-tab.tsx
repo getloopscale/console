@@ -23,7 +23,7 @@ export function AttestationTab() {
   const attQuery = useBuildAttestation(id);
   const att = attQuery.data ?? null;
   const loading = attQuery.isLoading;
-  const naoConsegiuLer = attQuery.isError;
+  const couldNotRead = attQuery.isError;
 
   if (loading) {
     return (
@@ -38,7 +38,7 @@ export function AttestationTab() {
 
   // B-244 — "this build was never signed" and "I could not read whether it was signed" are
   // opposite conclusions about supply-chain provenance, and they used to share a title.
-  if (naoConsegiuLer) {
+  if (couldNotRead) {
     return (
       <EmptyState
         icon={ShieldOff}

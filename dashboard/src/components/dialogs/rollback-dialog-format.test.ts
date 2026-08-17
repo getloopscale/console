@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Hermetic unit tests for the rollback-error formatter — surfaces the
  * canonical TheoError body into actionable user-facing copy without

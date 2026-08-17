@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useDatasets, datasetsQueryKey } from '@/hooks/lens/use-datasets';
+import {
+  useDatasets,
+  useDatasetDetail,
+  useCreateDataset,
+  useRemoveDatasetItem,
+  useRenameDataset,
+  useDeleteDataset,
+  type Dataset,
+  type DatasetItem,
+} from '@/hooks/lens/use-datasets';
 import { Link } from 'react-router-dom';
 import { useQueryState, parseAsString } from 'nuqs';
 import { Plus, Trash2 } from 'lucide-react';
@@ -22,7 +30,6 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
 import { TracePeekSheet } from './traces/peek-sheet';
 
 /**
@@ -32,21 +39,6 @@ import { TracePeekSheet } from './traces/peek-sheet';
  * {id,name,createdAt,itemCount}; the detail carries {items:[{traceId}]}.
  */
 
-interface Dataset {
-  id: string;
-  name: string;
-  createdAt?: string;
-  itemCount?: number;
-}
-interface DatasetItem {
-  traceId: string;
-  createdAt?: string;
-}
-interface DatasetDetail {
-  id: string;
-  name: string;
-  items: DatasetItem[];
-}
 
 /** Map a write error's HTTP status to a typed, actionable message (M82 — a 409 name-conflict must
  *  read as "already in use", NEVER a generic failure). */
@@ -68,7 +60,6 @@ export function LensDatasetsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Datasets'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
   // Create is a centered modal (AppModal), consistent with the rest of the dashboard — replaces the
@@ -85,69 +76,15 @@ export function LensDatasetsPage() {
 
   const query = useDatasets();
 
-  const detail = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/datasets', openID] as const,
-    // throwOnError so a failed detail load REJECTS (detail.isError) instead of resolving to null —
-    // otherwise a load error is indistinguishable from an empty dataset and renders as "No items".
-    queryFn: () => cloudFetch<DatasetDetail>(`/v1/dashboard/lens/datasets/${encodeURIComponent(openID as string)}`, {}, { throwOnError: true }),
-    enabled: openID !== null,
-    retry: false,
-  });
+  const detail = useDatasetDetail(openID);
 
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: datasetsQueryKey });
+  const create = useCreateDataset();
 
-  const create = useMutation({
-    mutationFn: (n: string) =>
-      cloudFetch<Dataset>('/v1/dashboard/lens/datasets', {
-        method: 'POST',
-        body: JSON.stringify({ name: n }),
-      }),
-    onSuccess: () => {
-      setName('');
-      setCreateOpen(false);
-      invalidate();
-    },
-  });
+  const removeItem = useRemoveDatasetItem();
 
-  const removeItem = useMutation({
-    mutationFn: (r: { datasetID: string; traceId: string }) =>
-      cloudFetch<DatasetDetail>(
-        `/v1/dashboard/lens/datasets/${encodeURIComponent(r.datasetID)}/items/${encodeURIComponent(r.traceId)}`,
-        { method: 'DELETE' },
-      ),
-    onSuccess: () => {
-      setPendingRemove(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/datasets', openID] });
-      invalidate();
-    },
-  });
+  const rename = useRenameDataset();
 
-  // M82 — rename a dataset (PUT {name}). throwOnError so a 409 rejects and surfaces the typed Alert.
-  const rename = useMutation({
-    mutationFn: (r: { id: string; name: string }) =>
-      cloudFetch<Dataset>(
-        `/v1/dashboard/lens/datasets/${encodeURIComponent(r.id)}`,
-        { method: 'PUT', body: JSON.stringify({ name: r.name }) },
-        { throwOnError: true },
-      ),
-    retry: false,
-    onSuccess: () => {
-      setRenaming(null);
-      invalidate();
-    },
-  });
-
-  // M82 — delete a dataset (cascades runs+items in theo-lens).
-  const remove = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<void>(`/v1/dashboard/lens/datasets/${encodeURIComponent(id)}`, { method: 'DELETE' }, { throwOnError: true }),
-    retry: false,
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
+  const remove = useDeleteDataset();
 
   const commitRename = () => {
     if (!renaming) return;

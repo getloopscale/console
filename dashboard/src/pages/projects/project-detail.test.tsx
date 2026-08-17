@@ -116,6 +116,28 @@ describe('ProjectDetailPage', () => {
     expect(screen.queryByText(/URL pending/i)).not.toBeInTheDocument();
   });
 
+  // B-242 — the anchor for the denial above. This file never showed "URL pending" in any state, so
+  // the assertion was satisfied by the preview-only hero AND by a hero that stopped rendering the
+  // default copy entirely. The sibling case exists in `live-url-hero.test.tsx`, one component down;
+  // this page composes the hero and denies the copy by name, so the pair has to exist HERE too.
+  it('B-242 — a project with a production env and no URL DOES show "URL pending"', () => {
+    mockUseProject.mockReturnValue({
+      project: {
+        name: 'my-project',
+        apps: [{ name: 'web' }],
+        created_at: '2026-06-01T00:00:00Z',
+        last_deploy_status: 'live',
+        production_env_count: 1, // has production — so the hero takes the DEFAULT branch
+        environment_count: 1,
+      },
+      loading: false,
+    });
+    render(<ProjectDetailPage />);
+
+    expect(screen.getByText(/URL pending/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Preview only/i)).not.toBeInTheDocument();
+  });
+
   // Red Team theo-cloud#41 regression-protector: the "Live envs" metric
   // MUST come from production_env_count (kind='permanent' subset), NOT
   // the legacy environment_count which collapses preview env_targets.

@@ -162,6 +162,39 @@ describe('EnvironmentsPage', () => {
     expect(screen.queryByText('qa')).not.toBeInTheDocument();
   });
 
+  it('o ambiente do OUTRO projeto existe — o par que dá sentido à ausência acima', () => {
+    // NOTA HONESTA sobre a catraca do B-242: este caso NÃO baixa o número dela, e a razão é um
+    // limite declarado do detector. `selectorCore` exige 4 caracteres para considerar um seletor
+    // ancorável, e `'qa'` tem dois — então aquela asserção conta como sem âncora com par ou sem.
+    //
+    // O caso fica assim mesmo. Ele torna o teste de isolamento real (antes só metade dele era
+    // executada), e a catraca não medir isso é limitação da heurística, não sinal de que o par não
+    // valia. Ajustar o detector para casar seletores curtos traria de volta os falsos positivos que
+    // o limite de 4 existe para evitar — a troca está registrada, não escondida.
+    // B-242 — o caso acima prova o isolamento entre projetos afirmando que `qa` não aparece em
+    // /projects/web. Isso só significa algo se `qa` for renderizável em ALGUM estado; sem isso,
+    // um rename da fixture ou um seletor quebrado satisfaz a asserção pelo motivo errado.
+    //
+    // Aqui a MESMA fixture, montada na rota do projeto dono, mostra `qa`. As duas asserções juntas
+    // dizem "aparece onde deve e não aparece onde não deve"; sozinha, a primeira dizia só a metade
+    // que qualquer defeito satisfaz.
+    mockUseEngineApi.mockReturnValue({
+      data: {
+        environments: [
+          { name: 'staging', status: 'active', project: 'web', protected: false },
+          { name: 'qa', status: 'active', project: 'api', protected: false },
+        ],
+      },
+      loading: false,
+      error: false,
+      isSuccess: true,
+    });
+    renderAt('/projects/api/environments');
+
+    expect(screen.getByText('qa')).toBeInTheDocument();
+    expect(screen.queryByText('staging')).not.toBeInTheDocument();
+  });
+
   /**
    * Trava a remoção do legado (issue #377). É um teste de CARACTERIZAÇÃO, não um RED: a
    * garantia já valia antes da remoção, porque montado pela rota o filtro por projeto já
@@ -187,6 +220,13 @@ describe('EnvironmentsPage', () => {
 
     expect(screen.getByText('production')).toBeInTheDocument();
     expect(screen.queryByText('orfa')).not.toBeInTheDocument();
+    // B-242 — `orfa` é uma entrada SEM projeto, e a garantia é que ela não aparece em rota
+    // nenhuma. Diferente de `qa`, ela não tem "rota dona" onde apareceria, então não há âncora a
+    // escrever: as três asserções abaixo estão na mesma situação e por isso ficam sem par.
+    //
+    // Isso é honesto e é o limite do critério: nem toda ausência é ancorável. O que NÃO se faz é
+    // inventar um estado só para satisfazer a catraca — seria fabricar a evidência que ela existe
+    // para exigir.
     // E nenhum vestígio do balde: nem o cabeçalho de grupo, nem o rótulo que ele mostrava.
     expect(screen.queryByTestId('env-group-header-legacy')).not.toBeInTheDocument();
     expect(screen.queryByText(/no project/i)).not.toBeInTheDocument();

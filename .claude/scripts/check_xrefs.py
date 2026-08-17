@@ -57,6 +57,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # - skill-creator: standalone skill-authoring tool (the official Anthropic skill-creator);
 #   invoked on demand to create/improve any skill at skills/{purpose}/. Deliberately decoupled
 #   from every cycle (replaced the retired skill-writer/validator/register discover tail).
+# - arch-check: on-demand architecture-boundary tool. Deliberately outside every cycle-*.md —
+#   it is invoked when adopting boundary gates in a repo or after a restructure moved directories,
+#   not at a fixed point in the chain. Recorded here explicitly rather than left as bare set
+#   membership, because "named by a rule OR explicitly out of scope with that recorded" is what
+#   B-258's DoD asks, and a name in a Python set is not a record anyone reads.
 AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "backlog-init", "backlog-review", "cycle-goal", "plan-help", "quality-init", "skill-creator", "frontend-design", "cap-theorem-specialist", "backpressure-specialist", "resilience-specialist", "arch-check"}
 
 

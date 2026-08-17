@@ -10,13 +10,13 @@ import { usePaginacao } from './pagination';
  * apagar ou filtrar registros encolhia o total e deixava quem estava na última página olhando uma
  * tabela vazia, com o botão Previous como única saída e nada na tela dizendo o que aconteceu.
  */
-function usarPaginador(inicial: { total: number; naoAssentado?: boolean }) {
+function usarPaginador(inicial: { total: number; notSettled?: boolean }) {
   return renderHook(
-    ({ total, naoAssentado }: { total: number; naoAssentado: boolean }) => {
+    ({ total, notSettled }: { total: number; notSettled: boolean }) => {
       const [page, setPage] = useState(1);
-      return { ...usePaginacao({ total, pageSize: 20, page, setPage, naoAssentado }), setPage };
+      return { ...usePaginacao({ total, pageSize: 20, page, setPage, notSettled }), setPage };
     },
-    { initialProps: { total: inicial.total, naoAssentado: inicial.naoAssentado ?? false } },
+    { initialProps: { total: inicial.total, notSettled: inicial.notSettled ?? false } },
   );
 }
 
@@ -27,7 +27,7 @@ describe('usePaginacao — a página nunca fica além do fim', () => {
     expect(result.current.page).toBe(7);
 
     // Alguém resolve 120 itens da fila: sobram 17, uma página só.
-    rerender({ total: 17, naoAssentado: false });
+    rerender({ total: 17, notSettled: false });
 
     expect(result.current.page).toBe(1);
     expect(result.current.resumo).toBe('Showing 1–17 of 17');
@@ -39,7 +39,7 @@ describe('usePaginacao — a página nunca fica além do fim', () => {
     const { result, rerender } = usarPaginador({ total: 137 });
     act(() => { result.current.setPage(5); });
 
-    rerender({ total: 0, naoAssentado: true });
+    rerender({ total: 0, notSettled: true });
 
     expect(result.current.page).toBe(5);
   });
@@ -47,10 +47,10 @@ describe('usePaginacao — a página nunca fica além do fim', () => {
   it('e é corrigida assim que os dados assentam', () => {
     const { result, rerender } = usarPaginador({ total: 137 });
     act(() => { result.current.setPage(5); });
-    rerender({ total: 0, naoAssentado: true });
+    rerender({ total: 0, notSettled: true });
     expect(result.current.page).toBe(5);
 
-    rerender({ total: 0, naoAssentado: false });
+    rerender({ total: 0, notSettled: false });
 
     // Uma lista vazia tem uma página vazia — e é nela que quem estava lendo termina.
     expect(result.current.page).toBe(1);
@@ -60,7 +60,7 @@ describe('usePaginacao — a página nunca fica além do fim', () => {
     // A correção não pode virar "sempre volta para 1": navegar continua funcionando.
     const { result, rerender } = usarPaginador({ total: 137 });
     act(() => { result.current.setPage(3); });
-    rerender({ total: 137, naoAssentado: false });
+    rerender({ total: 137, notSettled: false });
     expect(result.current.page).toBe(3);
   });
 });

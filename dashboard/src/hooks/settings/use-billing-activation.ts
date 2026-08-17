@@ -45,7 +45,7 @@ export const ACTIVATION_MAX_ATTEMPTS = 15;
  * indisponibilidade real. Baixo demais transformaria um soluço em erro; alto
  * demais devolve o defeito que este hook corrige, só que mais tarde.
  */
-const FALHAS_SEGUIDAS_PARA_DESISTIR = 3;
+const CONSECUTIVE_FAILURES_BEFORE_GIVING_UP = 3;
 
 export type ActivationOutcome = 'success' | 'timeout' | 'error';
 
@@ -98,8 +98,8 @@ export function useBillingActivation(options: {
           if (cancelado) return;
           falhasSeguidas = 0;
 
-          const idNovo = atual?.subscription_id ?? '';
-          const assinaturaMudou = idNovo !== '' && idNovo !== idAntigo;
+          const newId = atual?.subscription_id ?? '';
+          const assinaturaMudou = newId !== '' && newId !== idAntigo;
           // Os DOIS sinais contam: um upgrade dentro da mesma assinatura muda o
           // plano e não o id, e exigir os dois deixaria a pessoa esperando os 30
           // segundos inteiros por algo que já aconteceu.
@@ -113,7 +113,7 @@ export function useBillingActivation(options: {
         } catch {
           if (cancelado) return;
           falhasSeguidas += 1;
-          if (falhasSeguidas >= FALHAS_SEGUIDAS_PARA_DESISTIR) {
+          if (falhasSeguidas >= CONSECUTIVE_FAILURES_BEFORE_GIVING_UP) {
             encerrar('error');
             return;
           }
