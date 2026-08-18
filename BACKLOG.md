@@ -12180,6 +12180,23 @@ dod:
 > migracao como razao — nunca apagado, nunca renumerado, para que uma referencia antiga a
 > `B-033` ainda resolva.
 
+> **Escopo corrigido em 2026-08-18, horas depois da migração (`theo` `B-145`).** Este item
+> chegou aqui descrevendo a cadeia de custo inteira, e ela **atravessa dois repositórios**:
+>
+> | metade | onde vive | quem registra |
+> |---|---|---|
+> | agregador de custo (`THEO_PROMETHEUS_URL` vazio → `logger.Info`, `cost_counters` vazia) | `theo-cloud/cmd/main.go` | **este item** |
+> | portão de custo (nil-safe → *pass-through* quando o enforcer não é injetado) | `theo/api/internal/server/router.go` | `theo` `B-033`, que **permaneceu lá** |
+>
+> Quem pegou a divisão foi o gate `billing-layers` do `theo`: ele declara as duas metades como
+> camadas separadas e reprovou o push quando o `B-033` saiu dos estados abertos. A migração
+> original seguiu o campo `repo:` do bloco em vez da evidência dele, que apontava código do
+> outro repositório.
+>
+> As duas metades continuam acopladas na realidade — o agregador é a única fonte de
+> `cost_counters`, e o portão degrada para "passa" quando a tabela está vazia. Consertar só
+> uma delas não fecha o teto de custo.
+
 
 ## B-288 — A cobrança por uso não tem para onde reportar   [ ]
 
