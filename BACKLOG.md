@@ -5,14 +5,20 @@ Registro unico de trabalho de manutencao pendente **deste repositorio**.
 **Regra que governa o registro:** os ids sao monotonicos e NUNCA renumerados. Um item
 morto (`status: killed`) mantem seu numero para sempre — o numero e a trilha de auditoria.
 
-> **Escopo declarado.** O contrato do ecossistema (`.claude/rules/cycle-backlog.md § Output`)
-> especifica um registro **unico no umbrella root**, cobrindo os 17 repos, precisamente para
-> evitar findings orfaos espalhados por repositorio. Este arquivo diverge disso por decisao
-> explicita do dono do projeto em 2026-08-06: o registro e **per-repo**, restrito a
-> `theo-cloud`. A consequencia a manter em vista: um achado que atravesse a fronteira deste
-> repo nao tem onde morar aqui, e itens de outros repos continuam sem registro. Se o
-> ecossistema adotar o registro unico depois, estes itens migram preservando id, evidencia
-> e data de origem.
+> **Escopo declarado — e o contrato alcancou este arquivo em 2026-08-18.** Ate entao o
+> contrato do ecossistema especificava um registro **unico no umbrella root**, e este arquivo
+> divergia dele por decisao explicita do dono do projeto em 2026-08-06: registro **per-repo**,
+> restrito a `theo-cloud`.
+>
+> Essa nota agora esta invertida. `.claude/rules/cycle-backlog.md § Output` foi corrigido
+> (item `B-144` do repo `theo`) e declara o registro **por projeto** — o que este arquivo ja
+> fazia havia doze dias. A medicao que derrubou a prosa antiga: quatro projetos carregavam o
+> seu proprio BACKLOG.md e a raiz do workspace nao carregava nenhum; `route_domain.py` sempre
+> resolveu por projeto.
+>
+> A consequencia que a nota antiga previa tambem foi resolvida: os itens de outros repos que
+> viviam sem registro foram migrados em 2026-08-18 (`theo` `B-145`), incluindo os dois que
+> pertenciam a este repositorio e moravam no backlog do `theo`.
 
 ## Como um item chega aqui
 
@@ -79,9 +85,9 @@ abrir PR: sao cross-validacoes que se confirmam, nao trabalho independente.
 
 ## Index
 
-286 items — **Open** 28 · **In flight** 0 · **Closed** 258
+288 items — **Open** 30 · **In flight** 0 · **Closed** 258
 
-### Open (28)
+### Open (30)
 
 | Item | Title | Status | Severity |
 |---|---|---|---|
@@ -113,6 +119,8 @@ abrir PR: sao cross-validacoes que se confirmam, nao trabalho independente.
 | [`B-283`](#b-283--lensoverviewtesttsx-m60-depende-da-ordem-dentro-do-proprio-arquivo----) | `lens/overview.test.tsx` M60 depende da ordem DENTRO do proprio arquivo | `raw` | medium |
 | [`B-284`](#b-284--a-árvore-de-dev-carrega-16-achados-de-segurança-que-nenhum-item-cobre----) | A árvore de DEV carrega 16 achados de segurança que nenhum item cobre | `raw` | low |
 | [`B-285`](#b-285--quarenta-declarações-em-português-sobrevivem-num-tipo-de-nó-que-o-guard-não-olha----) | Quarenta declarações em português sobrevivem num tipo de nó que o guard não olha | `raw` | low |
+| [`B-287`](#b-287--o-teto-de-custo-está-desligado-e-o-portão-passa-direto-quando-isso-acontece----) | O teto de custo está desligado, e o portão passa direto quando isso acontece | `triaged` | — |
+| [`B-288`](#b-288--a-cobrança-por-uso-não-tem-para-onde-reportar----) | A cobrança por uso não tem para onde reportar | `triaged` | — |
 
 ### In flight (0)
 
@@ -11203,7 +11211,6 @@ fix: |
   `.claude/scripts/check_reusable_inputs.py` é a rede: compara todo input passado a um reusable
   cross-repo contra o que aquele SHA declara. `actionlint` sai 0 neste defeito porque não busca o
   arquivo do outro repo. RED contra o estado atual (3 problemas), GREEN depois do fix.
-status: shipped
 shipped_note: |
   Corrigido em 2026-08-12 e VERIFICADO no mesmo dia, não assumido.
 
@@ -12143,3 +12150,60 @@ FECHADO 2026-08-13, no mesmo ciclo.
   quem os tirou foi a propria catraca, reprovando enquanto continuavam la.
 
 > Registrado e fechado 2026-08-13, ao fechar o B-259.
+
+## B-287 — O teto de custo está desligado, e o portão passa direto quando isso acontece   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: live-test
+source: human
+evidence: |
+  Medido no app-dev em 2026-08-11, contra o cluster core.
+  - `theo-cloud` registra no boot: `"cost aggregator disabled (THEO_PROMETHEUS_URL not set)"`
+  - a variável não existe no Deployment (`env` do `theo-cloud`, nenhuma `PROM`/`COST`)
+  - `cost_counters`: **0 linhas**
+  - `api/internal/server/router.go:250` diz, no próprio comentário: *"Nil-safe: when
+    CostEnforcer is unset … Middleware is pass-through"*
+why_now: o agregador é a ÚNICA fonte de `cost_counters`, e o portão que lê essa tabela
+  degrada para "passa" quando ela está vazia. As três métricas de custo — minutos de build,
+  egresso, puxadas de registro — não têm teto no ambiente que serve o painel público.
+status: triaged
+dod:
+  - `cost_counters` recebendo linhas no app-dev, com data recente
+  - um teste que prove o portão NEGANDO ao estourar, e não só permitindo
+  - a degradação silenciosa deixa de ser silenciosa: quando o agregador não sobe, isso
+    aparece como estado do sistema, não como uma linha de log no boot
+
+> **Migrado de `theo` `B-033` em 2026-08-18 (`B-145`).** Id local novo porque o numero de
+> origem nao e transportavel: cada registro tem a sua propria sequencia monotonica, e a deste
+> arquivo ja ia ate B-286. O bloco em `theo/BACKLOG.md` continua la, marcado `killed` com esta
+> migracao como razao — nunca apagado, nunca renumerado, para que uma referencia antiga a
+> `B-033` ainda resolva.
+
+
+## B-288 — A cobrança por uso não tem para onde reportar   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: human
+evidence: |
+  Medido no banco do app-dev em 2026-08-11.
+  - `usage_records`: **0 linhas** (o escritor existe — `api/internal/db/store/metering_wrapper.go`)
+  - `subscriptions`: 1 linha — `plano=starter`, `cliente=cus_V3JXfDOr…`,
+    `assinatura=NULO`, `item=NULO`
+  - `internal/metering/reporter.go:62` seleciona `COALESCE(s.stripe_subscription_item_id, '')`
+why_now: o item de assinatura é o endereço para onde o consumo é enviado no Stripe. Sem ele,
+  a metade "quanto cobrar" da cobrança não fecha, mesmo que a medição comece a produzir
+  linhas amanhã. O cliente existe no Stripe; a assinatura, não.
+status: triaged
+dod:
+  - uma conta paga no app-dev com `stripe_subscription_item_id` preenchido
+  - o reporter enviando ao menos um registro, provado pelo lado do Stripe
+  - o caso "assinatura sem item" falha alto em vez de percorrer zero linhas em silêncio
+
+> **Migrado de `theo` `B-034` em 2026-08-18 (`B-145`).** Id local novo porque o numero de
+> origem nao e transportavel: cada registro tem a sua propria sequencia monotonica, e a deste
+> arquivo ja ia ate B-286. O bloco em `theo/BACKLOG.md` continua la, marcado `killed` com esta
+> migracao como razao — nunca apagado, nunca renumerado, para que uma referencia antiga a
+> `B-034` ainda resolva.
