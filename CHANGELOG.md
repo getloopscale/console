@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Added
+- **Dois achados sobre a cobrança deste projeto foram trazidos para a lista de pendências daqui.** Eles viviam na lista de outro repositório e eram órfãos por construção: quem mantém aquele repositório nunca os selecionaria, e quem trabalha aqui não os via. São o teto de custo desligado e a cobrança por uso sem destino de reporte — os dois com a evidência original preservada. (B-287, B-288)
+
+### Fixed
+- **A nota de escopo no topo da lista de pendências dizia que este arquivo violava o contrato do ecossistema; ele passou a ser o contrato.** A regra foi corrigida para declarar uma lista por projeto — o que este arquivo já fazia desde 6 de agosto. Um leitor que confiasse na nota concluiria que estava operando fora da regra. Corrigida também uma declaração de estado duplicada num item, que fazia a verificação de estrutura reprovar o arquivo inteiro. (B-145 do repo theo)
+
 ### Security
 - **O control plane deixou de acessar os dados de todos os clientes por um privilégio invisível.** Ele compartilha o banco com o engine e conectava como dono das tabelas — o que lhe dava acesso a todo cliente *e* poder de alterar as próprias proteções que deveriam contê-lo, sem que isso aparecesse em nenhum inventário. Passa a usar um papel próprio cuja travessia entre clientes é uma permissão **declarada e nomeada**: audível, revogável uma tabela por vez, e sem poder de alterar esquema. O alcance é o mesmo de antes — listar contas e agregar faturamento exigem isso —, o que mudou é que deixou de ser implícito. **Não é isolamento por cliente**: as rotas por-cliente ainda dependem do filtro escrito à mão, e isso está registrado como o próximo passo. (migration 000063 no engine)
 - **O serviço se recusa a subir com privilégio amplo demais.** Se o banco apontar para o papel dono, o processo falha na inicialização nomeando causa e correção. Existe porque esse erro não tem sintoma: tudo continua funcionando, e a única diferença é o quanto de dado alheio fica ao alcance de um processo comprometido. (`internal/dbrole`)
