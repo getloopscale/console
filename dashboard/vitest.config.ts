@@ -1,3 +1,4 @@
+import { cpus } from 'node:os';
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
@@ -11,6 +12,10 @@ import path from 'path';
  */
 export default defineConfig({
   test: {
+    // Default is os.availableParallelism(): one fork per core, each booting a full
+    // test environment. Capping leaves headroom for the host, and costs no wall-clock
+    // because the gain above this point was already noise when measured.
+    maxWorkers: Math.max(2, cpus().length - 4),
     environment: 'jsdom',
     globals: false,
     // `scripts/` holds the repo's tooling (guard-pair checker, knip ratchet, the B-241 rename
