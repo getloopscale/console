@@ -127,7 +127,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.images) }}
-    uses: usetheoai/theo/.github/workflows/build-publish.yml@b7aeb94c64856304e709f33f4d5dd94d97e2b161 # develop
+    uses: usetheoai/theo/.github/workflows/build-publish.yml@1596e81f2ab64a4eb08a7d180e33639138f96b7f # develop
     with:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
