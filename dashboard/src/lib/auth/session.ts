@@ -28,7 +28,7 @@ const KRATOS_URL = AUTH_URL || API_URL;
 // importa nada) para que dev-mocks.ts possa consumir `Session` sem importar
 // deste modulo — era esse import de volta que fechava o ciclo (B-039).
 // O re-export mantem `@/lib/auth` como superficie publica dos consumidores.
-export type { VerifiableAddress, AuthenticationMethod, Session } from '@/lib/api/types';
+export type { AuthenticationMethod, Session } from '@/lib/api/types';
 import type { Session } from '@/lib/api/types';
 import { purgarCachesDeDados } from '@/lib/auth/logout-cache-purge';
 import { safeNavigator } from '@/lib/navigation';

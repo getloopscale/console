@@ -113,6 +113,6 @@ func AssertControlPlaneRole(ctx context.Context, db *sql.DB) error {
 			"  fix:   point DATABASE_URL at the `theo_cloud` role created by engine migration 000063.\n"+
 			"         It keeps the cross-tenant reach the control plane genuinely needs (account\n"+
 			"         listings, billing aggregates, alert evaluation) through NAMED policies that\n"+
-			"         appear in pg_policy — without DDL, and revocable one table at a time.",
+			"         appear in pg_policy — without DDL, and revocable one table at a time",
 		posture, reason)
 }
