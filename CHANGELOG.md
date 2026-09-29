@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- The `theo-cloud` and `theo-dashboard` images are also published to Amazon ECR, the registry production pulls from, tagged by full commit SHA and, on a release, by version (usetheoai/theo#435). The image job now grants the scopes the shared build workflow requires, which GitHub otherwise refuses at startup (usetheoai/theo#436).
 - **Um achado sobre a cobrança deste projeto foi trazido para a lista de pendências daqui, e o outro voltou no mesmo dia.** Eles viviam na lista de outro repositório e eram órfãos por construção: quem mantém aquele repositório nunca os selecionaria, e quem trabalha aqui não os via. A cobrança por uso sem destino de reporte ficou aqui. O teto de custo descreve uma cadeia que atravessa dois repositórios — o agregador é daqui, o portão que lê os contadores é do outro — e por isso cada metade ficou registrada onde o código dela vive. Evidência original preservada nas duas. (B-287, B-288)
 
 ### Fixed
@@ -11,6 +12,8 @@
 - **O serviço se recusa a subir com privilégio amplo demais.** Se o banco apontar para o papel dono, o processo falha na inicialização nomeando causa e correção. Existe porque esse erro não tem sintoma: tudo continua funcionando, e a única diferença é o quanto de dado alheio fica ao alcance de um processo comprometido. (`internal/dbrole`)
 
 ### Changed
+- **A suíte deixou de reivindicar todos os núcleos da máquina.** O `vitest.config.ts` não limitava nada, então valia o default — `os.availableParallelism()`, um fork por núcleo, cada um subindo um ambiente de teste inteiro. Numa máquina de 12 threads um único `vitest run` tomava a máquina inteira, e qualquer outra coisa rodando junto (outra suíte, um typecheck, o desktop) disputava o que sobrasse. O teto agora deixa 4 núcleos livres (`Math.max(2, cpus().length - 4)`), escalando com o runner em vez de fixar a contagem de uma máquina só. Não custa tempo de parede — medido no `theokit-ui`, a suíte completa rodou em 73,96s com 4 workers contra 74,36s com 12. (usetheokit/theokit-ui#51)
+
 - **A verificação do arquivo de build local passou a derivar o que ele precisa copiar, em vez de repetir uma lista escrita à mão.** As três verificações anteriores fixavam três erros passados; nenhuma percebia um diretório de código novo que o binário passasse a usar e o arquivo de build não copiasse — a imagem falharia a construir por um pacote ausente, que é a mesma forma dos erros que elas fixam. Agora o conjunto necessário vem do compilador (#B-017)
 
 - **theo-cloud/dashboard:** seven more tests that check something is *not* on screen can now actually fail — the signal sheet's label, a project's "Progressing" status and "URL pending" badge, the device-authorisation countdown, the prompt diff's config block, the model-provider refusal title, and the RAG analytics token label (B-242).
