@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
@@ -39,7 +39,17 @@ const RESPOSTA_REAL = {
 };
 
 describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
+  // The page computes its window from Date.now(), and the fixtures below are dated
+  // 2026-07-20..22. With a live clock they fell out of the window on ~2026-08-21 and every
+  // chart rendered zero lines — a failure no code change caused (usetheoai/theo-cloud#491).
+  // Only Date is faked: React's scheduling keeps its real timers.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-23T12:00:00Z'));
     // `clearAllMocks` limpa CHAMADAS, não a implementação: um caso sem `mockResolvedValue`
     // herdaria em silêncio o fixture do vizinho. `reset` faz esse caso falhar alto.
     vi.resetAllMocks();
