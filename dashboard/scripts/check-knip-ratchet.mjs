@@ -65,17 +65,24 @@ function contar(saida, rotulo) {
   return m ? Number(m[1]) : 0;
 }
 
+// knip exits 0 with no findings and 1 with findings; any other outcome means it did not
+// run. That used to read as a report with every count at zero — "OK" — so a knip that
+// failed to install passed the gate while measuring nothing (usetheoai/theo-cloud#491).
+// It runs from the pinned devDependency (`--no`: never install at run time), so every
+// run measures with the same knip — an unpinned `npx knip` moved 30 to 31 on its own.
 function rodarKnip() {
   try {
-    return execFileSync('npx', ['knip', '--no-progress'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return execFileSync('npx', ['--no', 'knip', '--no-progress'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
-    // knip sai != 0 quando encontra qualquer coisa; a saída é o que interessa.
-    return `${e.stdout ?? ''}${e.stderr ?? ''}`;
+    const saida = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+    if (e.status === 1 && /^[A-Z][A-Za-z ]+ \(\d+\)$/m.test(saida)) return saida;
+    console.error('\nknip ratchet — knip did NOT run (status ' + e.status + '); nothing was measured:\n');
+    console.error(saida.slice(0, 2000));
+    process.exit(2);
   }
 }
 
 const saida = rodarKnip();
-
 const falhas = [];
 for (const rotulo of DEVEM_SER_ZERO) {
   const n = contar(saida, rotulo);

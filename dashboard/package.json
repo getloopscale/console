@@ -110,6 +110,7 @@
     "eslint": "^10.4.0",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
+    "knip": "6.38.0",
     "patch-package": "^8.0.1",
     "postcss": "^8.4.0",
     "rollup-plugin-visualizer": "^6.0.11",
