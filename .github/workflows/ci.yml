@@ -59,7 +59,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
+      THEO_ENGINE_REF: b7aeb94c64856304e709f33f4d5dd94d97e2b161
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
       #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
@@ -138,7 +138,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
+      THEO_ENGINE_REF: b7aeb94c64856304e709f33f4d5dd94d97e2b161
       THEORAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
       - name: Checkout theo-cloud
