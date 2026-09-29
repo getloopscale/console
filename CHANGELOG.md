@@ -5,6 +5,7 @@
 - **Um achado sobre a cobrança deste projeto foi trazido para a lista de pendências daqui, e o outro voltou no mesmo dia.** Eles viviam na lista de outro repositório e eram órfãos por construção: quem mantém aquele repositório nunca os selecionaria, e quem trabalha aqui não os via. A cobrança por uso sem destino de reporte ficou aqui. O teto de custo descreve uma cadeia que atravessa dois repositórios — o agregador é daqui, o portão que lê os contadores é do outro — e por isso cada metade ficou registrada onde o código dela vive. Evidência original preservada nas duas. (B-287, B-288)
 
 ### Fixed
+- CI runs again. Every job waited for a Blacksmith runner the organization no longer has, so nothing — gates or images — had executed since 2026-08-18. Jobs run on `ubuntu-latest`, as the engine's shared build workflow does (#491).
 - **A nota de escopo no topo da lista de pendências dizia que este arquivo violava o contrato do ecossistema; ele passou a ser o contrato.** A regra foi corrigida para declarar uma lista por projeto — o que este arquivo já fazia desde 6 de agosto. Um leitor que confiasse na nota concluiria que estava operando fora da regra. Corrigida também uma declaração de estado duplicada num item, que fazia a verificação de estrutura reprovar o arquivo inteiro. (B-145 do repo theo)
 
 ### Security

@@ -107,7 +107,7 @@ permissions:
 jobs:
   e2e-ui:
     name: e2e-ui — jornadas do dashboard (mocks, chromium)
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
