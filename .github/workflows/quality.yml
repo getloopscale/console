@@ -171,7 +171,11 @@ jobs:
   dashboard:
     name: dashboard — typecheck + lint + build + test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Measured on ubuntu-latest (2 vCPU), 2026-09-29: vitest alone takes 651-677s and the
+    # steps before it ~3 min, so the job ends near 14.5 min. The 15 it had was sized for the
+    # 8-vCPU Blacksmith runners this repository no longer has (#491) and cut a passing run
+    # at 15m17s. 30 is about twice the measured time.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: dashboard
