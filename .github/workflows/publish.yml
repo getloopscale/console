@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}
 jobs:
   plan:
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     # Menor privilegio. Este job so faz checkout, paths-filter e jq — nao escreve em registry
     # nem cunha token OIDC. E e exatamente onde roda `dorny/paths-filter`, o unico terceiro da

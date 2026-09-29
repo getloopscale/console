@@ -25,7 +25,7 @@ permissions:
 jobs:
   go:
     name: go — build + test (race) + integração + vet + lint
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     # Postgres real para o passo de integracao (M149 / #405). O `health-cmd` existe para que o
     # passo espere o banco ficar pronto em vez de falhar por corrida de subida — um teste de
@@ -170,7 +170,7 @@ jobs:
 
   dashboard:
     name: dashboard — typecheck + lint + build + test
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:
