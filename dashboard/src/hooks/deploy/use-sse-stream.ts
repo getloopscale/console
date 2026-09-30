@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_URL } from '@/lib/http/config';
-import { ensureSSEToken, clearToken } from '@/lib/http/api';
+import { signOutIfSessionEnded } from '@/lib/http/api';
 import { SharedEventSource } from '@/hooks/deploy/shared-event-source';
 import { credentialIsSuspect, shouldReopen, type StreamEndReason } from './stream-end-reason';
 
@@ -17,22 +17,17 @@ import { credentialIsSuspect, shouldReopen, type StreamEndReason } from './strea
  *   isso nativamente", e não faz: o transporte deixou de ser o `EventSource` nativo quando o JWT
  *   saiu da URL e foi para o header (`fetch-event-source.ts`). A retomada é NOSSA, e `lastEventID`
  *   é o que a alimenta.
- * - Token refresh quando a credencial é suspeita (EC-3). O limiar de "3 erros consecutivos" que
- *   este texto descrevia foi REMOVIDO: contar erros confundia uma queda de rede com uma credencial
- *   inválida e deixava o stream morto até o componente remontar. Hoje quem decide é
- *   `credentialIsSuspect` (401/403/sem token), e toda outra causa reabre.
+ * - Session check when the credential is suspect (EC-3): a 401/403 makes the hook probe the
+ *   session and sign out only if it ended (`credentialIsSuspect`); every other cause reopens.
  * - maxEvents FIFO cap (EC-10) — buffer cannot grow unbounded if the
  *   user leaves the tab in the background.
  * - `paused` lets the consumer freeze updates without disconnecting.
  *
- * Auth: the JWT travels in an `Authorization: Bearer` HEADER.
+ * Auth: the Kratos session cookie, sent by the browser on this same-origin request and validated
+ * by theo-cloud (usetheoai/theo#477 step 3). No token in the URL, none in a header, none in memory.
  *
- * B-219 — este bloco dizia "SSE não aceita header, então o JWT vai em `?token=`", que era verdade
- * do `EventSource` nativo e deixou de ser em B-088: o transporte passou a ser `fetch`, que aceita
- * header, precisamente para tirar a credencial da query string — de onde ela chegava a access log
- * do nginx, log de proxy, histórico do navegador e header `Referer`. O texto sobreviveu ao motivo
- * pelo qual ele existia, descrevendo um risco que já tinha sido fechado logo abaixo dele.
- * Ver `fetch-event-source.ts § abrir` e o ADR-0009.
+ * B-219 — this block once said the JWT goes in `?token=` because SSE cannot set headers; B-088
+ * moved it to a header, and #477 removed it entirely. See `fetch-event-source.ts` and ADR-0009.
  */
 interface SSEStreamEvent<T = unknown> {
   id: string;
@@ -182,32 +177,16 @@ export function useSSEStream<T = unknown>(
       onEventRef.current?.(event);
     };
 
-    const open = async () => {
-      const token = await ensureSSEToken();
+    const open = () => {
       if (cancelled) return;
-      if (!token) {
-        setError(true);
-        return;
-      }
-      // B-088 — a URL nao carrega mais credencial nem cursor de retomada.
-      //
-      // Ate 2026-08-07 esta linha montava `?token=${jwt}`, e o jwt era o bearer
-      // COMPLETO da sessao — o mesmo da API, sem TTL proprio nem escopo de
-      // stream. Um JWT em query string chega a access log do nginx (versionado
-      // neste repo), log do proxy, historico do navegador e header Referer.
-      //
-      // O `last_event_id` estava na URL pelo mesmo motivo: `EventSource` nao
-      // aceita header. Os dois voltaram para onde pertencem porque o transporte
-      // deixou de ser `EventSource` — ver `fetch-event-source.ts` e o ADR-0009.
+      // B-088 — the URL carries neither a credential nor the resume cursor. Until 2026-08-07 it
+      // carried `?token=${jwt}`, which reaches access logs, proxy logs, browser history and the
+      // Referer header. Since usetheoai/theo#477 step 3 there is no token at all: the request is
+      // authenticated by the session cookie, and `Last-Event-ID` travels as a header.
       const url = `${API_URL}${path}`;
 
-      // B-020 — multiplexado por URL. `SharedEventSource` implementa a
-      // superficie que este hook usa e compartilha a conexao real: dois
-      // consumidores do mesmo build passam a gastar uma conexao, nao duas.
-      // Toda a logica abaixo (token, backoff, o conserto do B-014) fica
-      // intocada de proposito — a deduplicacao nao e assunto dela.
+      // B-020 — multiplexed by URL: two consumers of the same build share one real connection.
       es = new SharedEventSource(url, {
-        token,
         lastEventId: lastIDRef.current,
       }) as unknown as EventSource;
 
@@ -268,7 +247,9 @@ export function useSSEStream<T = unknown>(
         setError(true);
         setConnected(false);
 
-        if (credentialIsSuspect(reason)) clearToken();
+        // A 401/403 may mean the session ended. The probe decides; a transient failure keeps
+        // reopening with backoff instead of signing anyone out (#324).
+        if (credentialIsSuspect(reason)) void signOutIfSessionEnded();
         es?.close();
 
         // Backoff exponencial com jitter: sem ele, um 401 persistente (sessao de
@@ -279,12 +260,12 @@ export function useSSEStream<T = unknown>(
         const delay = base / 2 + Math.random() * (base / 2);
 
         reopenTimer = setTimeout(() => {
-          if (!cancelled) void open();
+          if (!cancelled) open();
         }, delay);
       };
     };
 
-    void open();
+    open();
 
     return () => {
       cancelled = true;

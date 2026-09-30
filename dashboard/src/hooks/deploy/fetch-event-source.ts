@@ -3,6 +3,12 @@ import { streamEndEvent, type StreamEndReason } from './stream-end-reason';
 /**
  * B-088 — SSE sobre `fetch`, para que o JWT de sessão saia da URL.
  *
+ * usetheoai/theo#477 step 3 (2026-09-30) — the stream now carries NO token at all: theo-cloud
+ * authenticates it from the Kratos session cookie. Option (a) below was rejected at the time
+ * because the API did not read cookies and accepting them would trade exposure for CSRF; the
+ * backend now reads them, and refuses cross-origin unsafe requests (`auth.RequireCaller`). The
+ * `fetch` transport stays: it is what carries `Last-Event-ID` and reports the HTTP status.
+ *
  * ## O achado
  *
  * `useSSEStream` montava `${API_URL}${path}?token=${jwt}`, e o token era o
@@ -47,9 +53,7 @@ import { streamEndEvent, type StreamEndReason } from './stream-end-reason';
  */
 
 interface Opcoes {
-  /** Bearer da sessão. `null` quando não há sessão — não chamamos o servidor. */
-  token: string | null;
-  /** Retomada; vai por header, como manda o protocolo. */
+  /** Resume cursor; it travels in a header, as the protocol says. */
   lastEventId?: string | null;
 }
 
@@ -118,17 +122,7 @@ export class FetchEventSource {
   }
 
   private async open(): Promise<void> {
-    if (!this.opcoes.token) {
-      // Chamar sem credencial produz um 401 garantido e um ciclo de backoff
-      // inútil. Falhar aqui é mais barato e mais claro.
-      this.falhar({ kind: 'no-token' });
-      return;
-    }
-
-    const headers: Record<string, string> = {
-      Accept: 'text/event-stream',
-      Authorization: `Bearer ${this.opcoes.token}`,
-    };
+    const headers: Record<string, string> = { Accept: 'text/event-stream' };
     if (this.opcoes.lastEventId) headers['Last-Event-ID'] = this.opcoes.lastEventId;
 
     let resposta: Response;
@@ -136,9 +130,10 @@ export class FetchEventSource {
       resposta = await fetch(this.url, {
         headers,
         signal: this.abort.signal,
-        // O stream é uma leitura longa; a credencial vai no header, então não há
-        // motivo para carregar cookies de sessão junto.
-        credentials: 'omit',
+        // usetheoai/theo#477 step 3: the stream is authenticated by the session
+        // cookie, like every other dashboard call. No credential in the URL or
+        // in a header the page could read.
+        credentials: 'same-origin',
       });
     } catch {
       // Inclui o abort do próprio `close()`, que não é falha: `falhar()` já

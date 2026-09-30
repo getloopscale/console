@@ -1,7 +1,8 @@
 // Kratos session-based authentication for the Theo dashboard.
 //
 // The dashboard is a first-party SPA — uses Kratos sessions directly.
-// No Hydra, no PKCE, no tokens. Just HTTP-only session cookies.
+// No Hydra, no PKCE, no tokens. Just HTTP-only session cookies, validated by
+// theo-cloud (its Backend for Frontend) on every request — usetheoai/theo#477.
 //
 // Hydra is only used for the CLI (Device Code Flow).
 //
@@ -21,7 +22,7 @@ import { reportEvent } from '@/lib/telemetry/rum';
 // boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
 // muda o ciclo de vida da sessao e merece o seu proprio teste.
 import { getMockSession } from '@/lib/mocks/dev-mocks';
-import { exchangeSessionToken, getExchangedIdentity } from '@/lib/http/api';
+import { fetchSessionIdentity } from '@/lib/http/api';
 const KRATOS_URL = AUTH_URL || API_URL;
 
 // Os tipos de sessao moram em ./api/types (a ACL de tipos do backend, que nao
@@ -82,32 +83,20 @@ export async function getSession(): Promise<Session | null> {
   if (mocksEnabled()) return getMockSession();
 
   try {
-    // The BFF exchange validates the Kratos cookie server-side and returns the
-    // identity subset this app reads. Going through it — instead of calling
-    // Kratos from the browser — is what keeps devices[].ip_address and
+    // The BFF validates the Kratos cookie server-side and returns the identity
+    // subset this app reads (GET /v1/auth/session). Going through it — instead
+    // of calling Kratos from the browser — keeps devices[].ip_address and
     // recovery_addresses out of the page: they are never sent, so no XSS can
-    // read them from here.
-    //
-    // exchangeSessionToken() de-duplicates in-flight calls, so a screen that
-    // asks for the session while a refresh is running does not add a request.
-    const ok = await exchangeSessionToken();
-    if (!ok) {
+    // read them from here. No token comes back with it (usetheoai/theo#477).
+    const identity = await fetchSessionIdentity();
+    if (!identity) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[auth] getSession: session exchange failed (no active session). ` +
+        `[auth] getSession: no active session (or it could not be checked). ` +
           `If you just registered/logged in but see this, the session cookie may not have been ` +
           `set (open DevTools → Application → Cookies → usetheo.dev and look for ory_kratos_session). ` +
           `Clear cookies and re-login to reset.`,
       );
-      return null;
-    }
-    const identity = getExchangedIdentity();
-    if (!identity) {
-      // A 200 without an identity means the BFF is older than this dashboard.
-      // Fail closed: a session we cannot describe is not a session we should
-      // act on.
-      // eslint-disable-next-line no-console
-      console.warn('[auth] getSession: exchange succeeded but carried no identity');
       return null;
     }
     return {
@@ -136,11 +125,11 @@ export function getVerificationURL(): string {
   return `${KRATOS_URL}/self-service/verification/browser`;
 }
 
-/** Logout — destroy Kratos session, clear JWT, and notify other tabs. */
+/** Logout — destroy the Kratos session and notify other tabs. */
 export async function logout(): Promise<void> {
-  // Clear in-memory JWT and broadcast to other tabs (§3.3 + Fix #5)
-  const { clearTokenAcrossTabs } = await import('@/lib/http/api');
-  clearTokenAcrossTabs();
+  // Broadcast to other tabs (§3.3 + Fix #5). The dashboard holds no token to clear.
+  const { announceLogoutAcrossTabs } = await import('@/lib/http/api');
+  announceLogoutAcrossTabs();
 
   // B-055 — apaga o cache do service worker que guarda dado de tenant.
   //

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSession, type Session } from '@/lib/auth/session';
-import { exchangeSessionToken, hasValidToken, sessionDefinitivelyExpired } from '@/lib/http/api';
+import { sessionDefinitivelyExpired } from '@/lib/http/api';
 import { takePendingAttempt } from '@/hooks/auth/auth-attempt';
 import { reportEvent, viewportBucket } from '@/lib/telemetry/rum';
 
-/** Check Kratos session + exchange for JWT. Redirects to /login if not authenticated. */
+/** Check the Kratos session through the BFF. Redirects to /login if it has ended. */
 export function useRequireAuth(): Session | null {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
@@ -15,14 +15,11 @@ export function useRequireAuth(): Session | null {
     async function init() {
       const s = await getSession();
       if (!s) {
-        // B-140 — `getSession()` devolve `null` por TRÊS causas: a troca não deu ok, ela deu 200
-        // sem identidade, ou houve rejeição de rede/parse. Só a primeira, e só quando o status foi
-        // 401, significa que a sessão ACABOU.
-        //
-        // A disciplina do #324 já estava aplicada no caminho de troca diferida trinta linhas
-        // abaixo, e não aqui — e é a assimetria que era o defeito, não a ausência da ideia. Mandar
-        // para /login numa falha transitória é falso E se realimenta: a navegação remonta a árvore
-        // e refaz a troca contra o mesmo endpoint que acabou de falhar.
+        // B-140 — `getSession()` returns `null` for THREE reasons: the session probe was not ok,
+        // it answered 200 with no identity, or the network/parse failed. Only the first, and only
+        // when the status was 401, means the session ENDED. Sending someone to /login on a
+        // transient failure is false AND feeds itself: the navigation remounts the tree and probes
+        // the endpoint that just failed.
         //
         // Numa falha transitória a tela fica montada sem sessão; quem consome decide o que
         // mostrar, e o próximo `cloudFetch` tenta de novo. Isso é melhor do que mandar alguém
@@ -64,23 +61,6 @@ export function useRequireAuth(): Session | null {
         });
       }
 
-      // Defer the JWT exchange so the shell paints at session-detect
-      // (one RTT, not two). But watch the resolution: a stale Kratos
-      // cookie returns `false` here, and without redirecting to /login
-      // every cloudFetch/engineFetch retries 401 forever — the dashboard
-      // hangs in "Loading". Closes Red Team theo-cloud#110.
-      if (!hasValidToken()) {
-        exchangeSessionToken().then((ok) => {
-          // #324: `!ok` sozinho nao decide. A troca falha por 429, 5xx, 502 ou
-          // rejeicao de rede sem que a sessao Kratos tenha acabado — mandar
-          // para /login nesses casos e falso E realimenta o problema, porque a
-          // navegacao remonta a arvore e refaz a troca. So o 401 (cookie velho,
-          // #110 acima) justifica sair.
-          if (!ok && sessionDefinitivelyExpired()) {
-            navigate('/login', { replace: true });
-          }
-        });
-      }
       setChecked(true);
     }
     init();

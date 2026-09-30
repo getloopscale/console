@@ -34,7 +34,7 @@ import {
 // arquivos de teste de SSE ja tinham exatamente este mock.
 vi.mock('@/lib/http/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/http/api')>('@/lib/http/api');
-  return { ...actual, ensureSSEToken: vi.fn(async () => 'jwt-de-teste'), clearToken: vi.fn() };
+  return { ...actual, signOutIfSessionEnded: vi.fn(async () => false) };
 });
 
 
@@ -52,8 +52,8 @@ class MockEventSource {
   private listeners = new Map<string, Set<EventListener>>();
   public static lastInstance: MockEventSource | null = null;
 
-  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
-  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+  opcoes: { lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { lastEventId?: string | null }) {
     this.opcoes = opcoes;
     this.url = url;
     MockEventSource.lastInstance = this;
