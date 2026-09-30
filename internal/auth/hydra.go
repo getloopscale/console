@@ -453,9 +453,43 @@ func (c *HydraClient) AcceptDeviceChallenge(challenge, userCode string) (string,
 	return result.RedirectTo, nil
 }
 
-// RegisterClient registers or updates the CLI OAuth2 client in Hydra (idempotent).
-// redirectURIs should include both localhost (dev) and production dashboard callback URLs.
-func (c *HydraClient) RegisterClient(redirectURIs []string) error {
+// baseClientAudiences are the audiences every CLI token may carry.
+//
+// Plan J-05 iter 6 (2026-06-05) — LIVE bug F-03 caught during dogfood
+// final scope. Without an explicit audience whitelist on the CLI client,
+// Hydra rejects refresh_token grants with "Requested audience 'theo-cloud'
+// has not been whitelisted by the OAuth 2.0 Client" because the original
+// device-flow consent set aud=[theo-cloud,theo-engine] via
+// grant_access_token_audience (AcceptConsent). Refresh re-validates the
+// audience contract against the client registration.
+var baseClientAudiences = []string{"theo-cloud", "theo-engine"}
+
+// clientAudience is the base audiences followed by every allowed RFC 8707
+// resource, each once, in the order given. usetheoai/theo#477: Hydra grants an
+// audience only if the client registers it, so the list consent may grant
+// (CONSENT_ALLOWED_RESOURCES) is the list registered here — one list, two uses.
+func clientAudience(allowedResources []string) []string {
+	out := make([]string, 0, len(baseClientAudiences)+len(allowedResources))
+	seen := make(map[string]bool, cap(out))
+	for _, a := range append(append([]string{}, baseClientAudiences...), allowedResources...) {
+		if a == "" || seen[a] {
+			continue
+		}
+		seen[a] = true
+		out = append(out, a)
+	}
+	return out
+}
+
+// RegisterClient creates or replaces the CLI OAuth2 client in Hydra (idempotent).
+// redirectURIs should include both localhost (dev) and production dashboard
+// callback URLs; allowedResources are the RFC 8707 resources consent may grant.
+//
+// theo-cloud is the single owner of this client (usetheoai/theo#477). A PUT
+// replaces an existing client; when Hydra answers 404 the client does not
+// exist yet and is created with a POST, so a fresh Hydra gets it from here and
+// from nowhere else.
+func (c *HydraClient) RegisterClient(redirectURIs, allowedResources []string) error {
 	if len(redirectURIs) == 0 {
 		redirectURIs = []string{"http://localhost:9876/auth"}
 	}
@@ -468,39 +502,49 @@ func (c *HydraClient) RegisterClient(redirectURIs []string) error {
 		"scope":                      "openid offline_access",
 		"token_endpoint_auth_method": "none", // Public client
 		"redirect_uris":              redirectURIs,
-		// Plan J-05 iter 6 (2026-06-05) — LIVE bug F-03 caught during dogfood
-		// final scope. Without an explicit audience whitelist on the CLI client,
-		// Hydra rejects refresh_token grants with "Requested audience 'theo-cloud'
-		// has not been whitelisted by the OAuth 2.0 Client" because the original
-		// device-flow consent set aud=[theo-cloud,theo-engine] via
-		// grant_access_token_audience (AcceptConsent line 277). Refresh
-		// re-validates the audience contract against the client registration.
-		"audience": []string{"theo-cloud", "theo-engine"},
+		"audience":                   clientAudience(allowedResources),
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal register client payload: %w", err)
 	}
 
-	// Use PUT to create-or-update (idempotent)
-	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/admin/clients/%s", c.adminURL, c.clientID), bytes.NewReader(body))
+	status, respBody, err := c.adminJSON(http.MethodPut, fmt.Sprintf("%s/admin/clients/%s", c.adminURL, c.clientID), body)
 	if err != nil {
-		return fmt.Errorf("create register client request: %w", err)
+		return fmt.Errorf("register client %s: %w", c.clientID, err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if status == http.StatusOK || status == http.StatusCreated {
+		return nil
+	}
+	if status != http.StatusNotFound {
+		return fmt.Errorf("register client %s failed (status %d): %s", c.clientID, status, respBody)
+	}
 
-	resp, err := c.httpClient.Do(req)
+	status, respBody, err = c.adminJSON(http.MethodPost, c.adminURL+"/admin/clients", body)
 	if err != nil {
-		return fmt.Errorf("register client failed: %w", err)
+		return fmt.Errorf("create client %s: %w", c.clientID, err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("register client failed (status %d, body unreadable)", resp.StatusCode)
-		}
-		return fmt.Errorf("register client failed (status %d): %s", resp.StatusCode, respBody)
+	if status != http.StatusOK && status != http.StatusCreated {
+		return fmt.Errorf("create client %s failed (status %d): %s", c.clientID, status, respBody)
 	}
 	return nil
+}
+
+// adminJSON sends a JSON body to the Hydra admin API and returns the status and body.
+func (c *HydraClient) adminJSON(method, url string, body []byte) (int, []byte, error) {
+	req, err := http.NewRequest(method, url, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, fmt.Errorf("build %s request: %w", method, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, nil, fmt.Errorf("%s %s: %w", method, url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return resp.StatusCode, nil, fmt.Errorf("read %s response (status %d): %w", method, resp.StatusCode, err)
+	}
+	return resp.StatusCode, respBody, nil
 }
