@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"errors"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -305,5 +306,42 @@ func TestAcceptConsent_HydraReturns200WithRedirectTo_ReturnsURL(t *testing.T) {
 	}
 	if !strings.HasPrefix(redirectTo, "https://hydra.example/") {
 		t.Fatalf("happy-path redirectTo lost: got %q", redirectTo)
+	}
+}
+
+// usetheoai/theo#477 — RejectConsent: an expired challenge is the typed
+// ErrChallengeNotFound (so the handler renders the expired-link page), and the
+// consent request's original authorization URL is decoded for RFC 8707.
+
+func TestRejectConsent_HydraReturns404_ReturnsChallengeNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	redirectTo, err := c.RejectConsent("expired-consent-challenge", "access_denied", "denied")
+	if !errors.Is(err, ErrChallengeNotFound) {
+		t.Fatalf("RejectConsent err = %v, want ErrChallengeNotFound", err)
+	}
+	if redirectTo != "" {
+		t.Errorf("RejectConsent returned redirectTo %q alongside an error", redirectTo)
+	}
+}
+
+func TestGetConsentRequest_DecodesRequestURL(t *testing.T) {
+	const want = "https://auth.example/oauth2/auth?client_id=theo-cli&resource=https%3A%2F%2Fmcp.example%2Fmemory"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"client":{"client_id":"theo-cli"},"request_url":"` + want + `"}`))
+	}))
+	defer srv.Close()
+
+	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	req, err := c.GetConsentRequest("chal")
+	if err != nil {
+		t.Fatalf("GetConsentRequest: %v", err)
+	}
+	if req.RequestURL != want {
+		t.Errorf("RequestURL = %q, want %q", req.RequestURL, want)
 	}
 }

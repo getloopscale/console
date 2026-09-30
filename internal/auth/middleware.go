@@ -59,6 +59,11 @@ func WithUser(ctx context.Context, u *UserContext) context.Context {
 // by short HMAC TTL (1h) + key rotation (pkg/jwt SessionTokenIssuer
 // previous-secret window). Trade-off accepted vs the alternative of
 // migrating every stream surface to WebSocket.
+//
+// usetheoai/theo#477: the HMAC path and the `?token=` fallback stay until the
+// dashboard moves to the Backend-for-Frontend (step 3 of that issue) — the
+// dashboard still holds the HS256 session token and opens EventSource streams
+// with it. Remove both there, not before.
 func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionTokenIssuer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,10 +86,7 @@ func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionT
 					if name == "" {
 						name = claims.Ext.Name
 					}
-					tenantID := claims.TenantID
-					if tenantID == "" {
-						tenantID = claims.Ext.TenantID
-					}
+					tenantID := claims.ResolvedTenantID()
 					if tenantID == "" {
 						// MEET-2026-04-07-039 B7: never fall back to "default" tenant.
 						slog.Warn("auth: JWT has no tenant_id", "sub", claims.Subject, "path", r.URL.Path)
@@ -96,6 +98,11 @@ func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionT
 						Email:    email,
 						Name:     name,
 						TenantID: tenantID,
+						// usetheoai/theo#477: without this, every consumer gating on
+						// AccountID (the M1 cross-account guard) skipped the check for
+						// a Hydra caller. Top-level first, ext fallback; "" for a token
+						// minted before the claim existed.
+						AccountID: claims.ResolvedAccountID(),
 					})
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return

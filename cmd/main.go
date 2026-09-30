@@ -529,7 +529,15 @@ func main() {
 	// upstream identity-store and ALWAYS returns the canonical universal body
 	// regardless of new-vs-existing-email branch.
 	registerProxyHandler := routes.NewRegisterProxyHandler(cfg.KratosInternalURL, logger)
-	consentHandler := consent.NewHandler(hydra, tenantProvisioner, cfg.KratosPublicURL, cfg.KratosInternalURL, cfg.KratosAdminURL, logger)
+	consentHandler := consent.NewHandler(hydra, tenantProvisioner, cfg.KratosPublicURL, cfg.KratosInternalURL, cfg.KratosAdminURL, logger).
+		WithPolicy(consent.Policy{
+			FirstPartyClients: cfg.ConsentFirstPartyClients,
+			AllowedResources:  cfg.ConsentAllowedResources,
+		})
+	logger.Info("consent policy loaded",
+		"first_party_clients", cfg.ConsentFirstPartyClients,
+		"allowed_resources", cfg.ConsentAllowedResources,
+	)
 
 	// Plan 0 of dashboard-memory-section-roadmap.md: unified theo_live_* API keys.
 	// D8 dispatch: /v1/api-keys/* uses RequireJWT (PaaS session cookie), NOT

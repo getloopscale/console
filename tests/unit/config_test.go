@@ -190,3 +190,35 @@ func TestConfigLoadProdDoesNotAutogenSecrets(t *testing.T) {
 		t.Error("THEO_SERVICE_AUTH_SECRET must not be auto-generated in prod")
 	}
 }
+
+// usetheoai/theo#477 — consent policy config. The first-party allowlist
+// defaults to the Hydra client this service owns (theo-cli); the resource
+// allowlist defaults to empty, so no RFC 8707 resource is granted until named.
+func TestConfigConsentPolicyDefaults(t *testing.T) {
+	t.Setenv("HYDRA_CLIENT_ID", "")
+	t.Setenv("CONSENT_FIRST_PARTY_CLIENTS", "")
+	t.Setenv("CONSENT_ALLOWED_RESOURCES", "")
+
+	cfg := config.Load()
+
+	if len(cfg.ConsentFirstPartyClients) != 1 || cfg.ConsentFirstPartyClients[0] != "theo-cli" {
+		t.Errorf("ConsentFirstPartyClients = %v, want [theo-cli]", cfg.ConsentFirstPartyClients)
+	}
+	if len(cfg.ConsentAllowedResources) != 0 {
+		t.Errorf("ConsentAllowedResources = %v, want empty", cfg.ConsentAllowedResources)
+	}
+}
+
+func TestConfigConsentPolicyFromEnv(t *testing.T) {
+	t.Setenv("CONSENT_FIRST_PARTY_CLIENTS", "theo-cli, theo-dashboard ,")
+	t.Setenv("CONSENT_ALLOWED_RESOURCES", "https://mcp.usetheo.dev/memory,https://mcp.usetheo.dev/rag")
+
+	cfg := config.Load()
+
+	if got := cfg.ConsentFirstPartyClients; len(got) != 2 || got[0] != "theo-cli" || got[1] != "theo-dashboard" {
+		t.Errorf("ConsentFirstPartyClients = %q, want [theo-cli theo-dashboard]", got)
+	}
+	if got := cfg.ConsentAllowedResources; len(got) != 2 || got[1] != "https://mcp.usetheo.dev/rag" {
+		t.Errorf("ConsentAllowedResources = %q, want the two MCP URIs", got)
+	}
+}
