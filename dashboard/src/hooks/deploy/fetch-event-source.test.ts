@@ -25,8 +25,8 @@ import { FetchEventSource } from './fetch-event-source';
  *
  * A superfície de `EventSource` que o hook usa — `onopen`, `onmessage`,
  * `onerror`, `addEventListener`, `close`, `readyState` — sobre `fetch`. A troca
- * é de uma linha em `SharedEventSource`, e o token passa a viajar em
- * `Authorization`.
+ * é de uma linha em `SharedEventSource`. Since usetheoai/theo#477 step 3 the
+ * stream carries no token at all — the session cookie authenticates it.
  */
 
 function stream(...pedacos: string[]): ReadableStream<Uint8Array> {
@@ -50,24 +50,23 @@ describe('FetchEventSource (B-088)', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('manda o token em Authorization e NAO na URL', async () => {
+  it('carries no credential of its own — the session cookie authenticates the stream', async () => {
+    // usetheoai/theo#477 step 3: no token in the URL (access logs, Referer), none in a header.
     fetchMock.mockResolvedValue(respostaOk(stream('')));
-    const es = new FetchEventSource('/api/stream?env=prod', { token: 'jwt-abc' });
+    const es = new FetchEventSource('/api/stream?env=prod', {});
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-    const [url, init] = fetchMock.mock.calls[0];
-    // O item inteiro é esta asserção. Se o token voltar para a query, ele volta
-    // para o access log do nginx e para o Referer.
-    expect(String(url)).not.toContain('jwt-abc');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(String(url)).toBe('/api/stream?env=prod');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jwt-abc');
+    expect(init.headers as Record<string, string>).not.toHaveProperty('Authorization');
     expect((init.headers as Record<string, string>).Accept).toBe('text/event-stream');
+    expect(init.credentials).toBe('same-origin');
     es.close();
   });
 
   it('Last-Event-ID vai por header, nao por query', async () => {
     fetchMock.mockResolvedValue(respostaOk(stream('')));
-    const es = new FetchEventSource('/s', { token: 't', lastEventId: '42' });
+    const es = new FetchEventSource('/s', { lastEventId: '42' });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
     const [url, init] = fetchMock.mock.calls[0];
@@ -80,7 +79,7 @@ describe('FetchEventSource (B-088)', () => {
 
   it('um frame simples vira onmessage com data e lastEventId', async () => {
     fetchMock.mockResolvedValue(respostaOk(stream('id: 7\ndata: ola\n\n')));
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     const recebidos: { data: string; id: string }[] = [];
     es.onmessage = (e) => recebidos.push({ data: e.data as string, id: e.lastEventId });
 
@@ -93,7 +92,7 @@ describe('FetchEventSource (B-088)', () => {
     fetchMock.mockResolvedValue(
       respostaOk(stream('event: build.step.started\ndata: {"a":1}\n\n')),
     );
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     const nomeados: string[] = [];
     let genericos = 0;
     es.addEventListener('build.step.started', (e) => nomeados.push(e.data as string));
@@ -109,7 +108,7 @@ describe('FetchEventSource (B-088)', () => {
 
   it('data em MULTIPLAS linhas e juntado com quebra de linha', async () => {
     fetchMock.mockResolvedValue(respostaOk(stream('data: linha1\ndata: linha2\n\n')));
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     const recebidos: string[] = [];
     es.onmessage = (e) => recebidos.push(e.data as string);
 
@@ -122,7 +121,7 @@ describe('FetchEventSource (B-088)', () => {
 
   it('um frame partido entre dois chunks e remontado', async () => {
     fetchMock.mockResolvedValue(respostaOk(stream('data: par', 'tido\n\n')));
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     const recebidos: string[] = [];
     es.onmessage = (e) => recebidos.push(e.data as string);
 
@@ -135,7 +134,7 @@ describe('FetchEventSource (B-088)', () => {
 
   it('CRLF e comentario de keep-alive nao viram eventos', async () => {
     fetchMock.mockResolvedValue(respostaOk(stream(': keep-alive\r\n\r\ndata: real\r\n\r\n')));
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     const recebidos: string[] = [];
     es.onmessage = (e) => recebidos.push(e.data as string);
 
@@ -148,7 +147,7 @@ describe('FetchEventSource (B-088)', () => {
 
   it('abre: onopen dispara e readyState ja esta OPEN nesse instante', async () => {
     fetchMock.mockResolvedValue(respostaOk(stream('')));
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     let estadoNoOnopen: number | null = null;
     es.onopen = () => (estadoNoOnopen = es.readyState);
 
@@ -163,7 +162,7 @@ describe('FetchEventSource (B-088)', () => {
 
   it('resposta NAO-2xx: onerror e readyState CLOSED — o caminho do B-014', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 401, body: null } as unknown as Response);
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     let erro = false;
     es.onerror = () => (erro = true);
 
@@ -174,20 +173,9 @@ describe('FetchEventSource (B-088)', () => {
     expect(es.readyState).toBe(FetchEventSource.CLOSED);
   });
 
-  it('sem token nao chama fetch e sinaliza erro', async () => {
-    const es = new FetchEventSource('/s', { token: null });
-    let erro = false;
-    es.onerror = () => (erro = true);
-
-    await vi.waitFor(() => expect(erro).toBe(true));
-    // Chamar sem credencial produziria um 401 garantido e um ciclo de backoff
-    // inútil. Falhar aqui é mais barato e mais claro.
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('o servidor encerrar o stream vira onerror — o hook reconecta com backoff', async () => {
     fetchMock.mockResolvedValue(respostaOk(stream('data: um\n\n')));
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     let erro = false;
     es.onerror = () => (erro = true);
 
@@ -204,7 +192,7 @@ describe('FetchEventSource (B-088)', () => {
       sinal = init.signal as AbortSignal;
       return Promise.resolve(respostaOk(stream('data: tarde\n\n')));
     });
-    const es = new FetchEventSource('/s', { token: 't' });
+    const es = new FetchEventSource('/s', {});
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
     const recebidos: string[] = [];

@@ -22,7 +22,7 @@ import type { StreamEndReason } from './stream-end-reason';
 function endReasonOf(setup: () => void): Promise<StreamEndReason | undefined> {
   return new Promise((resolve) => {
     let seen: StreamEndReason | undefined;
-    const es = new FetchEventSource('/stream', { token: 't' });
+    const es = new FetchEventSource('/stream', {});
     es.onerror = (e) => {
       seen = (e as unknown as { reason?: StreamEndReason }).reason;
       resolve(seen);
@@ -82,10 +82,6 @@ describe('B-172 — a política lê o status, não a classe', () => {
   it('um 404 NÃO faz suspeitar da credencial', () => {
     // Um caminho que não existe não diz nada sobre quem está pedindo.
     expect(credentialIsSuspect({ kind: 'http-error', status: 404 })).toBe(false);
-  });
-
-  it('a ausência de credencial faz suspeitar dela, obviamente', () => {
-    expect(credentialIsSuspect({ kind: 'no-token' })).toBe(true);
   });
 
   it('um fim limpo não diz nada sobre a credencial', () => {

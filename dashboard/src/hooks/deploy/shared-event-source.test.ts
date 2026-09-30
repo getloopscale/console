@@ -224,8 +224,8 @@ describe('B-220 — o cursor de retomada faz parte da identidade da assinatura',
     // O defeito medido: no acerto do registro, `this.opcoes` era construído e nunca lido. Dois
     // assinantes pedindo retomada de pontos diferentes estão pedindo DADOS diferentes — uma
     // conexão só não serve os dois, e o segundo recebia silenciosamente o ponto do primeiro.
-    const a = new SharedEventSource('/stream', { token: 't', lastEventId: '10' });
-    const b = new SharedEventSource('/stream', { token: 't', lastEventId: '99' });
+    const a = new SharedEventSource('/stream', { lastEventId: '10' });
+    const b = new SharedEventSource('/stream', { lastEventId: '99' });
 
     expect(transportesCriados()).toBe(2);
     a.close();
@@ -235,8 +235,8 @@ describe('B-220 — o cursor de retomada faz parte da identidade da assinatura',
   it('dois assinantes com o MESMO cursor continuam compartilhando', () => {
     // A deduplicação é a razão de este módulo existir (B-020): a aba Timeline abria três conexões
     // e duas apontavam para o mesmo endereço. Estreitar o compartilhamento não pode desfazê-la.
-    const a = new SharedEventSource('/stream', { token: 't', lastEventId: '10' });
-    const b = new SharedEventSource('/stream', { token: 't', lastEventId: '10' });
+    const a = new SharedEventSource('/stream', { lastEventId: '10' });
+    const b = new SharedEventSource('/stream', { lastEventId: '10' });
 
     expect(transportesCriados()).toBe(1);
     a.close();
@@ -244,20 +244,8 @@ describe('B-220 — o cursor de retomada faz parte da identidade da assinatura',
   });
 
   it('dois assinantes sem cursor nenhum compartilham — o caso comum', () => {
-    const a = new SharedEventSource('/stream', { token: 't' });
-    const b = new SharedEventSource('/stream', { token: 't' });
-
-    expect(transportesCriados()).toBe(1);
-    a.close();
-    b.close();
-  });
-
-  it('dois assinantes com TOKENS diferentes continuam compartilhando — de propósito', () => {
-    // O token é credencial para o MESMO dado, e duas abas que renovaram em instantes diferentes
-    // não devem abrir duas conexões para um build. Esta assimetria com o cursor é deliberada e
-    // está documentada em `abrirNova`.
-    const a = new SharedEventSource('/stream', { token: 'tk-1' });
-    const b = new SharedEventSource('/stream', { token: 'tk-2' });
+    const a = new SharedEventSource('/stream', {});
+    const b = new SharedEventSource('/stream', {});
 
     expect(transportesCriados()).toBe(1);
     a.close();

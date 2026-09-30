@@ -88,7 +88,7 @@ function keyOf(url: string, lastEventId: string | null | undefined): string {
  * que eles afirmam. O parser tem os seus proprios doze testes em
  * `fetch-event-source.test.ts`, e la o fio e o assunto.
  */
-type Transporte = (url: string, opcoes: { token: string | null; lastEventId?: string | null }) => EventSource;
+type Transporte = (url: string, opcoes: { lastEventId?: string | null }) => EventSource;
 
 let createTransport: Transporte = (url, opcoes) =>
   new FetchEventSource(url, opcoes) as unknown as EventSource;
@@ -120,7 +120,7 @@ export class SharedEventSource {
 
   constructor(
     public readonly url: string,
-    private readonly opcoes: { token: string | null; lastEventId?: string | null } = { token: null },
+    private readonly opcoes: { lastEventId?: string | null } = {},
   ) {
     // B-220 — a chave passou a incluir o CURSOR DE RETOMADA.
     //
@@ -130,9 +130,7 @@ export class SharedEventSource {
     // `recuperarAtraso()` reproduz um buffer limitado, então um cursor mais antigo que ele não
     // tem como ser atendido, e fingir que sim é o mesmo silêncio.
     //
-    // O TOKEN continua fora da chave, de propósito e por assimetria real: ele é credencial para o
-    // MESMO dado, e duas abas que renovaram em instantes diferentes não devem abrir duas conexões
-    // para um build — ver `abrirNova` logo abaixo.
+    // No credential is part of the key: the stream is cookie-authenticated (usetheoai/theo#477).
     const key = keyOf(url, this.opcoes.lastEventId);
     this.chave = key;
     const existente = registro.get(key);
@@ -149,14 +147,10 @@ export class SharedEventSource {
   }
 
   private openNew(url: string, key: string): Entrada {
-    // B-088 — o transporte e `FetchEventSource`, nao `EventSource`: o token vai
-    // em `Authorization` e some da URL. Efeito colateral util: a chave do
-    // registro passa a ser a URL LIMPA, entao dois consumidores do mesmo stream
-    // compartilham mesmo que tenham obtido o token em instantes diferentes.
-    const real = createTransport(url, {
-      token: this.opcoes.token,
-      lastEventId: this.opcoes.lastEventId,
-    });
+    // B-088 — the transport is `FetchEventSource`, not `EventSource`, so the
+    // registry key is the CLEAN URL. Since usetheoai/theo#477 step 3 the
+    // stream carries no token at all; the session cookie authenticates it.
+    const real = createTransport(url, { lastEventId: this.opcoes.lastEventId });
     const entrada: Entrada = {
       real,
       handles: new Set([this]),

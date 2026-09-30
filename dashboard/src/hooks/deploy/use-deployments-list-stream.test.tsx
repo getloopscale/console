@@ -5,9 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Build, BuildListResponse } from '@/lib/api/types';
 
 vi.mock('@/lib/http/api', () => ({
-  ensureSSEToken: vi.fn(async () => 'tok'),
-  clearToken: vi.fn(),
-  hasValidToken: vi.fn(() => true),
+  signOutIfSessionEnded: vi.fn(async () => false),
   engineFetch: vi.fn(),
   cloudFetch: vi.fn(),
 }));

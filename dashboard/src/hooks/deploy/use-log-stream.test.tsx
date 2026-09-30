@@ -6,7 +6,7 @@ import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 // Mock ensureSSEToken to bypass network — returns deterministic token.
 vi.mock('@/lib/http/api', () => ({
-  ensureSSEToken: vi.fn(async () => 'mock-jwt'),
+  signOutIfSessionEnded: vi.fn(async () => false),
 }));
 
 /**
@@ -33,8 +33,8 @@ class TestEventSource {
   private namedListeners = new Map<string, EventListenerEntry[]>();
 
   /** B-088 — token e cursor viajam em header; o fake guarda para poder assertar. */
-  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
-  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+  opcoes: { lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { lastEventId?: string | null }) {
     this.opcoes = opcoes;
     this.url = url;
     TestEventSource.instances.push(this);

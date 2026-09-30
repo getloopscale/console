@@ -8,9 +8,7 @@ import type { Build, BuildListResponse } from '@/lib/api/types';
 import { queryClient } from '@/lib/http/query-client';
 
 vi.mock('@/lib/http/api', () => ({
-  ensureSSEToken: vi.fn(async () => 'tok'),
-  clearToken: vi.fn(),
-  hasValidToken: vi.fn(() => true),
+  signOutIfSessionEnded: vi.fn(async () => false),
   engineFetch: vi.fn(),
   cloudFetch: vi.fn(),
 }));
@@ -21,7 +19,7 @@ vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => undefined }));
 
 import { DeploymentsPage } from './deployments';
-import { engineFetch, ensureSSEToken, hasValidToken } from '@/lib/http/api';
+import { engineFetch, signOutIfSessionEnded } from '@/lib/http/api';
 import { __setTransporte, __resetSharedEventSources } from '@/hooks/deploy/shared-event-source';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
@@ -35,8 +33,8 @@ class MockEventSource {
   onerror: ((ev: unknown) => void) | null = null;
   closed = false;
 
-  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
-  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+  opcoes: { lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { lastEventId?: string | null }) {
     this.opcoes = opcoes;
     this.url = url;
     MockEventSource.instances.push(this);
@@ -124,8 +122,7 @@ beforeEach(() => {
   // `mockReset` apaga a implementação; os padrões que o arquivo assume são reinstalados logo
   // abaixo, para que cada caso comece do mesmo lugar em vez de do que o anterior deixou.
   mockedEngineFetch.mockReset();
-  vi.mocked(ensureSSEToken).mockReset().mockResolvedValue('tok');
-  vi.mocked(hasValidToken).mockReset().mockReturnValue(true);
+  vi.mocked(signOutIfSessionEnded).mockReset().mockResolvedValue(false);
     // B-088 — o transporte deixou de ser o EventSource global (o JWT foi para
     // o header Authorization). O fake expoe a mesma superficie; muda so onde
     // ele e instalado.

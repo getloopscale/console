@@ -487,8 +487,13 @@ func main() {
 		logger.Info("billing not configured in this environment")
 	}
 
-	// Universal JWT auth middleware (RSA + HMAC — one path for all)
-	requireJWT := auth.RequireJWT(jwtValidator, sessIssuer)
+	// Caller authentication for every protected route: a Bearer JWT (CLI, and the
+	// scripts that still exchange for an HS256 token until usetheoai/theo#477 step
+	// 4) OR the Kratos session cookie (the dashboard — theo-cloud is its Backend
+	// for Frontend and the browser holds no token). The variable keeps its old
+	// name because the route mount functions receive it as `requireJWT`.
+	sessionAuthenticator := auth.NewKratosSessionAuthenticator(cfg.KratosInternalURL, tenantProvisioner)
+	requireJWT := auth.RequireCaller(jwtValidator, sessIssuer, sessionAuthenticator)
 
 	// Rate limiters (find_sec_007). Device endpoints are pre-auth → keyed on
 	// client IP (chimw.RealIP already resolves the real client behind the proxy).
@@ -1259,7 +1264,11 @@ func main() {
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/device/accept", deviceHandler.Accept)
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/device/token", deviceHandler.Token)
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/token/refresh", deviceHandler.Refresh)
-		r.Post("/session/token", sessionTokenHandler.Exchange) // Dashboard: Kratos session → JWT (rate-limited inside the handler)
+		// HS256 exchange — no longer called by the dashboard; kept for the scripts and
+		// e2e that still use it until usetheoai/theo#477 step 4 (rate-limited inside).
+		r.Post("/session/token", sessionTokenHandler.Exchange)
+		// Dashboard: the identity behind the Kratos session cookie, with no credential in it.
+		r.Get("/session", routes.NewSessionIdentityHandler(sessionAuthenticator).Get)
 
 		// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 —
 		// response-shape unifier middleware. Unauthenticated (the dashboard
@@ -1327,8 +1336,8 @@ func main() {
 		func(req *http.Request) bool {
 			// EC-15: cheap session check — we only need a valid Kratos
 			// browser session cookie to know the user can complete the
-			// connect flow without re-login. Token expiry is handled
-			// upstream by /v1/auth/session/token.
+			// connect flow without re-login. The session itself is
+			// validated on every API call the flow makes afterwards.
 			return req.Header.Get("Cookie") != ""
 		},
 	)

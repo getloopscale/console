@@ -46,34 +46,17 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
     await context.addCookies([JWT_COOKIE]);
 
     // EC-18: ALL auth + install stubs MUST be registered before any goto().
-    // useRequireAuth chains: GET /sessions/whoami -> POST /api/v1/auth/session/token.
-    // Without these stubs the dashboard immediately redirects to /login and
-    // the connect page never mounts. We also stub the install endpoint so
-    // the popup that handleInstallClick opens does NOT 404 (which would
-    // trigger the same-tab fallback and navigate the test page away).
-    await page.route('**/sessions/whoami', (route) =>
+    // useRequireAuth asks the BFF for the session: GET /v1/auth/session. No token is
+    // exchanged (usetheoai/theo#477) — the browser keeps only the session cookie.
+    // Without this stub the dashboard immediately redirects to /login and the
+    // connect page never mounts. We also stub the install endpoint so the popup
+    // that handleInstallClick opens does NOT 404 (which would trigger the
+    // same-tab fallback and navigate the test page away).
+    await page.route('**/v1/auth/session', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'pw-session',
-          active: true,
-          identity: {
-            id: 'pw-id',
-            traits: { email: 'pw@theo.test' },
-          },
-        }),
-      }),
-    );
-    await page.route('**/v1/auth/session/token', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        // Field names match the BFF contract (api.ts L71): access_token + expires_in.
-        body: JSON.stringify({
-          access_token: 'pw-jwt',
-          expires_in: 3600,
-        }),
+        body: JSON.stringify({ identity: { id: 'pw-id', email: 'pw@theo.test' } }),
       }),
     );
     await context.route('**/v1/integrations/github/install*', (route) =>

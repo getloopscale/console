@@ -2,9 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/http/api', () => ({
-  ensureSSEToken: vi.fn(async () => 'tok'),
-  clearToken: vi.fn(),
-  hasValidToken: vi.fn(() => true),
+  signOutIfSessionEnded: vi.fn(async () => false),
   engineFetch: vi.fn(),
   cloudFetch: vi.fn(),
 }));

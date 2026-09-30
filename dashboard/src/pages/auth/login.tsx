@@ -11,7 +11,6 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { usePendingOIDC } from '@/hooks/auth/use-pending-oidc';
 import { postOIDCForm } from '@/pages/auth/oidc-form';
 import { getSession, startLogin } from '@/lib/auth/session';
-import { clearToken } from '@/lib/http/api';
 import { safeNavigator } from '@/lib/navigation';
 import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { safeErrorDetail, isEnumerationCollision } from '@/hooks/auth/kratos-error-detail';
@@ -51,10 +50,6 @@ export function LoginPage() {
   const githubButtonRef = useRef<HTMLButtonElement | null>(null);
   const googleButtonRef = useRef<HTMLButtonElement | null>(null);
   const emailFocusEnabled = providerParam !== 'github' && providerParam !== 'google';
-
-  useEffect(() => {
-    clearToken();
-  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -331,10 +326,10 @@ export function LoginPage() {
             />
           )}
 
-          {/* B-139 — o logout não conseguiu encerrar a sessão NO SERVIDOR. O token local já foi
-              apagado, então esta tela aparece de qualquer jeito; sem esta faixa ela seria
-              indistinguível de um logout que funcionou, e num terminal compartilhado essa é a
-              diferença entre sair e achar que saiu. */}
+          {/* B-139 — the logout could not end the session ON THE SERVER. This screen appears
+              anyway; without this banner it would be indistinguishable from a logout that worked,
+              and on a shared terminal that is the difference between leaving and believing you
+              left. */}
           {searchParams.get('reason') === 'logout-incomplete' && allErrors.length === 0 && !networkError && (
             <Alert
               intent="warning"

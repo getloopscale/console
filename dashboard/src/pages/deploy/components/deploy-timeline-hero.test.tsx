@@ -3,9 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/http/api', () => ({
-  ensureSSEToken: vi.fn(async () => 'tok'),
-  clearToken: vi.fn(),
-  hasValidToken: vi.fn(() => true),
+  signOutIfSessionEnded: vi.fn(async () => false),
   engineFetch: vi.fn(),
   cloudFetch: vi.fn(),
 }));
@@ -26,8 +24,8 @@ class MockEventSource {
   onerror: ((ev: unknown) => void) | null = null;
   closed = false;
 
-  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
-  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+  opcoes: { lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { lastEventId?: string | null }) {
     this.opcoes = opcoes;
     this.url = url;
     MockEventSource.instances.push(this);

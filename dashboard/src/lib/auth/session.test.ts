@@ -194,3 +194,43 @@ describe('B-139 — um logout que o servidor não confirmou não se parece com u
     expect(ir).toHaveBeenCalledWith('https://auth.example/logout');
   });
 });
+
+describe('getSession — the identity comes from the BFF, with no token (usetheoai/theo#477)', () => {
+  it('builds the session from GET /v1/auth/session and asks nothing else', async () => {
+    const { getSession } = await import('./session');
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          identity: {
+            id: 'id-7',
+            email: 'seven@example.com',
+            name: 'Seven',
+            verifiable_addresses: [{ value: 'seven@example.com', verified: true, via: 'email' }],
+            authentication_methods: [{ method: 'oidc', provider: 'github' }],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    spy.mockClear(); // a repeated spyOn returns the same spy; earlier cases' calls would count
+
+    const session = await getSession();
+
+    expect(session?.identity.id).toBe('id-7');
+    expect(session?.identity.traits.email).toBe('seven@example.com');
+    expect(session?.authentication_methods?.[0].provider).toBe('github');
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String(spy.mock.calls[0][0])).toMatch(/\/v1\/auth\/session$/);
+    spy.mockRestore();
+  });
+
+  it('returns null when the BFF says the session ended', async () => {
+    const { getSession } = await import('./session');
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), { status: 401 }),
+    );
+
+    expect(await getSession()).toBeNull();
+    spy.mockRestore();
+  });
+});

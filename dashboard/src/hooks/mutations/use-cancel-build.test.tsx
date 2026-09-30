@@ -38,7 +38,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 import { useCancelBuild } from './use-cancel-build';
-import { exchangeSessionToken } from '@/lib/http/api';
 
 /**
  * The network is mocked at `fetch`, NOT at `engineFetch`, and that choice is the whole test.
@@ -50,10 +49,7 @@ import { exchangeSessionToken } from '@/lib/http/api';
  * a resolved `null`.
  */
 function respondeCom(statusDaChamada: number) {
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
-    if (String(url).includes('/v1/auth/session/token')) {
-      return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
-    }
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
     // Um 204 NAO pode carregar corpo — construir um `Response` assim lanca, e a excecao chegaria
     // como "falha de rede", medindo outra coisa que nao o que este teste quer medir.
     if (statusDaChamada === 204) return new Response(null, { status: 204 });
@@ -81,7 +77,6 @@ beforeEach(() => {
 describe('useCancelBuild', () => {
   it('ends in isError when the server refuses the cancel', async () => {
     respondeCom(409);
-    await exchangeSessionToken();
 
     const { wrapper } = makeWrapper();
     const { result } = renderHook(() => useCancelBuild(), { wrapper });
@@ -104,7 +99,6 @@ describe('useCancelBuild', () => {
     // make: the pre-fix bug is precisely that `onSuccess` fired on a refusal, invalidating both
     // keys and repainting the list as though something had changed.
     respondeCom(409);
-    await exchangeSessionToken();
 
     const { wrapper, client } = makeWrapper();
     const invalidar = vi.spyOn(client, 'invalidateQueries');
@@ -124,7 +118,6 @@ describe('useCancelBuild', () => {
   it('still invalidates both query keys when the cancel WORKED', async () => {
     // The guard must not disable the mechanism it protects.
     respondeCom(204);
-    await exchangeSessionToken();
 
     const { wrapper, client } = makeWrapper();
     const invalidar = vi.spyOn(client, 'invalidateQueries');
@@ -137,7 +130,6 @@ describe('useCancelBuild', () => {
 
   it('encodes the build id rather than interpolating it raw', async () => {
     const espiao = respondeCom(204);
-    await exchangeSessionToken();
 
     const { wrapper } = makeWrapper();
     const { result } = renderHook(() => useCancelBuild(), { wrapper });
