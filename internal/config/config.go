@@ -54,6 +54,17 @@ type Config struct {
 	// Env: HYDRA_CLIENT_ID (default: "theo-cli")
 	HydraClientID string
 
+	// ConsentFirstPartyClients are the OAuth2 client ids whose consent is
+	// auto-approved; every other client is refused (usetheoai/theo#477).
+	// Env: CONSENT_FIRST_PARTY_CLIENTS, comma-separated (default: HydraClientID)
+	ConsentFirstPartyClients []string
+
+	// ConsentAllowedResources are the RFC 8707 resource URIs consent grants as
+	// the access-token audience when an authorization request names them —
+	// the platform's MCP canonical URIs. A resource outside the list is ignored.
+	// Env: CONSENT_ALLOWED_RESOURCES, comma-separated (default: none)
+	ConsentAllowedResources []string
+
 	// EngineAPIURL is the internal URL of the Theo engine API (for proxy).
 	// Env: ENGINE_API_URL (default: "http://theo-api.theo-system:8080")
 	EngineAPIURL string
@@ -295,6 +306,8 @@ func Load() Config {
 		Environment:       envOr("THEO_ENV", "dev"),
 	}
 	cfg.JWTIssuer = envOr("JWT_ISSUER", cfg.HydraPublicURL+"/")
+	cfg.ConsentFirstPartyClients = envList("CONSENT_FIRST_PARTY_CLIENTS", []string{cfg.HydraClientID})
+	cfg.ConsentAllowedResources = envList("CONSENT_ALLOWED_RESOURCES", nil)
 	cfg.StripeAPIKey = Secret(envOr("STRIPE_API_KEY", ""))
 	cfg.StripeWebhookSecret = Secret(envOr("STRIPE_WEBHOOK_SECRET", ""))
 	cfg.BillingReturnURL = envOr("BILLING_RETURN_URL", "http://localhost:3000")
@@ -478,6 +491,21 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// envList reads a comma-separated list, trimming spaces and dropping empty
+// entries. An unset or effectively empty variable yields fallback.
+func envList(key string, fallback []string) []string {
+	var out []string
+	for _, item := range strings.Split(os.Getenv(key), ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	if len(out) == 0 {
+		return fallback
+	}
+	return out
 }
 
 // devSecretFor returns an auto-generated secret in non-production environments,

@@ -203,6 +203,10 @@ type ConsentRequest struct {
 	Subject                 string         `json:"subject"`
 	RequestedScope          []string       `json:"requested_scope"`
 	RequestedAccessTokenAud []string       `json:"requested_access_token_audience"`
+	// RequestURL is the original authorization request as the client sent it.
+	// Hydra does not act on RFC 8707 `resource`; the consent handler reads it
+	// from here (usetheoai/theo#477).
+	RequestURL string `json:"request_url"`
 }
 
 // GetLoginRequest fetches the login challenge from Hydra admin.
@@ -365,6 +369,50 @@ func (c *HydraClient) AcceptConsent(challenge string, grantScope, grantAudience 
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("decode accept consent response: %w", err)
+	}
+	return result.RedirectTo, nil
+}
+
+// RejectConsent refuses the consent challenge: Hydra issues no token and
+// redirects the user agent back to the client with the OAuth2 error. errorCode
+// is an RFC 6749 error code (e.g. "access_denied"); description is shown to the
+// client, so it must carry no internal detail.
+func (c *HydraClient) RejectConsent(challenge, errorCode, description string) (string, error) {
+	body, err := json.Marshal(map[string]interface{}{
+		"error":             errorCode,
+		"error_description": description,
+		"status_code":       http.StatusForbidden,
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshal reject consent payload: %w", err)
+	}
+
+	reqURL := fmt.Sprintf("%s/admin/oauth2/auth/requests/consent/reject?consent_challenge=%s", c.adminURL, challenge)
+	req, err := http.NewRequest("PUT", reqURL, bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("create reject consent request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("reject consent failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+			return "", fmt.Errorf("reject consent: %w (status %d, body=%s)", ErrChallengeNotFound, resp.StatusCode, respBody)
+		}
+		return "", fmt.Errorf("hydra reject consent failed (status %d): %s", resp.StatusCode, respBody)
+	}
+
+	var result struct {
+		RedirectTo string `json:"redirect_to"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode reject consent response: %w", err)
 	}
 	return result.RedirectTo, nil
 }

@@ -4,7 +4,7 @@
 // Package consent implements the login/consent handlers that Ory Hydra
 // calls during OAuth2 authorization flows.
 //
-// For the CLI (first-party, trusted client), consent is auto-approved.
+// For allowlisted first-party clients, consent is auto-approved.
 // Login redirects to Kratos self-service login flow.
 package consent
 
@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -72,8 +73,31 @@ func renderExpiredLink(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(expiredLinkHTML))
 }
 
+// defaultAccessTokenAudience is granted when the client asked for no audience
+// and named no allowlisted resource: tokens that work against both theo-cloud
+// and the engine, as every CLI token has so far.
+var defaultAccessTokenAudience = []string{"theo-cloud", "theo-engine"}
+
+// Policy decides who consent auto-approves and which audiences it may grant
+// (usetheoai/theo#477, docs/decisions.md § Identity in the theo repository).
+type Policy struct {
+	// FirstPartyClients are the OAuth2 client ids whose consent is auto-approved.
+	// Every other client is refused. Empty refuses everything (fail closed).
+	FirstPartyClients []string
+	// AllowedResources are the RFC 8707 resource URIs consent grants as the
+	// access-token audience when the authorization request names them. A
+	// requested resource outside this list is ignored, never granted.
+	AllowedResources []string
+}
+
+// errNoTenant marks consent that cannot carry a tenant. No token is issued
+// without one: every API refuses a tenantless token ("Account setup
+// required"), so issuing it only moves the failure to a worse place.
+var errNoTenant = errors.New("consent: tenant could not be resolved")
+
 // Handler manages Hydra's login and consent callbacks.
 type Handler struct {
+	policy            Policy
 	hydra             *auth.HydraClient
 	tenantProvisioner *auth.TenantProvisioner
 	kratosPublicURL   string // Browser-facing URL (for redirects)
@@ -91,6 +115,7 @@ func NewHandler(hydra *auth.HydraClient, tenantProv *auth.TenantProvisioner, kra
 		kratosInternalURL = kratosPublicURL
 	}
 	return &Handler{
+		policy:            Policy{FirstPartyClients: []string{hydra.ClientID()}},
 		hydra:             hydra,
 		tenantProvisioner: tenantProv,
 		kratosPublicURL:   kratosPublicURL,
@@ -102,6 +127,16 @@ func NewHandler(hydra *auth.HydraClient, tenantProv *auth.TenantProvisioner, kra
 		},
 		logger: logger,
 	}
+}
+
+// WithPolicy replaces the default policy (the Hydra client this service owns
+// as the only first-party client, no resource URIs) and returns the handler.
+func (h *Handler) WithPolicy(p Policy) *Handler {
+	h.policy = Policy{
+		FirstPartyClients: slices.Clone(p.FirstPartyClients),
+		AllowedResources:  slices.Clone(p.AllowedResources),
+	}
+	return h
 }
 
 // Login handles the login challenge from Hydra.
@@ -236,36 +271,33 @@ func (h *Handler) getKratosSessionSubject(r *http.Request) (string, error) {
 	return session.Identity.ID, nil
 }
 
-// fetchIdentityClaims fetches Kratos identity traits (email, name) for JWT claims.
-// ctx is the request context — it carries the OTel span, deadline, and cancellation
-// so the identity lookup and tenant provisioning are tied to the consent request
-// (MEDIUM-003), instead of a detached context.Background().
-func (h *Handler) fetchIdentityClaims(ctx context.Context, subject string) map[string]interface{} {
-	claims := map[string]interface{}{}
-
-	// Fetch identity from Kratos admin API (server-to-server).
-	// Admin API has /admin/identities endpoint; public API doesn't.
+// fetchIdentityClaims builds the access-token claims for subject: email and
+// name from Kratos, tenant_id and account_id from the tenant provisioner.
+// ctx is the request context — it carries the OTel span, deadline, and
+// cancellation so the identity lookup and tenant provisioning are tied to the
+// consent request (MEDIUM-003).
+//
+// usetheoai/theo#477: any failure to resolve the tenant is returned wrapped in
+// errNoTenant. It used to be non-fatal (MEET-2026-04-07-039 B5), issuing a
+// token without tenant_id that every API then refused.
+func (h *Handler) fetchIdentityClaims(ctx context.Context, subject string) (map[string]interface{}, error) {
 	// Use the explicitly configured admin URL — never derive it by string-replacing
-	// the public URL (that silently breaks when service names don't match the heuristic,
-	// issuing JWTs without tenant_id).
+	// the public URL (that silently breaks when service names don't match the heuristic).
 	kratosAdmin := strings.TrimRight(h.kratosAdminURL, "/")
 	identityURL := fmt.Sprintf("%s/admin/identities/%s", kratosAdmin, subject)
 	// #nosec G704 -- host is the operator-configured Kratos admin URL (T1.2); subject is a server-validated Kratos session identity, not free-form attacker input.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, identityURL, nil)
 	if err != nil {
-		h.logger.Warn("failed to build identity request", "subject", subject, "error", err)
-		return claims
+		return nil, fmt.Errorf("%w: build identity request: %w", errNoTenant, err)
 	}
 	resp, err := h.kratosClient.Do(req)
 	if err != nil {
-		h.logger.Warn("failed to fetch identity for claims", "subject", subject, "error", err)
-		return claims
+		return nil, fmt.Errorf("%w: fetch identity: %w", errNoTenant, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != 200 {
-		h.logger.Warn("identity fetch returned non-200", "subject", subject, "status", resp.StatusCode)
-		return claims
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%w: identity lookup returned status %d", errNoTenant, resp.StatusCode)
 	}
 
 	var identity struct {
@@ -275,38 +307,81 @@ func (h *Handler) fetchIdentityClaims(ctx context.Context, subject string) map[s
 		} `json:"traits"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&identity); err != nil {
-		h.logger.Warn("failed to decode identity", "error", err)
-		return claims
+		return nil, fmt.Errorf("%w: decode identity: %w", errNoTenant, err)
+	}
+	if identity.Traits.Email == "" {
+		return nil, fmt.Errorf("%w: identity has no email trait", errNoTenant)
+	}
+	if h.tenantProvisioner == nil {
+		return nil, fmt.Errorf("%w: no tenant provisioner configured", errNoTenant)
 	}
 
-	if identity.Traits.Email != "" {
-		claims["email"] = identity.Traits.Email
+	tenantID, accountID, _, err := h.tenantProvisioner.EnsureTenant(ctx, subject, identity.Traits.Email)
+	if err != nil {
+		return nil, fmt.Errorf("%w: provision tenant: %w", errNoTenant, err)
+	}
+	if tenantID == "" {
+		return nil, fmt.Errorf("%w: provisioner returned an empty tenant", errNoTenant)
+	}
+
+	claims := map[string]interface{}{
+		"email":     identity.Traits.Email,
+		"tenant_id": tenantID,
 	}
 	if identity.Traits.Name != "" {
 		claims["name"] = identity.Traits.Name
 	}
+	// account_id is the M1 cross-account guard's input, not a display field.
+	// "" for a tenant that predates accounts (NULL-tolerant) — omitted, never faked.
+	if accountID != "" {
+		claims["account_id"] = accountID
+	}
+	return claims, nil
+}
 
-	// Resolve tenant — injects tenant_id into Hydra JWT for CLI auth.
-	// MEET-2026-04-07-039 B5: EnsureTenant is non-fatal in consent flow.
-	// If provisioning fails, JWT is issued WITHOUT tenant_id. The auth middleware
-	// (B7 fix) will reject API calls with "Account setup required" instead of
-	// silently falling back to a "default" tenant.
-	// This decouples authentication availability from DB availability.
-	if h.tenantProvisioner != nil && identity.Traits.Email != "" {
-		tenantID, _, _, err := h.tenantProvisioner.EnsureTenant(ctx, subject, identity.Traits.Email)
-		if err == nil && tenantID != "" {
-			claims["tenant_id"] = tenantID
-		} else if err != nil {
-			h.logger.Error("tenant provisioning failed during consent — JWT will lack tenant_id",
-				"subject", subject,
-				"email", identity.Traits.Email,
-				"error", err,
-			)
-			// Do NOT fail the consent flow. Auth succeeds; tenant resolution retries on next login.
+// grantedAudience decides the access-token audience. RFC 8707 resources named
+// in the original authorization request are granted when they are allowlisted
+// (the token is then bound to those resources only); a resource outside the
+// allowlist is ignored. With no allowlisted resource the client's requested
+// audience is granted, and with none requested, defaultAccessTokenAudience.
+func (h *Handler) grantedAudience(req *auth.ConsentRequest) ([]string, error) {
+	var granted []string
+	if req.RequestURL != "" {
+		u, err := url.Parse(req.RequestURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse authorization request url: %w", err)
+		}
+		for _, resource := range u.Query()["resource"] {
+			if slices.Contains(h.policy.AllowedResources, resource) && !slices.Contains(granted, resource) {
+				granted = append(granted, resource)
+			}
 		}
 	}
+	if len(granted) > 0 {
+		return granted, nil
+	}
+	if len(req.RequestedAccessTokenAud) > 0 {
+		return req.RequestedAccessTokenAud, nil
+	}
+	return defaultAccessTokenAudience, nil
+}
 
-	return claims
+// rejectConsent refuses the challenge at Hydra — no token is issued — and
+// sends the user agent back to the client carrying the OAuth2 error.
+func (h *Handler) rejectConsent(w http.ResponseWriter, r *http.Request, challenge, description string) {
+	redirectTo, err := h.hydra.RejectConsent(challenge, "access_denied", description)
+	if err != nil {
+		if errors.Is(err, auth.ErrChallengeNotFound) {
+			h.logger.Info("consent link expired before it could be rejected", "challenge", challenge)
+			renderExpiredLink(w)
+			return
+		}
+		h.logger.Error("failed to reject consent", "challenge", challenge, "error", err)
+		http.Error(w, "Authentication service error", http.StatusBadGateway)
+		return
+	}
+	// #nosec G710 -- redirectTo is the post-consent continuation URL computed by our own Hydra OAuth server (RejectConsent), not attacker-controlled input.
+	http.Redirect(w, r, redirectTo, http.StatusFound)
 }
 
 // Consent handles the consent challenge from Hydra.
@@ -331,21 +406,40 @@ func (h *Handler) Consent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-approval is ONLY for the first-party trusted client. Any other
+	// Auto-approval is ONLY for the allowlisted first-party clients. Any other
 	// registered Hydra client (including a rogue client registered via the
 	// admin API) must NOT receive auto-approved scopes and tenant_id claims.
-	if consentReq.ClientID != h.hydra.ClientID() {
+	if !slices.Contains(h.policy.FirstPartyClients, consentReq.ClientID) {
 		h.logger.Warn("consent rejected — untrusted client", "client", consentReq.ClientID, "subject", consentReq.Subject)
 		http.Error(w, "Unauthorized client", http.StatusForbidden)
 		return
 	}
 
-	// Fetch user identity from Kratos to include email/name in JWT.
-	tokenClaims := h.fetchIdentityClaims(r.Context(), consentReq.Subject)
+	tokenClaims, err := h.fetchIdentityClaims(r.Context(), consentReq.Subject)
+	if err != nil {
+		// No token without a tenant. Log the cause with context; the client
+		// sees only a product-language description.
+		h.logger.Error("consent rejected — tenant could not be resolved",
+			"client", consentReq.ClientID,
+			"subject", consentReq.Subject,
+			"error", err,
+		)
+		h.rejectConsent(w, r, challenge, "Account setup failed. Please try signing in again.")
+		return
+	}
 
-	// Auto-approve — Theo CLI is a first-party trusted client.
-	// Forward requested audience so Hydra sets aud in the token.
-	redirectTo, err := h.hydra.AcceptConsent(challenge, consentReq.RequestedScope, consentReq.RequestedAccessTokenAud, tokenClaims)
+	audience, err := h.grantedAudience(consentReq)
+	if err != nil {
+		h.logger.Error("consent rejected — unreadable authorization request",
+			"client", consentReq.ClientID,
+			"subject", consentReq.Subject,
+			"error", err,
+		)
+		h.rejectConsent(w, r, challenge, "The sign-in request could not be read. Please try again.")
+		return
+	}
+
+	redirectTo, err := h.hydra.AcceptConsent(challenge, consentReq.RequestedScope, audience, tokenClaims)
 	if err != nil {
 		if errors.Is(err, auth.ErrChallengeNotFound) {
 			h.logger.Info("consent link expired between fetch and accept", "challenge", challenge)
@@ -359,12 +453,13 @@ func (h *Handler) Consent(w http.ResponseWriter, r *http.Request) {
 
 	// Do NOT log token claims (email, tenant_id) — they are PII. Log only
 	// non-identifying metadata for operational visibility.
-	_, hasTenant := tokenClaims["tenant_id"]
+	_, hasAccount := tokenClaims["account_id"]
 	h.logger.Info("consent auto-approved",
 		"client", consentReq.ClientID,
 		"subject", consentReq.Subject,
 		"scope_count", len(consentReq.RequestedScope),
-		"has_tenant", hasTenant,
+		"audience", audience,
+		"has_account", hasAccount,
 	)
 	// #nosec G710 -- redirectTo is the post-consent continuation URL computed by our own Hydra OAuth server (AcceptConsent), not attacker-controlled input.
 	http.Redirect(w, r, redirectTo, http.StatusFound)
