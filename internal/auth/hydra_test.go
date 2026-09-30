@@ -133,7 +133,7 @@ func TestRegisterClient_IncludesAudienceWhitelist(t *testing.T) {
 	defer srv.Close()
 
 	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
-	if err := c.RegisterClient([]string{"http://localhost:9876/auth"}); err != nil {
+	if err := c.RegisterClient([]string{"http://localhost:9876/auth"}, nil); err != nil {
 		t.Fatalf("RegisterClient: %v", err)
 	}
 

@@ -414,7 +414,7 @@ func main() {
 	if cfg.KratosPublicURL != "" && cfg.KratosPublicURL != cfg.BillingReturnURL {
 		redirectURIs = append(redirectURIs, cfg.KratosPublicURL+"/login/callback")
 	}
-	if err := hydra.RegisterClient(redirectURIs); err != nil {
+	if err := hydra.RegisterClient(redirectURIs, cfg.ConsentAllowedResources); err != nil {
 		logger.Warn("failed to register OAuth2 client (Hydra may not be ready yet)", "error", err)
 	}
 
