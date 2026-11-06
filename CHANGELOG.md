@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-06
+
 ### Added
 - The `theo-cloud` and `theo-dashboard` images are also published to Amazon ECR, the registry production pulls from, tagged by full commit SHA and, on a release, by version (usetheoai/theo#435). The image job now grants the scopes the shared build workflow requires, which GitHub otherwise refuses at startup (usetheoai/theo#436).
 - **Um achado sobre a cobrança deste projeto foi trazido para a lista de pendências daqui, e o outro voltou no mesmo dia.** Eles viviam na lista de outro repositório e eram órfãos por construção: quem mantém aquele repositório nunca os selecionaria, e quem trabalha aqui não os via. A cobrança por uso sem destino de reporte ficou aqui. O teto de custo descreve uma cadeia que atravessa dois repositórios — o agregador é daqui, o portão que lê os contadores é do outro — e por isso cada metade ficou registrada onde o código dela vive. Evidência original preservada nas duas. (B-287, B-288)
