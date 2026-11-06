@@ -29,6 +29,9 @@ services:
       POSTGRES_USER: themem
       POSTGRES_PASSWORD: themem
       POSTGRES_DB: themem
+    volumes:
+      # initdb: themory_app / themory_worker. themem stays the schema owner and only migrates.
+      - ./sql/themory:/docker-entrypoint-initdb.d:ro
     ports:
       # Exposed so the host-run `go test` can seed skill rows directly (there is
       # no skill-WRITE REST surface — skills are read-only via the gateway).
@@ -137,7 +140,10 @@ services:
       mock-openai:
         condition: service_healthy
     environment:
-      THEOMEM_PG_URI: postgres://themem:themem@pg-themory:5432/themem
+      # Requests run as the contained application role: the server refuses a superuser,
+      # because RLS (migration 0029) would not apply to it. The owner only migrates, at boot.
+      THEOMEM_PG_URI: postgres://themory_app:themory_app@pg-themory:5432/themem
+      THEOMEM_MIGRATE_PG_URI: postgres://themem:themem@pg-themory:5432/themem
       PORT: "8080"
       HOST: "0.0.0.0"
       # Master bearer the gateway uses. NEVER reaches the customer.
