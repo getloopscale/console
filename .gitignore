@@ -40,3 +40,8 @@ devops-audit-output/
 .claude/.patch-backups/
 # What the last patch_install run wrote, per file. Per-install state, not source (B-250).
 .claude/.patch-state/
+
+# Personal maintenance registry, not a project artifact (moved to theo/BACKLOG.md on 2026-10-05).
+BACKLOG.md
+.BACKLOG.md.lock
+.claude/
