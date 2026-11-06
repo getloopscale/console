@@ -82,7 +82,7 @@ export function aplicarEvento(estado: TimelineState, ev: TimelineEvent): Timelin
   const phases = estado.phases.map((cell) =>
     cell.phase === phase ? aplicarNaFase(cell, status, payload) : cell,
   );
-  return { ...estado, phases: herdarConclusaoParaTras(phases) };
+  return { ...estado, phases: inheritCompletionBackwards(phases) };
 }
 
 function aplicarNaFase(
@@ -108,7 +108,7 @@ function aplicarNaFase(
  * `build.completed`, a fase de build não pode ficar `pending` para sempre. Aqui havia um laço cujo
  * único corpo era um `if` vazio, sob um comentário afirmando que a defesa existia.
  */
-function herdarConclusaoParaTras(phases: readonly PhaseState[]): PhaseState[] {
+function inheritCompletionBackwards(phases: readonly PhaseState[]): PhaseState[] {
   const saida = [...phases];
   let concluidaAdiante = false;
   for (let i = saida.length - 1; i >= 0; i -= 1) {
@@ -129,6 +129,6 @@ function herdarConclusaoParaTras(phases: readonly PhaseState[]): PhaseState[] {
 export function faseCorrente(phases: readonly PhaseState[]): PhaseState {
   const viva = phases.find((c) => c.status === 'in_progress' || c.status === 'degraded');
   if (viva) return viva;
-  const ultimaTocada = [...phases].reverse().find((c) => c.status !== 'pending');
-  return ultimaTocada ?? phases[0];
+  const lastTouched = [...phases].reverse().find((c) => c.status !== 'pending');
+  return lastTouched ?? phases[0];
 }

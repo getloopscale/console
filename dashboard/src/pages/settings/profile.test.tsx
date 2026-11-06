@@ -13,6 +13,15 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockEngineFetch = vi.fn();
+// B-265 — the delete is keyed on the TENANT id, and this screen reads it from `useWhoami`, the
+// same source the Settings screen next door uses. Before that fix it passed `session.identity.id`
+// (below, `sess-1`) and the engine could only answer 403: its handler compares the path parameter
+// against `uc.TenantID`. The URL asserted further down USED to be `/api/v1/tenants/sess-1` — a
+// test that pinned the defect, which is why it had to move with the fix.
+vi.mock('@/hooks/settings/use-whoami', () => ({
+  useWhoami: () => ({ whoami: { user_id: 'sess-1', email: 'u@x.com', team_id: 'tn-1', team_slug: 't' } }),
+}));
+
 vi.mock('@/lib/http/api', async (io) => {
   const actual = await io<typeof import('@/lib/http/api')>();
   return { ...actual, engineFetch: (...a: unknown[]) => mockEngineFetch(...a) };
@@ -125,7 +134,7 @@ describe('ProfilePage — deleting the account (B-264)', () => {
     await confirmDelete();
 
     expect(mockEngineFetch).toHaveBeenCalledWith(
-      '/api/v1/tenants/sess-1',
+      '/api/v1/tenants/tn-1',
       expect.objectContaining({ method: 'DELETE' }),
       expect.objectContaining({ throwOnError: true }),
     );

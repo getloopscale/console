@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline, Tabs } from '@usetheo/ui';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
@@ -8,7 +7,11 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { formatCost, shortId } from '@/lib/formatting/format';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  useSessionTraces,
+  useSessionCoherence,
+  useRunSessionCoherence,
+} from '@/hooks/lens/use-session-detail';
 import { nsToIso } from './traces';
 import type { Trace } from './traces/columns';
 import { toSessionItem } from './session-detail/to-session-item';
@@ -25,17 +28,7 @@ import { SessionConversation } from './session-detail/session-conversation';
  * auth, the `:sessionId` URL, the fetch, and the loading→error→empty triad.
  */
 
-interface SessionTracesResult {
-  traces: Trace[];
-}
 
-/** M131 — the Session Coherence verdict (GET/POST /v1/dashboard/lens/sessions/:id/coherence). */
-interface CoherenceVerdict {
-  verdict: 'coherent' | 'incoherent' | null;
-  score?: number;
-  reasoning?: string;
-  cached?: boolean;
-}
 
 /** ns (bigint) → an ISO-medium timestamp for the timeline rows, reusing the list's `nsToIso`. */
 function formatTimelineTimestamp(ns: bigint): string {
@@ -58,37 +51,12 @@ export function LensSessionDetailPage() {
     navigate(`/observability/traces?trace=${encodeURIComponent(id)}`);
   };
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', 'session', sessionId] as const,
-    // The traces read filtered to this session (the `session_id=` param the BFF already forwards to
-    // theo-lens — the same one the traces list's advanced `session` filter uses).
-    queryFn: () =>
-      cloudFetch<SessionTracesResult>(
-        `/v1/dashboard/lens/traces?session_id=${encodeURIComponent(sessionId)}`, {}, { throwOnError: true }),
-    enabled: sessionId !== '',
-  });
+  const query = useSessionTraces<Trace>(sessionId);
 
   // M131 — Session Coherence: read the cached verdict (null → not evaluated) + a mutation to run the
   // judge on demand. A read is cheap; the run is billable (rate-limited upstream), so it is explicit.
-  const coherenceQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/sessions', sessionId, 'coherence'] as const,
-    queryFn: () =>
-      cloudFetch<CoherenceVerdict>(`/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`, {}, { throwOnError: true }),
-    enabled: sessionId !== '',
-  });
-  const queryClient = useQueryClient();
-  const runCoherence = useMutation({
-    // throwOnError so a 429 (rate-limited) or 502 (judge failed) REJECTS → onError/isError fire and we
-    // surface it (fail-loud on a billable, money-adjacent action — never a silent no-op).
-    mutationFn: () =>
-      cloudFetch<CoherenceVerdict>(
-        `/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`,
-        { method: 'POST' },
-        { throwOnError: true },
-      ),
-    onSuccess: (data) =>
-      queryClient.setQueryData(['cloud', '/v1/dashboard/lens/sessions', sessionId, 'coherence'], data),
-  });
+  const coherenceQuery = useSessionCoherence(sessionId);
+  const runCoherence = useRunSessionCoherence(sessionId);
   const coherence = runCoherence.data ?? coherenceQuery.data;
 
   // Map the traces-list rows to the generic SessionTraceItem the DS components consume. Memoized so the

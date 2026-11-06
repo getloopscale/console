@@ -35,7 +35,6 @@ vi.mock('@/lib/auth/session', () => ({
 }));
 
 vi.mock('@/lib/http/api', () => ({
-  clearToken: vi.fn(),
 }));
 
 const reportEventSpy = vi.fn();

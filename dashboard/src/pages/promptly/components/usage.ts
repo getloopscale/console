@@ -18,7 +18,7 @@
  */
 
 /** Uma linha do agregado do `theo-lens`, como ele a devolve. */
-interface LinhaDoAgregado {
+interface AggregateRow {
   readonly revision: number;
   readonly resolutions: number;
   readonly totalTokens: number;
@@ -28,11 +28,11 @@ interface LinhaDoAgregado {
   readonly p50LatencyMs: number | null;
 }
 
-export type AgregadoDeUso =
-  | { readonly estado: 'lido'; readonly rows: readonly LinhaDoAgregado[] }
-  | { readonly estado: 'nao-lido'; readonly razao: string };
+export type UsageAggregate =
+  | { readonly estado: 'lido'; readonly rows: readonly AggregateRow[] }
+  | { readonly estado: 'nao-lido'; readonly rationale: string };
 
-export interface LinhaDeUso {
+export interface UsageRow {
   readonly revision: number;
   readonly estado: 'com-uso' | 'sem-chamadas' | 'nao-lido';
   /** Ausente — e não `0` — quando não há uso ou não houve leitura. */
@@ -41,13 +41,13 @@ export interface LinhaDeUso {
   /** Latência mediana da resolução, em ms. Ausente quando o agregado não a trouxe. */
   readonly latenciaP50Ms?: number;
   /** Ausente quando o provider não reportou custo. Ver `razaoDoCusto`. */
-  readonly custoUsd?: number;
-  readonly razaoDoCusto?: string;
+  readonly costUsd?: number;
+  readonly costRationale?: string;
   /** Por que não foi possível ler. Só existe no estado `nao-lido`. */
-  readonly razao?: string;
+  readonly rationale?: string;
 }
 
-const SEM_PRECO = 'the provider reported no cost for this model';
+const NO_PRICE = 'the provider reported no cost for this model';
 /**
  * Nenhuma chamada de modelo compartilhou o trace da resolução — o limite declarado no ADR-1.
  *
@@ -57,7 +57,7 @@ const SEM_PRECO = 'the provider reported no cost for this model';
  * a verdade é "não correlacionei". É o mesmo defeito contra o qual a contagem já se protegia,
  * um campo adiante.
  */
-const SEM_CORRELACAO = 'no model call shared the trace of this resolution';
+const NO_CORRELATION = 'no model call shared the trace of this resolution';
 
 /**
  * Projeta o agregado sobre a lista de revisões do prompt.
@@ -67,36 +67,36 @@ const SEM_CORRELACAO = 'no model call shared the trace of this resolution';
  * só não teve tráfego), e uma revisão que só o agregado conhece não vira linha
  * fantasma (o agregado pode carregar tráfego de revisão já apagada).
  */
-export function projetarUso(
-  agregado: AgregadoDeUso,
-  revisoes: readonly number[],
-): LinhaDeUso[] {
+export function projectUsage(
+  agregado: UsageAggregate,
+  revisions: readonly number[],
+): UsageRow[] {
   if (agregado.estado === 'nao-lido') {
     // Nenhum número. Nem zero — sobretudo não zero.
-    return revisoes.map((revision) => ({ revision, estado: 'nao-lido', razao: agregado.razao }));
+    return revisions.map((revision) => ({ revision, estado: 'nao-lido', rationale: agregado.rationale }));
   }
 
-  const porRevisao = new Map(agregado.rows.map((r) => [r.revision, r]));
-  return revisoes.map((revision) => {
-    const linha = porRevisao.get(revision);
-    if (linha === undefined || linha.resolutions === 0) {
+  const byRevision = new Map(agregado.rows.map((r) => [r.revision, r]));
+  return revisions.map((revision) => {
+    const row = byRevision.get(revision);
+    if (row === undefined || row.resolutions === 0) {
       return { revision, estado: 'sem-chamadas' as const };
     }
     return {
       revision,
       estado: 'com-uso' as const,
-      chamadas: linha.resolutions,
-      tokens: linha.totalTokens,
-      ...(linha.p50LatencyMs === null ? {} : { latenciaP50Ms: linha.p50LatencyMs }),
+      chamadas: row.resolutions,
+      tokens: row.totalTokens,
+      ...(row.p50LatencyMs === null ? {} : { latenciaP50Ms: row.p50LatencyMs }),
       // `totalTokens === 0` é o discriminante: sem tokens observados no trace, nenhuma
       // chamada de modelo foi correlacionada, e o `0` do lens não é uma medição de custo.
       // Com tokens, um zero É medido — um modelo gratuito existe, e o teste-controle prova
       // que a correção não descarta esse caso.
-      ...(linha.costUsd === null
-        ? { razaoDoCusto: SEM_PRECO }
-        : linha.totalTokens === 0
-          ? { razaoDoCusto: SEM_CORRELACAO }
-          : { custoUsd: linha.costUsd }),
+      ...(row.costUsd === null
+        ? { costRationale: NO_PRICE }
+        : row.totalTokens === 0
+          ? { costRationale: NO_CORRELATION }
+          : { costUsd: row.costUsd }),
     };
   });
 }

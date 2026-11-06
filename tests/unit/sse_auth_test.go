@@ -3,10 +3,10 @@
 
 // T6.0 of plan 2026-05-27-backend-frontend-integration v1.1.
 //
-// Asserts that cloud/internal/auth.RequireJWT accepts JWTs carried by the
-// EventSource query-parameter fallback (?token=<jwt>) in addition to the
-// canonical Authorization: Bearer header. Closes EC-04 — the browser
-// EventSource primitive cannot set custom request headers.
+// Originally asserted that RequireJWT accepted a JWT in `?token=<jwt>` for the
+// browser EventSource. usetheoai/theo#477 step 3 removed that fallback: the
+// dashboard stream is cookie-authenticated, and a query-string token is now
+// ignored. The Bearer-header cases below still hold.
 
 package unit
 
@@ -57,7 +57,10 @@ func mintSSEToken(t *testing.T, issuer *theojwt.SessionTokenIssuer) string {
 	return token
 }
 
-func TestSSEAuth_AcceptsValidQueryParamToken(t *testing.T) {
+func TestSSEAuth_IgnoresValidQueryParamToken(t *testing.T) {
+	// usetheoai/theo#477 step 3: the dashboard stream authenticates with the
+	// session cookie, so no caller needs a credential in the URL — where it would
+	// reach access logs, proxy logs, browser history and the Referer header.
 	handler, issuer, state := buildSSEChain(t)
 	token := mintSSEToken(t, issuer)
 
@@ -65,14 +68,11 @@ func TestSSEAuth_AcceptsValidQueryParamToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d body=%s", w.Code, w.Body.String())
 	}
-	if !state.called {
-		t.Fatalf("sentinel never reached; auth blocked")
-	}
-	if state.user == nil || state.user.Subject != "kratos-user-id-sse-1" {
-		t.Errorf("user context not propagated; got %+v", state.user)
+	if state.called {
+		t.Fatalf("sentinel reached on a query-string token")
 	}
 }
 

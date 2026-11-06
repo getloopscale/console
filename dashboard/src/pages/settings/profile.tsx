@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { logout } from '@/lib/auth/session';
+import { useWhoami } from '@/hooks/settings/use-whoami';
 import { useDeleteTenant } from '@/hooks/settings/use-delete-tenant';
 import { maskEmail } from '@/lib/formatting/format';
 
@@ -36,9 +37,21 @@ export function ProfilePage() {
   // ended. The user reads that as "my account is gone", over a request that failed.
   const deleteTenant = useDeleteTenant();
   const deleting = deleteTenant.isPending;
+  // B-265 — the id this DELETE is keyed on is the TENANT id, not the Kratos identity id.
+  //
+  // The engine's handler compares the path parameter against the tenant on the auth context
+  // (`api/internal/routes/tenants/tenants.go`: `if !isAdmin && uc.TenantID != tenantID`), so
+  // `session.identity.id` — which is the INPUT to EnsureTenant, not what it returns — could only
+  // ever have produced 403 Forbidden. The Settings screen next door had it right all along;
+  // the two disagreed, so at most one of them could be.
+  //
+  // Same source as that screen, deliberately: `useDeleteTenant` is NOT widened to accept either
+  // id. A hook that takes "whichever one you have" cannot tell a caller it is wrong.
+  const { whoami } = useWhoami();
 
   const handleDeleteAccount = async () => {
-    await deleteTenant.mutateAsync(session.identity.id);
+    if (!whoami?.team_id) return;
+    await deleteTenant.mutateAsync(whoami.team_id);
     setConfirmOpen(false);
     await logout();
   };

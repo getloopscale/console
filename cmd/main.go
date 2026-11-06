@@ -32,6 +32,7 @@ import (
 	"github.com/usetheoai/theo-cloud/internal/billing"
 	"github.com/usetheoai/theo-cloud/internal/config"
 	"github.com/usetheoai/theo-cloud/internal/consent"
+	"github.com/usetheoai/theo-cloud/internal/dbrole"
 	"github.com/usetheoai/theo-cloud/internal/deploy_event_enqueuer"
 	"github.com/usetheoai/theo-cloud/internal/lens_alert_evaluator"
 	"github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
@@ -376,6 +377,20 @@ func main() {
 			logger.Warn("database not reachable at startup (will retry on requests)", "error", err)
 		} else {
 			logger.Info("database connected")
+
+			// Which role we connect as decides how much of every tenant's data
+			// this process can reach — and getting it wrong is invisible at
+			// runtime, because the owner still works. Engine migration 000063
+			// created `theo_cloud` for exactly this: the cross-tenant reach the
+			// control plane needs, as named policies, without DDL.
+			//
+			// Fail closed: refusing to boot is loud and fixed by repointing
+			// DATABASE_URL; running as the owner is silent and permanent.
+			if err := dbrole.AssertControlPlaneRole(ctx, db); err != nil {
+				logger.Error("database role check failed", "error", err)
+				os.Exit(1)
+			}
+			logger.Info("database role verified — cross-tenant reach is policy-named")
 		}
 	} else {
 		logger.Warn("DATABASE_URL not set — billing, enforcement, and metering disabled")
@@ -399,7 +414,7 @@ func main() {
 	if cfg.KratosPublicURL != "" && cfg.KratosPublicURL != cfg.BillingReturnURL {
 		redirectURIs = append(redirectURIs, cfg.KratosPublicURL+"/login/callback")
 	}
-	if err := hydra.RegisterClient(redirectURIs); err != nil {
+	if err := hydra.RegisterClient(redirectURIs, cfg.ConsentAllowedResources); err != nil {
 		logger.Warn("failed to register OAuth2 client (Hydra may not be ready yet)", "error", err)
 	}
 
@@ -472,8 +487,13 @@ func main() {
 		logger.Info("billing not configured in this environment")
 	}
 
-	// Universal JWT auth middleware (RSA + HMAC — one path for all)
-	requireJWT := auth.RequireJWT(jwtValidator, sessIssuer)
+	// Caller authentication for every protected route: a Bearer JWT (CLI, and the
+	// scripts that still exchange for an HS256 token until usetheoai/theo#477 step
+	// 4) OR the Kratos session cookie (the dashboard — theo-cloud is its Backend
+	// for Frontend and the browser holds no token). The variable keeps its old
+	// name because the route mount functions receive it as `requireJWT`.
+	sessionAuthenticator := auth.NewKratosSessionAuthenticator(cfg.KratosInternalURL, tenantProvisioner)
+	requireJWT := auth.RequireCaller(jwtValidator, sessIssuer, sessionAuthenticator)
 
 	// Rate limiters (find_sec_007). Device endpoints are pre-auth → keyed on
 	// client IP (chimw.RealIP already resolves the real client behind the proxy).
@@ -514,7 +534,15 @@ func main() {
 	// upstream identity-store and ALWAYS returns the canonical universal body
 	// regardless of new-vs-existing-email branch.
 	registerProxyHandler := routes.NewRegisterProxyHandler(cfg.KratosInternalURL, logger)
-	consentHandler := consent.NewHandler(hydra, tenantProvisioner, cfg.KratosPublicURL, cfg.KratosInternalURL, cfg.KratosAdminURL, logger)
+	consentHandler := consent.NewHandler(hydra, tenantProvisioner, cfg.KratosPublicURL, cfg.KratosInternalURL, cfg.KratosAdminURL, logger).
+		WithPolicy(consent.Policy{
+			FirstPartyClients: cfg.ConsentFirstPartyClients,
+			AllowedResources:  cfg.ConsentAllowedResources,
+		})
+	logger.Info("consent policy loaded",
+		"first_party_clients", cfg.ConsentFirstPartyClients,
+		"allowed_resources", cfg.ConsentAllowedResources,
+	)
 
 	// Plan 0 of dashboard-memory-section-roadmap.md: unified theo_live_* API keys.
 	// D8 dispatch: /v1/api-keys/* uses RequireJWT (PaaS session cookie), NOT
@@ -1236,7 +1264,11 @@ func main() {
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/device/accept", deviceHandler.Accept)
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/device/token", deviceHandler.Token)
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/token/refresh", deviceHandler.Refresh)
-		r.Post("/session/token", sessionTokenHandler.Exchange) // Dashboard: Kratos session → JWT (rate-limited inside the handler)
+		// HS256 exchange — no longer called by the dashboard; kept for the scripts and
+		// e2e that still use it until usetheoai/theo#477 step 4 (rate-limited inside).
+		r.Post("/session/token", sessionTokenHandler.Exchange)
+		// Dashboard: the identity behind the Kratos session cookie, with no credential in it.
+		r.Get("/session", routes.NewSessionIdentityHandler(sessionAuthenticator).Get)
 
 		// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 —
 		// response-shape unifier middleware. Unauthenticated (the dashboard
@@ -1304,8 +1336,8 @@ func main() {
 		func(req *http.Request) bool {
 			// EC-15: cheap session check — we only need a valid Kratos
 			// browser session cookie to know the user can complete the
-			// connect flow without re-login. Token expiry is handled
-			// upstream by /v1/auth/session/token.
+			// connect flow without re-login. The session itself is
+			// validated on every API call the flow makes afterwards.
 			return req.Header.Get("Cookie") != ""
 		},
 	)

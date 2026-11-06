@@ -45,7 +45,7 @@ describe('fetchCatalogPage', () => {
 
     const page = await fetchCatalogPage<unknown[]>(1);
 
-    expect(page.temContinuacao).toBe(true);
+    expect(page.hasContinuation).toBe(true);
     expect(page.data).toEqual([{ name: 'a' }]);
   });
 
@@ -58,7 +58,7 @@ describe('fetchCatalogPage', () => {
 
     const page = await fetchCatalogPage<unknown[]>(1);
 
-    expect(page.temContinuacao).toBe(false);
+    expect(page.hasContinuation).toBe(false);
     expect(page.data).toEqual([{ name: 'a' }]);
   });
 
@@ -71,7 +71,7 @@ describe('fetchCatalogPage', () => {
       ),
     );
 
-    expect((await fetchCatalogPage<unknown[]>(1)).temContinuacao).toBe(false);
+    expect((await fetchCatalogPage<unknown[]>(1)).hasContinuation).toBe(false);
   });
 
   /**

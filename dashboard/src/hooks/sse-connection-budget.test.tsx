@@ -4,8 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 
 vi.mock('@/lib/http/api', () => ({
-  ensureSSEToken: vi.fn(async () => 'jwt-de-teste'),
-  clearToken: vi.fn(),
+  signOutIfSessionEnded: vi.fn(async () => false),
   engineFetch: vi.fn(async () => null),
   cloudFetch: vi.fn(async () => null),
 }));
@@ -56,8 +55,8 @@ class ContadorEventSource {
   static readonly CLOSED = 2;
 
   /** B-088 — token e cursor viajam em header; o fake guarda para poder assertar. */
-  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
-  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+  opcoes: { lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { lastEventId?: string | null }) {
     this.opcoes = opcoes;
     // A URL carrega `?token=`; o orcamento e por ENDPOINT, entao normalizamos.
     ContadorEventSource.abertas.push(url.split('?')[0] ?? url);

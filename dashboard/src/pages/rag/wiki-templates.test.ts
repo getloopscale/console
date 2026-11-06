@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';

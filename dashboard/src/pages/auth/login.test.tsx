@@ -14,7 +14,6 @@ vi.mock('@/lib/auth/session', () => ({
 }));
 
 vi.mock('@/lib/http/api', () => ({
-  clearToken: vi.fn(),
 }));
 
 // Mock @/lib/rum to assert telemetry wire-points (T2.2).

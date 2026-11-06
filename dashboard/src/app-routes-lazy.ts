@@ -169,8 +169,8 @@ export const PromptlyOverviewPage = lazy(() =>
   import('@/pages/promptly/overview').then((m) => ({ default: m.PromptlyOverviewPage })),
 );
 // M13 — o catálogo saiu da raiz: `/promptly` virou o painel, como em memory/rag/lens.
-export const PromptlyCatalogoPage = lazy(() =>
-  import('@/pages/promptly/catalogo').then((m) => ({ default: m.PromptlyCatalogoPage })),
+export const PromptlyCatalogPage = lazy(() =>
+  import('@/pages/promptly/catalogo').then((m) => ({ default: m.PromptlyCatalogPage })),
 );
 export const PromptDetailPage = lazy(() =>
   import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),

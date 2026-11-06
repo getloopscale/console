@@ -16,6 +16,6 @@
  * exatamente a forma de teste inerte que B-152/B-189 nomeiam. Por isso a garantia mora aqui, numa
  * função pura que um teste consegue reprovar.
  */
-export function colecaoDescrita<T>(acumulado: readonly T[], paginaAtual: readonly T[]): readonly T[] {
-  return acumulado.length > 0 ? acumulado : paginaAtual;
+export function colecaoDescrita<T>(acumulado: readonly T[], currentPage: readonly T[]): readonly T[] {
+  return acumulado.length > 0 ? acumulado : currentPage;
 }

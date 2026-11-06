@@ -32,7 +32,7 @@ const ATRIBUTO_DO_PROMPT = 'prompt.id';
  * **A premissa era falsa** — `view-encoding.ts` vive neste mesmo dashboard; o `theo-lens` é o
  * serviço, e toda tela do ecossistema nasce aqui. A `/acceptance` pegou.
  */
-const COLUNAS_DE_RESOLUCAO: ColumnState = {
+const RESOLUTION_COLUMNS: ColumnState = {
   visibility: { model: false, latency: true, tokens: false, cost: false, evals: false },
   density: 'comfortable',
 };
@@ -51,13 +51,13 @@ const COLUNAS_DE_RESOLUCAO: ColumnState = {
  *
  * `null` obriga o chamador a decidir o que mostrar, que é onde a decisão pertence.
  */
-export function linkParaTracesDoPrompt(promptName: string): string | null {
+export function linkToPromptTraces(promptName: string): string | null {
   if (promptName.trim() === '') return null;
   // O escape e a forma do predicado sao responsabilidade do lens (B-043): um nome
   // hostil nao vira um segundo parametro nem trunca a query, e se a DSL mudar,
   // muda num lugar so.
   return buildTracesUrl({
     spanQuery: spanAttrQuery(ATRIBUTO_DO_PROMPT, promptName),
-    columns: COLUNAS_DE_RESOLUCAO,
+    columns: RESOLUTION_COLUMNS,
   });
 }

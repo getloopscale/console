@@ -80,6 +80,15 @@ describe('DeviceSuccessPage', () => {
     expect(link).toHaveAttribute('href', '/');
   });
 
+  // B-242 — the anchor for the `reduced-motion` case at the bottom of this file, which asserts the
+  // countdown is ABSENT. Nothing here ever asserted it PRESENT, so that denial was satisfied by
+  // `prefers-reduced-motion` working AND by a page that stopped rendering the countdown at all —
+  // and the second one is a silent loss of the only thing telling the user the tab will close.
+  it('B-242 — the countdown IS rendered in the default (motion-allowed) state', () => {
+    render(<DeviceSuccessPage />);
+    expect(screen.getByTestId('device-success-countdown')).toBeInTheDocument();
+  });
+
   it('test_auto_close_fires_after_5s', () => {
     render(<DeviceSuccessPage />);
     expect(closeSpy).not.toHaveBeenCalled();

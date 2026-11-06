@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {
   useApiKeys,
-  useCriarApiKey,
+  useCreateApiKey,
   useRevogarApiKey,
   useRotacionarApiKey,
 } from '@/hooks/settings/use-api-keys';
@@ -202,7 +202,7 @@ export function ApiKeysPage() {
   // API Key Lineage View plan T7.4 — pendingLineage opens the Sheet.
   const [pendingLineage, setPendingLineage] = useState<APIKeyView | null>(null);
 
-  const createMutation = useCriarApiKey((resp) => {
+  const createMutation = useCreateApiKey((resp) => {
     setRevealed(resp);
     setCreateOpen(false);
   });
@@ -327,7 +327,7 @@ export function ApiKeysPage() {
           <Card>
             <DataTable columns={columns} data={keys} rowKey={(row) => row.id} />
             <ListTruncationNotice
-              temMais={listQuery.data?.has_more === true}
+              hasMore={listQuery.data?.has_more === true}
               total={keys.length}
               substantivo="API keys"
             />

@@ -15,7 +15,7 @@ import { AppModal } from '@/components/ui/app-modal';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import { deliveryStatusVariant } from '@/lib/webhooks/delivery';
 import { colunasDeWebhook } from '@/lib/webhooks/columns';
-import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
+import { DELIVERIES_READ_FAILURE } from '@/pages/settings/webhook-copy';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -194,8 +194,8 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
         }}
         description={copy.dialogDescription}
         events={copy.events}
-        exemploUrl="https://hook.example.com/deploys"
-        exemploLabel="prod-deploys"
+        exampleUrl="https://hook.example.com/deploys"
+        exampleLabel="prod-deploys"
       />
 
       {createdSecret ? (
@@ -273,7 +273,7 @@ function DeliveriesSheet({
           {query.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading deliveries…</p>
           ) : query.isError ? (
-            <p className="text-sm text-muted-foreground" data-testid="deliveries-error">{FALHA_AO_LER_ENTREGAS}</p>
+            <p className="text-sm text-muted-foreground" data-testid="deliveries-error">{DELIVERIES_READ_FAILURE}</p>
           ) : deliveries.length === 0 ? (
             <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">No deliveries yet.</p>
           ) : (

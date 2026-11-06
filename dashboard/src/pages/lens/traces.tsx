@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useTraces, useChavesDeAtributo, useCriarDatasetDeRegressao } from '@/hooks/lens/use-traces';
-import { buscarParaExportar, TRACES_PAGE_SIZE } from '@/hooks/lens/traces-api';
+import { useTraces, useAttributeKeys, useCreateRegressionDataset } from '@/hooks/lens/use-traces';
+import { fetchForExport, TRACES_PAGE_SIZE } from '@/hooks/lens/traces-api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
 import { Button, Card, DataTable, EmptyState, Input, PageShell } from '@usetheo/ui';
@@ -220,7 +220,7 @@ export function LensTracesPage() {
     }),
   );
   // M92 — descoberta de facetas: as chaves de atributo mais usadas do workspace.
-  const attrKeysQuery = useChavesDeAtributo();
+  const attrKeysQuery = useAttributeKeys();
   const attributeKeys = (attrKeysQuery.data?.keys ?? []).map((k) => k.key);
 
   // M81 — pagination derived state (workspace-scoped total from the response).
@@ -231,7 +231,7 @@ export function LensTracesPage() {
     pageSize: TRACES_PAGE_SIZE,
     page,
     setPage,
-    naoAssentado: query.isFetching || !query.data,
+    notSettled: query.isFetching || !query.data,
   });
 
   // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
@@ -286,7 +286,7 @@ export function LensTracesPage() {
 
   // M64 — turn the selected traces into a regression dataset (create dataset + add each selected trace),
   // then route to the experiments page to run it. Reuses the M44 dataset routes (no new dataset code).
-  const createDataset = useCriarDatasetDeRegressao((datasetId) => {
+  const createDataset = useCreateRegressionDataset((datasetId) => {
     setSelected(new Set());
     navigate(`/observability/experiments?datasetId=${encodeURIComponent(datasetId)}`);
   });
@@ -302,7 +302,7 @@ export function LensTracesPage() {
         // `res?.traces ?? []` logo abaixo transformava qualquer 4xx/5xx em lista
         // vazia. O `catch` nunca era alcançado e a tela anunciava "Exported 0
         // traces" — sucesso, com número, para uma exportação que não aconteceu.
-        return (await buscarParaExportar(queryWithPaging)) as ExportTrace[];
+        return (await fetchForExport(queryWithPaging)) as ExportTrace[];
       });
       const stamp = new Date().toISOString();
       if (format === 'csv') {

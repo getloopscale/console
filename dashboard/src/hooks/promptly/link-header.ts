@@ -28,6 +28,6 @@
  */
 const REL_NEXT = /<[^>]*>\s*;[^,]*\brel\s*=\s*("next"|'next'|next\b)/i;
 
-export function temProximaPagina(linkHeader: string | null | undefined): boolean {
+export function hasNextPage(linkHeader: string | null | undefined): boolean {
   return Boolean(linkHeader) && REL_NEXT.test(linkHeader as string);
 }

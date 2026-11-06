@@ -6,7 +6,7 @@ const medidas = (over: Partial<Medidas> = {}): Medidas => ({
   projetoIndisponivel: false,
   statusIndisponivel: false,
   deploysIndisponiveis: false,
-  ultimoDeploy: null,
+  lastDeploy: null,
   replicasDesejadas: 0,
   replicasProntas: 0,
   alertasAtivos: 0,
@@ -77,22 +77,22 @@ describe('o que não dá para medir fica unknown, nunca fail', () => {
     // A sonda cross-tenant devolve 401 e o projeto não resolve. Marcar `fail` aí diria que o
     // auto-deploy do projeto está quebrado quando o que houve foi uma recusa de permissão.
     expect(REGRAS.auto_deploy(medidas({ projetoIndisponivel: true }))).toBe('unknown');
-    expect(REGRAS.auto_deploy(medidas({ ultimoDeploy: null }))).toBe('fail');
-    expect(REGRAS.auto_deploy(medidas({ ultimoDeploy: '2026-08-11' }))).toBe('pass');
+    expect(REGRAS.auto_deploy(medidas({ lastDeploy: null }))).toBe('fail');
+    expect(REGRAS.auto_deploy(medidas({ lastDeploy: '2026-08-11' }))).toBe('pass');
   });
 });
 
 describe('lerMedidas', () => {
   it('um corpo de status ausente é indisponibilidade, mesmo sem erro', () => {
     // As duas causas — o hook falhou, ou respondeu sem corpo — levam à mesma leitura: não medimos.
-    expect(lerMedidas({ projeto: {}, statusErro: null, status: null, deploysErro: null, builds: [] })
+    expect(lerMedidas({ projeto: {}, statusError: null, status: null, deploysError: null, builds: [] })
       .statusIndisponivel).toBe(true);
-    expect(lerMedidas({ projeto: {}, statusErro: new Error('x'), status: { replicas_ready: 3 }, deploysErro: null, builds: [] })
+    expect(lerMedidas({ projeto: {}, statusError: new Error('x'), status: { replicas_ready: 3 }, deploysError: null, builds: [] })
       .statusIndisponivel).toBe(true);
   });
 
   it('campos ausentes viram zero, e o zero é uma medida — não um desconhecido', () => {
-    const m = lerMedidas({ projeto: {}, statusErro: null, status: {}, deploysErro: null, builds: undefined });
+    const m = lerMedidas({ projeto: {}, statusError: null, status: {}, deploysError: null, builds: undefined });
     expect(m.replicasProntas).toBe(0);
     expect(m.totalBuilds).toBe(0);
     expect(m.statusIndisponivel).toBe(false);

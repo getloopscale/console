@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
 vi.mock('@/lib/http/config', () => ({ API_URL: 'http://test.local', mocksEnabled: () => false }));
 
-import { clearToken, exchangeSessionToken } from '@/lib/http/api';
 import { useBuildSBOM, useBuildAttestation } from '@/hooks/deploy/use-build-artifacts';
 import { useDomains } from '@/hooks/infra/use-domains';
 import { useCreateProject } from '@/hooks/projects/use-create-project';
@@ -41,17 +40,11 @@ import { queryKeys } from '@/lib/api/query-keys';
  * to report success.
  */
 
-/** First call is the token exchange; every one after it answers with `status`. */
-async function serverAnswers(status: number, body: unknown = { code: 'X', message: 'no' }) {
-  let n = 0;
-  vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-    n++;
-    if (n === 1) {
-      return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
-    }
-    return new Response(body === null ? null : JSON.stringify(body), { status });
-  });
-  await exchangeSessionToken();
+/** Every call answers with `status` — the session cookie needs no priming (usetheoai/theo#477). */
+function serverAnswers(status: number, body: unknown = { code: 'X', message: 'no' }) {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+    new Response(body === null ? null : JSON.stringify(body), { status }),
+  );
 }
 
 function wrapper(client: QueryClient) {
@@ -66,17 +59,13 @@ function testClient(): QueryClient {
   });
 }
 
-beforeEach(() => {
-  clearToken();
-});
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('a refused read reports an ERROR, never an empty artifact (B-244)', () => {
   it('useBuildSBOM: a 403 makes the query fail instead of resolving null', async () => {
-    await serverAnswers(403);
+    serverAnswers(403);
     const { result } = renderHook(() => useBuildSBOM('bld-1'), { wrapper: wrapper(testClient()) });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -86,7 +75,7 @@ describe('a refused read reports an ERROR, never an empty artifact (B-244)', () 
   });
 
   it('useBuildAttestation: a 500 makes the query fail instead of resolving null', async () => {
-    await serverAnswers(500);
+    serverAnswers(500);
     const { result } = renderHook(() => useBuildAttestation('bld-1'), { wrapper: wrapper(testClient()) });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -94,7 +83,7 @@ describe('a refused read reports an ERROR, never an empty artifact (B-244)', () 
   });
 
   it('useDomains: a 500 makes the query fail instead of resolving an empty domain list', async () => {
-    await serverAnswers(500);
+    serverAnswers(500);
     const { result } = renderHook(() => useDomains(), { wrapper: wrapper(testClient()) });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -102,7 +91,7 @@ describe('a refused read reports an ERROR, never an empty artifact (B-244)', () 
   });
 
   it('useCreateProject: a 409 rejects with the status, so the form can say WHY', async () => {
-    await serverAnswers(409, { code: 'ALREADY_EXISTS', message: 'name taken' });
+    serverAnswers(409, { code: 'ALREADY_EXISTS', message: 'name taken' });
     const { result } = renderHook(() => useCreateProject(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync({ name: 'taken' })).rejects.toMatchObject({
@@ -114,7 +103,7 @@ describe('a refused read reports an ERROR, never an empty artifact (B-244)', () 
   it('useDeleteTenant: a 403 rejects — the caller must not report a deletion it did not observe', async () => {
     // B-264 in one line. Before the fix this RESOLVED, and both screens read a resolve as success:
     // the confirmation closed and the user was signed out over a request that was refused.
-    await serverAnswers(403);
+    serverAnswers(403);
     const { result } = renderHook(() => useDeleteTenant(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync('tnt-1')).rejects.toMatchObject({
@@ -125,7 +114,7 @@ describe('a refused read reports an ERROR, never an empty artifact (B-244)', () 
 
   it('useDeleteTenant: a 204 with no body RESOLVES — for a DELETE that is the success', async () => {
     // The one `null` the contract leaves, and the endpoint where reading it wrongly costs the most.
-    await serverAnswers(204, null);
+    serverAnswers(204, null);
     const { result } = renderHook(() => useDeleteTenant(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync('tnt-1')).resolves.toBeUndefined();
@@ -134,7 +123,7 @@ describe('a refused read reports an ERROR, never an empty artifact (B-244)', () 
 
 describe('what each hook decides on the caller\'s behalf (B-244)', () => {
   it('useCreateProject refuses a 2xx with no body instead of inventing a project', async () => {
-    await serverAnswers(204, null);
+    serverAnswers(204, null);
     const { result } = renderHook(() => useCreateProject(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync({ name: 'p' })).rejects.toThrow(/returned no body/);
@@ -143,7 +132,7 @@ describe('what each hook decides on the caller\'s behalf (B-244)', () => {
   it('useCreateProject invalidates the projects list, so no caller has to remember to', async () => {
     // Removing the `onSuccess` invalidation left every test green — one of the three reasons the
     // hook exists, unguarded. This is the guard.
-    await serverAnswers(201, { id: 'p1', name: 'p' });
+    serverAnswers(201, { id: 'p1', name: 'p' });
     const client = testClient();
     const invalidated = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useCreateProject(), { wrapper: wrapper(client) });
@@ -158,7 +147,7 @@ describe('what each hook decides on the caller\'s behalf (B-244)', () => {
   it('the SBOM cache key varies with the build id — one build never answers for another', async () => {
     // A build id is immutable, so caching per id is right and caching across ids is a wrong answer
     // shown with confidence. Nothing detected a key that stopped varying.
-    await serverAnswers(200, { format: 'spdx', components: [] });
+    serverAnswers(200, { format: 'spdx', components: [] });
     const client = testClient();
 
     const a = renderHook(() => useBuildSBOM('bld-a'), { wrapper: wrapper(client) });
@@ -190,7 +179,7 @@ describe('registering and revoking a webhook cannot report success it did not ob
     // Before this, a refused registration resolved `null`, the page closed the dialog and
     // refreshed the list, and the user left believing events would arrive at a URL the server
     // never accepted.
-    await serverAnswers(422, { code: 'INVALID_URL', message: 'not reachable' });
+    serverAnswers(422, { code: 'INVALID_URL', message: 'not reachable' });
     const { result } = renderHook(() => useCreateWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
 
     await expect(
@@ -199,7 +188,7 @@ describe('registering and revoking a webhook cannot report success it did not ob
   });
 
   it('create: a 2xx with no body rejects — the secret is shown once or never', async () => {
-    await serverAnswers(204, null);
+    serverAnswers(204, null);
     const { result } = renderHook(() => useCreateWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
 
     await expect(
@@ -210,7 +199,7 @@ describe('registering and revoking a webhook cannot report success it did not ob
   it('revoke: a 403 rejects — an endpoint the user cut off must not look cut off', async () => {
     // The worst reading of the old behaviour: the dialog closed, the list refreshed, and the
     // webhook kept receiving the workspace's payloads.
-    await serverAnswers(403);
+    serverAnswers(403);
     const { result } = renderHook(() => useRevokeWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync('wwh-1')).rejects.toMatchObject({
@@ -220,7 +209,7 @@ describe('registering and revoking a webhook cannot report success it did not ob
   });
 
   it('revoke: a 204 resolves — for a DELETE that is the success', async () => {
-    await serverAnswers(204, null);
+    serverAnswers(204, null);
     const { result } = renderHook(() => useRevokeWorkspaceWebhook(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync('wwh-1')).resolves.toBeUndefined();
@@ -236,7 +225,7 @@ describe('starting a memory export cannot report a job that was never created (B
   // These go through the real transport, where the difference is observable.
 
   it('a 403 rejects instead of resolving null', async () => {
-    await serverAnswers(403);
+    serverAnswers(403);
     const { result } = renderHook(() => useCreateMemoryExport(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync()).rejects.toMatchObject({
@@ -247,14 +236,14 @@ describe('starting a memory export cannot report a job that was never created (B
 
   it('a 2xx with no body rejects — an export nobody can identify is not an export', async () => {
     // The `created === null` branch. Without a case that RESOLVES null, this line was untested.
-    await serverAnswers(204, null);
+    serverAnswers(204, null);
     const { result } = renderHook(() => useCreateMemoryExport(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync()).rejects.toThrow(/did not say which one/);
   });
 
   it('a 201 with a body resolves the job', async () => {
-    await serverAnswers(201, { id: 'export-1', status: 'pending' });
+    serverAnswers(201, { id: 'export-1', status: 'pending' });
     const { result } = renderHook(() => useCreateMemoryExport(), { wrapper: wrapper(testClient()) });
 
     await expect(result.current.mutateAsync()).resolves.toMatchObject({ id: 'export-1' });

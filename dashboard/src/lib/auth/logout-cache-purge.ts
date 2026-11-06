@@ -58,8 +58,8 @@
  */
 export const CACHES_DE_DADOS = ['theo-api'] as const;
 
-function guardaDado(nome: string): boolean {
-  return CACHES_DE_DADOS.some((p) => nome === p || nome.startsWith(`${p}-`));
+function guardaDado(name: string): boolean {
+  return CACHES_DE_DADOS.some((p) => name === p || name.startsWith(`${p}-`));
 }
 
 /** O que a purga conseguiu fazer. `sobreviventes` é a lista de caches que NÃO foram apagados. */
@@ -89,12 +89,12 @@ export interface ResultadoDaPurga {
 export async function purgarCachesDeDados(): Promise<ResultadoDaPurga> {
   if (typeof caches === 'undefined') return { tentados: 0, sobreviventes: [], indisponivel: true };
   try {
-    const nomes = (await caches.keys()).filter(guardaDado);
+    const names = (await caches.keys()).filter(guardaDado);
     const resultados = await Promise.all(
-      nomes.map(async (n) => ({ nome: n, apagado: await caches.delete(n).catch(() => false) })),
+      names.map(async (n) => ({ nome: n, apagado: await caches.delete(n).catch(() => false) })),
     );
     return {
-      tentados: nomes.length,
+      tentados: names.length,
       sobreviventes: resultados.filter((r) => !r.apagado).map((r) => r.nome),
       indisponivel: false,
     };

@@ -9,8 +9,8 @@ interface Props {
 
   ponteiros: Ponteiros;
   latestVersion: number | null;
-  setAlvo: (v: number | null) => void;
-  setLabelAlvo: (v: string) => void;
+  setTarget: (v: number | null) => void;
+  setTargetLabel: (v: string) => void;
 }
 
 /**
@@ -23,7 +23,7 @@ interface Props {
  * cada um responde uma pergunta própria e recebe entre um e seis símbolos.
  * Cortar por tamanho teria produzido metades sem nome.
  */
-export function AmbientesCard({ ponteiros, latestVersion, setAlvo, setLabelAlvo, labelsFailed, setPromoteError }: Props) {
+export function EnvironmentsCard({ ponteiros, latestVersion, setTarget, setTargetLabel, labelsFailed, setPromoteError }: Props) {
   return (
     <Card>
       <Card.Header>
@@ -66,8 +66,8 @@ export function AmbientesCard({ ponteiros, latestVersion, setAlvo, setLabelAlvo,
                   aria-label={`Promote ${p.label} to the latest revision, v${String(latestVersion)}`}
                   onClick={() => {
                     setPromoteError(null);
-                    setLabelAlvo(p.label);
-                    setAlvo(latestVersion);
+                    setTargetLabel(p.label);
+                    setTarget(latestVersion);
                   }}
                 >
                   → v{latestVersion}

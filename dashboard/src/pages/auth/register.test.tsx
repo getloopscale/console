@@ -14,7 +14,6 @@ vi.mock('@/lib/auth/session', () => ({
 }));
 
 vi.mock('@/lib/http/api', () => ({
-  clearToken: vi.fn(),
 }));
 
 // M0 J-02 T3.1 — mock the provisioning hook so the completing screen renders

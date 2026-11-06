@@ -26,7 +26,14 @@ describe('RagAnalyticsPage (/rag/analytics)', () => {
     expect(await screen.findByText('12')).toBeInTheDocument(); // retrievals
     expect(screen.getByText('7')).toBeInTheDocument(); // answers
     // The M5 fetch MUST be the base URL (no collection_id yet).
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/rag/analytics');
+    // The contract is part of the assertion, not incidental to it: without it a refused
+    // request resolves `null` and this page shows the same thing it shows for a workspace with
+    // no traffic yet (B-235/B-244).
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/rag/analytics',
+      {},
+      { throwOnError: true },
+    );
   });
 
   it('renders an error alert when the BFF is unavailable', async () => {
@@ -76,7 +83,12 @@ describe('RagAnalyticsPage (/rag/analytics)', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
 
     // Extraction tokens, community totals, corpus figures — all visible.
-    expect(await screen.findByText('12,345')).toBeInTheDocument(); // extraction tokens
+    // B-242 — the LABEL, by the same selector the denial above uses. This case asserted only the
+    // VALUE (`12,345`), so `queryByText(/extraction tokens/i)` up there was satisfied by the section
+    // being gated AND by the label disappearing from the section entirely — leaving a bare number
+    // on screen with nothing saying what it counts.
+    expect(await screen.findByText(/extraction tokens/i)).toBeInTheDocument();
+    expect(screen.getByText('12,345')).toBeInTheDocument(); // extraction tokens
     // Per-level rows — a Level N label + its count share the same list item.
     const perLevelItems = await screen.findAllByRole('listitem');
     const rowTexts = perLevelItems.map((el) => el.textContent ?? '');
@@ -89,6 +101,8 @@ describe('RagAnalyticsPage (/rag/analytics)', () => {
     // The BFF received the collection_id (proves T3a passthrough is wired end-to-end here).
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/analytics?collection_id=col_docs',
+      {},
+      { throwOnError: true },
     );
   });
 });

@@ -1,3 +1,4 @@
+// @vitest-environment node
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
@@ -11,11 +12,11 @@ const VAZIO = { icon: Globe, title: 'No custom domains yet' };
 
 describe('estadoDaLista — ausência e ignorância não são a mesma tela', () => {
   it('devolve o estado vazio quando a leitura deu certo', () => {
-    expect(estadoDaLista({ erro: false, vazio: VAZIO }, 'domains')).toBe(VAZIO);
+    expect(estadoDaLista({ failure: false, empty: VAZIO }, 'domains')).toBe(VAZIO);
   });
 
   it('NÃO afirma ausência quando a leitura falhou', () => {
-    const s = estadoDaLista({ erro: true, vazio: VAZIO }, 'domains')!;
+    const s = estadoDaLista({ failure: true, empty: VAZIO }, 'domains')!;
     expect(s.title).not.toMatch(/no custom domains yet/i);
     expect(s.title).toMatch(/could not read domains/i);
   });
@@ -23,7 +24,7 @@ describe('estadoDaLista — ausência e ignorância não são a mesma tela', () 
   it('diz ao usuário o que a tela NÃO está mostrando', () => {
     // A diferença que importa: "não há nada" é um fato sobre os dados; "não li" é um fato
     // sobre a requisição. A segunda tem de dizer que a lista não representa o que existe.
-    const s = estadoDaLista({ erro: true, vazio: VAZIO }, 'domains')!;
+    const s = estadoDaLista({ failure: true, empty: VAZIO }, 'domains')!;
     expect(s.description).toMatch(/not showing what exists/i);
   });
 });
@@ -32,7 +33,7 @@ describe('estadoDaLista — quando a lista tem linhas', () => {
   it('não vira estado de erro por cima de dados que existem', () => {
     // `vazio === undefined` é como o PageShell diz "há linhas". Um erro de refetch sobre
     // dados velhos pede uma tarja, não um estado vazio — e essa decisão não é desta função.
-    expect(estadoDaLista({ erro: true, vazio: undefined }, 'domains')).toBeUndefined();
+    expect(estadoDaLista({ failure: true, empty: undefined }, 'domains')).toBeUndefined();
   });
 });
 
@@ -168,7 +169,7 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
    * deste predicado tinha, e ele é silencioso.
    */
   const HOOKS_QUE_NAO_LEEM =
-    /^use(State|Effect|Memo|Callback|Ref|Context|Reducer|Id|Transition|DeferredValue|LayoutEffect|ImperativeHandle|SyncExternalStore|Params|Navigate|Location|SearchParams|Navigation|PageMeta|SetPageTitle|RequireAuth|Auth|Toast|Theme|Form|Debounce|Interval|Media|QueryClient|Editor)$/;
+    /^use(State|Effect|Memo|Callback|Ref|Context|Reducer|Id|Transition|DeferredValue|LayoutEffect|ImperativeHandle|SyncExternalStore|Params|Navigate|Location|SearchParams|Navigation|PageMeta|SetPageTitle|RequireAuth|Auth|Toast|Theme|Form|Debounce|Interval|Media|QueryClient|Editor|Mutation)$/;
 
   const iniciaLeitura = (fonte: string) => {
     if (/cloudFetch\w*\(|engineFetch\(|\bfetch\(|\buseQuery\(/.test(fonte)) return true;
@@ -249,6 +250,44 @@ describe('B-167 — nenhuma página afirma ausência sem consultar um sinal de e
     expect(consultaErro('<p>Could not reduce the list to a single row.</p>')).toBe(false);
     expect(consultaErro('const ilegal = true;')).toBe(false);
     expect(consultaErro("const status = 'nao-lidos-ainda';")).toBe(false);
+  });
+
+  it('B-241 — uma MUTAÇÃO não é leitura: quem só escreve não tem erro de leitura a consultar', () => {
+    // 2026-08-13. A migração de identificadores renomeou `erroDescricao` para `descriptionError`
+    // em `promptly/create.tsx` e o guarda acusou a página. A primeira correção que escrevi foi
+    // alargar `consultaErro` com `\b[a-z]\w*Error\b` — e a revisão mediu que aquilo isentava 93
+    // arquivos de uma vez, entre eles `throwOnError` (uma OPÇÃO de fetch), `onError` (callback de
+    // mutação) e `formatDeployError` (nome de função). Baixar o número alargando o vocabulário do
+    // guarda é precisamente o que o B-238 registrou neste arquivo.
+    //
+    // O predicado errado era o outro. `create.tsx` afirma ausência sobre `declaradas.length === 0`
+    // — uma conta LOCAL sobre o texto digitado, sem leitura nenhuma — e entrava na população por
+    // causa de `useMutation(`. Uma mutação é escrita: não existe leitura falha para ela consultar.
+    //
+    // As duas metades, e a segunda é o que faltava no alargamento revertido:
+    const soMutacao =
+      'const criar = useMutation({ mutationFn: postar });\n' +
+      'return vars.length === 0 ? <p>No variables in the text</p> : <List />;';
+    expect(afirmaAusencia(soMutacao)).toBe(true);
+    expect(iniciaLeitura(soMutacao), 'uma mutação foi contada como leitura').toBe(false);
+
+    // …e a página que LÊ de verdade continua na população, senão isto seria afrouxar.
+    const leEAfirma =
+      "const q = useQuery({ queryKey: ['x'] });\n" +
+      'return q.data.length === 0 ? <p>No items yet</p> : <List />;';
+    expect(afirmaAusencia(leEAfirma)).toBe(true);
+    expect(iniciaLeitura(leEAfirma)).toBe(true);
+    expect(consultaErro(leEAfirma), 'esta tela é culpada e tem de continuar sendo').toBe(false);
+  });
+
+  it('B-241 — o vocabulário do guarda NÃO foi alargado: um nome que termina em `Error` não isenta', () => {
+    // O contra-teste do alargamento revertido. Cada uma destas linhas contém um identificador
+    // terminado em `Error` e NENHUMA delas é a consulta de uma leitura que falhou. Se alguém
+    // reintroduzir `\b[a-z]\w*Error\b` em `consultaErro`, este caso fica vermelho.
+    expect(consultaErro('cloudFetch(url, {}, { throwOnError: true });')).toBe(false);
+    expect(consultaErro('useMutation({ mutationFn: f, onError: toast });')).toBe(false);
+    expect(consultaErro('const copy = formatDeployError(step);')).toBe(false);
+    expect(consultaErro('{validacao.nameError !== null ? <FormField.Error /> : null}')).toBe(false);
   });
 
   it('B-243 — LIMITE DECLARADO: a frase em PROSA excusa o arquivo, e isso é sabido', () => {

@@ -80,13 +80,13 @@ function CapabilityCard({ path, label, icon: Icon, disponivel }: CapabilityCardP
 
   const estado = sinal
     ? estadoDaCapacidade(sinal, {
-        falhou: consulta.error,
-        carregando: consulta.loading,
+        failed: consulta.error,
+        loading: consulta.loading,
         dados: consulta.data,
       })
     : null;
 
-  const conteudo = (
+  const content = (
     <>
       <div className="flex items-start gap-2.5">
         {Icon ? <Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden={true} /> : null}
@@ -112,10 +112,10 @@ function CapabilityCard({ path, label, icon: Icon, disponivel }: CapabilityCardP
         <Card.Body className="p-4">
           {disponivel ? (
             <Link to={path} className="block focus-visible:outline-none">
-              {conteudo}
+              {content}
             </Link>
           ) : (
-            conteudo
+            content
           )}
         </Card.Body>
       </Card>

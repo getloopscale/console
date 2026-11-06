@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -9,11 +8,12 @@ import {
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
-import { cloudFetch } from '@/lib/http/api';
-
-interface TagsResult {
-  tags: string[];
-}
+import {
+  useTraceTags,
+  useAddTraceTag,
+  useRemoveTraceTag,
+  useAddTraceAnnotation,
+} from '@/hooks/lens/use-trace-metadata';
 
 export interface MetadataCardProps {
   /** The open trace's id — drives the tags/annotations reads + writes. */
@@ -29,50 +29,17 @@ export interface MetadataCardProps {
  * Behavior-preserving in Phase 0 — still a Card (the Sheet swap is M59 Phase 1).
  */
 export function MetadataCard({ traceId, onClose }: MetadataCardProps) {
-  const queryClient = useQueryClient();
   const [tag, setTag] = useState('');
   const [note, setNote] = useState('');
   const [pendingTag, setPendingTag] = useState<string | null>(null);
 
-  const tagsKey = ['cloud', '/v1/dashboard/lens/traces', traceId, 'tags'] as const;
-  const tags = useQuery({
-    queryKey: tagsKey,
-    queryFn: () => cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/tags`, {}, { throwOnError: true }),
-  });
-  const invalidateTags = () => void queryClient.invalidateQueries({ queryKey: tagsKey });
+  const tags = useTraceTags(traceId);
 
-  const addTag = useMutation({
-    mutationFn: (t: string) =>
-      cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/tags`, {
-        method: 'POST',
-        body: JSON.stringify({ tag: t }),
-      }),
-    onSuccess: () => {
-      setTag('');
-      invalidateTags();
-    },
-  });
+  const addTag = useAddTraceTag(traceId);
 
-  const removeTag = useMutation({
-    mutationFn: (t: string) =>
-      cloudFetch<TagsResult>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/tags?tag=${encodeURIComponent(t)}`,
-        { method: 'DELETE' },
-      ),
-    onSuccess: () => {
-      setPendingTag(null);
-      invalidateTags();
-    },
-  });
+  const removeTag = useRemoveTraceTag(traceId);
 
-  const addAnnotation = useMutation({
-    mutationFn: (n: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/annotations`, {
-        method: 'POST',
-        body: JSON.stringify({ note: n }),
-      }),
-    onSuccess: () => setNote(''),
-  });
+  const addAnnotation = useAddTraceAnnotation(traceId);
 
   const currentTags = tags.data?.tags ?? [];
 
@@ -92,7 +59,10 @@ export function MetadataCard({ traceId, onClose }: MetadataCardProps) {
                 className="flex items-end gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (tag.trim()) addTag.mutate(tag.trim());
+                  // O `setTag('')` vive AQUI e não num `onSuccess` do hook porque limpar o campo
+                  // é decisão da tela, não do endpoint. E ele só roda no sucesso: uma etiqueta
+                  // recusada mantém o que o usuário digitou, em vez de limpar e não salvar.
+                  if (tag.trim()) addTag.mutate(tag.trim(), { onSuccess: () => { setTag(''); } });
                 }}
               >
                 <div className="flex-1">
@@ -117,7 +87,9 @@ export function MetadataCard({ traceId, onClose }: MetadataCardProps) {
               className="flex items-end gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (note.trim()) addAnnotation.mutate(note.trim());
+                // Idem, e aqui custa mais: a nota é TEXTO QUE O USUÁRIO ESCREVEU. Limpar antes de
+                // saber que salvou destrói trabalho sem erro e sem rascunho a recuperar.
+                if (note.trim()) addAnnotation.mutate(note.trim(), { onSuccess: () => { setNote(''); } });
               }}
             >
               <div className="flex-1">
@@ -141,7 +113,13 @@ export function MetadataCard({ traceId, onClose }: MetadataCardProps) {
           cancelLabel="Cancel"
           intent="destructive"
           loading={removeTag.isPending}
-          onConfirm={() => removeTag.mutate(pendingTag)}
+          onConfirm={async () => {
+            // `mutateAsync`, não `mutate`: o `ConfirmDialog` dá `await` no `onConfirm` e só assim
+            // uma recusa o mantém aberto com o motivo (B-105). Com `mutate` a rejeição é engolida
+            // e o diálogo fecha sobre uma remoção que não aconteceu.
+            await removeTag.mutateAsync(pendingTag);
+            setPendingTag(null);
+          }}
         />
       ) : null}
     </>

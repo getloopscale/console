@@ -26,12 +26,12 @@ describe('o aviso de truncamento', () => {
     // ninguém lê, e ele passaria a esconder o caso real.
     // Afirmado pelo papel, e não por `container` vazio: o helper de render monta os providers
     // (Toaster, tema), então o container nunca está vazio e a asserção passaria a medir o wrapper.
-    render(<ListTruncationNotice temMais={false} total={12} substantivo="views" />);
+    render(<ListTruncationNotice hasMore={false} total={12} substantivo="views" />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('diz quantas está mostrando, e que há mais', () => {
-    render(<ListTruncationNotice temMais={true} total={100} substantivo="views" />);
+    render(<ListTruncationNotice hasMore={true} total={100} substantivo="views" />);
 
     const texto = screen.getByRole('status').textContent ?? '';
     // O número importa: "há mais" sozinho não diz ao usuário onde ele está. Ver 100 e saber que
@@ -44,7 +44,7 @@ describe('o aviso de truncamento', () => {
     // `role="status"` (aria-live polite) e não `alert`: a lista carregou com sucesso. Interromper
     // a leitura para dizer "mostrando os primeiros 100" trata uma informação de contexto como
     // urgência.
-    render(<ListTruncationNotice temMais={true} total={100} substantivo="keys" />);
+    render(<ListTruncationNotice hasMore={true} total={100} substantivo="keys" />);
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 });

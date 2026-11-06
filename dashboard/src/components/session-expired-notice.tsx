@@ -31,9 +31,9 @@ export function SessionExpiredNotice() {
   const [redirecionouFalhou, setRedirecionouFalhou] = useState(false);
 
   useEffect(() => {
-    const aoExpirar = () => { setVisivel(true); };
-    window.addEventListener('theo:session-expired', aoExpirar);
-    return () => { window.removeEventListener('theo:session-expired', aoExpirar); };
+    const onExpire = () => { setVisivel(true); };
+    window.addEventListener('theo:session-expired', onExpire);
+    return () => { window.removeEventListener('theo:session-expired', onExpire); };
   }, []);
 
   useEffect(() => {
@@ -45,9 +45,9 @@ export function SessionExpiredNotice() {
     // "não deu certo" por cima de um redirect que ainda ia acontecer — e, ao contrário, uma
     // recusa que `safeNavigator.goTo` relatou no ato só aparecia 1,5 s depois. A informação
     // fluía para trás: a camada que SABE ficava calada e a que NÃO PODE saber adivinhava.
-    const aoRecusar = () => { setRedirecionouFalhou(true); };
-    window.addEventListener('theo:session-redirect-refused', aoRecusar);
-    return () => { window.removeEventListener('theo:session-redirect-refused', aoRecusar); };
+    const onReject = () => { setRedirecionouFalhou(true); };
+    window.addEventListener('theo:session-redirect-refused', onReject);
+    return () => { window.removeEventListener('theo:session-redirect-refused', onReject); };
   }, []);
 
   if (!visivel) return null;

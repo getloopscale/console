@@ -1,7 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { Card, Histogram, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetch } from '@/lib/http/api';
+import { useTracesSample, DURATION_SAMPLE } from '@/hooks/lens/use-traces-sample';
 import { formatDuration } from '@/lib/formatting/format';
 import type { Trace } from '../traces/columns';
 
@@ -12,9 +11,6 @@ import type { Trace } from '../traces/columns';
  * trace with no finite `durationMs` is DROPPED — never binned as 0 (M59 R2 data-honesty).
  */
 
-interface TracesResult {
-  traces: Trace[];
-}
 
 /** The finite `durationMs` values from the traces list (drops absent / NaN / ±Infinity — no fabricated 0). */
 export function durationsFromTraces(traces: Trace[]): number[] {
@@ -28,26 +24,10 @@ export function durationsFromTraces(traces: Trace[]): number[] {
 /** How many equal-width bins the duration histogram uses (Histogram degrades gracefully below this). */
 const DURATION_BIN_COUNT = 12;
 
-/**
- * B-024 (classe) — o histograma le uma AMOSTRA de traces, e traces crescem sem
- * parar. Sem teto o componente baixava a lista inteira para derivar 12 barras.
- *
- * 500 e o suficiente para a forma da distribuicao estabilizar num histograma de
- * 12 bins. O titulo diz o tamanho da amostra: um histograma sobre amostra sem
- * declarar o n convida a leitura errada.
- */
-const DURATION_SAMPLE = 500;
 
 export function DurationHistogram() {
   // The current-view traces (the board's default window). Reuses the shared traces read — no new endpoint.
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', 'dashboards-duration'] as const,
-    queryFn: () => cloudFetch<TracesResult>(
-        `/v1/dashboard/lens/traces?limit=${DURATION_SAMPLE}`,
-        {},
-        { throwOnError: true },
-      ),
-  });
+  const query = useTracesSample<Trace>();
 
   if (query.isPending) {
     return <Skeleton className="h-44 w-full" aria-label="Loading trace durations" />;

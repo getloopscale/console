@@ -1,6 +1,5 @@
 import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { LayoutDashboard } from 'lucide-react';
 import {
@@ -25,11 +24,17 @@ import { DurationHistogram } from './dashboards/duration-histogram';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import {
+  useDashboardList,
+  useDashboard,
+  useCreateDashboard,
+  useSaveDashboard,
+  useDeleteDashboard,
+  type DashboardRow as DashboardRowOf,
+} from '@/hooks/lens/use-dashboards';
 import { formatCost, formatDuration, formatNumber } from '@/lib/formatting/format';
 import { TrendChart } from '@usetheo/ui';
-import type { TrafficBucket, LatencyBucket, ModelBucket } from '@/pages/lens/components/lens-series';
+import { useObservability, type ObservabilityRange } from '@/hooks/lens/use-observability';
 import {
   TRACING_OVERVIEW_TEMPLATE,
   WIDGET_TYPES,
@@ -60,18 +65,7 @@ import {
  * typed Alert, never a fabricated board.
  */
 
-interface DashboardRow {
-  id: string;
-  name: string;
-  config: Widget[];
-  createdBy?: string;
-  createdAt?: string;
-}
-interface ObservabilityResult {
-  traffic: TrafficBucket[];
-  latency: LatencyBucket[];
-  tokensByModel: ModelBucket[];
-}
+type DashboardRow = DashboardRowOf<Widget>;
 /** Map an API error's HTTP status to a typed, actionable message (fail-closed). */
 function errorMessage(err: unknown): string {
   return lensErrorMessage(
@@ -181,10 +175,13 @@ export function LensDashboardsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Dashboards'), [setPageTitle]);
   useRequireAuth();
-  const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const boardId = params.get('board') ?? '';
-  const [range] = useState('24h');
+  // Typed as the whitelisted union rather than a bare string: theo-lens 400s on anything outside
+  // `OBSERVABILITY_RANGES`, and until this read moved behind the hook the compiler had no way to
+  // say so. There is no range picker on this screen yet — when one is added, an invalid option
+  // fails to compile instead of failing at the endpoint.
+  const [range] = useState<ObservabilityRange>('24h');
 
   // Draft edit state (null = view mode).
   const [draft, setDraft] = useState<{ name: string; widgets: Widget[] } | null>(null);
@@ -192,68 +189,31 @@ export function LensDashboardsPage() {
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<DashboardRow | null>(null);
 
-  const listQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] as const,
-    queryFn: () => cloudFetch<{ dashboards: DashboardRow[] }>(`/v1/dashboard/lens/dashboards?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
-  const boardQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/dashboards', boardId] as const,
-    queryFn: () => cloudFetch<DashboardRow>(`/v1/dashboard/lens/dashboards/${encodeURIComponent(boardId)}`, {}, { throwOnError: true }),
-    enabled: boardId.length > 0,
-  });
+  const listQuery = useDashboardList<Widget>();
+  const boardQuery = useDashboard<Widget>(boardId);
 
   // The ONE shared, range-scoped fetch every widget binds against (no per-widget fan-out). The cost
   // KPI derives from this same fetch's `tokensByModel` so the whole board shares one time window —
   // the previous separate all-time `/cost` fetch made the cost KPI disagree with the cost trend.
-  const obs = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/observability', range] as const,
-    queryFn: () => cloudFetch<ObservabilityResult>(`/v1/dashboard/lens/observability?range=${range}`, {}, { throwOnError: true }),
-    enabled: boardId.length > 0,
-  });
+  const obs = useObservability(range);
   const data: BoardData = {
     ...(obs.data ? { observability: obs.data } : {}),
   };
   const dataError = obs.isError;
 
-  const create = useMutation({
-    mutationFn: (board: { name: string; config: Widget[] }) =>
-      cloudFetch<DashboardRow>('/v1/dashboard/lens/dashboards', { method: 'POST', body: JSON.stringify(board) }, { throwOnError: true }),
-    retry: false,
-    onSuccess: (row) => {
-      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] });
-      if (row) setParams({ board: row.id });
-    },
-  });
-  const save = useMutation({
-    mutationFn: (board: { name: string; config: Widget[] }) =>
-      cloudFetch<DashboardRow>(`/v1/dashboard/lens/dashboards/${encodeURIComponent(boardId)}`, { method: 'PUT', body: JSON.stringify(board) }, { throwOnError: true }),
-    retry: false,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/dashboards', boardId] });
-      setDraft(null);
-    },
-  });
-  // M75 — rename a board from the list. PUT is a full replace, so echo the row's config back to
-  // avoid blanking its widgets (Drawbacks R2).
-  const rename = useMutation({
-    mutationFn: (b: { id: string; name: string; config: Widget[] }) =>
-      cloudFetch<DashboardRow>(`/v1/dashboard/lens/dashboards/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ name: b.name, config: b.config }) }, { throwOnError: true }),
-    retry: false,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] });
-      setRenaming(null);
-    },
-  });
-  // M75 — delete a board from the list (existing cloud DELETE verb).
-  const remove = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<void>(`/v1/dashboard/lens/dashboards/${encodeURIComponent(id)}`, { method: 'DELETE' }, { throwOnError: true }),
-    retry: false,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] });
-      setPendingDelete(null);
-    },
-  });
+  const create = useCreateDashboard<Widget>();
+  const createBoard = (board: { name: string; config: Widget[] }) =>
+    create.mutate(board, { onSuccess: (row) => { if (row) setParams({ board: row.id }); } });
+
+  const save = useSaveDashboard<Widget>();
+  const saveBoard = (board: { name: string; config: Widget[] }) =>
+    save.mutate({ id: boardId, ...board }, { onSuccess: () => setDraft(null) });
+
+  // M75 — rename a board from the list. PUT is a full replace, so the row's config is echoed back
+  // to avoid blanking its widgets (Drawbacks R2); `useSaveDashboard` is where that rule lives.
+  const rename = save;
+
+  const remove = useDeleteDashboard();
   const commitRename = () => {
     if (!renaming) return;
     const row = (listQuery.data?.dashboards ?? []).find((b) => b.id === renaming.id);
@@ -262,7 +222,7 @@ export function LensDashboardsPage() {
       setRenaming(null);
       return;
     }
-    rename.mutate({ id: row.id, name, config: row.config });
+    rename.mutate({ id: row.id, name, config: row.config }, { onSuccess: () => setRenaming(null) });
   };
 
   // ── List view (no board selected) ──────────────────────────────────────────
@@ -280,7 +240,7 @@ export function LensDashboardsPage() {
             title="No dashboards yet"
             description="Start from the Tracing Overview template — a KPI strip, a traffic trend, and top models by cost."
             action={
-              <Button onClick={() => create.mutate({ name: nextBoardName([]), config: TRACING_OVERVIEW_TEMPLATE })} disabled={create.isPending}>
+              <Button onClick={() => createBoard({ name: nextBoardName([]), config: TRACING_OVERVIEW_TEMPLATE })} disabled={create.isPending}>
                 {create.isPending ? 'Creating…' : 'Start from Tracing Overview'}
               </Button>
             }
@@ -289,7 +249,7 @@ export function LensDashboardsPage() {
           <div className="space-y-2">
             <Button
               size="sm"
-              onClick={() => create.mutate({ name: nextBoardName(boards.map((b) => b.name)), config: TRACING_OVERVIEW_TEMPLATE })}
+              onClick={() => createBoard({ name: nextBoardName(boards.map((b) => b.name)), config: TRACING_OVERVIEW_TEMPLATE })}
               disabled={create.isPending}
             >
               + New from template
@@ -362,7 +322,7 @@ export function LensDashboardsPage() {
           intent="destructive"
           loading={remove.isPending}
           onConfirm={() => {
-            if (pendingDelete) remove.mutate(pendingDelete.id);
+            if (pendingDelete) remove.mutate(pendingDelete.id, { onSuccess: () => setPendingDelete(null) });
           }}
         />
       </PageShell>
@@ -385,7 +345,7 @@ export function LensDashboardsPage() {
         {editing ? (
           <>
             <Button variant="ghost" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
-            <Button size="sm" disabled={!!validationError || save.isPending} onClick={() => save.mutate({ name: draft.name, config: draft.widgets })}>
+            <Button size="sm" disabled={!!validationError || save.isPending} onClick={() => saveBoard({ name: draft.name, config: draft.widgets })}>
               {save.isPending ? 'Saving…' : 'Save'}
             </Button>
           </>

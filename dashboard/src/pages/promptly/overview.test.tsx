@@ -47,7 +47,7 @@ describe('PromptlyOverviewPage', () => {
   // passaria com 10, 100 ou "0 de 40" — e no teste cuja razão de existir é distinguir zero
   // verdadeiro de zero fabricado, o assert mais frouxo possível é o errado (TA-08).
   it('mostra quantos prompts o workspace tem', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -55,7 +55,7 @@ describe('PromptlyOverviewPage', () => {
   });
 
   it('responde "o que escrevi e não está no ar" — o número que traz o operador ao painel', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -64,7 +64,7 @@ describe('PromptlyOverviewPage', () => {
   });
 
   it('marca os números como parciais quando o serviço sinaliza continuação', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: true });
 
     render(<PromptlyOverviewPage />);
 
@@ -79,7 +79,7 @@ describe('PromptlyOverviewPage', () => {
       labels: [{ label: 'prod', version: 1 }],
       updatedAt: '2026-08-01T10:00:00Z',
     }));
-    mockPage.mockResolvedValue({ data: cheio, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: cheio, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -112,7 +112,7 @@ describe('PromptlyOverviewPage', () => {
   // EC-8 — zeros aqui são a VERDADE (leu e não há), ao contrário do caso de falha acima. A
   // distinção só fica visível com os dois testes lado a lado.
   it('catálogo vazio mostra zeros E oferece criar', async () => {
-    mockPage.mockResolvedValue({ data: [], temContinuacao: false });
+    mockPage.mockResolvedValue({ data: [], hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -123,7 +123,7 @@ describe('PromptlyOverviewPage', () => {
   // FE-03 — num workspace vazio, `naoPromovidos` também é 0, e a tela afirmava "toda última
   // revisão está servindo pelo menos um ambiente" sobre revisões que não existem.
   it('workspace vazio NÃO afirma nada sobre revisões que não existem', async () => {
-    mockPage.mockResolvedValue({ data: [], temContinuacao: false });
+    mockPage.mockResolvedValue({ data: [], hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -146,7 +146,7 @@ describe('PromptlyOverviewPage', () => {
   // ARCH-08 — o KPI somava TODAS as revisões escritas, inclusive as que o cartão vizinho
   // classifica como não promovidas. Dois números lado a lado se contradiziam.
   it('nomeia o KPI pelo que ele de fato conta', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -155,7 +155,7 @@ describe('PromptlyOverviewPage', () => {
   });
 
   it('leva ao catálogo em um clique', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -170,7 +170,7 @@ describe('PromptlyOverviewPage', () => {
  */
 describe('PromptlyOverviewPage — cada número leva à lista', () => {
   it('o KPI de total leva ao catálogo inteiro', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -182,7 +182,7 @@ describe('PromptlyOverviewPage — cada número leva à lista', () => {
   // distintos. Inventar destino para eles seria pior que a ausência, e este teste trava a decisão
   // para que ela não vire esquecimento.
   it('os KPIs agregados NÃO fingem ter uma lista correspondente', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -192,7 +192,7 @@ describe('PromptlyOverviewPage — cada número leva à lista', () => {
   });
 
   it('o KPI de não promovidos leva ao catálogo já recortado', async () => {
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 
@@ -210,7 +210,7 @@ describe('the chart under the counts (B-129)', () => {
     // The `Environments` card says how MANY. It does not say WHICH, nor that one of them serves
     // everything while another serves one prompt — and that is what tells an operator where a bad
     // promotion would land.
-    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockPage.mockResolvedValue({ data: CATALOGO, hasContinuation: false });
 
     render(<PromptlyOverviewPage />);
 

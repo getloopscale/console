@@ -20,14 +20,14 @@ import { Badge, Timestamp, type DataTableColumn } from '@usetheo/ui';
  * o oposto do ganho. O que era mesmo conhecimento compartilhado — a forma da entrega, o tom por
  * status, quando reenviar, o diálogo de cadastro e estas colunas — está compartilhado.
  */
-export interface WebhookLinha {
+export interface WebhookRow {
   readonly label: string;
   readonly url: string;
   readonly events: readonly string[];
   readonly created_at?: string;
 }
 
-export function colunasDeWebhook<T extends WebhookLinha>(): DataTableColumn<T>[] {
+export function colunasDeWebhook<T extends WebhookRow>(): DataTableColumn<T>[] {
   return [
     { key: 'label', label: 'Label', render: (row) => <span className="font-medium">{row.label}</span> },
     {

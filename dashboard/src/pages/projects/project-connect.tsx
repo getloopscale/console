@@ -7,14 +7,16 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { engineFetch } from '@/lib/http/api';
+import {
+  fetchInstallationRepositories,
+  connectProjectRepository,
+  disconnectProjectRepository,
+} from '@/hooks/projects/github-connect';
 import { derivarConexaoEfetiva, derivarEstado } from '@/hooks/projects/connect-fsm';
 import type { ConnectState } from '@/hooks/projects/connect-fsm';
 import { safeNavigator } from '@/lib/navigation';
 import type {
-  InstallationRepositoriesResponse,
   InstallationRepository,
-  ProjectConnection,
 } from '@/lib/api/types';
 
 /**
@@ -50,7 +52,7 @@ const POLL_TIMEOUT_MS = 5 * 60 * 1_000; // 5 min cap (EC-3 cancel guard)
  * recomeçaria. Uma peça de estado a menos, e ela já é reiniciada no lugar certo
  * — `handleInstallClick`, que sempre limpou o `installError`.
  */
-const MENSAGEM_PRAZO_DO_INSTALL =
+const INSTALL_DEADLINE_MESSAGE =
   "We didn't see the GitHub install complete. Try again from the install button.";
 const VISIBILITY_DEBOUNCE_MS = 500;
 
@@ -138,7 +140,7 @@ export function ProjectConnectPage() {
   useEffect(() => {
     if (state !== 'installing') return;
     const id = window.setTimeout(
-      () => setInstallError(MENSAGEM_PRAZO_DO_INSTALL),
+      () => setInstallError(INSTALL_DEADLINE_MESSAGE),
       POLL_TIMEOUT_MS,
     );
     return () => window.clearTimeout(id);
@@ -178,9 +180,7 @@ export function ProjectConnectPage() {
     let cancelled = false;
     setReposError(null);
     setRepos(null);
-    void engineFetch<InstallationRepositoriesResponse>(
-      `/api/v1/integrations/github/installations/${installationID}/repositories`,
-    )
+    void fetchInstallationRepositories(installationID)
       .then((data) => {
         if (cancelled) return;
         setRepos(data?.repositories ?? []);
@@ -216,10 +216,7 @@ export function ProjectConnectPage() {
     setBusy(true);
     setDisconnectError(null);
     try {
-      await engineFetch(
-        `/api/v1/projects/${encodeURIComponent(name)}/connect`,
-        { method: 'DELETE' },
-      );
+      await disconnectProjectRepository(name);
       await conexao.refetch();
       setDisconnectOpen(false);
     } catch (e) {
@@ -261,18 +258,12 @@ export function ProjectConnectPage() {
     }
     setBusy(true);
     try {
-      const res = await engineFetch<ProjectConnection>(
-        `/api/v1/projects/${encodeURIComponent(name)}/connect`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            repo: repoSlug,
-            installation_id: effectiveConn.installation_id,
-            branch,
-            auto_deploy: autoDeploy,
-          }),
-        },
-      );
+      const res = await connectProjectRepository(name, {
+        repo: repoSlug,
+        installation_id: effectiveConn.installation_id,
+        branch,
+        auto_deploy: autoDeploy,
+      });
       if (res === null) {
         setConnectError(
           "Couldn't connect repository. Try again in a moment.",

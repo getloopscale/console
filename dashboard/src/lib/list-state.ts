@@ -4,7 +4,7 @@
 import { AlertTriangle, type LucideIcon } from 'lucide-react';
 
 /** O descritor que `PageShell` aceita em `empty`. */
-export interface EstadoVazio {
+export interface EmptyStateCopy {
   icon: LucideIcon;
   title: string;
   description?: string;
@@ -46,15 +46,15 @@ export interface EstadoVazio {
  * As duas formas são aceitas pelo guarda em `list-state.test.ts`; escolha por página.
  */
 export function estadoDaLista(
-  { erro, vazio }: { erro: boolean; vazio: EstadoVazio | undefined },
+  { failure, empty }: { failure: boolean; empty: EmptyStateCopy | undefined },
   recurso: string,
-): EstadoVazio | undefined {
+): EmptyStateCopy | undefined {
   // `vazio === undefined` significa que a lista TEM linhas — `PageShell` nao mostra nada.
   // Um erro de refetch por cima de dados velhos e outra decisao (uma tarja, nao um estado
   // vazio), e nao e esta funcao que a toma. So substituimos a mensagem quando o usuario
   // veria a afirmacao de ausencia.
-  if (vazio === undefined) return undefined;
-  if (!erro) return vazio;
+  if (empty === undefined) return undefined;
+  if (!failure) return empty;
   return {
     icon: AlertTriangle,
     title: `Could not read ${recurso}`,

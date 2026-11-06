@@ -4,9 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Mock the auth helpers before importing the hook so the EventSource
 // constructor is wrapped with our stub.
 vi.mock('@/lib/http/api', () => ({
-  ensureSSEToken: vi.fn(async () => 'tok-1'),
-  clearToken: vi.fn(),
-  hasValidToken: vi.fn(() => true),
+  signOutIfSessionEnded: vi.fn(async () => false),
   engineFetch: vi.fn(),
   cloudFetch: vi.fn(),
 }));
@@ -16,7 +14,7 @@ vi.mock('@/lib/http/config', () => ({
 }));
 
 import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
-import { clearToken } from '@/lib/http/api';
+import { signOutIfSessionEnded } from '@/lib/http/api';
 import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 import type { StreamEndReason } from '@/hooks/deploy/stream-end-reason';
 
@@ -42,8 +40,8 @@ class MockEventSource {
   /** B-088 — o fake recebe as OPCOES agora: o token e o cursor de retomada
    * saíram da URL e viajam em header. Guardá-las é o que permite assertar sobre
    * eles sem reintroduzir a asserção sobre a query, que é o defeito. */
-  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
-  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+  opcoes: { lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { lastEventId?: string | null }) {
     this.opcoes = opcoes;
     this.url = url;
     MockEventSource.instances.push(this);
@@ -253,7 +251,7 @@ describe('useSSEStream', () => {
       () => expect(MockEventSource.instances.length).toBe(2),
       { timeout: 4000 },
     );
-    expect(clearToken).not.toHaveBeenCalled();
+    expect(signOutIfSessionEnded).not.toHaveBeenCalled();
   });
 
   it('test_um_unico_erro_FATAL_dispara_recuperacao_de_token_B014', async () => {
@@ -266,7 +264,7 @@ describe('useSSEStream', () => {
       es.triggerFatalError(401);
     });
 
-    await waitFor(() => expect(clearToken).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(signOutIfSessionEnded).toHaveBeenCalledTimes(1));
     await waitFor(
       () => expect(MockEventSource.instances.length).toBe(2),
       { timeout: 4000 },
@@ -293,7 +291,7 @@ describe('useSSEStream', () => {
       () => expect(MockEventSource.instances.length).toBe(2),
       { timeout: 4000 },
     );
-    expect(clearToken).not.toHaveBeenCalled();
+    expect(signOutIfSessionEnded).not.toHaveBeenCalled();
   });
 
   it('test_lastEventID_propaga_na_RECONEXAO_por_header_EC9', async () => {
@@ -356,7 +354,7 @@ describe('B-160 — fim limpo de stream não é falha de credencial', () => {
     });
 
     await new Promise((r) => setTimeout(r, 60));
-    expect(clearToken).not.toHaveBeenCalled();
+    expect(signOutIfSessionEnded).not.toHaveBeenCalled();
   });
 
   it('test_repeated_clean_closes_never_clear_the_token', async () => {
@@ -373,7 +371,7 @@ describe('B-160 — fim limpo de stream não é falha de credencial', () => {
 
     // Cinco encerramentos limpos e o token da aba segue intacto. Antes eram cinco
     // trocas de token.
-    expect(clearToken).not.toHaveBeenCalled();
+    expect(signOutIfSessionEnded).not.toHaveBeenCalled();
   });
 });
 
@@ -384,7 +382,10 @@ describe('B-221/B-224 — identidade estável e carimbo que não se move', () =>
     const { result, rerender } = renderHook(() =>
       useSSEStream('/api/v1/test', { eventTypes: ['x'] }),
     );
-    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    // Wait for the SETTLED state, not just the instance: the stream opens synchronously since
+    // usetheoai/theo#477 (no token to await first), so `onopen` can still flip `connected` after
+    // the instance exists — and a value that changes must change the handle.
+    await waitFor(() => expect(result.current.connected).toBe(true));
 
     const antes = result.current;
     rerender();

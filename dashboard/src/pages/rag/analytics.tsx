@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useCollections } from '@/hooks/rag/use-collections';
 import { Card, MetricCard, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import { useRagAnalytics, type ScaleObservability } from '@/hooks/rag/use-rag-analytics';
 
 /**
  * M21 + v8-M7 — /rag/analytics. Read-only usage/cost/latency for the caller's workspace,
@@ -19,20 +18,6 @@ import { cloudFetch } from '@/lib/http/api';
  */
 
 
-interface AnalyticsResult {
-  window: { since: string };
-  totals: { retrievals: number; answers: number; empty_retrieval_rate: number };
-  latency: { p50_ms: number; p95_ms: number };
-  confidence: { high: number; medium: number; low: number };
-  scale?: ScaleObservability;
-}
-
-interface ScaleObservability {
-  collection_id: string;
-  corpus: { documents: number; chunks: number; size_bytes: number };
-  communities: { total: number; max_level: number; per_level: Record<string, number> };
-  extraction: { tokens: number };
-}
 
 const NUMBER_FORMAT = new Intl.NumberFormat('en-US');
 function fmt(n: number): string {
@@ -54,16 +39,7 @@ export function RagAnalyticsPage() {
 
   const collectionsQuery = useCollections();
 
-  // When a collection is picked, the fetch key changes AND the URL carries
-  // `?collection_id=` — theo-rag rc.80+ attaches the `scale` block only then.
-  const analyticsPath = collectionID
-    ? `/v1/dashboard/rag/analytics?collection_id=${encodeURIComponent(collectionID)}`
-    : '/v1/dashboard/rag/analytics';
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/analytics', collectionID] as const,
-    // silent-null-ok: ESTE hook mapeia `null` resolvido para o campo `error` que ele devolve (`isError || (isFetched && data === null)`), entao a falha nao se perde AQUI. B-094: isso NAO garante que a tela leia esse `error` — medi e varias nao liam, e o onboarding chegava a afirmar 'faca login' a quem estava logado. Quem consome este hook e responsavel por ler `error`; o marcador cobre so a metade de cima. #274
-    queryFn: () => cloudFetch<AnalyticsResult>(analyticsPath),
-  });
+  const query = useRagAnalytics(collectionID);
 
   const collections = collectionsQuery.data?.items ?? [];
 

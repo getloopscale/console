@@ -182,7 +182,9 @@ services:
     environment:
       THEO_ENV: dev
       CLOUD_LISTEN_ADDR: ":13002"
-      DATABASE_URL: postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable
+      # The non-owner role (sql/02-theo-cloud-role.sql): theo-cloud refuses to serve as
+      # the owner, which holds DDL and an unnamed cross-tenant privilege.
+      DATABASE_URL: postgres://theo_cloud:theo_cloud@pg-cloud:5432/theo?sslmode=disable
       THEMORY_BASE_URL: http://themory:8080
       THEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
       # M6: Model-B control-plane credential the broker mints per-tenant keys with.

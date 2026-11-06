@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { Brain, Search } from 'lucide-react';
 import { Badge, Button, Card, Input, PageShell, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ReflectCard } from '@/pages/memory/reflect-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import { useRemember, useRecall } from '@/hooks/memory/use-playground';
 
 /**
  * Plan theo-memory-dashboard-full-integration, T3.1 (ADR D5).
@@ -23,21 +22,6 @@ import { cloudFetch } from '@/lib/http/api';
  *  - Reflect: button → POST reflect → passes through the provider result
  */
 
-interface RememberedItem {
-  id: string;
-  content: string;
-}
-interface RememberResult {
-  items: RememberedItem[];
-}
-interface RecallHit {
-  id: string;
-  content: string;
-  score: number;
-}
-interface RecallResult {
-  results: RecallHit[];
-}
 
 /**
  * Widen a `datetime-local` value (minute precision, no zone) to an RFC3339 UTC
@@ -60,20 +44,18 @@ export function PlaygroundPage() {
   const [rememberText, setRememberText] = useState('');
   const [rememberCategory, setRememberCategory] = useState('');
   const [rememberPeer, setRememberPeer] = useState(''); // attributedTo (v1.1)
-  const remember = useMutation({
-    mutationFn: async () => {
-      const peer = rememberPeer.trim(); // EC-2: whitespace-only is omitted
-      return cloudFetch<RememberResult>('/v1/dashboard/memory/remember', {
-        method: 'POST',
-        body: JSON.stringify({
-          text: rememberText,
-          ...(rememberCategory ? { category: rememberCategory } : {}),
-          ...(peer ? { attributedTo: peer } : {}),
-        }),
-      }, { throwOnError: true });
-    },
-    onSuccess: () => setRememberText(''),
-  });
+  const remember = useRemember();
+  const submitRemember = () => {
+    const peer = rememberPeer.trim(); // EC-2: whitespace-only is omitted
+    remember.mutate(
+      {
+        text: rememberText,
+        ...(rememberCategory ? { category: rememberCategory } : {}),
+        ...(peer ? { attributedTo: peer } : {}),
+      },
+      { onSuccess: () => setRememberText('') },
+    );
+  };
 
   // --- Recall panel ---
   const [recallQuery, setRecallQuery] = useState('');
@@ -83,21 +65,17 @@ export function PlaygroundPage() {
   // connected by a shared entity (1 hop) or relation edge (2 hops).
   const [graphExpandOn, setGraphExpandOn] = useState(false);
   const [graphExpandHops, setGraphExpandHops] = useState(1);
-  const recall = useMutation({
-    mutationFn: async () =>
-      cloudFetch<RecallResult>('/v1/dashboard/memory/recall', {
-        method: 'POST',
-        body: JSON.stringify({
-          query: recallQuery,
-          topK: 10,
-          // EC-1: <input type="datetime-local"> yields minute precision
-          // (YYYY-MM-DDTHH:mm, no step set) → append ":00Z"; if it ever carries
-          // seconds (length 19), append "Z". Treated as UTC (label says UTC).
-          ...(recallAsOf ? { asOf: toRfc3339Utc(recallAsOf) } : {}),
-          ...(graphExpandOn ? { graphExpand: { hops: graphExpandHops } } : {}),
-        }),
-      }, { throwOnError: true }),
-  });
+  const recall = useRecall();
+  const submitRecall = () =>
+    recall.mutate({
+      query: recallQuery,
+      topK: 10,
+      // EC-1: <input type="datetime-local"> yields minute precision (YYYY-MM-DDTHH:mm, no step
+      // set) → append ":00Z"; if it ever carries seconds (length 19), append "Z". Treated as UTC
+      // (the label says UTC).
+      ...(recallAsOf ? { asOf: toRfc3339Utc(recallAsOf) } : {}),
+      ...(graphExpandOn ? { graphExpand: { hops: graphExpandHops } } : {}),
+    });
 
   // --- Reflect panel ---
 
@@ -150,7 +128,7 @@ export function PlaygroundPage() {
                 />
               </div>
               <Button
-                onClick={() => remember.mutate()}
+                onClick={submitRemember}
                 disabled={remember.isPending || rememberText.trim() === ''}
               >
                 Remember
@@ -201,7 +179,7 @@ export function PlaygroundPage() {
                   onChange={(e) => setRecallQuery(e.target.value)}
                   placeholder="What does Paulo like to drink?"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && recallQuery.trim() !== '') recall.mutate();
+                    if (e.key === 'Enter' && recallQuery.trim() !== '') submitRecall();
                   }}
                 />
               </div>
@@ -242,7 +220,7 @@ export function PlaygroundPage() {
               </div>
               <Button
                 variant="secondary"
-                onClick={() => recall.mutate()}
+                onClick={submitRecall}
                 disabled={recall.isPending || recallQuery.trim() === ''}
               >
                 Recall

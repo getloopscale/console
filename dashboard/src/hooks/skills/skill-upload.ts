@@ -12,9 +12,9 @@
  */
 
 /** O que o formulário sabe fazer com um arquivo escolhido. */
-export type EscolhaDeArquivo =
-  | { readonly aceito: true; readonly nome: string; readonly bytes: number }
-  | { readonly aceito: false; readonly motivo: string };
+export type FileChoice =
+  | { readonly aceito: true; readonly name: string; readonly bytes: number }
+  | { readonly aceito: false; readonly reason: string };
 
 /**
  * Teto do zip, em bytes do ARQUIVO (não do base64).
@@ -25,7 +25,7 @@ export type EscolhaDeArquivo =
  *
  * 25 MiB × 4/3 ≈ 33 MB de base64 — dentro do teto, com margem para o resto do JSON.
  */
-export const TETO_ZIP_BYTES = 25 * 1024 * 1024;
+export const ZIP_BYTES_CEILING = 25 * 1024 * 1024;
 
 /**
  * Decide se o arquivo escolhido pode ser enviado.
@@ -33,29 +33,29 @@ export const TETO_ZIP_BYTES = 25 * 1024 * 1024;
  * A recusa NOMEIA o que fazer. "Arquivo inválido" faria o autor tentar o mesmo arquivo de novo —
  * o erro precisa dizer qual é a forma esperada, e no caso do tamanho, qual é o número.
  */
-export function avaliarArquivo(arquivo: { name: string; size: number } | null): EscolhaDeArquivo {
-  if (arquivo === null) {
-    return { aceito: false, motivo: 'Choose a .zip file containing the skill folder.' };
+export function evaluateFile(file: { name: string; size: number } | null): FileChoice {
+  if (file === null) {
+    return { aceito: false, reason: 'Choose a .zip file containing the skill folder.' };
   }
-  if (!arquivo.name.toLowerCase().endsWith('.zip')) {
+  if (!file.name.toLowerCase().endsWith('.zip')) {
     return {
       aceito: false,
-      motivo: `“${arquivo.name}” is not a .zip. Zip the skill folder — SKILL.md at its root, plus any scripts and assets — and upload that.`,
+      reason: `“${file.name}” is not a .zip. Zip the skill folder — SKILL.md at its root, plus any scripts and assets — and upload that.`,
     };
   }
   // Um zip vazio passa pela extensão e falha no registro com uma mensagem sobre estrutura. Barrar
   // aqui custa uma linha e evita uma viagem de rede para descobrir o óbvio.
-  if (arquivo.size === 0) {
-    return { aceito: false, motivo: `“${arquivo.name}” is empty.` };
+  if (file.size === 0) {
+    return { aceito: false, reason: `“${file.name}” is empty.` };
   }
-  if (arquivo.size > TETO_ZIP_BYTES) {
-    const mb = (arquivo.size / (1024 * 1024)).toFixed(1);
+  if (file.size > ZIP_BYTES_CEILING) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
     return {
       aceito: false,
-      motivo: `“${arquivo.name}” is ${mb} MB. The limit is 25 MB — the registry rejects anything larger once base64-encoded.`,
+      reason: `“${file.name}” is ${mb} MB. The limit is 25 MB — the registry rejects anything larger once base64-encoded.`,
     };
   }
-  return { aceito: true, nome: arquivo.name, bytes: arquivo.size };
+  return { aceito: true, name: file.name, bytes: file.size };
 }
 
 /**
@@ -65,7 +65,7 @@ export function avaliarArquivo(arquivo: { name: string; size: number } | null): 
  * argumentos do runtime (`RangeError: too many arguments`) — falha que só aparece com arquivo
  * grande, ou seja, exatamente no caso que motivou o recurso.
  */
-export function paraBase64(buffer: ArrayBuffer): string {
+export function toBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   const BLOCO = 0x8000;
   let binario = '';
@@ -82,11 +82,11 @@ export function paraBase64(buffer: ArrayBuffer): string {
  * seria descartado em silêncio — a skill entraria no acervo sem os scripts, com 202 e sem erro.
  * O BFF recusa esse par na fronteira; esta função garante que a tela nunca o monte.
  */
-export function corpoDaPublicacao(
+export function publicationBody(
   skillId: string,
-  fonte: { readonly tipo: 'markdown'; readonly conteudo: string } | { readonly tipo: 'zip'; readonly base64: string },
+  source: { readonly tipo: 'markdown'; readonly content: string } | { readonly tipo: 'zip'; readonly base64: string },
 ): Record<string, string> {
-  return fonte.tipo === 'zip'
-    ? { skill_id: skillId, zipped_filesystem: fonte.base64 }
-    : { skill_id: skillId, skill_md: fonte.conteudo };
+  return source.tipo === 'zip'
+    ? { skill_id: skillId, zipped_filesystem: source.base64 }
+    : { skill_id: skillId, skill_md: source.content };
 }

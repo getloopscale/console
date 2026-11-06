@@ -38,21 +38,21 @@ export function PlatformSignals() {
   const trust = useTrustEnforcement(LIST_SAFETY_CEILING);
 
   const leitura = {
-    observability: paraLeitura(observability),
-    rag: paraLeitura(rag),
-    trust: { falhou: trust.error, carregando: trust.loading, dados: trust.data ?? null },
+    observability: forReading(observability),
+    rag: forReading(rag),
+    trust: { failed: trust.error, loading: trust.loading, dados: trust.data ?? null },
   };
 
   const itens = attentionItems(leitura);
-  const alguemFalhou = [leitura.observability, leitura.rag, leitura.trust].some((r) => r.falhou);
-  const aindaLendo = [leitura.observability, leitura.rag, leitura.trust].some((r) => r.carregando);
+  const anyFailed = [leitura.observability, leitura.rag, leitura.trust].some((r) => r.failed);
+  const stillReading = [leitura.observability, leitura.rag, leitura.trust].some((r) => r.loading);
 
   return (
     <div className="space-y-6">
       <AttentionBand
         items={itens}
-        anyFailed={alguemFalhou}
-        stillReading={aindaLendo}
+        anyFailed={anyFailed}
+        stillReading={stillReading}
       />
       <SpendBand reading={leitura.observability} />
     </div>
@@ -60,8 +60,8 @@ export function PlatformSignals() {
 }
 
 /** O formato que `attention.ts` espera, a partir do que `useCloudApi` devolve. */
-function paraLeitura(q: { data: unknown; loading: boolean; error: boolean }): SignalReading {
-  return { falhou: q.error, carregando: q.loading, dados: q.data };
+function forReading(q: { data: unknown; loading: boolean; error: boolean }): SignalReading {
+  return { failed: q.error, loading: q.loading, dados: q.data };
 }
 
 /**
@@ -149,7 +149,7 @@ function AttentionBand({
  * requisição que caiu diria ao operador que os agentes não custaram nada.
  */
 function SpendBand({ reading }: { readonly reading: SignalReading }) {
-  const spend = reading.falhou || reading.carregando ? null : spendByModel(reading.dados);
+  const spend = reading.failed || reading.loading ? null : spendByModel(reading.dados);
   const maior = spend?.models[0]?.costUsd ?? 0;
 
   return (
@@ -159,9 +159,9 @@ function SpendBand({ reading }: { readonly reading: SignalReading }) {
       </h2>
       <Card>
         <Card.Body className="py-4">
-          {reading.falhou ? (
+          {reading.failed ? (
             <p className="text-sm text-warning">Couldn&apos;t read model spend.</p>
-          ) : reading.carregando ? (
+          ) : reading.loading ? (
             <span
               aria-busy="true"
               aria-label="Loading"

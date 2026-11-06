@@ -198,6 +198,8 @@ describe('LensTracesPage (/observability/traces)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/traces/tr_1/tags',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ tag: 'canary' }) }),
+      // B-244/B-235 — o contrato de erro. Sem ele a etiqueta recusada limpava o campo e sumia.
+      { throwOnError: true },
     );
   });
 
@@ -217,6 +219,8 @@ describe('LensTracesPage (/observability/traces)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/traces/tr_1/tags?tag=prod',
       expect.objectContaining({ method: 'DELETE' }),
+      // Idem: a remoção recusada fechava o diálogo e a etiqueta voltava.
+      { throwOnError: true },
     );
   });
 

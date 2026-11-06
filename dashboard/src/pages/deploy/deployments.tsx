@@ -19,7 +19,7 @@ import {
 } from '@usetheo/ui';
 import { humanizeAuthor } from '@/lib/formatting/format';
 import { estadoDaLista } from '@/lib/list-state';
-import { semDeploysAinda } from '@/pages/deploy/empty-states';
+import { noDeploysYet } from '@/pages/deploy/empty-states';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeploymentsListStream } from '@/hooks/deploy/use-deployments-list-stream';
@@ -171,7 +171,7 @@ export function DeploymentsPage() {
     }),
     [statusFilter, envFilter, pageLimit],
   );
-  const { builds, total, loading, fetching, refetch, error: erroDeLeitura } = useDeploymentsListStream(
+  const { builds, total, loading, fetching, refetch, error: readError } = useDeploymentsListStream(
     name,
     filtros,
   );
@@ -280,8 +280,8 @@ export function DeploymentsPage() {
       loading={loading}
       empty={estadoDaLista(
         {
-          erro: erroDeLeitura,
-          vazio: loading || builds.length > 0 ? undefined : semDeploysAinda(name),
+          failure: readError,
+          empty: loading || builds.length > 0 ? undefined : noDeploysYet(name),
         },
         'deployments',
       )}

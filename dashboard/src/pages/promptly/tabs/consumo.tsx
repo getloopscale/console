@@ -3,9 +3,9 @@ import { Button, Card } from '@usetheo/ui';
 import { copyToClipboard } from '@/lib/export/clipboard';
 import {
   INTERFACES,
-  gerarTrechoDeConsumo,
-  type Alvo,
-  type InterfaceDeConsumo,
+  buildConsumptionSnippet,
+  type Target,
+  type ConsumptionInterface,
 } from '@/pages/promptly/components/consumo';
 
 /**
@@ -19,10 +19,10 @@ import {
  * — porque "o código roda" é propriedade da string, e afirmá-la sobre a árvore renderizada faria o
  * teste passar no dia em que o trecho quebrasse.
  */
-export interface ConsumoTabProps {
-  readonly alvo: Alvo | null;
+export interface ConsumptionTabProps {
+  readonly target: Target | null;
   /** Falhou ao ler os ambientes? Então NÃO dá para dizer qual o trecho deve usar. */
-  readonly ambientesIlegiveis: boolean;
+  readonly unreadableEnvironments: boolean;
   /**
    * Falhou ao ler o prompt? Então não há trecho — e "Carregando…" mentiria para sempre.
    *
@@ -32,8 +32,8 @@ export interface ConsumoTabProps {
   readonly promptIlegivel: boolean;
 }
 
-export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: ConsumoTabProps) {
-  const [copiada, setCopiada] = useState<InterfaceDeConsumo['id'] | null>(null);
+export function ConsumptionTab({ target, unreadableEnvironments, promptIlegivel }: ConsumptionTabProps) {
+  const [copiada, setCopiada] = useState<ConsumptionInterface['id'] | null>(null);
 
   if (promptIlegivel) {
     return (
@@ -53,7 +53,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
     );
   }
 
-  if (ambientesIlegiveis) {
+  if (unreadableEnvironments) {
     // Sem saber quais ambientes este prompt serve, o gerador cairia para a versão — e entregaria
     // um trecho que CONGELA o consumidor numa revisão, silenciosamente, quando o certo seria o
     // ponteiro móvel. Um trecho errado é pior que trecho nenhum: ele é copiado.
@@ -74,7 +74,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
     );
   }
 
-  if (alvo === null) {
+  if (target === null) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
@@ -87,25 +87,25 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
           </Card.Title>
           <Card.Description>
             Each snippet already points at <strong>this</strong> prompt
-            {alvo.label !== null ? (
+            {target.label !== null ? (
               <>
                 {' '}
-                by the <code className="font-mono text-xs">{alvo.label}</code> environment — it
+                by the <code className="font-mono text-xs">{target.label}</code> environment — it
                 follows the promotion, with nothing for you to republish.
-                {!alvo.ambienteEProducao ? (
+                {!target.environmentIsProduction ? (
                   // A aba se chama "Como consumir" e o público é quem vai colar isto num serviço.
                   // Publicar `staging` sem dizer que não é produção é deixar supor o contrário.
                   <strong>
                     {' '}
                     Careful: this prompt does not serve production — the snippet points at{' '}
-                    <code className="font-mono text-xs">{alvo.label}</code>.
+                    <code className="font-mono text-xs">{target.label}</code>.
                   </strong>
                 ) : null}
               </>
             ) : (
               <>
                 {' '}
-                by version <code className="font-mono text-xs">v{alvo.ultimaVersao}</code>, because
+                by version <code className="font-mono text-xs">v{target.latestVersion}</code>, because
                 no environment points at it yet.
               </>
             )}
@@ -113,15 +113,15 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
         </Card.Header>
         <div className="space-y-4 p-4 pt-0">
           {INTERFACES.map((iface) => {
-            const trecho = gerarTrechoDeConsumo(iface.id, alvo);
+            const snippet = buildConsumptionSnippet(iface.id, target);
             return (
               <div key={iface.id} className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium">{iface.rotulo}</h3>
+                  <h3 className="text-sm font-medium">{iface.label}</h3>
                   <Button
                     variant="secondary"
                     size="sm"
-                    aria-label={`Copy the ${iface.rotulo} snippet`}
+                    aria-label={`Copy the ${iface.label} snippet`}
                     onClick={() => {
                       // `writeText` pode falhar (permissão negada, contexto inseguro). Falhar em
                       // silêncio deixaria o operador colando o que estava antes na área de
@@ -129,7 +129,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
                       // B-031 — mesmo motivo do live-url-hero: `navigator.clipboard`
                       // e undefined fora de contexto seguro, e o operador via a
                       // falha mesmo com o fallback de execCommand disponivel.
-                      void copyToClipboard(trecho)
+                      void copyToClipboard(snippet)
                         .then((ok) => {
                           if (!ok) throw new Error('copy failed');
                           setCopiada(iface.id);
@@ -148,7 +148,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
                   </Button>
                 </div>
                 <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">
-                  {trecho}
+                  {snippet}
                 </pre>
               </div>
             );

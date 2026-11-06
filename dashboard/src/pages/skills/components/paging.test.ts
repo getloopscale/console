@@ -1,6 +1,7 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { filtrarAcervo, mesclarPaginas, type SkillLinha } from './paging';
+import { filterCollection, mergePages, type SkillRow } from './paging';
 
 /**
  * M31 — acervo que aguenta escala.
@@ -13,7 +14,7 @@ import { filtrarAcervo, mesclarPaginas, type SkillLinha } from './paging';
  * skill não existe.
  */
 
-const linha = (id: string, nome = id, desc = ''): SkillLinha => ({
+const linha = (id: string, nome = id, desc = ''): SkillRow => ({
   skill_id: id,
   name: nome,
   description: desc,
@@ -23,28 +24,28 @@ const linha = (id: string, nome = id, desc = ''): SkillLinha => ({
 
 describe('mesclarPaginas', () => {
   it('concatena na ordem em que as páginas chegaram', () => {
-    const r = mesclarPaginas([linha('a'), linha('b')], [linha('c')]);
+    const r = mergePages([linha('a'), linha('b')], [linha('c')]);
     expect(r.map((s) => s.skill_id)).toEqual(['a', 'b', 'c']);
   });
 
   it('NÃO duplica quando a mesma página chega duas vezes', () => {
     // Um clique duplo em "carregar mais", ou um refetch do React Query, entregaria a mesma
     // página de novo. Duplicar faria a contagem mentir e a `key` do React colidir.
-    const r = mesclarPaginas([linha('a'), linha('b')], [linha('b'), linha('c')]);
+    const r = mergePages([linha('a'), linha('b')], [linha('b'), linha('c')]);
     expect(r.map((s) => s.skill_id)).toEqual(['a', 'b', 'c']);
   });
 
   it('a versão mais recente de uma skill vence a antiga', () => {
     // Entre uma página e outra a skill pode ter sido editada. Manter a primeira exibiria dado
     // velho ao lado de dado novo, sem nada indicando qual é qual.
-    const r = mesclarPaginas([linha('a', 'nome antigo')], [linha('a', 'nome novo')]);
+    const r = mergePages([linha('a', 'nome antigo')], [linha('a', 'nome novo')]);
     expect(r).toHaveLength(1);
     expect(r[0]?.name).toBe('nome novo');
   });
 
   it('página vazia não muda nada', () => {
-    expect(mesclarPaginas([linha('a')], [])).toHaveLength(1);
-    expect(mesclarPaginas([], [])).toEqual([]);
+    expect(mergePages([linha('a')], [])).toHaveLength(1);
+    expect(mergePages([], [])).toEqual([]);
   });
 });
 
@@ -55,31 +56,31 @@ describe('filtrarAcervo', () => {
   ];
 
   it('filtro vazio devolve tudo — não é "nenhum resultado"', () => {
-    expect(filtrarAcervo(acervo, '')).toHaveLength(2);
-    expect(filtrarAcervo(acervo, '   ')).toHaveLength(2);
+    expect(filterCollection(acervo, '')).toHaveLength(2);
+    expect(filterCollection(acervo, '   ')).toHaveLength(2);
   });
 
   it('casa por nome, sem diferenciar maiúsculas', () => {
-    expect(filtrarAcervo(acervo, 'MOEDA').map((s) => s.skill_id)).toEqual(['sk_cambio']);
+    expect(filterCollection(acervo, 'MOEDA').map((s) => s.skill_id)).toEqual(['sk_cambio']);
   });
 
   it('casa por descrição — o operador lembra do que a skill FAZ, não do nome', () => {
-    expect(filtrarAcervo(acervo, 'diff').map((s) => s.skill_id)).toEqual(['sk_pr']);
+    expect(filterCollection(acervo, 'diff').map((s) => s.skill_id)).toEqual(['sk_pr']);
   });
 
   it('casa por identificador — é o que aparece em log e em erro', () => {
-    expect(filtrarAcervo(acervo, 'sk_cambio').map((s) => s.skill_id)).toEqual(['sk_cambio']);
+    expect(filterCollection(acervo, 'sk_cambio').map((s) => s.skill_id)).toEqual(['sk_cambio']);
   });
 
   it('ignora acento, porque quem digita rápido não acentua', () => {
     // "cotacao" tem de achar "Cotação". Sem isso o filtro parece quebrado para quem escreve
     // sem acento — que é a maioria de quem está com pressa.
-    expect(filtrarAcervo(acervo, 'cotacao').map((s) => s.skill_id)).toEqual(['sk_cambio']);
-    expect(filtrarAcervo(acervo, 'COTAÇÃO').map((s) => s.skill_id)).toEqual(['sk_cambio']);
+    expect(filterCollection(acervo, 'cotacao').map((s) => s.skill_id)).toEqual(['sk_cambio']);
+    expect(filterCollection(acervo, 'COTAÇÃO').map((s) => s.skill_id)).toEqual(['sk_cambio']);
   });
 
   it('nada casando devolve lista vazia, não o acervo inteiro', () => {
-    expect(filtrarAcervo(acervo, 'inexistente')).toEqual([]);
+    expect(filterCollection(acervo, 'inexistente')).toEqual([]);
   });
 });
 
@@ -93,7 +94,7 @@ describe('mesclarPaginas — a PRIMEIRA página substitui', () => {
     const antes = [linha('a'), linha('b'), linha('c')];
     const depoisDeApagarB = [linha('a'), linha('c')];
 
-    expect(mesclarPaginas(antes, depoisDeApagarB, { primeira: true }).map((s) => s.skill_id)).toEqual([
+    expect(mergePages(antes, depoisDeApagarB, { primeira: true }).map((s) => s.skill_id)).toEqual([
       'a',
       'c',
     ]);
@@ -101,7 +102,7 @@ describe('mesclarPaginas — a PRIMEIRA página substitui', () => {
 
   it('páginas SEGUINTES continuam acumulando — senão a paginação não pagina', () => {
     const primeira = [linha('a'), linha('b')];
-    expect(mesclarPaginas(primeira, [linha('c')], { primeira: false }).map((s) => s.skill_id)).toEqual([
+    expect(mergePages(primeira, [linha('c')], { primeira: false }).map((s) => s.skill_id)).toEqual([
       'a',
       'b',
       'c',
@@ -109,6 +110,6 @@ describe('mesclarPaginas — a PRIMEIRA página substitui', () => {
   });
 
   it('sem a opção, o comportamento é acumular — o padrão de quem chama "carregar mais"', () => {
-    expect(mesclarPaginas([linha('a')], [linha('b')]).map((s) => s.skill_id)).toEqual(['a', 'b']);
+    expect(mergePages([linha('a')], [linha('b')]).map((s) => s.skill_id)).toEqual(['a', 'b']);
   });
 });

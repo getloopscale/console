@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { comparar, houveMudanca, relatorio, type Assinatura } from './arvore-estavel';
 

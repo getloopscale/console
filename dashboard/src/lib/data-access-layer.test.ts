@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -111,7 +112,208 @@ exatamente a classe "grep casa prosa".
 //
 // A tela JÁ TINHA o `Alert` de "Could not start export", e ele era inalcançável: sem o contrato,
 // `isError` nunca ficava true. Código morto com aparência de tratamento de erro.
-const TETO_PAGINAS_COM_TRANSPORTE = 45;
+// 44 desde 2026-08-12, com `lens/datasets.tsx` lendo por `hooks/lens/use-datasets.ts` — que já
+// existia com a LISTA e ganhou o detalhe, criar, remover item, renomear e apagar.
+//
+// Duas das cinco não passavam `throwOnError`, com efeitos opostos e igualmente mudos: criar um
+// dataset que o servidor RECUSOU fechava o diálogo e limpava o campo, então o usuário saía achando
+// que criou e a lista simplesmente não o mostrava — o que se lê como "sumiu", não como "nunca
+// existiu". Remover um item recusado fazia a linha sumir da tela e voltar na leitura seguinte.
+//
+// A chave do detalhe passou a DERIVAR da chave da lista. Montada nos dois lugares, o acordo entre
+// elas era coincidência: invalidar a lista sem alcançar o detalhe aberto mostra item já removido.
+// 42 desde 2026-08-12, com `lens/{agents,usage-by-user}.tsx`.
+//
+// A `usage-by-user` é a que valeu o trabalho: `days`, `page` e `withSeries` TÊM de estar na chave
+// de cache, senão o react-query responde uma pergunta de 30 dias com a resposta de 7 e a tela
+// afirma um período que não está mostrando. Esse acordo entre a URL e a chave vinha mantido à mão
+// nos dois lugares — dura enquanto uma pessoa cuida dos dois, e quebra no primeiro filtro que
+// alguém acrescenta à URL e esquece na chave. Agora saem dos mesmos argumentos.
+//
+// Duas correções minhas no caminho, ambas pegas pelo `tsc`: inventei a forma de `UsageRow` e depois
+// a de `PontoDaSerie`, em vez de ler as reais. É a armadilha que o `DomainRow` já havia registrado
+// — adotar uma forma adivinhada apaga em silêncio campos que a UI renderiza — e o compilador foi a
+// única razão de custar minutos em vez de dados sumindo do gráfico.
+// 41 desde 2026-08-12, com `lens/traces/metadata-card.tsx` lendo por
+// `hooks/lens/use-trace-metadata.ts`. Três das quatro chamadas não passavam `throwOnError`, e as
+// três falhavam do mesmo jeito — a escrita é recusada, o `onSuccess` dispara, o campo limpa e nada
+// é dito. Não são igualmente graves:
+//
+//   addTag         o campo limpa e a etiqueta some na leitura seguinte
+//   removeTag      a confirmação fecha e a etiqueta VOLTA, o que se lê como o produto desfazendo
+//                  a ação do usuário
+//   addAnnotation  o usuário ESCREVEU. O textarea limpa, a nota some, e não há erro nem rascunho
+//                  a recuperar — esta destrói trabalho, não apenas reporta estado errado.
+// 40 desde 2026-08-12, com `lens/evaluators.tsx` inteira lendo por hooks. Duas das sete chamadas
+// não passavam `throwOnError`, e a de CRIAR é a mais cara encontrada até aqui: uma recusa resolvia
+// `null`, o `onSuccess` disparava e o handler limpava CINCO campos — nome, predicado, prompt,
+// modelo e o estado do diálogo. O usuário perdia tudo o que tinha digitado, para um avaliador que
+// nunca foi criado, sem erro e sem nada a recuperar.
+//
+// A anotação de trace (corrigida horas antes) destruía um textarea. Esta destrói um formulário.
+//
+// `ScoreBucket` também mudou de casa: cinco módulos o leem, e a forma passou a morar com o endpoint
+// que a devolve — o hook não PODE importar de `pages/` (regra de camada do B-070), e um tipo de
+// resposta morando lá é exatamente a inversão que essa regra existe para pegar.
+// 39 desde 2026-08-12, com `lens/monitors.tsx`. Criar um monitor tinha a mesma forma do criar
+// avaliador ao lado: recusa resolvia `null`, o `onSuccess` disparava e o handler limpava o
+// avaliador, o operador, o limiar e o diálogo. O formulário ia embora por um monitor que nunca foi
+// criado. Limpar passou a acontecer só no SUCESSO, no ponto de uso.
+// 37 desde 2026-08-12, com `lens/{sessions,overview}.tsx`.
+//
+// Nenhuma das duas tinha defeito de contrato — as duas já passavam `throwOnError`. O que elas
+// tinham era a chave de cache montada à mão ao lado da URL: em `sessions` o `page`, em `overview` o
+// `range`. Esse acordo não falha enquanto uma pessoa edita os dois, e falha em silêncio no primeiro
+// filtro que alguém acrescenta a um e esquece no outro — a tela passa a mostrar a resposta de outra
+// página ou de outro período, com o rótulo certo por cima.
+//
+// `TrafficBucket`, `LatencyBucket` e `ModelBucket` foram para o módulo do endpoint, como
+// `ScoreBucket` e `PontoDaSerie` antes deles. Não é preferência: `src/hooks` não pode importar de
+// `src/pages`, então um tipo de RESPOSTA morando em `pages/` torna o hook impossível de tipar. A
+// regra de camada pegando isso é a regra funcionando.
+// 36 desde 2026-08-12, com `memory/memories.tsx`. Cinco filtros — categoria, de, até, offset e
+// sessão — entravam TANTO na query string QUANTO na chave de cache, montados lado a lado. Cinco
+// valores mantidos em passo à mão; o primeiro que alguém acrescentar à URL e esquecer na chave faz
+// a lista mostrar o resultado de outro filtro sob os rótulos deste.
+//
+// E o `forget` não passava `throwOnError`. Numa exclusão comum isso já é ruim; num `hard=true` a
+// leitura é pior que "o produto desfez minha ação": o usuário pediu apagamento PERMANENTE, viu
+// sucesso, e o conteúdo continua lá.
+// 35 desde 2026-08-12, com `memory/entity-cascade.ts`, e este é o achado mais sério da série.
+//
+// O cascade contava uma exclusão como BEM-SUCEDIDA quando a chamada RESOLVIA — e sem o contrato uma
+// recusa resolve `null`. O `.catch(() => false)` dele só pegava rejeição de rede, então todo 403 e
+// todo 500 entrava no total de "esquecidas".
+//
+// A segunda consequência é a que importa: o laço termina quando a listagem filtrada esvazia. Com
+// todas as exclusões recusadas ele roda até o teto de 50 rodadas, tenta 5000 exclusões, e reporta
+// milhares de memórias esquecidas. Um cascade que NÃO CONSEGUE apagar ficava idêntico a um que
+// apagou tudo.
+// 34 desde 2026-08-12, com `memory/webhooks.tsx` — o IRMÃO do `settings/webhooks.tsx` migrado
+// horas antes, carregando os mesmos três defeitos pelo mesmo motivo: duas telas cresceram a mesma
+// feature em separado, então a correção de uma nunca alcançou a outra. A revisão de arquitetura
+// apontou este arquivo enquanto o outro estava sendo corrigido.
+//
+// O `replay` é o mais sutil dos três: a página JÁ raciocinava sobre o `null` — o comentário dela
+// dizia "default para noop=false quando null, para o toast ainda aparecer". O raciocínio acerta a
+// forma e erra a causa: aquele `null` não é corpo vazio, é RECUSA. Um replay rejeitado fechava o
+// diálogo e anunciava "Replay queued" para algo que nunca foi enfileirado.
+// 3 desde 2026-08-12. Restaram `lens/alerts.tsx` (uma leitura de promptly na tela de alertas),
+// `workspace/overview.tsx` (que INJETA `cloudFetch` no helper de presign — dependencia explicita,
+// nao transporte inline) e `settings/components/invite-member-sheet.tsx`.
+//
+// O lote que trouxe o numero ate aqui: `lens/{trace-detail/span-detail,components/ask-thread,
+// playground/variant-column}.tsx` e `projects/project-detail.tsx`.
+//
+// As cinco escritas de trace ficaram no MESMO modulo por causa do `retry: false`, e o motivo vale
+// escrever uma vez: tres sao chamadas COBRADAS ao provedor (ask, replay) ou trabalho upstream
+// (enqueue), e as outras duas registram o voto de uma pessoa. Nenhuma das duas classes pode ser
+// reenviada em silencio — reenviar um voto e contar duas vezes.
+//
+// O DELETE de projeto ficou DE PROPOSITO sem contrato, e esta registrado como B-275: o chamador
+// navega para `/projects` logo depois, entao uma recusa que resolve deixa a pessoa numa lista onde
+// o projeto que ela acabou de apagar continua listado. Isso e uma contradicao VISIVEL, nao
+// silenciosa — a forma que o B-235 justamente nao cobre — e fechar exige desenhar a superficie de
+// erro de uma acao destrutiva, o que nao se faz no meio de um refactor mecanico.
+//
+// Antes disso, com `lens/session-detail.tsx`, `workspace/overview.tsx` e
+// `projects/project-connect.tsx`.
+//
+// Em `workspace`, o teto de 1000 objetos mudou de lugar junto com a leitura, e isso e o achado: o
+// limite e propriedade do que PEDIMOS a loja, nao do helper que monta a arvore de prefixos a partir
+// da lista plana. O helper so o consumia de segunda mao.
+//
+// `project-connect` ficou com funcoes async simples, nao mutations. A lista de repositorios e
+// buscada de um efeito com flag de cancelamento propria, e o connect roda dentro de um submit que
+// e dono do proprio estado de busy. As duas seguem em `T | null` DE PROPOSITO: cada chamador ja
+// ramifica no `null` e escreve uma mensagem especifica, entao `throwOnError` so mudaria o texto de
+// lugar. B-235 e sobre recusa que nao chega a ninguem; aqui ela chega a uma frase.
+//
+// Antes disso, com `rag/{ask,graphrag,chunks-panel}.tsx` e
+// `lens/dashboards/duration-histogram.tsx`.
+//
+// `ask` e `graphrag` faziam a MESMA requisicao (`POST /v1/dashboard/rag/answers`) e cada uma
+// declarava sua propria `AnswerResult`. As duas copias ja tinham perdido a mesma coisa: nenhuma
+// tinha contrato, entao uma pergunta recusada resolvia `null` e as duas telas simplesmente nao
+// mostravam resposta — numa pagina cujo trabalho inteiro e responder, isso se le como "o modelo
+// nao tinha nada a dizer".
+//
+// As tres leituras de GraphRAG ficaram juntas por causa do NIVEL: todas as tres sao escopadas ao
+// mesmo `level` e todas o carregam na chave. Um nivel acrescentado a uma URL e esquecido numa chave
+// renderiza o relatorio de uma comunidade de um nivel ao lado do grafo de outro, e nada na tela
+// diz que os dois discordam.
+//
+// Antes disso, com `settings/{audit,team,billing}.tsx`.
+//
+// `audit` guarda o achado mais caro do lote, e ele e sobre POR QUE passou despercebido: o guard de
+// null silencioso quantifica sobre `useQuery`/`useInfiniteQuery`/`useSuspenseQuery`, e aquela
+// leitura era um `engineFetch` cru dentro de um efeito. Numa tela de AUDITORIA, ausencia de
+// registro e exatamente o que alguem investigando um incidente procura — uma ausencia fabricada ali
+// e pior que um erro.
+//
+// `team` e o B-060: a lista tem de morar na MESMA hierarquia de chave que as mutations invalidam.
+// Ela lia por `['engine', path]` enquanto convidar e remover invalidavam `['team']`, entao a tabela
+// nunca atualizava. A pagina nao tinha como ver isso; a chave ao lado da leitura tem.
+//
+// Antes disso, todo o cluster de memory alem de
+// `lens/{labeling-queue,experiments,alerts,dashboards}.tsx`.
+//
+// Em `episodes`, a chave importa mais que nas outras: e uma query INFINITA, e paginas se acumulam
+// sob a chave. Um filtro presente na URL e ausente da chave anexa a pagina do filtro novo a lista
+// do filtro velho, e a tela mostra um log continuo montado de duas perguntas diferentes.
+//
+// Em `scope-switcher` sobrevive o B-077: NAO ha `staleTime` local. O que estava ali repetia o
+// default global palavra por palavra, entao nao declarava politica nenhuma — no dia em que o
+// default mudasse, aquela linha congelaria sozinha enquanto o comentario acima seguiria afirmando
+// uma intencao que ela deixou de entregar.
+//
+// Antes disso, com `lens/{labeling-queue,experiments,alerts,dashboards}.tsx` e
+// `lens/traces/saved-views.tsx`.
+//
+// `dashboards` rendeu dois achados que so aparecem quando a leitura muda de lugar. O `range` era
+// `string` numa tela cujo endpoint recusa qualquer valor fora de quatro — o compilador nao tinha
+// como dizer isso, e agora tem. E a leitura de observability era uma copia da que ja tinha dono,
+// com o tipo de resposta redeclarado ao lado.
+//
+// Em `alerts`, o que mais justifica a mudanca e o toggle otimista: `onMutate` vira a regra no
+// cache, `onError` restaura o snapshot e `onSettled` re-sincroniza. Os tres so funcionam JUNTOS —
+// perder o `onError` numa mudanca deixa um PATCH recusado com a chave mostrando um estado que o
+// servidor negou, e nenhum teste de caminho feliz percebe.
+//
+// A lista de webhooks daquela tela era uma copia byte a byte da de `settings`. Nao criei um
+// segundo dono: a tela passou a ler o que ja existia.
+//
+// Antes disso: `memory/{overview,entities}.tsx` e todo o cluster de RAG
+// (`overview,analytics,wiki,collections,documents,connectors`).
+//
+// Em `documents`, o que nao podia se perder na mudanca era o predicado do polling: theo-rag
+// ingere assincrono e responde 202, entao sem o refetch a lista congela em `processing` e um
+// documento que terminou — ou falhou — parece travado ate alguem recarregar a pagina.
+//
+// Em `connectors`, as tres escritas eram invisiveis quando recusadas porque nenhuma delas
+// AFIRMAVA nada na tela. Um sync recusado deixava a linha exatamente como estava; um connect
+// recusado fechava a gaveta e limpava os campos. O usuario so descobre quando documento nenhum
+// chega.
+//
+// As duas telas de RAG liam o MESMO endpoint e cada uma declarava sua propria copia da resposta.
+// As copias ja tinham divergido — `analytics` conhecia o bloco `scale`, `overview` nao — e as
+// CHAVES de cache tambem: a mesma resposta nao-filtrada era buscada e guardada duas vezes, sob duas
+// chaves, e o Refresh de uma tela deixava a outra velha.
+//
+// Em `wiki`, tres escritas sem contrato falhavam de tres jeitos diferentes; a pior era o save:
+// um PUT recusado resolvia `null`, o editor fechava e a invalidacao trazia o texto ANTIGO de volta.
+// O usuario via a propria edicao ser substituida, sem erro nenhum.
+//
+// Nenhuma das duas tinha contrato faltando — o valor está em outro lugar. Em `overview`, o
+// `throwOnError` e o fallback de zeros são UMA decisão, não duas: os zeros só são seguros porque a
+// tira de KPI não é renderizada no erro. Separá-las — manter o fallback e perder o contrato — é
+// exatamente como uma tela passa a reportar "0 memórias" para um serviço fora do ar. Estão juntas
+// agora, com a razão escrita entre elas.
+//
+// Em `entities`, quatro filtros alimentavam URL e chave de cache lado a lado, e a invalidação do
+// cascade toca DUAS listas: esquecer as memórias de uma entidade muda a lista de entidades E a de
+// memórias. Atualizar só a primeira deixa a segunda mostrando linhas que já não existem.
+const TETO_PAGINAS_COM_TRANSPORTE = 3;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

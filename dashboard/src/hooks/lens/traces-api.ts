@@ -53,7 +53,7 @@ export interface TracesResult {
   offset?: number;
 }
 
-export interface ChaveDeAtributo {
+export interface AttributeKey {
   key: string;
   count: number;
 }
@@ -76,7 +76,7 @@ export function listar(queryString: string) {
  * teto por conta própria — e porque o tipo de retorno dela é só o array. O que
  * NÃO muda entre as duas é a flag.
  */
-export async function buscarParaExportar(queryString: string): Promise<Trace[]> {
+export async function fetchForExport(queryString: string): Promise<Trace[]> {
   const res = await cloudFetch<{ traces: Trace[] }>(
     `/v1/dashboard/lens/traces${queryString}`,
     {},
@@ -85,8 +85,8 @@ export async function buscarParaExportar(queryString: string): Promise<Trace[]> 
   return res?.traces ?? [];
 }
 
-export function chavesDeAtributo() {
-  return cloudFetch<{ mode: 'keys'; keys: ChaveDeAtributo[] }>(
+export function attributeKeys() {
+  return cloudFetch<{ mode: 'keys'; keys: AttributeKey[] }>(
     `/v1/dashboard/lens/metrics/span-attributes?limit=${LIST_SAFETY_CEILING}`,
     {},
     { throwOnError: true },
@@ -99,13 +99,13 @@ export function chavesDeAtributo() {
  * Reaproveita as rotas de dataset do M44 — não há código de dataset novo aqui,
  * e é por isso que são duas chamadas em sequência em vez de um endpoint.
  */
-export async function criarDatasetDeRegressao(
+export async function createRegressionDataset(
   traceIds: string[],
-  nome: string,
+  name: string,
 ): Promise<string> {
   const ds = await cloudFetch<{ id: string }>(
     '/v1/dashboard/lens/datasets',
-    { method: 'POST', body: JSON.stringify({ name: nome }) },
+    { method: 'POST', body: JSON.stringify({ name: name }) },
     { throwOnError: true },
   );
   for (const traceId of traceIds) {

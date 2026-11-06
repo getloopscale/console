@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import {
   formatCost,
@@ -6,6 +7,7 @@ import {
   formatNumber,
   formatTokens,
   humanizeAuthor,
+  humanizeKey,
   isZeroTime,
   maskEmail,
   shortId,
@@ -293,5 +295,50 @@ describe('formatScore (M72)', () => {
     expect(formatScore(null)).toBe('—');
     expect(formatScore(NaN)).toBe('—');
     expect(formatScore(Infinity)).toBe('—');
+  });
+});
+
+describe('humanizeKey (B-277)', () => {
+  // The rule this centralises existed in THREE places — `billing.tsx:193`, `billing.tsx:314` and
+  // `rag/connectors.tsx:61` — and the duplication was not cosmetic. Mutating one of the two billing
+  // copies left all 20 cases of `billing.test.tsx` green, because `getAllByText` was satisfied by
+  // the other renderer. That survival is what registered B-277.
+
+  it('turns a snake_case backend key into a display label', () => {
+    expect(humanizeKey('fast_data_transfer')).toBe('Fast Data Transfer');
+    expect(humanizeKey('builds_per_month')).toBe('Builds Per Month');
+  });
+
+  it('turns a kebab-case slug into one too — the `connectors.tsx` shape', () => {
+    // The third site differs from the other two by ONE separator. Two functions here would be the
+    // duplication wearing a nicer hat.
+    expect(humanizeKey('google-drive')).toBe('Google Drive');
+  });
+
+  it('accepts BOTH separators everywhere — a widening, not the no-op the plan claimed', () => {
+    // T1.2's DoD said "no behaviour change". The /review of 2026-08-13 measured that false, and it
+    // is: each old site handled exactly ONE separator and passed the other through.
+    //
+    //                        old billing (/_/g)   old connectors (/-/g)   now
+    //   'google-drive'       'Google-Drive'       'Google Drive'          'Google Drive'
+    //   'storage_mb'         'Storage Mb'         'Storage_mb'            'Storage Mb'
+    //   'api_calls-per_mo'   'Api Calls-Per Mo'   'Api_calls Per_mo'      'Api Calls Per Mo'
+    //
+    // No shipped key mixes them today — the in-repo billing metrics are underscore-only and the
+    // connectors fallback only fires for a slug the server invented — so this is latent, not
+    // observed. It is pinned here because "latent" is what an unpinned behaviour is called right
+    // up until it is not.
+    expect(humanizeKey('storage_mb')).toBe('Storage Mb');
+    expect(humanizeKey('api_calls-per_mo')).toBe('Api Calls Per Mo');
+  });
+
+  it('leaves an already-humane label alone', () => {
+    expect(humanizeKey('Seats')).toBe('Seats');
+    expect(humanizeKey('seats')).toBe('Seats');
+  });
+
+  it('is total: an empty key is an empty label, never a throw', () => {
+    // Every formatter in this module is total (see the module docblock's null-safety contract).
+    expect(humanizeKey('')).toBe('');
   });
 });

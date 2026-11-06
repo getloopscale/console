@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}
 jobs:
   plan:
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     # Menor privilegio. Este job so faz checkout, paths-filter e jq — nao escreve em registry
     # nem cunha token OIDC. E e exatamente onde roda `dorny/paths-filter`, o unico terceiro da
@@ -115,11 +115,19 @@ jobs:
   images:
     needs: [plan, gate-ci, gate-quality, gate-sast]
     if: ${{ needs.plan.outputs.images != '[]' && needs.plan.outputs.images != '' }}
+    # The reusable declares these scopes, and GitHub refuses at startup — with no log — a
+    # reusable that asks for more than its caller grants (usetheoai/theo#436). `attestations`
+    # is for its GitHub-native provenance; `id-token` also assumes the ECR publish role.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.images) }}
-    uses: usetheoai/theo/.github/workflows/build-publish.yml@d1f3c94762609d2732ae73624c333d36a350e6ab # develop
+    uses: usetheoai/theo/.github/workflows/build-publish.yml@1596e81f2ab64a4eb08a7d180e33639138f96b7f # develop
     with:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
@@ -148,6 +156,10 @@ jobs:
       # DEPOIS do push, entao uma indisponibilidade do Sigstore vermelharia um run cuja imagem ja
       # publicou — e o reconciliador convergiria numa imagem que a pipeline diz ter falhado.
       verify: ${{ needs.plan.outputs.sign == 'true' }}
+      # Amazon ECR, the registry production pulls from (usetheoai/theo#435). Both are
+      # repository variables; unset, the reusable skips ECR and GHCR publishes as before.
+      ecr_registry: ${{ vars.ECR_REGISTRY }}
+      aws_role_arn: ${{ vars.AWS_IMAGE_PUBLISH_ROLE_ARN }}
       # B-270 — `attest:` saiu daqui pelo mesmo motivo: o reusable compartilhado nao o declara.
       # Ele FUNDE SBOM + provenance(mode=max) + cosign sob o unico `sign:` acima, que ja vai `true`.
       #

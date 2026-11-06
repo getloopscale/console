@@ -19,7 +19,7 @@ import { LiveUrlHero } from '@/pages/projects/components/live-url-hero';
 import { FirstDeployCelebration } from '@/pages/projects/first-deploy-celebration';
 import { ProjectHealthCard } from '@/pages/projects/components/project-health-card';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
-import { engineFetch } from '@/lib/http/api';
+import { deleteProject } from '@/hooks/projects/use-project-actions';
 import { normalizeBuildStatus } from '@/lib/api/types';
 import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/formatting/format';
 import { useState } from 'react';
@@ -73,9 +73,7 @@ export function ProjectDetailPage() {
   const handleDeleteProject = async () => {
     setDeleting(true);
     try {
-      await engineFetch(`/api/v1/projects/${encodeURIComponent(name)}`, {
-        method: 'DELETE',
-      });
+      await deleteProject(name);
       navigate('/projects');
     } finally {
       setDeleting(false);

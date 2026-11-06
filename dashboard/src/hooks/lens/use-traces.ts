@@ -35,10 +35,10 @@ export function useTraces(filtros: unknown, page: number, queryString: string) {
  * continua funcionando. É por isso que o chamador não trata `isError`: aqui a
  * ausência de sugestão é degradação aceitável, não defeito.
  */
-export function useChavesDeAtributo() {
+export function useAttributeKeys() {
   return useQuery({
     queryKey: queryKeys.lens.spanAttributes(),
-    queryFn: api.chavesDeAtributo,
+    queryFn: api.attributeKeys,
   });
 }
 
@@ -48,10 +48,10 @@ export function useChavesDeAtributo() {
  * `retry: false` é deliberado e vem do comportamento original: a operação não é
  * idempotente — repeti-la cria um segundo dataset com o mesmo conteúdo.
  */
-export function useCriarDatasetDeRegressao(onCriado: (datasetId: string) => void) {
+export function useCreateRegressionDataset(onCriado: (datasetId: string) => void) {
   return useMutation({
     mutationFn: (traceIds: string[]) =>
-      api.criarDatasetDeRegressao(
+      api.createRegressionDataset(
         traceIds,
         `regression ${new Date().toISOString().slice(0, 19)}`,
       ),

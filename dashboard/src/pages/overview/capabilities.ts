@@ -75,7 +75,7 @@ export type SinalDaCapacidade =
   | {
       readonly tipo: 'presenca';
       readonly rota: string;
-      readonly temAlgo: (dados: unknown) => boolean;
+      readonly hasAny: (dados: unknown) => boolean;
     }
   | { readonly tipo: 'em-breve' };
 
@@ -89,15 +89,15 @@ export interface Capacidade {
 }
 
 /** Lê um campo numérico de uma resposta desconhecida sem fingir que ela tem forma. */
-function numero(dados: unknown, campo: string): number | null {
+function numero(dados: unknown, field: string): number | null {
   if (typeof dados !== 'object' || dados === null) return null;
-  const v = (dados as Record<string, unknown>)[campo];
+  const v = (dados as Record<string, unknown>)[field];
   return typeof v === 'number' ? v : null;
 }
 
-function lista(dados: unknown, campo: string): unknown[] | null {
+function lista(dados: unknown, field: string): unknown[] | null {
   if (typeof dados !== 'object' || dados === null) return null;
-  const v = (dados as Record<string, unknown>)[campo];
+  const v = (dados as Record<string, unknown>)[field];
   return Array.isArray(v) ? v : null;
 }
 
@@ -177,7 +177,7 @@ export const CAPACIDADES: readonly Capacidade[] = [
     sinal: {
       tipo: 'presenca',
       rota: '/v1/dashboard/lens/observability',
-      temAlgo: (d) => (lista(d, 'traffic')?.length ?? 0) > 0,
+      hasAny: (d) => (lista(d, 'traffic')?.length ?? 0) > 0,
     },
   },
   {
@@ -196,7 +196,7 @@ export const CAPACIDADES: readonly Capacidade[] = [
     sinal: {
       tipo: 'presenca',
       rota: '/v1/dashboard/trust/validators',
-      temAlgo: (d) => (lista(d, 'validators')?.length ?? 0) > 0,
+      hasAny: (d) => (lista(d, 'validators')?.length ?? 0) > 0,
     },
   },
   {
@@ -206,7 +206,7 @@ export const CAPACIDADES: readonly Capacidade[] = [
     sinal: {
       tipo: 'presenca',
       rota: '/v1/dashboard/skills?limit=1',
-      temAlgo: (d) => (lista(d, 'skills')?.length ?? 0) > 0,
+      hasAny: (d) => (lista(d, 'skills')?.length ?? 0) > 0,
     },
   },
   {
@@ -224,7 +224,7 @@ export const CAPACIDADES: readonly Capacidade[] = [
     sinal: {
       tipo: 'presenca',
       rota: '/v1/dashboard/promptly/prompts?limit=1',
-      temAlgo: (d) => (Array.isArray(d) ? d.length : (lista(d, 'prompts')?.length ?? 0)) > 0,
+      hasAny: (d) => (Array.isArray(d) ? d.length : (lista(d, 'prompts')?.length ?? 0)) > 0,
     },
   },
 ];
@@ -238,11 +238,11 @@ export const CAPACIDADES: readonly Capacidade[] = [
  */
 export function estadoDaCapacidade(
   sinal: SinalDaCapacidade,
-  consulta: { readonly falhou: boolean; readonly carregando: boolean; readonly dados: unknown },
+  consulta: { readonly failed: boolean; readonly loading: boolean; readonly dados: unknown },
 ): EstadoDaCapacidade | 'carregando' {
   if (sinal.tipo === 'em-breve') return 'em-breve';
-  if (consulta.falhou) return 'nao-lida';
-  if (consulta.carregando) return 'carregando';
+  if (consulta.failed) return 'nao-lida';
+  if (consulta.loading) return 'carregando';
   // Uma consulta assentada sem dado é uma leitura que FALHOU, não uma capacidade vazia — o
   // mesmo raciocínio de `system-status-indicator.tsx`, que trata `data == null` fora de
   // `isPending` como falha em vez de publicar "checando" para sempre.
@@ -253,5 +253,5 @@ export function estadoDaCapacidade(
     if (n === null) return 'nao-lida';
     return n > 0 ? 'em-uso' : 'nao-adotada';
   }
-  return sinal.temAlgo(consulta.dados) ? 'em-uso' : 'nao-adotada';
+  return sinal.hasAny(consulta.dados) ? 'em-uso' : 'nao-adotada';
 }

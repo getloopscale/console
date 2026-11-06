@@ -3,7 +3,7 @@
 # (verificado com `docker manifest inspect`; o maximo em alpine3.22 e 1.26.4). O bump do alpine e
 # seguro para a superficie publicada: o build e multi-stage e o estagio final e distroless, entao
 # pacotes do builder nao sao embarcados — o que o Trivy aponta e o `stdlib` compilado no binario.
-FROM golang:1.26.5-alpine3.23 AS builder
+FROM golang:1.26.6-alpine3.23 AS builder
 WORKDIR /workspace
 
 ENV GOWORK=off

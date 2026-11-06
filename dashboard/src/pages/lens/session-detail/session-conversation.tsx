@@ -122,11 +122,11 @@ export function SessionConversation({ sessionId, traces }: { sessionId: string; 
   // sobre `capped`: um `enabled: false` ainda ocuparia um slot de query e faria
   // o hook crescer com a colecao, que e exatamente o que o item mede.
   const [shown, setShown] = useState(CONVERSATION_TURNS_PER_PAGE);
-  const janela = capped.slice(0, shown);
-  const restantes = capped.length - janela.length;
+  const window = capped.slice(0, shown);
+  const restantes = capped.length - window.length;
 
   const results = useQueries({
-    queries: janela.map((t) => ({
+    queries: window.map((t) => ({
       queryKey: traceTreeQueryKey(t.traceId),
       // throwOnError: false DELIBERADO — um turno que falha mostra
       // "(could not load this turn)" e os outros renderizam. Ver use-trace.ts.
@@ -135,11 +135,11 @@ export function SessionConversation({ sessionId, traces }: { sessionId: string; 
   });
 
   const treeByTraceId = new Map<string, TraceSpanNode | null>();
-  janela.forEach((t, i) => {
+  window.forEach((t, i) => {
     const r = results[i];
     if (r && !r.isPending) treeByTraceId.set(t.traceId, r.data ?? null);
   });
-  const turns = toConversationTurns(janela, treeByTraceId);
+  const turns = toConversationTurns(window, treeByTraceId);
 
   return (
     // Flows in the app shell's single scroll container (DashboardLayout <main>) — no nested scroll region.

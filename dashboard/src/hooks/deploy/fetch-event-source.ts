@@ -3,6 +3,12 @@ import { streamEndEvent, type StreamEndReason } from './stream-end-reason';
 /**
  * B-088 — SSE sobre `fetch`, para que o JWT de sessão saia da URL.
  *
+ * usetheoai/theo#477 step 3 (2026-09-30) — the stream now carries NO token at all: theo-cloud
+ * authenticates it from the Kratos session cookie. Option (a) below was rejected at the time
+ * because the API did not read cookies and accepting them would trade exposure for CSRF; the
+ * backend now reads them, and refuses cross-origin unsafe requests (`auth.RequireCaller`). The
+ * `fetch` transport stays: it is what carries `Last-Event-ID` and reports the HTTP status.
+ *
  * ## O achado
  *
  * `useSSEStream` montava `${API_URL}${path}?token=${jwt}`, e o token era o
@@ -47,9 +53,7 @@ import { streamEndEvent, type StreamEndReason } from './stream-end-reason';
  */
 
 interface Opcoes {
-  /** Bearer da sessão. `null` quando não há sessão — não chamamos o servidor. */
-  token: string | null;
-  /** Retomada; vai por header, como manda o protocolo. */
+  /** Resume cursor; it travels in a header, as the protocol says. */
   lastEventId?: string | null;
 }
 
@@ -83,7 +87,7 @@ export class FetchEventSource {
     readonly url: string,
     private readonly opcoes: Opcoes,
   ) {
-    void this.abrir();
+    void this.open();
   }
 
   addEventListener(tipo: string, fn: Ouvinte): void {
@@ -117,18 +121,8 @@ export class FetchEventSource {
     queueMicrotask(() => this.onerror?.(streamEndEvent(reason)));
   }
 
-  private async abrir(): Promise<void> {
-    if (!this.opcoes.token) {
-      // Chamar sem credencial produz um 401 garantido e um ciclo de backoff
-      // inútil. Falhar aqui é mais barato e mais claro.
-      this.falhar({ kind: 'no-token' });
-      return;
-    }
-
-    const headers: Record<string, string> = {
-      Accept: 'text/event-stream',
-      Authorization: `Bearer ${this.opcoes.token}`,
-    };
+  private async open(): Promise<void> {
+    const headers: Record<string, string> = { Accept: 'text/event-stream' };
     if (this.opcoes.lastEventId) headers['Last-Event-ID'] = this.opcoes.lastEventId;
 
     let resposta: Response;
@@ -136,9 +130,10 @@ export class FetchEventSource {
       resposta = await fetch(this.url, {
         headers,
         signal: this.abort.signal,
-        // O stream é uma leitura longa; a credencial vai no header, então não há
-        // motivo para carregar cookies de sessão junto.
-        credentials: 'omit',
+        // usetheoai/theo#477 step 3: the stream is authenticated by the session
+        // cookie, like every other dashboard call. No credential in the URL or
+        // in a header the page could read.
+        credentials: 'same-origin',
       });
     } catch {
       // Inclui o abort do próprio `close()`, que não é falha: `falhar()` já
@@ -188,27 +183,27 @@ export class FetchEventSource {
     // grande (o caso comum num log) chegaria cortado sem este buffer.
     const partes = this.resto.split('\n\n');
     this.resto = partes.pop() ?? '';
-    for (const bruto of partes) {
-      const frame = this.parsear(bruto);
+    for (const raw of partes) {
+      const frame = this.parsear(raw);
       if (frame) this.despachar(frame);
     }
   }
 
-  private parsear(bruto: string): Frame | null {
+  private parsear(raw: string): Frame | null {
     const dados: string[] = [];
     let tipo = 'message';
     let id = '';
-    for (const linha of bruto.split('\n')) {
+    for (const row of raw.split('\n')) {
       // Comentário de keep-alive. Proxies mandam a cada poucos segundos;
       // tratá-lo como evento entregaria lixo ao reducer o tempo todo.
-      if (linha.startsWith(':') || linha === '') continue;
-      const sep = linha.indexOf(':');
-      const campo = sep === -1 ? linha : linha.slice(0, sep);
+      if (row.startsWith(':') || row === '') continue;
+      const sep = row.indexOf(':');
+      const field = sep === -1 ? row : row.slice(0, sep);
       // Um único espaço depois do `:` é do protocolo e não do valor.
-      const valor = sep === -1 ? '' : linha.slice(sep + 1).replace(/^ /, '');
-      if (campo === 'data') dados.push(valor);
-      else if (campo === 'event') tipo = valor;
-      else if (campo === 'id') id = valor;
+      const value = sep === -1 ? '' : row.slice(sep + 1).replace(/^ /, '');
+      if (field === 'data') dados.push(value);
+      else if (field === 'event') tipo = value;
+      else if (field === 'id') id = value;
       // `retry` é ignorado: quem controla o backoff aqui é o useSSEStream.
     }
     if (dados.length === 0) return null;

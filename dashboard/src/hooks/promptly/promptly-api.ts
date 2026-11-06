@@ -1,5 +1,5 @@
 import { cloudFetch, ApiError } from '@/lib/http/api';
-import { temProximaPagina } from '@/hooks/promptly/link-header';
+import { hasNextPage } from '@/hooks/promptly/link-header';
 
 /**
  * M25 — o único ponto por onde as telas de prompts falam com o BFF.
@@ -23,7 +23,7 @@ export const CATALOG_PAGE_LIMIT = 100;
 export interface CatalogPage<T> {
   readonly data: T | null;
   /** O serviço sinalizou próxima página (`Link … rel="next"`). */
-  readonly temContinuacao: boolean;
+  readonly hasContinuation: boolean;
 }
 
 /**
@@ -48,7 +48,7 @@ export interface CatalogPage<T> {
  * letras. Com 14 prompts funciona; com 500 mente por omissão — o operador digita um termo, não vê
  * linha alguma, e conclui ausência a partir de um filtro que nunca perguntou ao servidor.
  */
-export interface FiltroDeCatalogo {
+export interface CatalogFilter {
   readonly search?: string;
   readonly tag?: string;
   readonly folder?: string;
@@ -56,26 +56,26 @@ export interface FiltroDeCatalogo {
 
 export async function fetchCatalogPage<T>(
   limit: number,
-  filtro: FiltroDeCatalogo = {},
+  filtro: CatalogFilter = {},
 ): Promise<CatalogPage<T>> {
   const params = new URLSearchParams({ limit: String(limit) });
   // Vazio não vira parâmetro — um campo que o operador limpou não pode significar "buscar pela
   // string vazia", que não casa com nada e devolveria zero linhas sobre um catálogo cheio.
-  for (const [chave, valor] of Object.entries(filtro)) {
-    if (typeof valor === 'string' && valor.trim() !== '') params.set(chave, valor.trim());
+  for (const [key, value] of Object.entries(filtro)) {
+    if (typeof value === 'string' && value.trim() !== '') params.set(key, value.trim());
   }
-  let temContinuacao = false;
+  let hasContinuation = false;
   const data = await cloudFetch<T>(
     `${BASE}/prompts?${params.toString()}`,
     {},
     {
       throwOnError: true,
       onResponse: (resp) => {
-        temContinuacao = temProximaPagina(resp.headers.get('Link'));
+        hasContinuation = hasNextPage(resp.headers.get('Link'));
       },
     },
   );
-  return { data, temContinuacao };
+  return { data, hasContinuation };
 }
 
 /**
@@ -124,7 +124,7 @@ export function fetchPrompt<T>(name: string): Promise<T | null> {
  * `fetchPrompt` porque resolver custa — o serviço atravessa o grafo de referências por nível — e
  * quem só quer o texto escrito não pode pagar essa travessia ao abrir a tela.
  */
-export function fetchPromptResolvido<T>(name: string): Promise<T | null> {
+export function fetchResolvedPrompt<T>(name: string): Promise<T | null> {
   return cloudFetch<T>(
     `${BASE}/prompts/${encodeURIComponent(name)}/resolved`,
     {},
@@ -240,11 +240,11 @@ export function createRevision<T>(
  * declara sucesso a partir do status; ela lê `labelsMoved` (ver `rollback.ts`).
  */
 export function rollbackPrompt<T>(name: string, toVersion: number, label?: string): Promise<T | null> {
-  const corpo: { toVersion: number; label?: string } = { toVersion };
-  if (label) corpo.label = label;
+  const body: { toVersion: number; label?: string } = { toVersion };
+  if (label) body.label = label;
   return cloudFetch<T>(
     `${BASE}/prompts/${encodeURIComponent(name)}/rollback`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
     { throwOnError: true },
   );
 }

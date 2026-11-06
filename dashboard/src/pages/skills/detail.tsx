@@ -66,7 +66,7 @@ export function SkillDetailPage() {
 
   // ---- M32 — o ciclo de vida --------------------------------------------------------------
   const invalidarSkills = useInvalidateSkills();
-  const [motivo, setMotivo] = useState('');
+  const [reason, setMotivo] = useState('');
   const [sucessora, setSucessora] = useState('');
   const [confirmar, setConfirmar] = useState(false);
   const [erroCiclo, setErroCiclo] = useState<string | null>(null);
@@ -278,7 +278,7 @@ export function SkillDetailPage() {
                 e.preventDefault();
                 // Motivo é exigido AQUI e no BFF. Aqui para o operador não descobrir a regra
                 // pelo erro; lá porque a fronteira não pode confiar na tela.
-                if (motivo.trim() === '') return;
+                if (reason.trim() === '') return;
                 setConfirmar(true);
               }}
             >
@@ -287,7 +287,7 @@ export function SkillDetailPage() {
                 <Input
                   aria-label="Deprecation reason"
                   placeholder="e.g. superseded by a version that also reads PDF"
-                  value={motivo}
+                  value={reason}
                   onChange={(ev) => setMotivo(ev.target.value)}
                 />
               </label>
@@ -300,7 +300,7 @@ export function SkillDetailPage() {
                   onChange={(ev) => setSucessora(ev.target.value)}
                 />
               </label>
-              <Button type="submit" variant="destructive" disabled={motivo.trim() === '' || mudarCiclo.isPending}>
+              <Button type="submit" variant="destructive" disabled={reason.trim() === '' || mudarCiclo.isPending}>
                 Deprecate
               </Button>
             </form>
@@ -382,7 +382,7 @@ export function SkillDetailPage() {
         confirmationPhrase={skillId}
         loading={mudarCiclo.isPending}
         onConfirm={() =>
-          mudarCiclo.mutate({ lifecycle: 'deprecated', reason: motivo.trim(), supersededBy: sucessora.trim() })
+          mudarCiclo.mutate({ lifecycle: 'deprecated', reason: reason.trim(), supersededBy: sucessora.trim() })
         }
       />
     </PageShell>

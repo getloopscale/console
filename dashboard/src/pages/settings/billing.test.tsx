@@ -215,6 +215,47 @@ describe('BillingPage', () => {
     expect(screen.queryByText('Concurrent Builds')).not.toBeInTheDocument();
   });
 
+  // B-242 — a âncora das três asserções acima, e a razão pela qual elas significam alguma coisa.
+  //
+  // Sem um caso que RENDERIZE esses rótulos, as três eram satisfeitas por dois mundos distintos:
+  // o painel lendo as chaves reais (correto) e um painel que parou de renderizar rótulo nenhum
+  // (defeito).
+  //
+  // O que este caso prova é o invariante de que elas dependem: o rótulo é DERIVADO da chave, então
+  // o vocabulário do mockup está ausente porque o backend não o envia, e não porque a tela o proíba
+  // por nome.
+  //
+  // A CONTAGEM, e não a presença — corrigido 2026-08-13 depois que a revisão mediu que a primeira
+  // versão (`getAllByText(...).length >= 1`) NÃO detectava a regressão que este comentário afirmava
+  // detectar. A derivação chave -> rótulo existe em DOIS lugares (`billing.tsx:193`, no
+  // `UsageMeter`, e `:314`, na lista "Includes"), então mutar um deixava os 20 casos verdes: o
+  // `getAllByText` era satisfeito pelo outro. Só mutando os dois é que ficava vermelho — e a
+  // afirmação "cada uma provada por mutação" era, para estas três, falsa.
+  //
+  // Cada rótulo renderiza exatamente DUAS vezes, uma por renderizador (medido). Asserir 2 faz a
+  // regressão de um site só reprovar. A duplicação em si é o B-277; esta é a rede enquanto ela
+  // existe.
+  it('test_billing_usage_labels_are_derived_from_the_key_the_backend_sends', () => {
+    mockUseCloudApi.mockReturnValue({ data: {
+      plan: 'pro',
+      team: 'acme',
+      usage: {
+        fast_data_transfer: { used: 1, limit: 10 },
+        edge_requests: { used: 2, limit: 20 },
+        concurrent_builds: { used: 3, limit: 30 },
+      },
+    }, loading: false, error: false });
+    render(<BillingPage />);
+
+    // Literais e não um `for` sobre um array: o detector do B-242 lê o SELETOR, e um seletor que
+    // é uma variável (`rotulo`) não ancora nada — ele não tem texto para casar com a asserção de
+    // ausência lá em cima. Escrever os três por extenso é o que faz o par existir. (Foi medido:
+    // com o laço, as três seguiam contadas como desancoradas.)
+    expect(screen.getAllByText('Fast Data Transfer')).toHaveLength(2);
+    expect(screen.getAllByText('Edge Requests')).toHaveLength(2);
+    expect(screen.getAllByText('Concurrent Builds')).toHaveLength(2);
+  });
+
   it('test_billing_usage_renders_unlimited_when_limit_null', () => {
     // ADR-D1.bis: `limit: null` é o tier Enterprise, e renderiza "Unlimited" em vez de um teto
     // inventado.

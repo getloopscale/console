@@ -51,7 +51,7 @@ export function dependentRows(data: unknown): Dependente[] {
 }
 
 /** Qual dos dois textos a tela está mostrando. */
-export type ModoDeTexto = 'escrito' | 'resolvido';
+export type TextMode = 'escrito' | 'resolvido';
 
 /**
  * O que a área de texto deve exibir, dado o modo pedido e o que chegou de cada leitura.
@@ -64,22 +64,22 @@ export type ModoDeTexto = 'escrito' | 'resolvido';
  * É a mesma regra que o `CLAUDE.md` deste repositório nomeia: falha de leitura não pode ser
  * renderizada como se fosse um estado normal do dado.
  */
-export type TextoExibido =
-  | { readonly estado: 'texto'; readonly texto: string }
+export type DisplayedText =
+  | { readonly estado: 'texto'; readonly text: string }
   | { readonly estado: 'carregando' }
   | { readonly estado: 'falhou' };
 
-export function textoExibido(
-  modo: ModoDeTexto,
-  escrito: string | null,
-  resolucao: { readonly carregando: boolean; readonly erro: boolean; readonly texto: string | null },
-): TextoExibido {
+export function displayedText(
+  modo: TextMode,
+  written: string | null,
+  resolution: { readonly loading: boolean; readonly failure: boolean; readonly text: string | null },
+): DisplayedText {
   if (modo === 'escrito') {
-    return escrito === null ? { estado: 'carregando' } : { estado: 'texto', texto: escrito };
+    return written === null ? { estado: 'carregando' } : { estado: 'texto', text: written };
   }
-  if (resolucao.erro) return { estado: 'falhou' };
-  if (resolucao.carregando || resolucao.texto === null) return { estado: 'carregando' };
-  return { estado: 'texto', texto: resolucao.texto };
+  if (resolution.failure) return { estado: 'falhou' };
+  if (resolution.loading || resolution.text === null) return { estado: 'carregando' };
+  return { estado: 'texto', text: resolution.text };
 }
 
 /**
@@ -93,6 +93,6 @@ export function textoExibido(
  */
 const MARCADOR = /(?<!@)@@@promptly:[^@\s]*@@@/;
 
-export function temComposicao(conteudo: string | null): boolean {
-  return conteudo !== null && MARCADOR.test(conteudo);
+export function hasComposition(content: string | null): boolean {
+  return content !== null && MARCADOR.test(content);
 }

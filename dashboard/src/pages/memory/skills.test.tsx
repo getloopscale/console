@@ -175,6 +175,9 @@ describe('SkillsPage (/memory/skills)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith(
       expect.stringContaining('/v1/dashboard/memory/skills/s1?repoId=repo-b'),
       expect.objectContaining({ method: 'DELETE' }),
+      // B-235 — on a curation screen whose only action is removing a bad skill, a refused DELETE
+      // that resolves `null` shows the product undoing the one thing it offers.
+      { throwOnError: true },
     );
   });
 });

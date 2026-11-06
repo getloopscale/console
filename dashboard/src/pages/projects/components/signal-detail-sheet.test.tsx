@@ -210,4 +210,31 @@ describe('SignalDetailSheet — T3.3 J-18', () => {
 
     expect(screen.queryByText('Replicas')).not.toBeInTheDocument();
   });
+
+  // B-242 — the anchor for the assertion above. No case in this file ever showed the label, so
+  // `queryByText('Replicas')` was satisfied by `open={false}` AND by a sheet that stopped rendering
+  // its title at all: rename the entry in `SIGNAL_LABELS` and the closed case stays green while the
+  // open one silently shows nothing. This is the half that makes the pair discriminate.
+  it('DOES render the signal label when open=true — the text the closed case denies', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      signal: 'replicas',
+      range: '7d',
+      status: 'ok',
+      data: [],
+    });
+
+    render(
+      withQueryClient(
+        <SignalDetailSheet
+          open={true}
+          onOpenChange={() => {}}
+          signal="replicas"
+          projectName="teste"
+          env="production"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText('Replicas')).toBeInTheDocument();
+  });
 });

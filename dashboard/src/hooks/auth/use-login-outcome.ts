@@ -40,7 +40,7 @@ export function emitAuthTelemetry(
 }
 
 /** A forma minima de um flow do Kratos que este hook precisa ler. */
-interface FlowComMensagens {
+interface FlowWithMessages {
   ui?: {
     messages?: { type: string; text: string | null }[];
     nodes?: { messages?: { type: string; text: string | null }[] }[];
@@ -62,16 +62,16 @@ interface FlowComMensagens {
  * `takePendingAttempt` e de leitura unica, entao recarregar a pagina de erro
  * nao emite uma segunda falha para a mesma tentativa.
  */
-export function useLoginFailureOutcome(flow: FlowComMensagens | null | undefined): void {
+export function useLoginFailureOutcome(flow: FlowWithMessages | null | undefined): void {
   useEffect(() => {
   if (!flow) return;
-  const erros = [
+  const failures = [
     ...(flow.ui?.messages?.filter((m) => m.type === 'error') ?? []),
     ...(flow.ui?.nodes
       ?.flatMap((n) => n.messages ?? [])
       .filter((m) => m.type === 'error') ?? []),
   ];
-  if (erros.length === 0) return;
+  if (failures.length === 0) return;
   const tentativa = takePendingAttempt();
   if (!tentativa) return;
   reportEvent('auth.method.failure', {
@@ -79,7 +79,7 @@ export function useLoginFailureOutcome(flow: FlowComMensagens | null | undefined
     method: tentativa.method,
     correlation_id: tentativa.correlation_id,
     latency_ms: Math.max(0, Date.now() - tentativa.started_at),
-    reason: classifyKratosErrorReason(erros),
+    reason: classifyKratosErrorReason(failures),
     viewport_bucket: viewportBucket(),
     timestamp: Date.now(),
   });

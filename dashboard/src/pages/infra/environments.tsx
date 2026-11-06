@@ -104,7 +104,7 @@ export function EnvironmentsPage() {
   const { setPageTitle } = usePageMeta();
   // B-167 — `error` já vinha de `useEngineApi` e não era desestruturado, então uma leitura que
   // falhou produzia zero ambientes e a tela afirmava "No environments yet".
-  const { data, loading, error: erroDeLeitura } = useEngineApi<EnvsResponse>('/api/v1/environments');
+  const { data, loading, error: readError } = useEngineApi<EnvsResponse>('/api/v1/environments');
   const [searchQuery, setSearchQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   // O alvo da exclusão carrega o projeto no TIPO: só linhas já recortadas pelo projeto da rota
@@ -194,10 +194,10 @@ export function EnvironmentsPage() {
       loading={loading}
       empty={estadoDaLista(
         {
-          erro: erroDeLeitura,
+          failure: readError,
           // 2026-06-07: page is empty only when BOTH permanent envs +
           // every preview row are absent.
-          vazio:
+          empty:
             !loading && filtered.length === 0 && !showPreviewRows
               ? {
                   icon: Box,

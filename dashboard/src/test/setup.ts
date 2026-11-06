@@ -34,6 +34,39 @@ afterEach(() => {
   cleanup();
 });
 
+// B-283 — jsdom's URL is shared by every case in a FILE, and nothing reset it.
+//
+// `MemoryRouter` isolates the router, which is why this looked impossible for a while. It does not
+// isolate jsdom: nuqs's react-router adapter reads `window.location.search` at mount and writes
+// through the real `history.pushState` (`src/test/render.tsx` documents that adapter behaviour —
+// what nobody had connected is that it makes the URL shared mutable state BETWEEN cases).
+//
+// Measured on `lens/overview.test.tsx`, instrumenting `location.search` around every case:
+//
+//     PROBE-OUT "?metric=latency"        M60 — renders ONE shared trend chart (default …
+//     PROBE-IN  "?metric=latency"        M60 — the shared chart draws one line per model
+//     PROBE-OUT "?metric=cost&range=7d"  the range selector re-fetches server-side …
+//
+// The case that failed opens by asserting the DEFAULT metric is on screen. Run after any case that
+// left `?metric=…`, the page mounts on the leaked value and that assertion is false — by
+// assertion, not by timeout, which is what distinguished this from the worker starvation of B-280.
+//
+// The docblock above corrects a WRONG cause once recorded for #187 — "a leaked location.search
+// between test FILES". Files are isolated (`isolate` defaults to true); that reading was mistaken.
+// Within a file they are not, and this is that.
+beforeEach(() => {
+  // Guarded on `history` and not merely on `window`: several suites replace the global outright
+  // (`vi.stubGlobal('window', { location: { origin: … } })` in `lib/navigation/safe-redirect*`),
+  // and the stub has no `history`. `vi.unstubAllGlobals()` is deliberately not called anywhere in
+  // this file — see the fetch note below — so that stub is still in place when this hook runs on
+  // the NEXT case. Reaching for `window.history` unguarded turned 28 of their assertions into a
+  // TypeError, which is a louder version of the very leak this hook exists to stop.
+  const history: History | undefined = globalThis.window?.history;
+  if (typeof history?.replaceState === 'function') {
+    history.replaceState(null, '', '/');
+  }
+});
+
 // M21 T2.1 (risk R3) — deterministic fetch stub so NO test touches the real network.
 // The sidebar becomes asynchronous in T3.1, and every suite that renders it (plus
 // dashboard-layout and the e2e journeys) would otherwise issue a real request in jsdom.

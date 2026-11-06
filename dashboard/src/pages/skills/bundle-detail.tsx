@@ -51,9 +51,9 @@ import {
  * dizer isso na hora, senão o operador fecha a caixa e perde a credencial.
  */
 
-const JANELA_DIAS = 30;
+const WINDOW_DAYS = 30;
 /** Explícito: sem `limit` herdaríamos o teto do servidor sem saber qual é. */
-const LIMITE_SKILLS = 100;
+const SKILLS_LIMIT = 100;
 
 interface BundleItem {
   readonly skill_id: string;
@@ -69,9 +69,9 @@ export function BundleDetailPage() {
   const invalidarBundles = useInvalidateBundles();
 
   const [ttlDias, setTtlDias] = useState('30');
-  const [rotulo, setRotulo] = useState('');
+  const [label, setLabel] = useState('');
   const [segredo, setSegredo] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const [failure, setErro] = useState<string | null>(null);
   const [aRevogar, setARevogar] = useState<TokenRow | null>(null);
   const [skillEscolhida, setSkillEscolhida] = useState('');
   const [canalEscolhido, setCanalEscolhido] = useState('');
@@ -82,7 +82,7 @@ export function BundleDetailPage() {
   // token de pagina — tres significados no mesmo lugar de uma tupla posicional.
   const tokensQuery = useBundleTokens<TokensPayload>(bundleId);
 
-  const adocaoQuery = useBundleAdoption<AdoptionPayload>(bundleId, JANELA_DIAS);
+  const adocaoQuery = useBundleAdoption<AdoptionPayload>(bundleId, WINDOW_DAYS);
 
   // O conteúdo do pacote vem da LISTAGEM de bundles: o detalhe não tem rota própria, e uma
   // segunda fonte para o mesmo dado divergiria na primeira mudança do contrato.
@@ -94,11 +94,11 @@ export function BundleDetailPage() {
   const itensVisiveis = itens ?? itensDoServidor;
   const sujo = itens !== null;
 
-  const skillsQuery = useSkillsCatalog<{ skills?: { skill_id: string; name: string }[] }>(LIMITE_SKILLS);
+  const skillsQuery = useSkillsCatalog<{ skills?: { skill_id: string; name: string }[] }>(SKILLS_LIMIT);
 
   const canaisQuery = useSkillChannels<{ channels?: { channel: string }[] }>(skillEscolhida);
 
-  const salvarItens = useMutation({
+  const saveItems = useMutation({
     mutationFn: (lista: BundleItem[]) => setBundleItems(bundleId, lista),
     onSuccess: () => {
       setErro(null);
@@ -115,7 +115,7 @@ export function BundleDetailPage() {
       // O valor vive AQUI e só aqui. Guardá-lo em estado é o que permite mostrá-lo uma vez; a
       // listagem, por desenho do serviço, nunca o devolve de novo.
       setSegredo(typeof data?.token === 'string' ? data.token : null);
-      setRotulo('');
+      setLabel('');
       invalidarBundles();
     },
     onError: (err) => setErro(promotionRefusal(err, 'Could not issue the token.')),
@@ -140,8 +140,8 @@ export function BundleDetailPage() {
   const adocao = adoptionRows(adocaoQuery.data);
   const totalInstalacoes = adocaoQuery.data?.total_installs;
 
-  const tokensFalhou = Boolean(tokensQuery.error);
-  const adocaoFalhou = Boolean(adocaoQuery.error);
+  const tokensFailed = Boolean(tokensQuery.error);
+  const adoptionFailed = Boolean(adocaoQuery.error);
 
   const colunasToken: DataTableColumn<TokenRow>[] = [
     {
@@ -161,14 +161,14 @@ export function BundleDetailPage() {
       label: 'Status',
       // Texto, nunca só cor (WCAG 1.4.1): as três situações levam a ações diferentes.
       render: (row) => {
-        const rotulos: Record<TokenRow['status'], { texto: string; variante: 'success' | 'warning' | 'outline' }> = {
-          active: { texto: 'active', variante: 'success' },
-          expired: { texto: 'expired', variante: 'warning' },
-          revoked: { texto: 'revoked', variante: 'outline' },
-          unknown: { texto: 'unknown status', variante: 'warning' },
+        const labels: Record<TokenRow['status'], { text: string; variante: 'success' | 'warning' | 'outline' }> = {
+          active: { text: 'active', variante: 'success' },
+          expired: { text: 'expired', variante: 'warning' },
+          revoked: { text: 'revoked', variante: 'outline' },
+          unknown: { text: 'unknown status', variante: 'warning' },
         };
-        const { texto, variante } = rotulos[row.status];
-        return <Badge variant={variante}>{texto}</Badge>;
+        const { text, variante } = labels[row.status];
+        return <Badge variant={variante}>{text}</Badge>;
       },
     },
     {
@@ -227,7 +227,7 @@ export function BundleDetailPage() {
         ← All bundles
       </Link>
 
-      {erro !== null ? <Alert intent="destructive" title="The operation failed" description={erro} /> : null}
+      {failure !== null ? <Alert intent="destructive" title="The operation failed" description={failure} /> : null}
 
       {segredo !== null ? (
         <Alert
@@ -239,7 +239,7 @@ export function BundleDetailPage() {
         />
       ) : null}
 
-      {tokensFalhou ? (
+      {tokensFailed ? (
         <Alert
           intent="destructive"
           title="Could not load the tokens"
@@ -382,10 +382,10 @@ export function BundleDetailPage() {
               o que está na tela ainda não foi gravado, mesmo quando já foi. */}
           {sujo ? (
             <div className="flex items-center gap-2">
-              <Button onClick={() => salvarItens.mutate(itensVisiveis)} disabled={salvarItens.isPending}>
-                {salvarItens.isPending ? 'Saving…' : 'Save contents'}
+              <Button onClick={() => saveItems.mutate(itensVisiveis)} disabled={saveItems.isPending}>
+                {saveItems.isPending ? 'Saving…' : 'Save contents'}
               </Button>
-              <Button variant="ghost" onClick={() => setItens(null)} disabled={salvarItens.isPending}>
+              <Button variant="ghost" onClick={() => setItens(null)} disabled={saveItems.isPending}>
                 Discard changes
               </Button>
               <span className="text-xs text-muted-foreground">Unsaved changes.</span>
@@ -408,9 +408,9 @@ export function BundleDetailPage() {
           className="flex flex-wrap items-end gap-2 px-6 pb-6"
           onSubmit={(e) => {
             e.preventDefault();
-            const dias = Number(ttlDias);
-            if (!Number.isFinite(dias) || dias <= 0) return;
-            emitir.mutate({ ttl: dias, label: rotulo.trim() });
+            const days = Number(ttlDias);
+            if (!Number.isFinite(days) || days <= 0) return;
+            emitir.mutate({ ttl: days, label: label.trim() });
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
@@ -429,8 +429,8 @@ export function BundleDetailPage() {
             <Input
               aria-label="Token label"
               placeholder="e.g. CI pipeline"
-              value={rotulo}
-              onChange={(e) => setRotulo(e.target.value)}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
             />
           </label>
           <Button type="submit" disabled={emitir.isPending || Number(ttlDias) <= 0}>
@@ -457,9 +457,9 @@ export function BundleDetailPage() {
           emptyState={
             <EmptyState
               icon={KeyRound}
-              title={tokensFalhou ? 'No data — the read failed' : 'No token issued'}
+              title={tokensFailed ? 'No data — the read failed' : 'No token issued'}
               description={
-                tokensFalhou
+                tokensFailed
                   ? 'Try again in a moment. Until then, there is no way to know who has access to this bundle.'
                   : 'Issue a token above to grant access to this bundle without exposing the workspace credentials.'
               }
@@ -471,7 +471,7 @@ export function BundleDetailPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Adoption over the last {JANELA_DIAS} days</h2>
+            <h2>Adoption over the last {WINDOW_DAYS} days</h2>
           </Card.Title>
           {/* O rótulo diz a granularidade REAL, medida em `adoption-store.ts`: skill + versão,
               escopada a este pacote. Chamar de "por pacote" faria a tela mentir — e "instalações
@@ -482,7 +482,7 @@ export function BundleDetailPage() {
               : 'The count is per skill and version within THIS bundle — the same skill in another bundle is counted separately.'}
           </Card.Description>
         </Card.Header>
-        {adocaoFalhou ? (
+        {adoptionFailed ? (
           <div className="px-6 pb-4">
             <Alert
               intent="destructive"
@@ -499,11 +499,11 @@ export function BundleDetailPage() {
           emptyState={
             <EmptyState
               icon={TrendingUp}
-              title={adocaoFalhou ? 'No data — the read failed' : 'No install in this window'}
+              title={adoptionFailed ? 'No data — the read failed' : 'No install in this window'}
               description={
-                adocaoFalhou
+                adoptionFailed
                   ? 'Try again in a moment.'
-                  : `Nobody installed skills from this bundle in the last ${JANELA_DIAS} days.`
+                  : `Nobody installed skills from this bundle in the last ${WINDOW_DAYS} days.`
               }
             />
           }

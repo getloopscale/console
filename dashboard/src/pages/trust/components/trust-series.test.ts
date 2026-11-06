@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { toSeries, totalInWindow, violationCount, byPolicy, peakSeverity, coverageGap, unenforcedCount, conversationMessages, filterByPolicy } from './trust-series';
 

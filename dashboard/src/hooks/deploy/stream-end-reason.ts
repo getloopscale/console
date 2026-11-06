@@ -25,13 +25,11 @@
  * classificação no dia em que houvesse um segundo.
  */
 type StreamEndKind =
-  /** The server finished the response body. Not an error — reconnect, keep the token. */
+  /** The server finished the response body. Not an error — reconnect. */
   | 'server-closed'
   /** Non-2xx. Carries the status: see `StreamEndReason` and B-172. */
   | 'http-error'
-  /** No credential was available to open the stream at all. */
-  | 'no-token'
-  /** The request or the reader threw. Transient; reconnect, keep the token. */
+  /** The request or the reader threw. Transient; reconnect. */
   | 'network-error'
   /** We closed it ourselves. Not a failure, and nothing should react to it. */
   | 'aborted';
@@ -70,7 +68,6 @@ export function streamEndEvent(reason: StreamEndReason): StreamEndEvent {
  * credencial) é o mesmo. `404` e `5xx` não dizem nada sobre quem está pedindo.
  */
 export function credentialIsSuspect(reason: StreamEndReason): boolean {
-  if (reason.kind === 'no-token') return true;
   return reason.kind === 'http-error' && (reason.status === 401 || reason.status === 403);
 }
 

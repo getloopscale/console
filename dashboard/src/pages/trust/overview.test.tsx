@@ -184,6 +184,13 @@ describe('the chart under the counts (B-129)', () => {
 
     const chart = await screen.findByRole('table', { name: /violations by policy/i });
     expect(within(chart).getByRole('row', { name: /credential_leak\s*1/i })).toBeInTheDocument();
+
+    // B-242 — the anchor for the two `queryByRole('heading', …)` denials in the failure cases
+    // below. They are the assertions the docblocks there call "an affirmation with content", and
+    // they were the only place in this file that named the HEADING: with no case showing it, a
+    // reworded `<h2>` satisfied both denials while proving nothing. Asserting it present here is
+    // what makes the pair discriminate.
+    expect(screen.getByRole('heading', { name: /violations by policy/i })).toBeInTheDocument();
   });
 
   it('a read that FAILED draws no chart', async () => {

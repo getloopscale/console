@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * T1.3 hermetic test suite for validation helpers.
  *

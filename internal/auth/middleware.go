@@ -6,6 +6,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -44,122 +45,163 @@ func WithUser(ctx context.Context, u *UserContext) context.Context {
 	return context.WithValue(ctx, userCtxKey, u)
 }
 
-// RequireJWT returns chi middleware that validates JWT Bearer tokens.
-// Accepts Hydra RSA JWTs (CLI) and HMAC session JWTs (dashboard).
-// Uses pkg/jwt — single source of truth for JWT validation.
-//
-// T6.0 of plan 2026-05-27-backend-frontend-integration v1.1 (EC-04):
-// the dashboard opens SSE streams via the native EventSource API, which
-// cannot set custom request headers. For SSE-style paths we additionally
-// accept the JWT as a `?token=<jwt>` query parameter. The query-param
-// form is only consulted when the standard Bearer header is absent, so
-// the security posture for non-SSE clients is unchanged.
-//
-// Security note: the token will appear in upstream access logs. Mitigated
-// by short HMAC TTL (1h) + key rotation (pkg/jwt SessionTokenIssuer
-// previous-secret window). Trade-off accepted vs the alternative of
-// migrating every stream surface to WebSocket.
+// RequireJWT returns middleware that authenticates a Bearer token only — a
+// Hydra RS256 JWT (CLI) or an HS256 session JWT. It is RequireCaller without a
+// session authenticator, kept for callers that have no browser surface.
 func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionTokenIssuer) func(http.Handler) http.Handler {
+	return RequireCaller(rsaValidator, sessValidator, nil)
+}
+
+// RequireCaller returns middleware that authenticates the caller of a request
+// by exactly one of two credentials:
+//
+//   - `Authorization: Bearer <jwt>` — the CLI (Hydra RS256) and, until
+//     usetheoai/theo#477 step 4 deletes it, the HS256 session JWT that
+//     `/v1/auth/session/token` still issues to the scripts that call it.
+//   - the Kratos session cookie — the dashboard. theo-cloud is its Backend for
+//     Frontend (usetheoai/theo#477 step 3): the browser holds no token, and the
+//     cookie is checked server-side on every request.
+//
+// A credential in the query string is NOT one of them. The `?token=` fallback
+// existed because the native EventSource cannot set headers; the dashboard
+// stream is now cookie-authenticated, and a token in a URL reaches access logs,
+// proxy logs, browser history and the Referer header.
+//
+// Cross-site request forgery. A cookie travels with requests the dashboard did
+// not make, so an unsafe method on the cookie path must come from this origin.
+// The check is `http.CrossOriginProtection`: Fetch Metadata (`Sec-Fetch-Site`)
+// with an `Origin`-vs-`Host` fallback for browsers that predate it. Chosen over
+// a synchronizer token because it needs no state and no client cooperation, and
+// over SameSite alone because the Kratos cookie is scoped to the parent domain,
+// so SameSite=Lax still lets a sibling subdomain send it. A Bearer request is
+// not checked: a browser never attaches that header on its own.
+//
+// The tenant always comes from the credential — never from a header, a query
+// parameter, or a body the request carries.
+func RequireCaller(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionTokenIssuer, sessions SessionAuthenticator) func(http.Handler) http.Handler {
+	crossOrigin := http.NewCrossOriginProtection()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := extractBearerOrQueryToken(r)
-			if token == "" {
-				slog.Warn("auth: rejected — no Bearer token", "method", r.Method, "path", r.URL.Path)
+			if token := bearerToken(r); token != "" {
+				authenticateBearer(w, r, next, token, rsaValidator, sessValidator)
+				return
+			}
+			if sessions == nil || len(r.Cookies()) == 0 {
+				slog.Warn("auth: rejected — no credential", "method", r.Method, "path", r.URL.Path)
 				writeAuthError(w, "Not authenticated. Run: theo login")
 				return
 			}
-
-			// Try RSA JWT (Hydra — CLI)
-			if rsaValidator != nil {
-				claims, err := rsaValidator.Validate(token)
-				if err == nil {
-					email := claims.Email
-					if email == "" {
-						email = claims.Ext.Email
-					}
-					name := claims.Name
-					if name == "" {
-						name = claims.Ext.Name
-					}
-					tenantID := claims.TenantID
-					if tenantID == "" {
-						tenantID = claims.Ext.TenantID
-					}
-					if tenantID == "" {
-						// MEET-2026-04-07-039 B7: never fall back to "default" tenant.
-						slog.Warn("auth: JWT has no tenant_id", "sub", claims.Subject, "path", r.URL.Path)
-						writeAuthError(w, "Account setup required. Please try logging in again.")
-						return
-					}
-					ctx := context.WithValue(r.Context(), userCtxKey, &UserContext{
-						Subject:  claims.Subject,
-						Email:    email,
-						Name:     name,
-						TenantID: tenantID,
-					})
-					next.ServeHTTP(w, r.WithContext(ctx))
-					return
-				}
+			if err := crossOrigin.Check(r); err != nil {
+				slog.Warn("auth: rejected — cross-origin request with a session cookie",
+					"method", r.Method, "path", r.URL.Path, "sec_fetch_site", r.Header.Get("Sec-Fetch-Site"))
+				writeJSONError(w, http.StatusForbidden, "CROSS_ORIGIN_REJECTED",
+					"This request did not come from the Theo dashboard.")
+				return
 			}
-
-			// Try HMAC session JWT (dashboard)
-			if sessValidator != nil {
-				claims, err := sessValidator.ValidateSession(token)
-				if err == nil {
-					tenantID := claims.TenantID
-					if tenantID == "" {
-						// MEET-2026-04-07-039 B7: never fall back to "default" tenant.
-						slog.Warn("auth: session JWT has no tenant_id", "sub", claims.Subject, "path", r.URL.Path)
-						writeAuthError(w, "Account setup required. Please try logging in again.")
-						return
-					}
-					ctx := context.WithValue(r.Context(), userCtxKey, &UserContext{
-						Subject:  claims.Subject,
-						Email:    claims.Email,
-						Name:     claims.Name,
-						TenantID: tenantID,
-						// M3: surface account_id from the session JWT (additive).
-						// Legacy tokens without the claim yield "" — still authorized.
-						AccountID: claims.AccountID,
-					})
-					next.ServeHTTP(w, r.WithContext(ctx))
-					return
-				}
+			user, err := sessions.Authenticate(r)
+			switch {
+			case err == nil:
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userCtxKey, user)))
+			case errors.Is(err, ErrNoSession):
+				writeAuthError(w, "Session expired. Please sign in again.")
+			case errors.Is(err, ErrIdentityProviderUnavailable):
+				slog.Warn("auth: session could not be checked", "path", r.URL.Path, "error", err)
+				writeJSONError(w, http.StatusBadGateway, "AUTH_SERVICE_UNAVAILABLE",
+					"Authentication service unavailable. Try again.")
+			default:
+				slog.Error("auth: session tenant could not be resolved", "path", r.URL.Path, "error", err)
+				writeJSONError(w, http.StatusInternalServerError, "TENANT_ERROR",
+					"Failed to set up your account. Try again or contact support.")
 			}
-
-			slog.Warn("auth: all JWT validators failed", "path", r.URL.Path, "token_len", len(token))
-			writeAuthError(w, "Invalid or expired token. Run: theo login")
 		})
 	}
 }
 
-// extractBearerOrQueryToken returns the JWT carried by either the standard
-// Authorization: Bearer header or the EventSource fallback ?token=<jwt>
-// query parameter. Returns the empty string when neither is present.
-//
-// The header form is preferred — the query form is consulted only as a
-// fallback so the security posture for non-SSE clients is unchanged.
-// (T6.0 / EC-04 of plan 2026-05-27-backend-frontend-integration v1.1.)
-func extractBearerOrQueryToken(r *http.Request) string {
+func authenticateBearer(w http.ResponseWriter, r *http.Request, next http.Handler, token string, rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionTokenIssuer) {
+	// Try RSA JWT (Hydra — CLI)
+	if rsaValidator != nil {
+		claims, err := rsaValidator.Validate(token)
+		if err == nil {
+			email := claims.Email
+			if email == "" {
+				email = claims.Ext.Email
+			}
+			name := claims.Name
+			if name == "" {
+				name = claims.Ext.Name
+			}
+			tenantID := claims.ResolvedTenantID()
+			if tenantID == "" {
+				// MEET-2026-04-07-039 B7: never fall back to "default" tenant.
+				slog.Warn("auth: JWT has no tenant_id", "sub", claims.Subject, "path", r.URL.Path)
+				writeAuthError(w, "Account setup required. Please try logging in again.")
+				return
+			}
+			ctx := context.WithValue(r.Context(), userCtxKey, &UserContext{
+				Subject:  claims.Subject,
+				Email:    email,
+				Name:     name,
+				TenantID: tenantID,
+				// usetheoai/theo#477: without this, every consumer gating on
+				// AccountID (the M1 cross-account guard) skipped the check for
+				// a Hydra caller. Top-level first, ext fallback; "" for a token
+				// minted before the claim existed.
+				AccountID: claims.ResolvedAccountID(),
+			})
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+	}
+
+	// Try HMAC session JWT — issued by /v1/auth/session/token, removed in step 4.
+	if sessValidator != nil {
+		claims, err := sessValidator.ValidateSession(token)
+		if err == nil {
+			tenantID := claims.TenantID
+			if tenantID == "" {
+				// MEET-2026-04-07-039 B7: never fall back to "default" tenant.
+				slog.Warn("auth: session JWT has no tenant_id", "sub", claims.Subject, "path", r.URL.Path)
+				writeAuthError(w, "Account setup required. Please try logging in again.")
+				return
+			}
+			ctx := context.WithValue(r.Context(), userCtxKey, &UserContext{
+				Subject:  claims.Subject,
+				Email:    claims.Email,
+				Name:     claims.Name,
+				TenantID: tenantID,
+				// M3: surface account_id from the session JWT (additive).
+				// Legacy tokens without the claim yield "" — still authorized.
+				AccountID: claims.AccountID,
+			})
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+	}
+
+	slog.Warn("auth: all JWT validators failed", "path", r.URL.Path, "token_len", len(token))
+	writeAuthError(w, "Invalid or expired token. Run: theo login")
+}
+
+// bearerToken returns the JWT in `Authorization: Bearer`, or "" when absent.
+func bearerToken(r *http.Request) string {
 	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
 		return auth[7:]
-	}
-	// EventSource workaround — only relevant for SSE streams. Other clients
-	// SHOULD use the Authorization header; the query form merely tolerates
-	// browsers' inability to set custom headers on EventSource.
-	if t := r.URL.Query().Get("token"); t != "" {
-		return t
 	}
 	return ""
 }
 
 // writeAuthError writes a JSON error response with request_id for tracing (§4.3).
 func writeAuthError(w http.ResponseWriter, message string) {
+	writeJSONError(w, http.StatusUnauthorized, "AUTH_REQUIRED", message)
+}
+
+// writeJSONError writes the service's error shape with the request_id (§4.3).
+func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 	requestID := w.Header().Get("X-Request-Id")
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
+	w.WriteHeader(status)
 	resp := map[string]string{
-		"code":    "AUTH_REQUIRED",
+		"code":    code,
 		"message": message,
 	}
 	if requestID != "" {

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/hooks/memory/use-debounced-value';
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, History, Search, X } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Timestamp } from '@usetheo/ui';
@@ -7,7 +6,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ScopeSelect } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import { useEpisodes } from '@/hooks/memory/use-episodes';
 
 /**
  * episodes-gateway-dashboard — /memory/episodes.
@@ -24,19 +23,7 @@ import { cloudFetch } from '@/lib/http/api';
  *  - Text filter (q) — literal partial match, NOT semantic (semantic is Playground recall)
  */
 
-interface EpisodeItem {
-  id: string;
-  text: string;
-  scope_type: string;
-  created_at: string;
-  metadata?: Record<string, unknown>;
-}
-interface EpisodesPage {
-  items: EpisodeItem[];
-  nextCursor?: string;
-}
 
-const PAGE_SIZE = 20;
 
 /** `<input type="datetime-local">` yields `YYYY-MM-DDTHH:mm`; widen to an ISO-Z instant. */
 function toIsoInstant(local: string): string {
@@ -62,35 +49,7 @@ export function EpisodesPage() {
 
   const asOf = toIsoInstant(asOfLocal);
 
-  const query = useInfiniteQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/episodes', { order, q: debouncedQuery, asOf, session }] as const,
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams();
-      if (session) {
-        params.set('scope', 'session');
-        params.set('session_id', session);
-      } else {
-        params.set('scope', 'user');
-      }
-      params.set('limit', String(PAGE_SIZE));
-      params.set('order', order);
-      if (debouncedQuery) params.set('q', debouncedQuery);
-      if (asOf) params.set('asOf', asOf);
-      if (pageParam) params.set('after', pageParam);
-      // throwOnError para que uma falha vire `query.isError` em vez de uma lista
-      // vazia. Sem isso o `cloudFetch` devolvia `null`, o branch de erro logo
-      // abaixo era INALCANCAVEL, e a tela dizia "No episodes yet" — ou seja,
-      // "voce nao tem nenhum" quando a verdade era "nao consegui perguntar".
-      // Mesmo padrao ja usado na pagina irma `entities.tsx:100`.
-      return cloudFetch<EpisodesPage>(
-        `/v1/dashboard/memory/episodes?${params.toString()}`,
-        undefined,
-        { throwOnError: true },
-      );
-    },
-    getNextPageParam: (last) => last?.nextCursor ?? undefined,
-  });
+  const query = useEpisodes({ order, q: debouncedQuery, asOf, session });
 
   const items = query.data?.pages.flatMap((p) => p?.items ?? []) ?? [];
   const filtersActive = debouncedQuery !== '' || asOf !== '';

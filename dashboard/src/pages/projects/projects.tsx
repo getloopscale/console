@@ -5,7 +5,7 @@ import { Badge, Button, Card, Checkbox, PageShell, StatusDot, Table } from '@use
 import type { StatusKind } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { estadoDaLista } from '@/lib/list-state';
-import { buscaSemResultado } from '@/pages/projects/empty-states';
+import { searchWithoutResult } from '@/pages/projects/empty-states';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { CreateProjectSheet } from "@/pages/projects/components/create-project-sheet";
@@ -276,7 +276,7 @@ export function ProjectsPage() {
   const PAGE_BUMP = 20;
   const [pageLimit, setPageLimit] = useState(PAGE_BUMP);
   // B-167 — `error` já vinha de `useProjects` e não era desestruturado.
-  const { projects, total, loading, error: erroDeLeitura } = useProjects({ limit: pageLimit });
+  const { projects, total, loading, error: readError } = useProjects({ limit: pageLimit });
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '');
@@ -367,11 +367,11 @@ export function ProjectsPage() {
       empty={estadoDaLista(
         // Só há estado vazio de PageShell para busca sem resultado. "Nenhum projeto" (Sprint 3
         // T3.3) renderiza `EmptyProjectsHero` inline abaixo — empty-state-as-onboarding, ADR D2.
-        { erro: erroDeLeitura, vazio: buscaSemResultado(loading, searchQuery, filteredProjects.length) },
+        { failure: readError, empty: searchWithoutResult(loading, searchQuery, filteredProjects.length) },
         'your projects',
       )}
     >
-      {!loading && !erroDeLeitura && projects.length === 0 ? (
+      {!loading && !readError && projects.length === 0 ? (
         // Sprint 3 T3.3: empty-state-as-onboarding per ADR D2.
         // B-167 — a SEGUNDA afirmação de ausência desta tela (o registro do item só listava a
         // primeira): sem `!erroDeLeitura`, quem já tem trinta projetos recebe, numa falha de

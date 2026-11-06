@@ -49,7 +49,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const [failure, setErro] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -121,7 +121,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      {erro ? <Alert intent="destructive" description={erro} /> : null}
+      {failure ? <Alert intent="destructive" description={failure} /> : null}
       {phraseRequired ? (
         <div className="space-y-1.5">
           <p className="text-sm text-muted-foreground">

@@ -2,7 +2,7 @@ import { Route, Navigate, useParams } from 'react-router-dom';
 import { Boundaried } from '@/routes/boundaried';
 import {
   PromptDetailPage,
-  PromptlyCatalogoPage,
+  PromptlyCatalogPage,
   PromptlyCreatePage,
   PromptlyDiffPage,
   PromptlyOverviewPage,
@@ -52,7 +52,7 @@ export const rotasDePromptly = (
     <Route path="/promptly/catalogo" element={<Navigate to="/promptly/catalog" replace />} />
     <Route path="/promptly/:promptName/producao" element={<TabRedirect sufixo="production" />} />
     <Route path="/promptly/:promptName/consumo" element={<TabRedirect sufixo="consumption" />} />
-    <Route path="/promptly/catalog" element={<Boundaried path="/promptly/catalog"><PromptlyCatalogoPage /></Boundaried>} />
+    <Route path="/promptly/catalog" element={<Boundaried path="/promptly/catalog"><PromptlyCatalogPage /></Boundaried>} />
     <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
     {/* M21 DoD-1 — as três abas que não são a índice. A índice É
     `/promptly/:promptName` acima, e é o endereço que já circulava: links para

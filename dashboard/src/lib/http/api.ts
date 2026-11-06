@@ -1,11 +1,12 @@
 // API client for the Theo dashboard.
 //
-// Auth flow (BFF pattern):
-//   1. Dashboard authenticates via Kratos (session cookies)
-//   2. POST /v1/auth/session/token exchanges cookies → JWT
-//   3. All API calls use Authorization: Bearer <jwt>
+// Auth (Backend for Frontend, usetheoai/theo#477 step 3):
+//   The browser holds NO token. It keeps the Kratos session cookie, which the
+//   browser sends on every same-origin request; theo-cloud validates it
+//   server-side on each call and holds any downstream credential itself.
+//   There is nothing here to steal, refresh, expire or broadcast.
 //
-// §3.3: BroadcastChannel coordinates token state across browser tabs.
+// §3.3: BroadcastChannel coordinates logout across browser tabs.
 // §3.6: Session expiry shows notification before redirect.
 
 // MEET-040: Single origin. Dashboard served at cloud.{domain} — all API calls are relative.
@@ -59,54 +60,34 @@ export interface CloudFetchConfig {
   readonly onResponse?: (resp: Response) => void;
 }
 
-// In-memory JWT token (never localStorage — XSS risk)
-let accessToken: string | null = null;
-let tokenExpiresAt = 0;
-let refreshPromise: Promise<boolean> | null = null; // Dedup concurrent refreshes
-
 /**
- * Quantas vezes a credencial DESTA aba mudou (B-231). `refreshPromise` deduplica a TROCA, nao o
- * `accessToken = null` que a antecede, entao um 401 emitido contra o token VELHO mas processado
- * DEPOIS da renovacao apagava o token novo e disparava uma segunda troca. Compare-and-swap, nao
- * lock: a corrida e entre continuacoes de uma thread ao redor de um `await`. Cenario completo em
- * `api.test.ts § B-231`.
+ * Credentials for every call: the session cookie, and only to our own origin.
+ *
+ * `same-origin`, not `include`: the dashboard is served from the API's origin (MEET-040), and
+ * `include` would send the cookie to any other origin configured in `API_URL` — exactly the
+ * request the server refuses as cross-origin.
  */
-let tokenGeneration = 0;
+const CREDENTIALS: RequestCredentials = 'same-origin';
 
-// §3.3: BroadcastChannel for cross-tab coordination.
-// SECURITY: the JWT is NEVER broadcast. The token lives only in this tab's
-// memory; broadcasting it would let any same-origin XSS subscribe to the channel
-// and exfiltrate tokens from every open tab. Each tab mints its own token from
-// its own Kratos session cookie via exchangeSessionToken(). Only logout (which
-// carries no secret) is coordinated across tabs.
+// §3.3: BroadcastChannel for cross-tab coordination. Only logout crosses it — it carries no
+// secret, and since usetheoai/theo#477 step 3 there is no secret in this tab to carry anyway.
 let authChannel: BroadcastChannel | null = null;
 
 /**
- * Abre o canal de coordenacao entre abas. Chamado UMA vez no boot (main.tsx).
+ * Opens the cross-tab coordination channel. Called ONCE at boot (main.tsx).
  *
- * B-042 — antes o canal era aberto como efeito colateral de IMPORT deste modulo.
- * api.ts tem 151 importadores, entao qualquer um deles — incluindo um teste que
- * so queria `formatBytes` — abria um BroadcastChannel real e registrava um
- * handler que redireciona a pagina. Efeito colateral de import tambem nao tem
- * teardown: nada podia fechar o canal, o que forcava os testes a depender de
- * vi.resetModules para isolamento.
- *
- * Agora o ciclo de vida e explicito e a funcao devolve o seu proprio dispose.
- * Idempotente de proposito: chamar duas vezes nao abre dois canais.
+ * B-042 — the channel used to open as a side effect of IMPORTING this module. Its lifecycle is
+ * explicit now and the function returns its own dispose. Idempotent on purpose.
  */
 export function installAuthChannel(): () => void {
   if (authChannel) return () => {};
   try {
     const ch = new BroadcastChannel('theo-auth');
     ch.onmessage = (event: MessageEvent<unknown>) => {
-      // B-234 — `MessageEvent<AuthMessage>` era uma afirmacao de compilacao sobre um dado que
-      // chega de outra aba em execucao: `null` fazia `msg.type` lancar dentro deste handler, e
-      // qualquer objeto com `type:'logged-out'` disparava a acao destrutiva abaixo.
+      // B-234 — the payload comes from another running tab; only the exact logout shape acts.
       if (!isLoggedOutMessage(event.data)) return;
-      // Another tab logged out — clear this tab's token and redirect.
-      accessToken = null;
-      tokenExpiresAt = 0;
-      tokenGeneration += 1;
+      // Another tab logged out: the shared session cookie is gone, so this tab's is too.
+      lastSessionStatus = 401;
       redirectToLogin('expired');
     };
     authChannel = ch;
@@ -120,23 +101,13 @@ export function installAuthChannel(): () => void {
   }
 }
 
-// #324: status HTTP da ULTIMA troca de token (null = rejeicao de rede, sem
-// resposta). Nao e estado de autenticacao — e a diferenca entre "tente daqui a
-// pouco" e "voce foi deslogado", que a resposta carrega e o booleano perde.
-let lastExchangeStatus: number | null = null;
+// #324: HTTP status of the LAST session probe (null = network rejection, no response). It is not
+// authentication state — it is the difference between "try again soon" and "you were signed out".
+let lastSessionStatus: number | null = null;
+let sessionProbe: Promise<SessionIdentity | null> | null = null; // Dedup concurrent probes
 
-/**
- * Identity carried by the last successful token exchange.
- *
- * The exchange already validates the Kratos cookie server-side, so the BFF has
- * the session in hand and returns the subset the dashboard reads. Caching it
- * here is what lets `getSession()` stop calling Kratos from the browser — and
- * with it stop receiving devices[].ip_address and recovery_addresses, which no
- * screen has ever read.
- */
-let lastIdentity: ExchangedIdentity | null = null;
-
-export interface ExchangedIdentity {
+/** The identity behind the session cookie, as GET /v1/auth/session returns it. */
+export interface SessionIdentity {
   id: string;
   email: string;
   name?: string;
@@ -144,38 +115,57 @@ export interface ExchangedIdentity {
   authentication_methods?: { method: string; provider?: string }[];
 }
 
-/** The identity from the most recent successful exchange, if any. */
-export function getExchangedIdentity(): ExchangedIdentity | null {
-  return lastIdentity;
+/**
+ * Asks the BFF whose session the cookie carries. `null` when there is no session OR when it could
+ * not be determined — `sessionDefinitivelyExpired()` tells the two apart.
+ *
+ * The BFF validates the cookie against Kratos and returns only the subset the dashboard reads, so
+ * devices[].ip_address and recovery_addresses never reach the page. Concurrent calls share one
+ * request.
+ */
+export async function fetchSessionIdentity(): Promise<SessionIdentity | null> {
+  if (mocksEnabled()) {
+    lastSessionStatus = 200;
+    return { id: 'mock-identity', email: 'mock@usetheo.dev' };
+  }
+  if (sessionProbe) return sessionProbe;
+  sessionProbe = (async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/v1/auth/session`, {
+        credentials: CREDENTIALS,
+        headers: { Accept: 'application/json' },
+      });
+      lastSessionStatus = resp.status;
+      if (!resp.ok) return null;
+      const data = (await resp.json()) as { identity?: SessionIdentity };
+      return data.identity ?? null;
+    } catch {
+      // Network rejection: with no response nothing says the session ended. Safe side.
+      lastSessionStatus = null;
+      return null;
+    } finally {
+      sessionProbe = null;
+    }
+  })();
+  return sessionProbe;
 }
 
 /**
- * #324, forma final. As tres rodadas anteriores enumeravam o lado TRANSITORIO
- * ("foi 429?"), e esse conjunto e ABERTO: `/v1/auth/session/token` falha com
- * 429, 500 (INTERNAL_ERROR / TENANT_ERROR / TOKEN_ERROR), 502
- * (AUTH_SERVICE_UNAVAILABLE — cuja propria mensagem diz "Try again") ou sem
- * status algum (rejeicao de rede). Cada correcao fechava um caminho e deixava
- * os outros.
- *
- * O lado TERMINAL tem um membro so: `401 AUTH_REQUIRED`, emitido quando o
- * `/sessions/whoami` do Kratos nega ou devolve a sessao inativa. Entao a
- * pergunta certa nao e "foi temporario?" mas "a sessao ACABOU?" — e o default
- * de qualquer status novo cai no lado seguro (tente de novo), nunca em logout.
- *
- * Mantem o #110 fechado por construcao: um cookie Kratos velho faz o whoami
- * negar, o handler responde 401, e o redirect continua acontecendo.
+ * #324 — has the session ENDED? The terminal side has one member: `401 AUTH_REQUIRED`, which the
+ * BFF emits only when Kratos refuses the cookie. 429, 5xx, 502 (AUTH_SERVICE_UNAVAILABLE) and a
+ * network failure fall on the safe side — try again, never sign out. Keeps #110 closed: a stale
+ * cookie → 401 → redirect.
  */
 export function sessionDefinitivelyExpired(): boolean {
-  return lastExchangeStatus === 401;
+  return lastSessionStatus === 401;
 }
 
 /**
- * B-142 — aqui se lancava `ApiError(429)` para QUALQUER falha da troca (429, 500, 502, rede).
- * Nao era cosmetico: `retryGuard` decide pelo status e recusa repetir 4xx, entao a classe que mais
- * merece nova tentativa era a unica com repeticao desligada. Ver `api.test.ts § B-142`.
+ * B-142 — the error carries the status that actually happened, because `retryGuard` decides by it
+ * and refuses to retry a 4xx.
  */
 function transientAuthError(): ApiError {
-  const status = lastExchangeStatus ?? 0;
+  const status = lastSessionStatus ?? 0;
   return new ApiError(
     status,
     undefined,
@@ -185,118 +175,8 @@ function transientAuthError(): ApiError {
   );
 }
 
-/** Exchange Kratos session cookie for a JWT. Called after login. */
-export async function exchangeSessionToken(): Promise<boolean> {
-  // Visual-validation mock layer (dev-only, gated by VITE_USE_MOCKS).
-  // Set a fake token so hasValidToken() returns true and the dashboard
-  // proceeds without trying to hit the real BFF endpoint.
-  if (mocksEnabled()) {
-    accessToken = 'mock-jwt-for-visual-validation';
-    tokenExpiresAt = Date.now() + 3600 * 1000;
-    tokenGeneration += 1;
-    return true;
-  }
-
-  // Dedup: if a refresh is already in flight, reuse it
-  if (refreshPromise) return refreshPromise;
-
-  refreshPromise = (async () => {
-    try {
-      const resp = await fetch(`${API_BASE}/v1/auth/session/token`, {
-        method: 'POST',
-        credentials: 'include', // Send Kratos session cookie
-        headers: { 'Content-Type': 'application/json' },
-      });
-      // #324: guardamos o STATUS, nao um julgamento. Colapsar todo erro num
-      // unico `false` fazia o chamador redirecionar para /login dizendo
-      // "Session expired" — o redirect recarregava a pagina, zerava este dedup
-      // e disparava nova troca, consumindo mais da cota ja estourada. O loop se
-      // auto-alimentava com a sessao Kratos VALIDA. Quem decide e
-      // `sessionDefinitivelyExpired()`.
-      if (!resp.ok) {
-        lastExchangeStatus = resp.status;
-        return false;
-      }
-      lastExchangeStatus = resp.status;
-
-      const data = await resp.json() as {
-        access_token: string;
-        expires_in: number;
-        identity?: ExchangedIdentity;
-      };
-      accessToken = data.access_token;
-      tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000; // 60s buffer
-      lastIdentity = data.identity ?? null;
-      tokenGeneration += 1; // B-231 — a credencial mudou; 401s emitidos contra a anterior ficam obsoletos.
-
-      // SECURITY: do NOT broadcast the token. Each tab exchanges its own token
-      // from its Kratos session cookie on demand (see ensureToken).
-      return true;
-    } catch {
-      // Rejeicao de rede: nao ha resposta, logo nao ha como afirmar que a
-      // sessao acabou. Lado seguro — transitorio.
-      lastExchangeStatus = null;
-      return false;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
-}
-
-/** Check if we have a valid token. */
-export function hasValidToken(): boolean {
-  return accessToken !== null && Date.now() < tokenExpiresAt;
-}
-
-/** Ensure we have a valid token, refreshing if needed. */
-async function ensureToken(): Promise<string | null> {
-  if (hasValidToken()) return accessToken;
-  const ok = await exchangeSessionToken();
-  return ok ? accessToken : null;
-}
-
-/**
- * O JWT para os consumidores de SSE.
- *
- * B-219/B-237 — este docblock dizia que o token vai "inline na query string porque o EventSource
- * não aceita headers". Não vai mais: o transporte é `fetch-event-source.ts`, que envia
- * `Authorization: Bearer` como qualquer outra chamada (`fetch-event-source.ts:130`). A frase
- * sobreviveu à mudança e descrevia um vazamento de credencial em URL — registrado em log de
- * servidor, em histórico de navegador — que já não acontece.
- *
- * A função continua existindo porque `ensureToken` é privada e os consumidores de stream precisam
- * do token ANTES de abrir a conexão, e não a cada requisição.
- */
-export async function ensureSSEToken(): Promise<string | null> {
-  return ensureToken();
-}
-
-
-/** Clear token (on logout or login page visit). */
-export function clearToken(): void {
-  accessToken = null;
-  tokenExpiresAt = 0;
-  lastIdentity = null;
-  tokenGeneration += 1; // B-231 — um logout tambem obsoleta os 401 ainda em voo.
-}
-
-/**
- * Encerra o token DESTA sessão de navegador e avisa as outras abas.
- *
- * NÃO é o logout do produto. Ele não fala com o Kratos, não encerra a sessão no
- * servidor e não leva ninguém para a tela de login — quem faz isso é
- * `lib/auth/session.ts § logout`, que chama esta função como primeiro passo.
- *
- * B-029 — chamava-se `logout`, e havia outro `logout` exportado por
- * `auth/session.ts`. Dois nomes iguais, um deles um passo do outro: importar o
- * errado limpa o token local e deixa a sessão VIVA no servidor, com a pessoa
- * acreditando que saiu. O único chamador já apelidava para `apiLogout` na
- * importação, o que é o sintoma de um nome que não diz o que faz.
- */
-export function clearTokenAcrossTabs(): void {
-  clearToken();
+/** Tells the other tabs this session ended. Ends nothing on the server. */
+export function announceLogoutAcrossTabs(): void {
   // §3.3: Broadcast logout to all tabs
   authChannel?.postMessage({ type: 'logged-out' });
 }
@@ -312,23 +192,9 @@ export function clearTokenAcrossTabs(): void {
  * `plans/http-error-contract-plan.md § Unresolved Questions`. Codigo novo passa `throwOnError`.
  */
 export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {
-  // Plan v1.0 (2026-05-26): mock mode no longer short-circuits via FIXTURES
-  // map. Instead, lib/mocks/server.ts wraps window.fetch and intercepts all
-  // /api/v1/* paths transparently — covering 47+ endpoints vs the old 5.
-  // The cloudFetch flow stays identical in mock + prod modes; the difference
-  // is purely WHO answers the network call.
-  const token = await ensureToken();
-  if (!token) {
-    // #324: so redireciona quando a sessao de fato acabou (401). Qualquer outra
-    // falha e transitoria — ver `sessionDefinitivelyExpired()`.
-    if (!sessionDefinitivelyExpired()) {
-      if (cfg.throwOnError === true) throw transientAuthError();
-      return null;
-    }
-    redirectToLogin('expired');
-    return null;
-  }
-  return fetchWithAuth<T>(API_BASE, path, token, options, true, cfg.throwOnError === true, cfg.onResponse);
+  // Plan v1.0 (2026-05-26): mock mode wraps window.fetch (lib/mocks/server.ts); this flow is
+  // identical in mock and prod — the difference is purely WHO answers the network call.
+  return fetchWithSession<T>(path, options, cfg.throwOnError === true, cfg.onResponse);
 }
 
 // Engine API calls proxied through cloud service.
@@ -339,22 +205,33 @@ export async function engineFetch<T>(path: string, options: RequestInit = {}, cf
 /**
  * Authenticated raw fetch that returns the {@link Response} instead of parsing a
  * JSON body — for non-JSON payloads like file downloads/previews (bytes/text/blob).
- * Sends the same `Authorization: Bearer` the JSON path uses. Returns null (and
- * redirects to login) when the session has expired.
+ * Carries the same session cookie the JSON path does. Returns null (and redirects
+ * to login) when the session has ended; a network rejection propagates.
  */
 export async function cloudFetchRaw(path: string, options: RequestInit = {}): Promise<Response | null> {
-  const token = await ensureToken();
-  if (!token) {
-    // #324: so o 401 encerra sessao — ver `sessionDefinitivelyExpired()`.
-    if (!sessionDefinitivelyExpired()) return null;
-    redirectToLogin('expired');
-    return null;
-  }
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    ...(options.headers as Record<string, string> || {}),
-  };
-  return fetch(`${API_BASE}${path}`, { ...options, headers });
+  const resp = await fetch(`${API_BASE}${path}`, { ...options, credentials: CREDENTIALS });
+  if (resp.status === 401 && (await signOutIfSessionEnded())) return null;
+  return resp;
+}
+
+/**
+ * A 401 on a data call SUGGESTS the session ended; the probe decides. A 401 can come from
+ * elsewhere (the engine behind the proxy), and only the probe tells "the cookie died" from "this
+ * call was refused".
+ */
+async function sessionEnded(): Promise<boolean> {
+  await fetchSessionIdentity();
+  return sessionDefinitivelyExpired();
+}
+
+/**
+ * For callers outside this module that saw a 401/403 (the SSE streams): probe the session and, if
+ * it ended, take the person to /login. Resolves `true` when it redirected.
+ */
+export async function signOutIfSessionEnded(): Promise<boolean> {
+  if (!(await sessionEnded())) return false;
+  redirectToLogin('expired');
+  return true;
 }
 
 /**
@@ -375,62 +252,41 @@ async function toApiError(resp: Response): Promise<ApiError> {
   return new ApiError(resp.status, body);
 }
 
-async function fetchWithAuth<T>(base: string, path: string, token: string, options: RequestInit = {}, redirectOnAuthFailure = true, throwOnError = false, onResponse?: (resp: Response) => void): Promise<T | null> {
-  // B-231 — a geracao com que ESTE pedido saiu; um 401 so fala da credencial de entao.
-  const geracaoUsada = tokenGeneration;
+async function fetchWithSession<T>(path: string, options: RequestInit, throwOnError: boolean, onResponse?: (resp: Response) => void): Promise<T | null> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
     ...(options.headers as Record<string, string> || {}),
   };
 
   // T5.0 of plan 2026-05-27-backend-frontend-integration v1.1 (EC-09).
   // Auto-generate Idempotency-Key for every mutating verb so retries on
   // network blips do not duplicate state. Caller can override with an
-  // explicit `headers['Idempotency-Key']` to make a deliberate replay
-  // (e.g., resume across reload).
+  // explicit `headers['Idempotency-Key']` to make a deliberate replay.
   const method = (options.method || 'GET').toUpperCase();
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) && !headers['Idempotency-Key']) {
     headers['Idempotency-Key'] = crypto.randomUUID();
   }
+  const send = () => fetch(`${API_BASE}${path}`, { ...options, headers, credentials: CREDENTIALS });
 
   try {
-    const resp = await fetch(`${base}${path}`, { ...options, headers });
+    let resp = await send();
     if (resp.status === 401) {
-      if (!redirectOnAuthFailure) return null;
-      // Token expired — try refresh once.
-      // B-231: so invalida se ninguem renovou entre o envio deste pedido e esta resposta.
-      if (geracaoUsada === tokenGeneration) {
-        accessToken = null;
-        tokenExpiresAt = 0;
-      }
-      const newToken = await ensureToken();
-      if (!newToken) {
-        // #324: um 401 na chamada de DADOS dispara o refresh; se o refresh
-        // falhar por algo transitorio (cota, 5xx, rede), o redirect recarrega a
-        // pagina e realimenta o problema. So o 401 NA TROCA encerra a sessao.
-        if (!sessionDefinitivelyExpired()) {
-          if (throwOnError) throw transientAuthError();
-          return null;
-        }
+      await fetchSessionIdentity();
+      if (sessionDefinitivelyExpired()) {
         redirectToLogin('expired');
-        // Coherent error contract (F-api-1): under throwOnError the auth-expiry
-        // surfaces as ApiError(401) so an opted-in mutation rejects → isError
-        // (the form is retained) rather than resolving null → onSuccess (which
-        // would silently clear it). The redirect still fires regardless.
+        // F-api-1: under throwOnError the expiry surfaces as ApiError(401), so an opted-in
+        // mutation rejects (the form is retained) instead of resolving null → onSuccess.
         if (throwOnError) throw new ApiError(401, undefined, 'session expired — re-authentication required');
         return null;
       }
-      // Retry with new token
-      headers['Authorization'] = `Bearer ${newToken}`;
-      const retry = await fetch(`${base}${path}`, { ...options, headers });
-      if (!retry.ok) {
-        await maybeEmitPaymentRequired(retry);
-        if (throwOnError) throw await toApiError(retry);
+      // #324: the probe could not answer (quota, 5xx, network). That is not a sign-out.
+      if (lastSessionStatus !== 200) {
+        if (throwOnError) throw transientAuthError();
         return null;
       }
-      onResponse?.(retry);
-      return await parseOkBody<T>(retry);
+      // The session is alive: the 401 belonged to this call, not to the cookie. One retry covers
+      // the race where Kratos renewed the session between the send and the response.
+      resp = await send();
     }
     if (!resp.ok) {
       await maybeEmitPaymentRequired(resp);

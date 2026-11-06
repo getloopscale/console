@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { purgarCachesDeDados, CACHES_DE_DADOS } from './logout-cache-purge';
 

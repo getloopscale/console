@@ -108,7 +108,7 @@ const LEVELS: { value: 'all' | LogLevel; label: string }[] = [
  * zero para o que pulou, a barra de rolagem mente e o scroll pula. `auto 28px` diz
  * "estime 28px ate medir de verdade, depois lembre o valor real".
  */
-const LINHA_FORA_DA_TELA = Object.freeze({
+const ROW_OFF_SCREEN = Object.freeze({
   contentVisibility: 'auto',
   containIntrinsicSize: 'auto 28px',
 }) as React.CSSProperties;
@@ -122,7 +122,7 @@ const LogLineRow = memo(function LogLineRow({ line, index }: { line: LogLine; in
         window.location.hash = `#L${String(index)}`;
       }}
       className="flex items-start gap-3 border-b border-border/30 px-4 py-1.5 cursor-pointer"
-      style={LINHA_FORA_DA_TELA}
+      style={ROW_OFF_SCREEN}
     >
       <span className="shrink-0 tabular-nums text-muted-foreground">
         {line.ts.slice(11, 19)}

@@ -173,12 +173,13 @@ test.describe('M12 Fase A — bundle-grep migration to real-DOM assertions', () 
     expect(wired + genericBad).toBeGreaterThanOrEqual(0);
   });
 
-  // #50 — Deferred JWT exchange: shell paints without awaiting BFF /v1/auth/session/token
-  test('#50 shell paints on session-detect, defers JWT exchange', async ({ page }) => {
+  // #50 — the shell paints on session detection. Since usetheoai/theo#477 there is no token
+  // exchange left to defer: one session check (GET /v1/auth/session) is the only round trip.
+  test('#50 shell paints on session-detect', async ({ page }) => {
     await page.goto('/');
     // The shell renders (i.e., the layout is visible) within reasonable timeout.
     // Pre-fix: LCP=4876ms POOR because 2 sequential blocking calls awaited.
-    // Post-fix: shell paints on Kratos session detect; JWT exchange runs in background.
+    // Post-fix: shell paints on session detect.
     const startTime = Date.now();
     await page.waitForLoadState('domcontentloaded');
     const elapsed = Date.now() - startTime;

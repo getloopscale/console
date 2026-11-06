@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { Badge, Button, Card } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetch } from '@/lib/http/api';
+import { useReflect } from '@/hooks/memory/use-playground';
 import { ExpandableText } from '@/pages/memory/row-cells';
 
 /**
@@ -14,26 +13,9 @@ import { ExpandableText } from '@/pages/memory/row-cells';
  * rendering (derived-memory cards, not a raw JSON dump).
  */
 
-interface DerivedMemory {
-  id: string;
-  text: string;
-  derivedFrom?: string[];
-}
-
-interface ReflectResult {
-  higherOrderMemories?: DerivedMemory[];
-  [key: string]: unknown;
-}
 
 export function ReflectCard() {
-  const reflect = useMutation({
-    mutationFn: async () =>
-      cloudFetch<ReflectResult>(
-        '/v1/dashboard/memory/reflect',
-        { method: 'POST', body: '{}' },
-        { throwOnError: true },
-      ),
-  });
+  const reflect = useReflect();
 
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {

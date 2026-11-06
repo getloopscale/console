@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2, User as UserIcon } from 'lucide-react';
 import {
   Button,
@@ -20,7 +19,12 @@ import { ExpandableText, TablePager } from '@/pages/memory/row-cells';
 import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
+import {
+  ENTITIES_PAGE_SIZE,
+  useEntities,
+  useCascadeForgetEntity,
+  type Entity,
+} from '@/hooks/memory/use-entities';
 
 /**
  * Plan 2 of dashboard-memory-section-roadmap.md, T2.5.
@@ -34,32 +38,15 @@ import { cloudFetch } from '@/lib/http/api';
  *  - EmptyState when no entities under active scope (D3 inheritance — never NaN)
  */
 
-interface Entity {
-  id: string;
-  scope_type: string;
-  memory_count: number;
-  last_seen_at?: string;
-  /**
-   * M2 — on-demand evolving summary: a digest of the entity's currently-active
-   * outgoing relations (`relation → target`). Empty string when it has none.
-   */
-  summary?: string;
-}
-
-interface EntitiesResult {
-  entities: Entity[];
-}
 
 const SCOPES = ['user', 'session', 'agent', 'repo'] as const;
 type Scope = (typeof SCOPES)[number];
 
-const PAGE_SIZE = 25;
 
 export function EntitiesPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Entities'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const scopeParam = searchParams.get('scope');
@@ -100,40 +87,17 @@ export function EntitiesPage() {
   // o filtro do cliente e no-op; se ignorar, o comportamento e o de hoje. Mandar
   // um parametro que o servidor ignora e inofensivo; remover o filtro do cliente
   // apostando que ele funciona nao e.
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/entities', { activeScope, session, offset, q }] as const,
-    // throwOnError so a failed fetch is query.isError, not an empty list rendered
-    // as "no entities" (theo-cloud#250).
-    queryFn: () => {
-      const params = new URLSearchParams();
-      params.set('scope', activeScope);
-      params.set('limit', String(PAGE_SIZE));
-      if (offset > 0) params.set('offset', String(offset));
-      if (activeScope === 'session' && session) params.set('session_id', session);
-      if (q.trim()) params.set('q', q.trim());
-      return cloudFetch<EntitiesResult>(
-        `/v1/dashboard/memory/entities?${params.toString()}`,
-        {},
-        { throwOnError: true },
-      );
-    },
-  });
+  const query = useEntities({ scope: activeScope, session, offset, q });
 
   // #252 REAL cascade: every round lists ONLY the entity's memories via the
   // provider's `?entity=` filter (memory_entities join) and forgets them until
   // the filtered set is empty — never the unfiltered global page.
-  const cascadeForget = useMutation({
-    mutationFn: (entity: Entity) =>
-      cascadeForgetEntity(entity.id, {
-        scope: activeScope,
-        ...(session ? { sessionId: session } : {}),
-      }),
-    onSuccess: () => {
-      setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/entities'] });
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/list'] });
-    },
-  });
+  const cascadeForget = useCascadeForgetEntity((entity: Entity) =>
+    cascadeForgetEntity(entity.id, {
+      scope: activeScope,
+      ...(session ? { sessionId: session } : {}),
+    }),
+  );
 
   const all = query.data?.entities ?? [];
   // Fallback do filtro — ver o comentario da query. Se o servidor honrar `q`,
@@ -272,7 +236,7 @@ export function EntitiesPage() {
                 Next ja usa `pageCount < pageSize` como heuristica de "ha mais". */}
             <TablePager
               offset={offset}
-              pageSize={PAGE_SIZE}
+              pageSize={ENTITIES_PAGE_SIZE}
               pageCount={entities.length}
               busy={query.isFetching}
               onOffsetChange={setOffset}

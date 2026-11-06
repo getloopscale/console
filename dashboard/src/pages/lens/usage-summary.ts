@@ -17,7 +17,7 @@
  *     nenhuma fatia é afirmável.
  */
 
-export interface LinhaDeConsumo {
+export interface ConsumptionRow {
   userId: string;
   spans: number;
   inputTokens: number;
@@ -27,9 +27,9 @@ export interface LinhaDeConsumo {
   costUsd: number;
 }
 
-export interface ResumoDeConsumo {
+export interface ConsumptionSummary {
   /** Soma de `costUsd` das linhas EXIBIDAS — leia junto de `completo`. */
-  custoUsd: number;
+  costUsd: number;
   /** Entrada + saída das linhas exibidas. Cache é outra grandeza e não entra aqui. */
   tokens: number;
   /** Fração da entrada servida por cache, ou `null` quando não houve leitura de cache alguma. */
@@ -40,14 +40,14 @@ export interface ResumoDeConsumo {
   completo: boolean;
 }
 
-export function resumirConsumo(linhas: LinhaDeConsumo[], totalUsers: number): ResumoDeConsumo {
-  let custoUsd = 0;
+export function summarizeConsumption(rows: ConsumptionRow[], totalUsers: number): ConsumptionSummary {
+  let costUsd = 0;
   let tokens = 0;
   let entradaFresca = 0;
   let leituraDeCache = 0;
 
-  for (const l of linhas) {
-    custoUsd += l.costUsd;
+  for (const l of rows) {
+    costUsd += l.costUsd;
     tokens += l.inputTokens + l.outputTokens;
     entradaFresca += l.inputTokens;
     leituraDeCache += l.cacheReadTokens;
@@ -58,7 +58,7 @@ export function resumirConsumo(linhas: LinhaDeConsumo[], totalUsers: number): Re
   const entradaTotal = entradaFresca + leituraDeCache;
   const cacheRatio = leituraDeCache > 0 && entradaTotal > 0 ? leituraDeCache / entradaTotal : null;
 
-  const participacoes = linhas.map((l) => (custoUsd > 0 ? l.costUsd / custoUsd : null));
+  const participacoes = rows.map((l) => (costUsd > 0 ? l.costUsd / costUsd : null));
 
-  return { custoUsd, tokens, cacheRatio, participacoes, completo: linhas.length >= totalUsers };
+  return { costUsd, tokens, cacheRatio, participacoes, completo: rows.length >= totalUsers };
 }
