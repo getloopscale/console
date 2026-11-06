@@ -32,7 +32,7 @@ jobs:
         # tem — que e' exatamente como se chega em seis runs mortos sem ninguem notar.
         env:
           GH_TOKEN: ${{ secrets.GOMOD_TOKEN }}
-        run: python3 .claude/scripts/check_reusable_inputs.py
+        run: python3 .github/scripts/check_reusable_inputs.py
 
       - name: actionlint (workflows + shellcheck dos blocos run:)
         # Imagem fixada por DIGEST — nao `bash <(curl .../main/...)`, que baixa e executa um
