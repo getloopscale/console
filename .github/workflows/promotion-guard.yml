@@ -6,9 +6,9 @@
 # o PR obrigatório**. Neste repositório a segunda camada NÃO EXISTE e não pode existir no plano atual —
 # medido, não suposto:
 #
-#   $ gh api repos/usetheoai/theo-cloud/branches/develop/protection
+#   $ gh api repos/getloopscale/console/branches/develop/protection
 #   403 "Upgrade to GitHub Pro or make this repository public to enable this feature."
-#   $ gh api repos/usetheoai/theo-cloud/rulesets
+#   $ gh api repos/getloopscale/console/rulesets
 #   403 (idem)
 #
 # Ou seja: hoje o PR é convenção, não garantia. Habilitar a camada real custa uma decisão de plano
