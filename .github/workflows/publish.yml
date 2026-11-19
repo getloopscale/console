@@ -116,7 +116,7 @@ jobs:
     needs: [plan, gate-ci, gate-quality, gate-sast]
     if: ${{ needs.plan.outputs.images != '[]' && needs.plan.outputs.images != '' }}
     # The reusable declares these scopes, and GitHub refuses at startup — with no log — a
-    # reusable that asks for more than its caller grants (usetheoai/theo#436). `attestations`
+    # reusable that asks for more than its caller grants (getloopscale/engine#436). `attestations`
     # is for its GitHub-native provenance; `id-token` also assumes the ECR publish role.
     permissions:
       contents: read
@@ -127,7 +127,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.images) }}
-    uses: usetheoai/theo/.github/workflows/build-publish.yml@1596e81f2ab64a4eb08a7d180e33639138f96b7f # develop
+    uses: getloopscale/engine/.github/workflows/build-publish.yml@1596e81f2ab64a4eb08a7d180e33639138f96b7f # develop
     with:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
@@ -142,7 +142,7 @@ jobs:
       #
       # B-270 — isto ia como `git_sha:` e `version_label:`, dois inputs que a COPIA VENDORIZADA
       # deste repo declarava e que o reusable compartilhado nunca teve. Quando `03195817` trocou a
-      # copia pelo reusable de `usetheoai/theo`, o GitHub passou a recusar o workflow INTEIRO no
+      # copia pelo reusable de `getloopscale/engine`, o GitHub passou a recusar o workflow INTEIRO no
       # startup — cinco runs seguidos mortos em menos de um segundo, incluindo as tags v1.0.0 e
       # v1.0.1, que sairam sem imagem nenhuma atras delas.
       #
@@ -156,7 +156,7 @@ jobs:
       # DEPOIS do push, entao uma indisponibilidade do Sigstore vermelharia um run cuja imagem ja
       # publicou — e o reconciliador convergiria numa imagem que a pipeline diz ter falhado.
       verify: ${{ needs.plan.outputs.sign == 'true' }}
-      # Amazon ECR, the registry production pulls from (usetheoai/theo#435). Both are
+      # Amazon ECR, the registry production pulls from (getloopscale/engine#435). Both are
       # repository variables; unset, the reusable skips ECR and GHCR publishes as before.
       ecr_registry: ${{ vars.ECR_REGISTRY }}
       aws_role_arn: ${{ vars.AWS_IMAGE_PUBLISH_ROLE_ARN }}
@@ -165,7 +165,7 @@ jobs:
       #
       # O que se perde e a otimizacao, nao a garantia: a copia vendorizada separava assinar (sempre)
       # de exportar SBOM (so na release), e agora o export pesado roda em todo push para develop.
-      # Recuperar isso exige um input novo no reusable compartilhado — mudanca em `usetheoai/theo`,
+      # Recuperar isso exige um input novo no reusable compartilhado — mudanca em `getloopscale/engine`,
       # que alcanca todos os repos que o chamam. Registrado como B-271 em vez de resolvido aqui
       # deixando de assinar o que producao consome, que e a troca que o comentario acima recusa.
     # Explicito, nao `secrets: inherit`. O reusable declara TRES secrets, todos opcionais;
