@@ -127,7 +127,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.images) }}
-    uses: getloopscale/engine/.github/workflows/build-publish.yml@1596e81f2ab64a4eb08a7d180e33639138f96b7f # develop
+    uses: getloopscale/engine/.github/workflows/build-publish.yml@34b1e37f41846cd8172f43748f0a5d7429eaacc2 # develop
     with:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
