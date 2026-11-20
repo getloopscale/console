@@ -107,7 +107,7 @@ permissions:
 jobs:
   e2e-ui:
     name: e2e-ui — jornadas do dashboard (mocks, chromium)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.60 has no chromium build for ubuntu 26.04, which ubuntu-latest now resolves to
     timeout-minutes: 20
     defaults:
       run:
