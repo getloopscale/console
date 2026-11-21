@@ -17,7 +17,7 @@ const (
 	publishPath      = "../../.github/workflows/publish.yml"
 	vendoredPath     = "../../.github/workflows/build-publish.yml"
 	localRef         = "uses: ./.github/workflows/build-publish.yml"
-	upstreamRef      = "uses: usetheoai/theo/.github/workflows/build-publish.yml"
+	upstreamRef      = "uses: getloopscale/loopzero/.github/workflows/build-publish.yml"
 	expectedIdentity = `^https://github\.com/usetheoai/theo-cloud/\.github/workflows/build-publish\.yml@`
 )
 
