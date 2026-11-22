@@ -14,7 +14,7 @@
 #
 # pg-cloud runs the engine's REAL migrations (cloud-migrate) so the full
 # account-tenancy schema (users/accounts/tenants/subscriptions/projects/
-# theo_api_keys) is present — drift-free vs the dev stack. Kratos provides real
+# loopzero_api_keys) is present; drift-free vs the dev stack. Kratos provides real
 # identity/login (M6). Everything is hermetic: no external network, no API keys.
 #
 # Run via ./run.sh (builds host binaries + the themory image, waits for health,
@@ -45,12 +45,13 @@ services:
 
   pg-cloud:
     image: postgres:17-alpine
-    # DB named `theo` (user `theo`) to match the engine migrations — they
-    # GRANT ... ON DATABASE theo and migration 000023 asserts the owner is `theo`.
+    # Owner role `loopzero`: loopzero migration 000023 refuses to run as any other
+    # role. The database is named `loopzero` to match; the migrations grant on
+    # current_database(), so the name itself is not asserted.
     environment:
-      POSTGRES_USER: theo
-      POSTGRES_PASSWORD: theo
-      POSTGRES_DB: theo
+      POSTGRES_USER: loopzero
+      POSTGRES_PASSWORD: loopzero
+      POSTGRES_DB: loopzero
     volumes:
       # initdb (superuser): extensions the migrations assume + the separate
       # `kratos` database. The cloud schema itself comes from cloud-migrate.
@@ -59,13 +60,13 @@ services:
       # Exposed so the host-run `go test` can seed tenants/accounts/keys directly.
       - "${E2E_PG_CLOUD_PORT:-55432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U theo -d theo"]
+      test: ["CMD-SHELL", "pg_isready -U loopzero -d loopzero"]
       interval: 3s
       timeout: 3s
       retries: 20
       start_period: 5s
 
-  # Applies the engine's REAL golang-migrate migrations to the `theo` DB so the
+  # Applies the engine's REAL golang-migrate migrations to the `loopzero` DB so the
   # full account-tenancy schema exists (drift-free vs hand-maintained SQL).
   cloud-migrate:
     image: migrate/migrate:v4.17.1
@@ -76,7 +77,7 @@ services:
       - ../../../theo/api/internal/db/migrations:/migrations:ro
     command:
       - "-path=/migrations"
-      - "-database=postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable"
+      - "-database=postgres://loopzero:loopzero@pg-cloud:5432/loopzero?sslmode=disable"
       - "up"
     restart: on-failure:3
 
@@ -87,7 +88,7 @@ services:
       pg-cloud:
         condition: service_healthy
     environment:
-      DSN: postgres://theo:theo@pg-cloud:5432/kratos?sslmode=disable
+      DSN: postgres://loopzero:loopzero@pg-cloud:5432/kratos?sslmode=disable
     command: ["migrate", "sql", "-e", "--yes"]
     restart: on-failure:3
 
@@ -103,7 +104,7 @@ services:
     volumes:
       - ../../dev/kratos:/etc/config/kratos:ro
     environment:
-      DSN: postgres://theo:theo@pg-cloud:5432/kratos?sslmode=disable
+      DSN: postgres://loopzero:loopzero@pg-cloud:5432/kratos?sslmode=disable
       SERVE_PUBLIC_BASE_URL: http://localhost:${E2E_KRATOS_PUBLIC_PORT:-14433}/
     command: ["serve", "--config", "/etc/config/kratos/kratos.yml", "--dev"]
     ports:
@@ -188,9 +189,9 @@ services:
     environment:
       THEO_ENV: dev
       CLOUD_LISTEN_ADDR: ":13002"
-      # The non-owner role (sql/02-theo-cloud-role.sql): theo-cloud refuses to serve as
+      # The non-owner role (sql/02-loopzero-cloud-role.sql): theo-cloud refuses to serve as
       # the owner, which holds DDL and an unnamed cross-tenant privilege.
-      DATABASE_URL: postgres://theo_cloud:theo_cloud@pg-cloud:5432/theo?sslmode=disable
+      DATABASE_URL: postgres://loopzero_cloud:loopzero_cloud@pg-cloud:5432/loopzero?sslmode=disable
       THEMORY_BASE_URL: http://themory:8080
       THEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
       # M6: Model-B control-plane credential the broker mints per-tenant keys with.

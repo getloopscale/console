@@ -381,7 +381,7 @@ func main() {
 			// Which role we connect as decides how much of every tenant's data
 			// this process can reach — and getting it wrong is invisible at
 			// runtime, because the owner still works. Engine migration 000063
-			// created `theo_cloud` for exactly this: the cross-tenant reach the
+			// created `loopzero_cloud` for exactly this: the cross-tenant reach the
 			// control plane needs, as named policies, without DDL.
 			//
 			// Fail closed: refusing to boot is loud and fixed by repointing

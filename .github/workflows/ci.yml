@@ -59,7 +59,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: b7aeb94c64856304e709f33f4d5dd94d97e2b161
+      THEO_ENGINE_REF: 7a3419121bbdccf68abd21467ac6ebd8270984dc
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
       #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
@@ -72,14 +72,14 @@ jobs:
       - name: Checkout theo (engine — migrations)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: getloopscale/engine
+          repository: getloopscale/loopzero
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
           # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
           # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
           # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
           ref: ${{ env.THEO_ENGINE_REF }}
           # GITHUB_TOKEN is scoped to THIS repo; cross-repo private checkout needs a
-          # PAT with read access to getloopscale/engine (+ theo-memory, theo-contracts).
+          # PAT with read access to getloopscale/loopzero (+ theo-memory, theo-contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
@@ -95,6 +95,16 @@ jobs:
           git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+      # Fails fast, with the offending name and file, when the console names a table or role
+      # that the checked-out loopzero migrations do not create (#518). Cheaper to read than a
+      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPZERO_MIGRATIONS=1.
+      - name: Check console schema names against the loopzero migrations
+        working-directory: theo-cloud/theo-cloud
+        env:
+          LOOPZERO_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
+          REQUIRE_LOOPZERO_MIGRATIONS: "1"
+        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopzeroMigrations' -count=1 -v
 
       # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
       # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
@@ -138,7 +148,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: b7aeb94c64856304e709f33f4d5dd94d97e2b161
+      THEO_ENGINE_REF: 7a3419121bbdccf68abd21467ac6ebd8270984dc
       THEORAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
       - name: Checkout theo-cloud
@@ -148,7 +158,7 @@ jobs:
       - name: Checkout theo (engine — migrations)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: getloopscale/engine
+          repository: getloopscale/loopzero
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
           # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
           # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
@@ -178,6 +188,16 @@ jobs:
           git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+      # Fails fast, with the offending name and file, when the console names a table or role
+      # that the checked-out loopzero migrations do not create (#518). Cheaper to read than a
+      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPZERO_MIGRATIONS=1.
+      - name: Check console schema names against the loopzero migrations
+        working-directory: theo-cloud/theo-cloud
+        env:
+          LOOPZERO_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
+          REQUIRE_LOOPZERO_MIGRATIONS: "1"
+        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopzeroMigrations' -count=1 -v
 
       # This job builds THREE images from source (themory + theo-rag + theo-lens)
       # on a PERSISTENT self-hosted runner, so images/layers/volumes accumulate

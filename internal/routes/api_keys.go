@@ -231,7 +231,7 @@ func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 
 	// EC-1: LIMIT 100 cap. Even if a customer accumulates many keys, the
 	// response stays bounded. Combined with the D7 soft-delete filter, the
-	// query rides the partial index idx_theo_api_keys_tenant.
+	// query rides the partial index idx_loopzero_api_keys_tenant.
 	// Model B leak-fix (GAP-4): exclude legacy BFF-minted shadow rows
 	// (key_name='bff-dashboard', bff_minted=true) — they were an internal
 	// gateway artifact, never user-created, and must never surface in the
@@ -242,7 +242,7 @@ func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 	// comentario da constante prometia um cap que ela nao controlava. `%d` mantem o SQL
 	// final e `LIMIT 101` desde o B-114: uma linha a mais do que se devolve, para saber que ha mais.
 	q := fmt.Sprintf(`SELECT id, key_name, key_prefix, scopes, created_at, last_used_at, expires_at
-		FROM theo_api_keys
+		FROM loopzero_api_keys
 		WHERE subject = $1 AND tenant_id = $2 AND revoked_at IS NULL
 		  AND COALESCE(bff_minted, false) = false
 		ORDER BY created_at DESC
@@ -318,7 +318,7 @@ func (h *APIKeysHandler) RevokeKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const q = `UPDATE theo_api_keys
+	const q = `UPDATE loopzero_api_keys
 		SET revoked_at = NOW()
 		WHERE id = $1 AND subject = $2 AND tenant_id = $3 AND revoked_at IS NULL
 		  AND COALESCE(bff_minted, false) = false`
@@ -448,7 +448,7 @@ func (h *APIKeysHandler) CreateKey(w http.ResponseWriter, r *http.Request) {
 	// (Post-M3 the session JWT does carry account_id via UserContext.AccountID, but
 	// the tenant subquery remains the source of truth — it can't drift from the
 	// tenant the key is scoped to. Post-000044 tenant.account_id is NOT NULL.)
-	const q = `INSERT INTO theo_api_keys
+	const q = `INSERT INTO loopzero_api_keys
 		(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at)
 		VALUES ($1, $2, $3, (SELECT account_id FROM tenants WHERE id = $3), $4, $5, $6, $7, $8)`
 
@@ -545,7 +545,7 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 
 	// SELECT FOR UPDATE the old row, scoped to authenticated tenant.
 	const sel = `SELECT key_name, scopes, revoked_at, expires_at
-		FROM theo_api_keys
+		FROM loopzero_api_keys
 		WHERE id = $1 AND subject = $2 AND tenant_id = $3
 		  AND COALESCE(bff_minted, false) = false
 		FOR UPDATE`
@@ -597,7 +597,7 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 		newName = newName[:keyNameMaxLength]
 	}
 
-	const ins = `INSERT INTO theo_api_keys
+	const ins = `INSERT INTO loopzero_api_keys
 		(id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at, rotated_from)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 	if _, err := tx.ExecContext(r.Context(), ins,
@@ -612,7 +612,7 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 	// UPDATE the old key's expires_at to NOW() + grace_window.
 	newExpiry := time.Now().Add(graceWindow)
 	if _, err := tx.ExecContext(r.Context(),
-		`UPDATE theo_api_keys SET expires_at = $1 WHERE id = $2`,
+		`UPDATE loopzero_api_keys SET expires_at = $1 WHERE id = $2`,
 		newExpiry, oldID,
 	); err != nil {
 		h.logger.Warn("rotate api key: update old expires_at failed", "error", err, "id", oldID)
@@ -677,23 +677,23 @@ func (h *APIKeysHandler) LineageKey(w http.ResponseWriter, r *http.Request) {
 		WITH RECURSIVE
 		ancestors AS (
 		    SELECT id, key_name, key_prefix, created_at, revoked_at, expires_at, rotated_from
-		    FROM theo_api_keys
+		    FROM loopzero_api_keys
 		    WHERE id = $1 AND subject = $2 AND tenant_id = $3
 		      AND COALESCE(bff_minted, false) = false
 		    UNION
 		    SELECT k.id, k.key_name, k.key_prefix, k.created_at, k.revoked_at, k.expires_at, k.rotated_from
-		    FROM theo_api_keys k
+		    FROM loopzero_api_keys k
 		    JOIN ancestors a ON a.rotated_from = k.id
 		    WHERE k.subject = $2 AND k.tenant_id = $3
 		),
 		descendants AS (
 		    SELECT id, key_name, key_prefix, created_at, revoked_at, expires_at, rotated_from
-		    FROM theo_api_keys
+		    FROM loopzero_api_keys
 		    WHERE id = $1 AND subject = $2 AND tenant_id = $3
 		      AND COALESCE(bff_minted, false) = false
 		    UNION
 		    SELECT k.id, k.key_name, k.key_prefix, k.created_at, k.revoked_at, k.expires_at, k.rotated_from
-		    FROM theo_api_keys k
+		    FROM loopzero_api_keys k
 		    JOIN descendants d ON k.rotated_from = d.id
 		    WHERE k.subject = $2 AND k.tenant_id = $3
 		),

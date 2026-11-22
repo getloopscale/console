@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- API keys work against a database built from the LoopZero engine migrations. The control plane queried `theo_api_keys`, which those migrations do not create, instead of `loopzero_api_keys`; the startup role check now names the `loopzero_cloud` role from migration 000063 (#518).
+
 ## [1.1.0] - 2026-11-06
 
 ### Added

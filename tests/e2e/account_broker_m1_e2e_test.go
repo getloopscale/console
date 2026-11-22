@@ -9,7 +9,7 @@
 // 403/200/503 wiring, and the seam invariant (minted workspace_id == tenantID,
 // account never crosses to the data-plane) all agree. Build-tagged e2e; run -race:
 //
-//	E2E_PG_CLOUD_DSN=postgres://theo:theo@localhost:15432/m0test?sslmode=disable \
+//	E2E_PG_CLOUD_DSN=postgres://loopzero:loopzero@localhost:15432/m0test?sslmode=disable \
 //	  go test -tags=e2e -race ./tests/e2e/ -run AccountBrokerM1 -v
 package e2e
 
@@ -100,7 +100,7 @@ func seedAccountKey(t *testing.T, db *sql.DB, subject, tenant string, accountID 
 	sum := sha256.Sum256([]byte(bearer))
 	keyHash := hex.EncodeToString(sum[:])
 	if _, err := db.Exec(`
-		INSERT INTO theo_api_keys
+		INSERT INTO loopzero_api_keys
 			(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, created_at)
 		VALUES ($1,$2,$3,$4,'m1',$5,'theo_live_',$6::jsonb, NOW() + interval '1 hour', NOW())
 		ON CONFLICT (key_hash) DO NOTHING`,
@@ -127,7 +127,7 @@ func openM1DB(t *testing.T) *sql.DB {
 func cleanupM1(t *testing.T, db *sql.DB, owner string) {
 	t.Helper()
 	for _, s := range []string{
-		`DELETE FROM theo_api_keys WHERE subject = $1`,
+		`DELETE FROM loopzero_api_keys WHERE subject = $1`,
 		`DELETE FROM subscriptions WHERE tenant_id IN (SELECT id FROM tenants WHERE owner_id = $1)`,
 		`DELETE FROM tenant_members WHERE user_id = $1`,
 		`DELETE FROM tenants WHERE owner_id = $1`,
@@ -194,7 +194,7 @@ func TestAccountBrokerM1_CrossAccount_403_NoMint(t *testing.T) {
 }
 
 // NOTE (M3): the former Scenario 3 — "legacy key (NULL account_id) skips the
-// check → 200" — was REMOVED. M3 migration 000044 makes theo_api_keys.account_id
+// check → 200"; was REMOVED. M3 migration 000044 makes loopzero_api_keys.account_id
 // (and tenants.account_id) NOT NULL, so a NULL-account key can no longer exist in
 // the database and this e2e could no longer seed the state it asserted. The
 // defensive empty-account skip branch it exercised is schema-independent and

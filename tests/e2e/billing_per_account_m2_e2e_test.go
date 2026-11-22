@@ -9,7 +9,7 @@
 // resolvers use verbatim), UNIQUE(account_id) enforces one subscription per
 // Account, and the project cap resolves from the Account's plan. Build-tagged e2e:
 //
-//	E2E_PG_CLOUD_DSN=postgres://theo:theo@localhost:15432/m2test?sslmode=disable \
+//	E2E_PG_CLOUD_DSN=postgres://loopzero:loopzero@localhost:15432/m2test?sslmode=disable \
 //	  go test -tags=e2e ./tests/e2e/ -run BillingPerAccountM2 -v
 package e2e
 

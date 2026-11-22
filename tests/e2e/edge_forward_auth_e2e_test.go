@@ -41,7 +41,7 @@ func TestEdgeForwardAuthTenantIsolationE2E(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Seed the FK chain: users(id) ← tenants(owner_id); tenants(id) ← theo_api_keys(tenant_id).
+	// Seed the FK chain: users(id) ← tenants(owner_id); tenants(id) ← loopzero_api_keys(tenant_id).
 	seedUser(t, db, "edge-alice-uid", "edge-alice@e2e.test")
 	seedUser(t, db, "edge-bob-uid", "edge-bob@e2e.test")
 	seedTenant(t, db, "tn-edge-alice", "edge-alice-uid")
@@ -83,7 +83,7 @@ func seedUser(t *testing.T, db *sql.DB, userID, email string) {
 	}
 }
 
-// seedTenant inserts a minimal tenant row so theo_api_keys.tenant_id FK resolves.
+// seedTenant inserts a minimal tenant row so loopzero_api_keys.tenant_id FK resolves.
 func seedTenant(t *testing.T, db *sql.DB, tenantID, ownerID string) {
 	t.Helper()
 	// M3: tenants.account_id is NOT NULL (migration 000044). Ensure a default
