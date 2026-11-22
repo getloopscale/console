@@ -3,7 +3,9 @@
 # (verificado com `docker manifest inspect`; o maximo em alpine3.22 e 1.26.4). O bump do alpine e
 # seguro para a superficie publicada: o build e multi-stage e o estagio final e distroless, entao
 # pacotes do builder nao sao embarcados — o que o Trivy aponta e o `stdlib` compilado no binario.
-FROM golang:1.26.6-alpine3.23 AS builder
+# 1.26.10 closes the stdlib HIGHs Trivy reported on 1.26.6 (CVE-2026-78667, CVE-2026-78669,
+# CVE-2026-97031, CVE-2026-111943). Pinned by digest so a retag cannot change the builder.
+FROM golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43 AS builder
 WORKDIR /workspace
 
 ENV GOWORK=off

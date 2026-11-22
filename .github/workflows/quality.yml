@@ -148,7 +148,7 @@ jobs:
           #
           # POR QUE v2.12.2 E NAO a v2.6.0 dos repos irmaos: o binario carrega a versao de Go com
           # que foi COMPILADO, e ela precisa ser >= a do `go.mod` do alvo. Este repo esta em
-          # `go 1.26.1` (os irmaos em 1.25.x), e a v2.6.0 — compilada com go1.25 — recusa: "the Go
+          # `go 1.26.10` (os irmaos em 1.25.x), e a v2.6.0 — compilada com go1.25 — recusa: "the Go
           # language version (go1.25) used to build golangci-lint is lower than the targeted Go
           # version". Nao e preferencia: e um piso.
           # GOTOOLCHAIN e obrigatorio aqui, e a primeira tentativa desta correcao provou por que:
@@ -157,7 +157,7 @@ jobs:
           # golangci-lint is lower than the targeted Go version (1.26.1)". E exatamente o piso que
           # o comentario da versao ja descrevia; a action baixava um binario ja compilado com um Go
           # mais novo e por isso nao esbarrava nele. Forcar o toolchain reproduz aquela propriedade.
-          GOTOOLCHAIN=go1.26.1 \
+          GOTOOLCHAIN=go1.26.10 \
             go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 \
             || { echo "::error title=golangci-lint install::o BINARIO nao foi obtido — isto NAO e um achado de lint"; exit 1; }
           "$(go env GOPATH)/bin/golangci-lint" --version

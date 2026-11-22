@@ -100,10 +100,30 @@ func TestTheLintBinaryIsBuiltWithTheRepositorysOwnGoVersion(t *testing.T) {
 	//
 	// Without GOTOOLCHAIN the acquisition succeeds and the analysis fails on a config error, which
 	// is the exact confusion this item exists to remove, reintroduced one layer down.
+	//
+	// The expected toolchain is read from go.mod, not hardcoded: a Go bump that forgets this step
+	// fails here instead of in CI.
 	wf := readQualityWorkflow(t)
-	if !strings.Contains(wf, "GOTOOLCHAIN=go1.26.1") {
-		t.Error("the install step does not force the build toolchain — the binary will refuse the target")
+	want := "GOTOOLCHAIN=go" + goModGoVersion(t)
+	if !strings.Contains(wf, want+" ") {
+		t.Errorf("the install step does not force the build toolchain (%s absent) — the binary will refuse the target", want)
 	}
+}
+
+// goModGoVersion returns the version on the `go` directive of the repository's go.mod.
+func goModGoVersion(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Clean("../../go.mod"))
+	if err != nil {
+		t.Fatalf("reading go.mod: %v", err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	t.Fatal("go.mod has no `go` directive")
+	return ""
 }
 
 func TestNodeModulesIsExcludedFromTheGoLint(t *testing.T) {
