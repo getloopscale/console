@@ -12,7 +12,7 @@ import (
 
 func TestConfigLoadDefaults(t *testing.T) {
 	// Clear env to test defaults
-	for _, key := range []string{"CLOUD_LISTEN_ADDR", "KRATOS_PUBLIC_URL", "HYDRA_PUBLIC_URL", "HYDRA_CLIENT_ID", "THEO_ENV"} {
+	for _, key := range []string{"CLOUD_LISTEN_ADDR", "KRATOS_PUBLIC_URL", "HYDRA_PUBLIC_URL", "HYDRA_CLIENT_ID", "LOOPZERO_ENV"} {
 		_ = os.Unsetenv(key)
 	}
 
@@ -32,7 +32,7 @@ func TestConfigLoadDefaults(t *testing.T) {
 func TestConfigLoadFromEnv(t *testing.T) {
 	t.Setenv("CLOUD_LISTEN_ADDR", ":9999")
 	t.Setenv("HYDRA_CLIENT_ID", "custom-cli")
-	t.Setenv("THEO_ENV", "prod")
+	t.Setenv("LOOPZERO_ENV", "prod")
 
 	cfg := config.Load()
 
@@ -48,7 +48,7 @@ func TestConfigLoadFromEnv(t *testing.T) {
 }
 
 func TestConfigValidateProd(t *testing.T) {
-	t.Setenv("THEO_ENV", "prod")
+	t.Setenv("LOOPZERO_ENV", "prod")
 	t.Setenv("HYDRA_PUBLIC_URL", "")
 
 	cfg := config.Load()
@@ -145,7 +145,7 @@ func TestConfigValidateProdRequiresServiceAuthSecret(t *testing.T) {
 	cfg.ServiceAuthSecret = "" // not set
 
 	if err := cfg.Validate(); err == nil {
-		t.Error("Validate() should fail when THEO_SERVICE_AUTH_SECRET is empty in prod")
+		t.Error("Validate() should fail when LOOPZERO_SERVICE_AUTH_SECRET is empty in prod")
 	}
 }
 
@@ -177,9 +177,9 @@ func TestConfigValidateProdRequiresAdminURLs(t *testing.T) {
 
 // T1.6 — secrets must NOT be auto-generated in production.
 func TestConfigLoadProdDoesNotAutogenSecrets(t *testing.T) {
-	t.Setenv("THEO_ENV", "prod")
+	t.Setenv("LOOPZERO_ENV", "prod")
 	_ = os.Unsetenv("SESSION_TOKEN_SECRET")
-	_ = os.Unsetenv("THEO_SERVICE_AUTH_SECRET")
+	_ = os.Unsetenv("LOOPZERO_SERVICE_AUTH_SECRET")
 
 	cfg := config.Load()
 
@@ -187,7 +187,7 @@ func TestConfigLoadProdDoesNotAutogenSecrets(t *testing.T) {
 		t.Error("SESSION_TOKEN_SECRET must not be auto-generated in prod")
 	}
 	if cfg.ServiceAuthSecret.Value() != "" {
-		t.Error("THEO_SERVICE_AUTH_SECRET must not be auto-generated in prod")
+		t.Error("LOOPZERO_SERVICE_AUTH_SECRET must not be auto-generated in prod")
 	}
 }
 

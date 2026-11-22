@@ -187,7 +187,7 @@ services:
       themory:
         condition: service_healthy
     environment:
-      THEO_ENV: dev
+      LOOPZERO_ENV: dev
       CLOUD_LISTEN_ADDR: ":13002"
       # The non-owner role (sql/02-loopzero-cloud-role.sql): theo-cloud refuses to serve as
       # the owner, which holds DDL and an unnamed cross-tenant privilege.

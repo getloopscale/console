@@ -344,7 +344,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	// Initialize OTel tracing (no-op if THEO_TRACING_ENABLED=false).
+	// Initialize OTel tracing (no-op if LOOPZERO_TRACING_ENABLED=false).
 	tracingShutdown, err := tracing.Init(context.Background(), "theo-cloud")
 	if err != nil {
 		logger.Warn("tracing init failed (continuing without traces)", "error", err)
@@ -1012,7 +1012,7 @@ func main() {
 		// a worker-output directory. Both stay nil if Memory itself is
 		// disabled, so the /v1/memory/exports/* and /v1/memory/webhooks/*
 		// blocks below also remain unregistered when off.
-		exportDir := os.Getenv("THEO_EXPORT_DIR")
+		exportDir := os.Getenv("LOOPZERO_EXPORT_DIR")
 		if exportDir == "" {
 			exportDir = "/tmp/theo-exports"
 		}
@@ -1654,12 +1654,12 @@ func main() {
 	// Dual-control Ed25519 signer (ADR 2026-05-13). The cloud proxy
 	// signs the canonical payload (user, tenant, ts, nonce, method+path)
 	// in addition to sending the shared secret. Phase 1: signer is
-	// optional — if THEO_SERVICE_AUTH_ED25519_PRIVATE_KEY is empty, the
+	// optional — if LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY is empty, the
 	// proxy degrades gracefully to single-control. The engine middleware
 	// counts present-vs-absent and the operator flips to Phase 2 when
 	// the 7-day coverage soak hits 100% (RFC Q3).
 	var serviceSigner *auth.ServiceSigner
-	if ed25519Key := os.Getenv("THEO_SERVICE_AUTH_ED25519_PRIVATE_KEY"); ed25519Key != "" {
+	if ed25519Key := os.Getenv("LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY"); ed25519Key != "" {
 		serviceSigner, err = auth.NewServiceSignerFromBase64(ed25519Key)
 		if err != nil {
 			// Per RFC Q5 fail-closed: a misconfigured key MUST NOT silently
@@ -1671,7 +1671,7 @@ func main() {
 		}
 		logger.Info("service-auth Ed25519 dual-control signer enabled")
 	} else {
-		logger.Warn("service-auth Ed25519 private key not configured — Phase 1 single-control only; set THEO_SERVICE_AUTH_ED25519_PRIVATE_KEY to enable dual-control")
+		logger.Warn("service-auth Ed25519 private key not configured — Phase 1 single-control only; set LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY to enable dual-control")
 	}
 
 	// LIVE-caught 2026-06-18: 30s timeout was killing legitimate
@@ -1721,9 +1721,9 @@ func main() {
 				proxyReq.Header.Set(h, v)
 			}
 		}
-		// Internal service auth so theo-api accepts the proxied call
-		// without Bearer (sets X-Theo-User-ID="webhook" sentinel via
-		// engine's webhook auth bypass).
+		// Internal service auth so the engine accepts the proxied call
+		// without Bearer (the engine's webhook auth bypass sets the
+		// "webhook" user sentinel).
 		proxyReq.Header.Set("X-Service-Auth", serviceSecret)
 		resp, perr := engineClient.Do(proxyReq)
 		if perr != nil {
@@ -1785,10 +1785,7 @@ func main() {
 			proxyReq.Header.Set("X-Service-Auth", serviceSecret)
 			user := auth.GetUser(r.Context())
 			if user != nil {
-				proxyReq.Header.Set("X-Theo-User-ID", user.Subject)
-				proxyReq.Header.Set("X-Theo-Tenant", user.TenantID)
-				proxyReq.Header.Set("X-Theo-Email", user.Email)
-				// X-Theo-Role intentionally NOT sent — engine resolves from DB (S2.3)
+				auth.SetEngineIdentity(proxyReq.Header, user)
 
 				// Dual-control Ed25519 (ADR 2026-05-13). Attach AFTER identity
 				// headers are set — Attach hashes user+tenant+method+path into
@@ -1984,12 +1981,12 @@ func main() {
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus
-	// is configured. Opt-in via THEO_PROMETHEUS_URL — when unset, the
+	// is configured. Opt-in via LOOPZERO_PROMETHEUS_URL — when unset, the
 	// aggregator stays disabled and cost_counters remain empty (the API
 	// middleware fails-open). Interval defaults to 5 min, overridable
-	// via THEO_COST_AGGREGATOR_INTERVAL.
+	// via LOOPZERO_COST_AGGREGATOR_INTERVAL.
 	if db != nil {
-		if promURL := strings.TrimSpace(os.Getenv("THEO_PROMETHEUS_URL")); promURL != "" {
+		if promURL := strings.TrimSpace(os.Getenv("LOOPZERO_PROMETHEUS_URL")); promURL != "" {
 			prom, perr := billing.NewHTTPPromQuerier(promURL, logger)
 			if perr != nil {
 				logger.Error("cost aggregator: prometheus client init failed; aggregator disabled",
@@ -1997,7 +1994,7 @@ func main() {
 					"prometheus_url", promURL)
 			} else {
 				interval := 5 * time.Minute
-				if iv := os.Getenv("THEO_COST_AGGREGATOR_INTERVAL"); iv != "" {
+				if iv := os.Getenv("LOOPZERO_COST_AGGREGATOR_INTERVAL"); iv != "" {
 					if parsed, perr := time.ParseDuration(iv); perr == nil && parsed > 0 {
 						interval = parsed
 					}
@@ -2009,7 +2006,7 @@ func main() {
 					"interval", interval.String())
 			}
 		} else {
-			logger.Info("cost aggregator disabled (THEO_PROMETHEUS_URL not set)")
+			logger.Info("cost aggregator disabled (LOOPZERO_PROMETHEUS_URL not set)")
 		}
 	}
 

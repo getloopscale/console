@@ -18,7 +18,7 @@ import (
 )
 
 // TestServiceSigner_AttachAddsAllThreeHeaders — happy path: a configured
-// signer adds X-Theo-Signature, X-Theo-Timestamp, X-Theo-Nonce to the
+// signer adds X-LoopZero-Signature, X-LoopZero-Timestamp, X-LoopZero-Nonce to the
 // outbound request. Engine middleware then runs verifyServiceAuthSignature
 // against the canonical payload built from these headers.
 func TestServiceSigner_AttachAddsAllThreeHeaders(t *testing.T) {
@@ -29,21 +29,21 @@ func TestServiceSigner_AttachAddsAllThreeHeaders(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "http://engine/api/v1/builds", nil)
-	req.Header.Set("X-Theo-User-ID", "u")
-	req.Header.Set("X-Theo-Tenant", "t")
+	req.Header.Set("X-LoopZero-User-ID", "u")
+	req.Header.Set("X-LoopZero-Tenant", "t")
 
 	if err := signer.Attach(req); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
 
-	if req.Header.Get("X-Theo-Signature") == "" {
-		t.Error("X-Theo-Signature missing")
+	if req.Header.Get("X-LoopZero-Signature") == "" {
+		t.Error("X-LoopZero-Signature missing")
 	}
-	if req.Header.Get("X-Theo-Timestamp") == "" {
-		t.Error("X-Theo-Timestamp missing")
+	if req.Header.Get("X-LoopZero-Timestamp") == "" {
+		t.Error("X-LoopZero-Timestamp missing")
 	}
-	if req.Header.Get("X-Theo-Nonce") == "" {
-		t.Error("X-Theo-Nonce missing")
+	if req.Header.Get("X-LoopZero-Nonce") == "" {
+		t.Error("X-LoopZero-Nonce missing")
 	}
 }
 
@@ -56,27 +56,27 @@ func TestServiceSigner_ProducesEngineVerifiableSignature(t *testing.T) {
 	signer, _ := auth.NewServiceSigner(priv)
 
 	req := httptest.NewRequest(http.MethodPost, "http://engine/api/v1/builds", nil)
-	req.Header.Set("X-Theo-User-ID", "user-canonical")
-	req.Header.Set("X-Theo-Tenant", "tn-canonical")
+	req.Header.Set("X-LoopZero-User-ID", "user-canonical")
+	req.Header.Set("X-LoopZero-Tenant", "tn-canonical")
 
 	if err := signer.Attach(req); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
 
 	// Reconstruct the canonical payload exactly as the engine would.
-	tsInt, err := strconv.ParseInt(req.Header.Get("X-Theo-Timestamp"), 10, 64)
+	tsInt, err := strconv.ParseInt(req.Header.Get("X-LoopZero-Timestamp"), 10, 64)
 	if err != nil {
 		t.Fatalf("timestamp parse: %v", err)
 	}
 	in := serviceauth.PayloadInput{
-		UserID:    req.Header.Get("X-Theo-User-ID"),
-		TenantID:  req.Header.Get("X-Theo-Tenant"),
+		UserID:    req.Header.Get("X-LoopZero-User-ID"),
+		TenantID:  req.Header.Get("X-LoopZero-Tenant"),
 		Timestamp: tsInt,
-		Nonce:     req.Header.Get("X-Theo-Nonce"),
+		Nonce:     req.Header.Get("X-LoopZero-Nonce"),
 		Method:    req.Method,
 		Path:      req.URL.Path,
 	}
-	if err := serviceauth.Verify([]ed25519.PublicKey{pub}, req.Header.Get("X-Theo-Signature"), in); err != nil {
+	if err := serviceauth.Verify([]ed25519.PublicKey{pub}, req.Header.Get("X-LoopZero-Signature"), in); err != nil {
 		t.Fatalf("signature did not round-trip: %v", err)
 	}
 }
@@ -93,12 +93,12 @@ func TestServiceSigner_NonceIsUniquePerCall(t *testing.T) {
 	seen := map[string]bool{}
 	for i := 0; i < 20; i++ {
 		req := httptest.NewRequest(http.MethodPost, "http://e/x", nil)
-		req.Header.Set("X-Theo-User-ID", "u")
-		req.Header.Set("X-Theo-Tenant", "t")
+		req.Header.Set("X-LoopZero-User-ID", "u")
+		req.Header.Set("X-LoopZero-Tenant", "t")
 		if err := signer.Attach(req); err != nil {
 			t.Fatalf("iter %d Attach: %v", i, err)
 		}
-		n := req.Header.Get("X-Theo-Nonce")
+		n := req.Header.Get("X-LoopZero-Nonce")
 		if seen[n] {
 			t.Fatalf("nonce collision on iter %d: %s", i, n)
 		}
@@ -120,8 +120,8 @@ func TestServiceSigner_RejectsMissingIdentityHeaders(t *testing.T) {
 		name      string
 		setHeader func(req *http.Request)
 	}{
-		{"no user-id", func(r *http.Request) { r.Header.Set("X-Theo-Tenant", "t") }},
-		{"no tenant", func(r *http.Request) { r.Header.Set("X-Theo-User-ID", "u") }},
+		{"no user-id", func(r *http.Request) { r.Header.Set("X-LoopZero-Tenant", "t") }},
+		{"no tenant", func(r *http.Request) { r.Header.Set("X-LoopZero-User-ID", "u") }},
 		{"neither", func(r *http.Request) {}},
 	}
 	for _, tc := range cases {
@@ -180,19 +180,47 @@ func TestServiceSigner_TimestampIsRecent(t *testing.T) {
 
 	before := time.Now().Unix()
 	req := httptest.NewRequest(http.MethodPost, "http://e/x", nil)
-	req.Header.Set("X-Theo-User-ID", "u")
-	req.Header.Set("X-Theo-Tenant", "t")
+	req.Header.Set("X-LoopZero-User-ID", "u")
+	req.Header.Set("X-LoopZero-Tenant", "t")
 	if err := signer.Attach(req); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
 	after := time.Now().Unix()
 
-	tsStr := req.Header.Get("X-Theo-Timestamp")
+	tsStr := req.Header.Get("X-LoopZero-Timestamp")
 	tsInt, err := strconv.ParseInt(tsStr, 10, 64)
 	if err != nil {
 		t.Fatalf("ts parse: %v", err)
 	}
 	if tsInt < before || tsInt > after {
 		t.Errorf("timestamp %d outside [%d, %d]", tsInt, before, after)
+	}
+}
+
+// The signer must sign the identity the proxy sends under the engine's header
+// names and emit the signature under the names the engine verifies
+// (X-LoopZero-Signature, -Timestamp, -Nonce). Reading the old X-Theo-* names
+// made Attach fail with ErrMissingIdentityHeaders once the proxy sent the
+// engine's names, turning every signed /engine call into a 502.
+func TestServiceSignerSignsTheIdentityTheEngineReads(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	signer, _ := auth.NewServiceSigner(priv)
+
+	req := httptest.NewRequest(http.MethodGet, "http://engine/api/v1/projects", nil)
+	auth.SetEngineIdentity(req.Header, &auth.UserContext{Subject: "user-1", TenantID: "tenant-1"})
+
+	if err := signer.Attach(req); err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+	ts, err := strconv.ParseInt(req.Header.Get("X-LoopZero-Timestamp"), 10, 64)
+	if err != nil {
+		t.Fatalf("X-LoopZero-Timestamp: %v", err)
+	}
+	in := serviceauth.PayloadInput{
+		UserID: "user-1", TenantID: "tenant-1", Timestamp: ts,
+		Nonce: req.Header.Get("X-LoopZero-Nonce"), Method: req.Method, Path: req.URL.Path,
+	}
+	if err := serviceauth.Verify([]ed25519.PublicKey{pub}, req.Header.Get("X-LoopZero-Signature"), in); err != nil {
+		t.Fatalf("the engine would reject this signature: %v", err)
 	}
 }
