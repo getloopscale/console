@@ -32,7 +32,7 @@ Theo-based solution to several of their own clients with hard data isolation and
 
 ### In scope (V1 — required to call this project alive)
 
-- `accounts` table + `account_id` on `tenants` and `theo_api_keys` (the forward-compat seam, planted on `subject`/`tenant_id`, completed).
+- `accounts` table + `account_id` on `tenants` and `loopzero_api_keys` (the forward-compat seam, planted on `subject`/`tenant_id`, completed).
 - Account provisioning on signup (v1: 1:1 user↔account); an Account provisions **N isolated Tenants** on demand.
 - `UserContext.AccountID` + `ResolveAPIKey` resolving `account_id`; broker validates `account → tenant` **lazily** (theo-memory unchanged).
 - **Billing per-Account** (`subscriptions` → account) + project (tenant) quota metered per Account.
@@ -81,7 +81,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 **Definition of done (all must hold):**
 
-- [ ] Migrations `000034` (`accounts` table, `acct-{16hex}`) + `000035/036` (nullable `account_id` on `tenants`/`theo_api_keys`) + `000037` backfill (one default Account per tenant owner) + `000038/039` link — applied; pg-cloud green.
+- [ ] Migrations `000034` (`accounts` table, `acct-{16hex}`) + `000035/036` (nullable `account_id` on `tenants`/`loopzero_api_keys`) + `000037` backfill (one default Account per tenant owner) + `000038/039` link; applied; pg-cloud green.
 - [ ] On signup, `TenantProvisioner` creates the Account (1:1 user↔account v1) + a default Tenant inside it; an Account can provision an additional isolated Tenant.
 - [ ] `UserContext.AccountID` populated; `ResolveAPIKey` reads `account_id`; reads tolerate NULL (legacy keys); a pre-existing single-tenant `theo_live_*` still resolves and returns 200.
 - [ ] Wiring triad per new symbol (caller + integration test + runtime metric); CHANGELOG `[Unreleased]` updated.
@@ -133,7 +133,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 **Definition of done:**
 
-- [ ] Migration `000040` sets `account_id` `NOT NULL` on `tenants`/`theo_api_keys` after the backfill window; no NULLs remain (verified pre-flight).
+- [ ] Migration `000040` sets `account_id` `NOT NULL` on `tenants`/`loopzero_api_keys` after the backfill window; no NULLs remain (verified pre-flight).
 - [ ] JWT carries `account_id` (additive, forward-compat) via `theo-contracts`; existing tokens without it still validate during the transition.
 - [ ] Full V1 ship-criterion e2e passes LIVE (one Account, two isolated tenants, per-Account billing, legacy key 200).
 

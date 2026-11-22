@@ -56,7 +56,7 @@ func TestCreateKey_HappyPath(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
 
 	// Capture the INSERT to inspect the hash + prefix that the handler computes.
-	mock.ExpectExec("INSERT INTO theo_api_keys").
+	mock.ExpectExec("INSERT INTO loopzero_api_keys").
 		WithArgs(
 			sqlmock.AnyArg(), // id (apk-{16hex})
 			"user-A",         // subject — derived from auth, NOT body
@@ -166,7 +166,7 @@ func TestCreateKey_ObservabilityScopesAccepted(t *testing.T) {
 	for _, sc := range cases {
 		t.Run(sc, func(t *testing.T) {
 			h, mock := newAPIKeysHandler(t)
-			mock.ExpectExec("INSERT INTO theo_api_keys").
+			mock.ExpectExec("INSERT INTO loopzero_api_keys").
 				WithArgs(
 					sqlmock.AnyArg(), // id
 					"u",              // subject
@@ -198,7 +198,7 @@ func TestCreateKey_RagScopesAccepted(t *testing.T) {
 	for _, sc := range cases {
 		t.Run(sc, func(t *testing.T) {
 			h, mock := newAPIKeysHandler(t)
-			mock.ExpectExec("INSERT INTO theo_api_keys").
+			mock.ExpectExec("INSERT INTO loopzero_api_keys").
 				WithArgs(
 					sqlmock.AnyArg(), // id
 					"u",              // subject
@@ -311,7 +311,7 @@ func TestCreateKey_FutureExpiresAtPersists(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
 	future := time.Now().Add(48 * time.Hour)
 
-	mock.ExpectExec("INSERT INTO theo_api_keys").
+	mock.ExpectExec("INSERT INTO loopzero_api_keys").
 		WithArgs(
 			sqlmock.AnyArg(), "u", "t", "prod-key",
 			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
@@ -337,7 +337,7 @@ func TestCreateKey_FutureExpiresAtPersists(t *testing.T) {
 // D5 invariant: NEVER trust client-supplied identity.
 func TestCreateKey_IgnoresClientSuppliedSubjectAndTenant(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
-	mock.ExpectExec("INSERT INTO theo_api_keys").
+	mock.ExpectExec("INSERT INTO loopzero_api_keys").
 		WithArgs(
 			sqlmock.AnyArg(),
 			"user-A",   // — authenticated, NOT the body's "subject"
@@ -370,7 +370,7 @@ func TestCreateKey_IgnoresClientSuppliedSubjectAndTenant(t *testing.T) {
 // that would diverge from "the response echoes the input" expectations.
 func TestCreateKey_DuplicateScopesAcceptedAsIs(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
-	mock.ExpectExec("INSERT INTO theo_api_keys").
+	mock.ExpectExec("INSERT INTO loopzero_api_keys").
 		WithArgs(sqlmock.AnyArg(), "u", "t", "x", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 

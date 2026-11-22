@@ -15,13 +15,13 @@
 //  4. legacy → 200: a session JWT minted before M3 (no account_id claim) still
 //     authenticates (the additive-claim backward-compat M3 introduces; a
 //     NULL-account *key* can no longer exist post-000044, see scenario 5);
-//  5. NOT NULL holds — inserting tenants/theo_api_keys with a NULL account_id is
+//  5. NOT NULL holds; inserting tenants/loopzero_api_keys with a NULL account_id is
 //     rejected with SQLSTATE 23502 on account_id (M3);
 //  6. the migration pre-flight guard RAISEs on a residual NULL (EC-5).
 //
 // Build-tagged e2e; run under -race:
 //
-//	E2E_PG_CLOUD_DSN=postgres://theo:theo@host/db?sslmode=disable \
+//	E2E_PG_CLOUD_DSN=postgres://loopzero:loopzero@host/db?sslmode=disable \
 //	  go test -tags=e2e -race ./tests/e2e/ -run ShipCriterionM3 -v
 package e2e
 
@@ -64,7 +64,7 @@ func cleanupShip(t *testing.T, db *sql.DB, owners ...string) {
 	t.Helper()
 	for _, owner := range owners {
 		for _, s := range []string{
-			`DELETE FROM theo_api_keys WHERE subject = $1`,
+			`DELETE FROM loopzero_api_keys WHERE subject = $1`,
 			`DELETE FROM usage_records WHERE tenant_id IN (SELECT id FROM tenants WHERE owner_id = $1)`,
 			`DELETE FROM subscriptions WHERE account_id IN (SELECT id FROM accounts WHERE owner_id = $1)`,
 			`DELETE FROM tenant_members WHERE user_id = $1`,
@@ -154,7 +154,7 @@ func TestShipCriterionM3(t *testing.T) {
 		}
 		// negative: ACME-account key pointed at RIVAL's tenant → 403, no mint.
 		evilKey := seedAccountKey(t, db, "ship-acme-evil", tenantRival, sql.NullString{String: acme, Valid: true})
-		t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM theo_api_keys WHERE subject = $1`, "ship-acme-evil") })
+		t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM loopzero_api_keys WHERE subject = $1`, "ship-acme-evil") })
 		cmEvil := &captureMinter{}
 		rec := serveM1(t, m1Handler(t, db, cmEvil), evilKey)
 		if rec.Code != http.StatusForbidden {
@@ -186,7 +186,7 @@ func TestShipCriterionM3(t *testing.T) {
 		}
 	})
 
-	// --- 4. legacy → 200 (backward-compat). M3 makes theo_api_keys.account_id
+	// --- 4. legacy → 200 (backward-compat). M3 makes loopzero_api_keys.account_id
 	//        NOT NULL, so a NULL-account *key* can no longer exist (scenario 5
 	//        proves the same NOT NULL on tenants). The backward-compat surface M3
 	//        actually introduces is the additive JWT claim: a session token minted
@@ -232,13 +232,13 @@ func TestShipCriterionM3(t *testing.T) {
 		}
 		assertNotNullViolation(t, errT, "account_id")
 
-		// theo_api_keys.account_id NOT NULL — the OTHER table 000044 enforces.
+		// loopzero_api_keys.account_id NOT NULL; the OTHER table 000044 enforces.
 		_, errK := db.Exec(
-			`INSERT INTO theo_api_keys (id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, created_at)
+			`INSERT INTO loopzero_api_keys (id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, created_at)
 			 VALUES ('key-ship-null', $1, $2, NULL, 'n', 'hash-ship-null', 'theo_live_', '["memory:read"]'::jsonb, NOW() + interval '1 hour', NOW())`,
 			ownerAcme, tenant1)
 		if errK == nil {
-			_, _ = db.Exec(`DELETE FROM theo_api_keys WHERE id = 'key-ship-null'`)
+			_, _ = db.Exec(`DELETE FROM loopzero_api_keys WHERE id = 'key-ship-null'`)
 		}
 		assertNotNullViolation(t, errK, "account_id")
 	})

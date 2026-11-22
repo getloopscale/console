@@ -14,7 +14,7 @@
 //
 //	E2E_CLOUD_URL      gateway base URL          (http://localhost:13002)
 //	E2E_THEMORY_URL    TheMemory REST base URL   (http://localhost:18080)
-//	E2E_PG_CLOUD_DSN   cloud postgres DSN        (for seeding theo_api_keys)
+//	E2E_PG_CLOUD_DSN   cloud postgres DSN        (for seeding loopzero_api_keys)
 //	THEMORY_MASTER_KEY master bearer cloud->themory
 //
 // This test FAILS against a client that does not conform to TheMemory's real
@@ -73,7 +73,7 @@ func requireE2EEdge(t *testing.T) string {
 // hex(sha256(bearer))). Returns the bearer to send. Model B: bff_minted=false —
 // the BFF vault (which set it true) is removed; a customer key is never a shadow row.
 //
-// M3: theo_api_keys.account_id (and tenants.account_id) are NOT NULL (000044).
+// M3: loopzero_api_keys.account_id (and tenants.account_id) are NOT NULL (000044).
 // The key must carry an account that OWNS its tenant (else the M1 ForwardAuth
 // cross-account guard rejects it). This helper inherits the tenant's account when
 // the tenant already exists (e.g. seeded via seedTenant), otherwise it provisions
@@ -88,7 +88,7 @@ func seedAPIKey(t *testing.T, db *sql.DB, subject, tenant string) string {
 	keyHash := hex.EncodeToString(sum[:])
 	id := "e2e-" + keyHash[:16]
 	_, err := db.Exec(`
-		INSERT INTO theo_api_keys
+		INSERT INTO loopzero_api_keys
 			(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, bff_minted, created_at)
 		VALUES ($1,$2,$3,$4,'e2e',$5,'theo_live_',$6::jsonb, NOW() + interval '1 hour', false, NOW())
 		ON CONFLICT (key_hash) DO NOTHING`,
@@ -195,7 +195,7 @@ func cloudForget(t *testing.T, cloudURL, bearer, memoryID string) int {
 func TestMemoryE2E_GatewayProxyRoundTrip(t *testing.T) {
 	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://loopzero:loopzero@localhost:55432/loopzero?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -304,7 +304,7 @@ func cloudDelete(t *testing.T, cloudURL, bearer, path string) (int, string) {
 func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://loopzero:loopzero@localhost:55432/loopzero?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -517,7 +517,7 @@ func seedSkill(t *testing.T, themoryDSN, workspace, agentID, hash, description, 
 func TestMemoryE2E_SkillsBrowse(t *testing.T) {
 	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://loopzero:loopzero@localhost:55432/loopzero?sslmode=disable")
 	themoryDSN := env(t, "E2E_PG_THEMORY_DSN", "postgres://themem:themem@localhost:55433/themem?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
@@ -579,7 +579,7 @@ func TestMemoryE2E_SkillsBrowse(t *testing.T) {
 func TestMemoryE2E_SkillsAllCrossRepo(t *testing.T) {
 	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://loopzero:loopzero@localhost:55432/loopzero?sslmode=disable")
 	themoryDSN := env(t, "E2E_PG_THEMORY_DSN", "postgres://themem:themem@localhost:55433/themem?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
@@ -634,7 +634,7 @@ func TestMemoryE2E_SkillsAllCrossRepo(t *testing.T) {
 func TestMemoryE2E_SkillsWrite(t *testing.T) {
 	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://loopzero:loopzero@localhost:55432/loopzero?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

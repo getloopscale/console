@@ -164,7 +164,7 @@ func escreverRegistros(fila <-chan pedidoDeRegistro) {
 	// depende de `READ COMMITTED` (o default do servidor) para que duas escritas concorrentes da
 	// mesma chave não virem duas linhas gravadas; sob `REPEATABLE READ` a segunda erraria com falha
 	// de serialização — que o log abaixo torna visível em vez de engolir.
-	const q = `UPDATE theo_api_keys
+	const q = `UPDATE loopzero_api_keys
 		SET last_used_at = NOW()
 		WHERE id = $1
 		  AND (last_used_at IS NULL OR last_used_at < NOW() - make_interval(secs => $2))`

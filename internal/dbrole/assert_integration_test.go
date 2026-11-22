@@ -8,8 +8,8 @@
 // tests are written so that cannot happen here: they refuse to pass vacuously,
 // and each one measures a role that actually exists in the database.
 //
-//	DATABASE_URL=postgres://theo:theo@localhost:55450/theo?sslmode=disable \
-//	THEO_CLOUD_ROLE_URL=postgres://theo_cloud:cloud@localhost:55450/theo?sslmode=disable \
+//	DATABASE_URL=postgres://loopzero:loopzero@localhost:55450/loopzero?sslmode=disable \
+//	THEO_CLOUD_ROLE_URL=postgres://loopzero_cloud:cloud@localhost:55450/loopzero?sslmode=disable \
 //	go test ./internal/dbrole/ -count=1 -v
 package dbrole
 
@@ -72,14 +72,14 @@ func TestGuard_RefusesOwner(t *testing.T) {
 // could only show that the guard says no — not that the intended role gets
 // through, which is the thing an operator actually depends on.
 func TestGuard_AcceptsNamedCloudRole(t *testing.T) {
-	ctx, db := open(t, "THEO_CLOUD_ROLE_URL", "theo_cloud")
+	ctx, db := open(t, "THEO_CLOUD_ROLE_URL", "loopzero_cloud")
 
 	posture, err := Measure(ctx, db)
 	if err != nil {
 		t.Fatalf("measure: %v", err)
 	}
 	if posture.Superuser || posture.BypassRLS || posture.IsOwner {
-		t.Fatalf("THEO_CLOUD_ROLE_URL must point at the non-owner `theo_cloud` role; got %s.\n"+
+		t.Fatalf("THEO_CLOUD_ROLE_URL must point at the non-owner `loopzero_cloud` role; got %s.\n"+
 			"Measuring the guard against a broad role would make this test meaningless.", posture)
 	}
 
@@ -89,12 +89,12 @@ func TestGuard_AcceptsNamedCloudRole(t *testing.T) {
 }
 
 // TestNamedRole_ReachesEveryTenant proves migration 000063 actually granted the
-// reach it claims. A guard that admits `theo_cloud` while the role cannot read
+// reach it claims. A guard that admits `loopzero_cloud` while the role cannot read
 // across tenants would trade a silent over-privilege for a silent outage — the
 // control plane would boot and then serve empty account listings.
 func TestNamedRole_ReachesEveryTenant(t *testing.T) {
 	octx, owner := open(t, "DATABASE_URL", "owner")
-	ctx, cloud := open(t, "THEO_CLOUD_ROLE_URL", "theo_cloud")
+	ctx, cloud := open(t, "THEO_CLOUD_ROLE_URL", "loopzero_cloud")
 
 	const (
 		userID = "cloudrole-user"
@@ -135,27 +135,27 @@ func TestNamedRole_ReachesEveryTenant(t *testing.T) {
 	if err := cloud.QueryRowContext(ctx,
 		`SELECT count(*) FROM tenants WHERE id IN ($1, $2)`, tenA, tenB,
 	).Scan(&seen); err != nil {
-		t.Fatalf("cross-tenant read as theo_cloud: %v", err)
+		t.Fatalf("cross-tenant read as loopzero_cloud: %v", err)
 	}
 	if seen != 2 {
-		t.Errorf("theo_cloud saw %d of 2 tenants without a tenant context — the "+
+		t.Errorf("loopzero_cloud saw %d of 2 tenants without a tenant context; the "+
 			"*_cloud_cross_tenant policies from migration 000063 are missing or wrong. "+
 			"The control plane would boot and then serve empty listings.", seen)
 	}
 }
 
 // TestNamedRole_HoldsNoDDL is the narrowing that justifies the whole change: the
-// owner could rewrite the very policies meant to constrain it. `theo_cloud`
+// owner could rewrite the very policies meant to constrain it. `loopzero_cloud`
 // cannot.
 func TestNamedRole_HoldsNoDDL(t *testing.T) {
-	ctx, cloud := open(t, "THEO_CLOUD_ROLE_URL", "theo_cloud")
+	ctx, cloud := open(t, "THEO_CLOUD_ROLE_URL", "loopzero_cloud")
 
 	if _, err := cloud.ExecContext(ctx, `ALTER TABLE tenants NO FORCE ROW LEVEL SECURITY`); err == nil {
-		t.Error("theo_cloud was able to lift FORCE ROW LEVEL SECURITY — it holds DDL over a " +
+		t.Error("loopzero_cloud was able to lift FORCE ROW LEVEL SECURITY; it holds DDL over a " +
 			"tenant-scoped table, so the blast-radius reduction claimed by migration 000063 " +
 			"does not hold")
 	}
 	if _, err := cloud.ExecContext(ctx, `DROP POLICY IF EXISTS tenants_self_isolation ON tenants`); err == nil {
-		t.Error("theo_cloud was able to drop an isolation policy")
+		t.Error("loopzero_cloud was able to drop an isolation policy")
 	}
 }

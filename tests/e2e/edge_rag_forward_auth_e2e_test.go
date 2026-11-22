@@ -39,7 +39,7 @@ func seedRagAPIKey(t *testing.T, db *sql.DB, subject, tenant, scopesJSON string)
 	keyHash := hex.EncodeToString(sum[:])
 	id := "e2e-rag-" + keyHash[:16]
 	_, err := db.Exec(`
-		INSERT INTO theo_api_keys
+		INSERT INTO loopzero_api_keys
 			(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, bff_minted, created_at)
 		VALUES ($1,$2,$3,$4,'e2e-rag',$5,'theo_live_',$6::jsonb, NOW() + interval '1 hour', false, NOW())
 		ON CONFLICT (key_hash) DO NOTHING`,

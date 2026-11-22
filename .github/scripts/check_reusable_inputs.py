@@ -4,7 +4,7 @@
 ## The defect this closes
 
 `publish.yml` passed `git_sha` and `version_label` to
-`getloopscale/engine/.github/workflows/build-publish.yml`. That workflow declares neither, so GitHub
+`getloopscale/loopzero/.github/workflows/build-publish.yml`. That workflow declares neither, so GitHub
 refused the whole run at startup:
 
     The workflow is not valid. .github/workflows/publish.yml (Line: 134, Col: 16):
