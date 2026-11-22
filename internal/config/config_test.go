@@ -342,7 +342,7 @@ func TestValidate_enforces_minimum_length_outside_prod(t *testing.T) {
 // Sem este teste a correcao derrubaria toda maquina de dev que nao define a variavel — que e o
 // caso comum, e exatamente o modo de falha que o coordenador alertou para app-dev.
 func TestLoad_dev_without_the_env_var_still_boots(t *testing.T) {
-	t.Setenv("THEO_ENV", "dev")
+	t.Setenv("LOOPZERO_ENV", "dev")
 	c := Load()
 	if err := checkSigningSecret("SESSION_TOKEN_SECRET", c.SessionTokenSecret.Value()); err != nil {
 		t.Fatalf("dev sem a variavel tem de subir; a guarda recusou o segredo sorteado: %v", err)

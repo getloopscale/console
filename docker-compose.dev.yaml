@@ -241,7 +241,7 @@ services:
       themory:
         condition: service_healthy
     environment:
-      THEO_ENV: dev
+      LOOPZERO_ENV: dev
       CLOUD_LISTEN_ADDR: ":13002"
       DATABASE_URL: postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable
       THEMORY_BASE_URL: http://themory:8080

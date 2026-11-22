@@ -16,7 +16,7 @@ import (
 )
 
 // ServiceSigner attaches the three dual-control headers
-// (X-Theo-Signature, X-Theo-Timestamp, X-Theo-Nonce) to outbound
+// (X-LoopZero-Signature, X-LoopZero-Timestamp, X-LoopZero-Nonce) to outbound
 // engine requests on behalf of the authenticated dashboard user.
 //
 // The private key is held only by the cloud proxy — no other binary
@@ -38,7 +38,7 @@ func NewServiceSigner(priv ed25519.PrivateKey) (*ServiceSigner, error) {
 }
 
 // NewServiceSignerFromBase64 is the production constructor used in
-// cloud bootstrap: the env var THEO_SERVICE_AUTH_ED25519_PRIVATE_KEY
+// cloud bootstrap: the env var LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY
 // carries a base64-encoded Ed25519 private key (RFC § Key management).
 //
 // Returns an error if:
@@ -51,7 +51,7 @@ func NewServiceSigner(priv ed25519.PrivateKey) (*ServiceSigner, error) {
 // this error to the readiness probe so the LB stops sending traffic.
 func NewServiceSignerFromBase64(encoded string) (*ServiceSigner, error) {
 	if encoded == "" {
-		return nil, errors.New("cloud service-signer: private key is empty (set THEO_SERVICE_AUTH_ED25519_PRIVATE_KEY)")
+		return nil, errors.New("cloud service-signer: private key is empty (set LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY)")
 	}
 	raw, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
@@ -61,13 +61,13 @@ func NewServiceSignerFromBase64(encoded string) (*ServiceSigner, error) {
 }
 
 // ErrMissingIdentityHeaders is returned by Attach when the upstream
-// caller has not set X-Theo-User-ID + X-Theo-Tenant. Signing without
+// caller has not set the engine identity headers (SetEngineIdentity). Signing without
 // identity would produce a signature over an empty canonical payload,
 // which the engine would reject — but the reject would surface in
 // engine audit logs rather than the cloud proxy, hiding the bug.
 // Failing here produces a clear cloud-side error and a 502 to the
 // dashboard caller.
-var ErrMissingIdentityHeaders = errors.New("cloud service-signer: missing X-Theo-User-ID or X-Theo-Tenant on outbound request")
+var ErrMissingIdentityHeaders = errors.New("cloud service-signer: missing X-LoopZero-User-ID or X-LoopZero-Tenant on outbound request")
 
 // Attach signs the canonical payload derived from the request and
 // adds the three signature headers in-place. Idempotent: calling
@@ -80,8 +80,8 @@ var ErrMissingIdentityHeaders = errors.New("cloud service-signer: missing X-Theo
 // representation. Query string is intentionally NOT included in the
 // canonical payload (RFC: method + path only).
 func (s *ServiceSigner) Attach(r *http.Request) error {
-	userID := r.Header.Get("X-Theo-User-ID")
-	tenantID := r.Header.Get("X-Theo-Tenant")
+	userID := r.Header.Get(EngineUserIDHeader)
+	tenantID := r.Header.Get(EngineTenantHeader)
 	if userID == "" || tenantID == "" {
 		return ErrMissingIdentityHeaders
 	}
@@ -101,9 +101,9 @@ func (s *ServiceSigner) Attach(r *http.Request) error {
 		return fmt.Errorf("cloud service-signer: sign failed: %w", err)
 	}
 
-	r.Header.Set("X-Theo-Signature", sig)
-	r.Header.Set("X-Theo-Timestamp", fmt.Sprintf("%d", ts))
-	r.Header.Set("X-Theo-Nonce", nonce)
+	r.Header.Set("X-LoopZero-Signature", sig)
+	r.Header.Set("X-LoopZero-Timestamp", fmt.Sprintf("%d", ts))
+	r.Header.Set("X-LoopZero-Nonce", nonce)
 	return nil
 }
 

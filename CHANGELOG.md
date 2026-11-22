@@ -2,8 +2,11 @@
 
 ### Changed
 - The images are published as `ghcr.io/getloopscale/loopzero-cloud` and `ghcr.io/getloopscale/loopzero-dashboard`, the names the LoopZero engine pulls. Nothing new is published under `theo-cloud` or `theo-dashboard` (#520).
+- The control plane reads its own settings under the `LOOPZERO_` prefix, the names the LoopZero Helm chart sets: `LOOPZERO_ENV`, `LOOPZERO_SERVICE_AUTH_SECRET`, `LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY`, `LOOPZERO_TRACING_ENABLED`, `LOOPZERO_EXPORT_DIR`, `LOOPZERO_PROMETHEUS_URL`, `LOOPZERO_COST_AGGREGATOR_INTERVAL` and `LOOPZERO_RAG_OAUTH_<PROVIDER>_*`. The `THEO_` names are no longer read, so an install that still sets them must rename them (#523).
 
 ### Fixed
+- Engine routes under `/engine` work again. The proxy sent the caller's identity as `X-Theo-User-ID`, `X-Theo-Tenant` and `X-Theo-Email`, which the engine no longer reads, so it answered 401 to every signed-in request. It now sends `X-LoopZero-User-ID`, `X-LoopZero-Tenant` and `X-LoopZero-Email`, and signs requests with `X-LoopZero-Signature`, `X-LoopZero-Timestamp` and `X-LoopZero-Nonce` (#522).
+- On the LoopZero chart the control plane no longer starts with a random service secret per pod. It read `THEO_SERVICE_AUTH_SECRET` and `THEO_ENV` while the chart sets `LOOPZERO_SERVICE_AUTH_SECRET` and `LOOPZERO_ENV`, so the secret it shares with the engine never arrived (#523).
 - API keys work against a database built from the LoopZero engine migrations. The control plane queried `theo_api_keys`, which those migrations do not create, instead of `loopzero_api_keys`; the startup role check now names the `loopzero_cloud` role from migration 000063 (#518).
 
 ### Security
