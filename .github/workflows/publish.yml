@@ -43,8 +43,8 @@ jobs:
         uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         with:
           filters: |
-            theo-cloud: ['cmd/**', 'internal/**', 'go.mod', 'go.sum', 'Dockerfile']
-            theo-dashboard: ['dashboard/**']
+            loopzero-cloud: ['cmd/**', 'internal/**', 'go.mod', 'go.sum', 'Dockerfile']
+            loopzero-dashboard: ['dashboard/**']
       - id: set
         env:
           IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -52,7 +52,9 @@ jobs:
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
           set -euo pipefail
-          ALL='[{"image":"theo-cloud","dockerfile":"Dockerfile","context":"."},{"image":"theo-dashboard","dockerfile":"dashboard/Dockerfile","context":"dashboard"}]'
+          # Published as ghcr.io/<owner>/loopzero-cloud and loopzero-dashboard, the names the engine
+          # pulls. The filter keys above must match these image names: the selection below joins them.
+          ALL='[{"image":"loopzero-cloud","dockerfile":"Dockerfile","context":"."},{"image":"loopzero-dashboard","dockerfile":"dashboard/Dockerfile","context":"dashboard"}]'
           # MEDIDO em 2026-07-31 na /status implantada: nove servicos mostravam `develop-<sha>` e o
           # theo-cloud mostrava `develop` — a unica linha do painel que nao dizia QUAL build estava
           # rodando. Em tag, `ref_name` ja E a versao e nao leva sufixo; fora dela, o nome do canal

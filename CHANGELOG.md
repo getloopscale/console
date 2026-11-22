@@ -1,7 +1,13 @@
 ## [Unreleased]
 
+### Changed
+- The images are published as `ghcr.io/getloopscale/loopzero-cloud` and `ghcr.io/getloopscale/loopzero-dashboard`, the names the LoopZero engine pulls. Nothing new is published under `theo-cloud` or `theo-dashboard` (#520).
+
 ### Fixed
 - API keys work against a database built from the LoopZero engine migrations. The control plane queried `theo_api_keys`, which those migrations do not create, instead of `loopzero_api_keys`; the startup role check now names the `loopzero_cloud` role from migration 000063 (#518).
+
+### Security
+- The control plane is built with Go 1.26.10 and `golang.org/x/net` 0.62.0, which fix CVE-2026-78661, CVE-2026-78667, CVE-2026-78669, CVE-2026-97031 and CVE-2026-111943 (denial of service in `net/http`, HTTP/2, `crypto/tls` and `x/net/html`, and a certificate validation flaw in `crypto/x509`). The image scan had refused to publish on 1.26.6 and x/net 0.58.0 (#520).
 
 ## [1.1.0] - 2026-11-06
 
