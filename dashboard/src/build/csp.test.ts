@@ -82,10 +82,16 @@ describe('the Content-Security-Policy is one policy, configured per deployment',
       .filter((line) => !line.trimStart().startsWith('#'))
       .join('\n');
     for (const variable of ['$csp_connect_origins', '$csp_form_origins']) {
-      const block = conf.match(new RegExp(`map \\$host \\${variable} \\{([^}]*)\\}`));
+      // A constant source: the value never depends on the request (semgrep
+      // generic.nginx.security.request-host-used refuses `$host`).
+      const block = conf.match(new RegExp(`map "" \\${variable} \\{([^}]*)\\}`));
       expect(block, `nginx-csp-origins.conf defines no ${variable}`).toBeTruthy();
       expect(block![1].trim()).toBe('default "";');
     }
+  });
+
+  it('nginx-csp-origins.conf reads no request header', () => {
+    expect(read('nginx-csp-origins.conf')).not.toMatch(/\$host|\$http_/);
   });
 
   it('the image installs the origins file where nginx reads its http-level config', () => {
