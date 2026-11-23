@@ -2,63 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!--
-      Content Security Policy.
-
-      T2.3 of plan 2026-05-27-backend-frontend-integration v1.1 — connect-src
-      is now 'self' only. The dashboard is served same-origin via the cloud
-      BFF (D2 + MEET-040); every API/auth/proxy hop is a relative URL, so
-      we no longer need cross-origin allow-list entries for api/accounts/auth
-      subdomains.
-
-      - script-src is 'self' only (no 'unsafe-inline') — Red Team theo-cloud#67
-        closure (CWE-693). /__config.js is loaded via <script src="..."> which
-        is an EXTERNAL script (covered by 'self'); the prior 'unsafe-inline'
-        directive was dead CSP space (no inline <script> blocks or on*= event
-        handlers exist in the bundle — React uses synthetic events).
-      - style-src 'unsafe-inline' required for Radix + Tailwind v4 inline styles.
-
-      B-131 — esta política e a de `nginx-security-headers.conf` são A MESMA, com
-      exatamente duas diferenças declaradas, e `src/build/csp.test.ts` falha se
-      surgir uma terceira:
-        1. `ws:` `wss:` só aqui — o Vite serve este arquivo tal e qual em dev, e
-           o HMR abre um WebSocket. Em produção o header não os traz, e o
-           navegador aplica a INTERSEÇÃO das duas políticas: a permissão de dev
-           não alcança produção.
-        2. `frame-ancestors` só no header — a diretiva é ignorada em `<meta>` por
-           especificação, então declará-la aqui seria decorativo.
-
-      O que este arquivo dizia antes era mais largo que o header em seis pontos,
-      e a interseção revogava todos em silêncio — inclusive as fontes do Google
-      que a linha 76 carrega. Os hosts do Stripe saíram: o checkout é alcançado
-      por NAVEGAÇÃO, que `connect-src` não governa; mantê-los "por precaução"
-      custava superfície e não comprava nada.
-      - frame-ancestors NOT enforced via meta — only via response header.
-      - data:/blob:/https: in img-src cover avatars, base64 favicons, S3 assets.
-    -->
-    <!-- CSP: form-action must allow the Kratos public host so the dashboard's
-         login/registration forms can POST cross-origin to auth.usetheo.dev
-         (the canonical session-cookie issuer per cookieDomain=usetheo.dev).
-         connect-src likewise extended for XHR flow lookups + cloud's session-
-         token exchange. Per plan 2026-05-29-dashboard-public-integration-
-         canonicalization Phase 8 LIVE fix 2026-06-01. -->
-    <!-- CSP form-action applies to the initial POST URL AND every redirect
-         target during the form submission. Google OAuth flow is: POST
-         auth.usetheo.dev → 303 → accounts.google.com. GitHub OAuth: POST
-         auth.usetheo.dev → 303 → github.com. Both providers must be allowed,
-         otherwise CSP rejects the OIDC redirect chain mid-flight. -->
-    <!-- connect-src includes auth.usetheo.dev because the init flow GET XHR
-         (fetch /self-service/registration/flows?id=...) reads the flow JSON
-         before the user submits. The SUBMIT itself is top-level form POST
-         (SameSite-Lax safe path — see submitPassword/submitOIDC), so the
-         CSRF cookie travels with the navigation. cloud.usetheo.dev needed
-         for post-login /v1/auth/session/token JWT exchange. -->
-    <!-- Plan 2026-06-04-dev-public-domain-canonicalization: CSP extended to
-         allow auth-dev.usetheo.dev + cloud-dev.usetheo.dev so the dashboard
-         hosted at app-dev.usetheo.dev can complete the same flows against
-         the dev-public Kratos/cloud. Stripe + Google + GitHub allowlists
-         unchanged (same OAuth/Stripe apps shared between envs per D5). -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.svgporn.com; connect-src 'self' ws: wss: https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev; form-action 'self' https://auth.usetheo.dev https://auth-dev.usetheo.dev https://accounts.google.com https://github.com; base-uri 'self'; object-src 'none'" />
+    <!-- The Content-Security-Policy is the nginx header (nginx-security-headers.conf), the
+         only one: a <meta> policy here would be intersected with it, and could not take
+         the origins a deployment configures (nginx-csp-origins.conf). -->
     <!-- Theo brand favicons. Regenerated 2026-07-17 from the current brand mark
          (the three-bar "T" glyph + violet gradient, from theo-web Logo.tsx),
          replacing the previous mascot assets. The SVG favicon renders crisp at
@@ -77,7 +23,7 @@
          before any subsequent CSS @import block. The <link> path also avoids
          render-blocking the critical CSS pipeline.
          CSP `style-src https://fonts.googleapis.com` + `font-src https://fonts.gstatic.com`
-         already covers this (see the Content-Security-Policy meta above). -->
+         already covers this (see nginx-security-headers.conf). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

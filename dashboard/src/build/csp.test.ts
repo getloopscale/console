@@ -7,130 +7,104 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * B-131 — o `<meta>` do index.html e o header do nginx declaram A MESMA política.
+ * One Content-Security-Policy, served by nginx, whose environment-specific origins come from
+ * the deployment.
  *
- * Políticas múltiplas de CSP não se substituem: o navegador aplica todas, e vale a INTERSEÇÃO.
- * O header servido em produção era estritamente mais estreito que o `<meta>`, então revogava em
- * silêncio seis permissões que a página declarava precisar — entre elas `style-src`/`font-src`
- * das fontes do Google, que a linha 76 do index.html carrega, e o `blob:` do preview de arquivos
- * do workspace. Nenhum erro de configuração aparece nesse caso: o mais estreito simplesmente
- * ganha, e o que quebra é a página.
+ * The policy used to be declared twice, in a `<meta>` of index.html and in the nginx header,
+ * each naming the usetheo.dev hosts. A browser applies every policy it receives and allows only
+ * their intersection, and neither copy could be changed without rebuilding the image, so the
+ * dashboard on any other host (staging on getloopscale.com) could not reach its own Kratos:
+ * "Refused to connect because it violates the document's Content Security Policy".
  *
- * O guarda anterior verificava UMA diretiva de UM dos dois arquivos (`script-src` sem
- * `'unsafe-inline'` no `<meta>`) — a divergência inteira passava por baixo dele. Este compara os
- * dois arquivos diretiva a diretiva, e falha na próxima.
+ * Now the header is the only policy. Its `connect-src` and `form-action` add the origins held
+ * by two nginx variables, `$csp_connect_origins` and `$csp_form_origins`, which
+ * nginx-csp-origins.conf sets to nothing and a deployment replaces with its own file.
  */
 
-const RAIZ = resolve(__dirname, '../..');
+const ROOT = resolve(__dirname, '../..');
 
-function lerMeta(caminho: string): string | null {
-  let html: string;
+function read(path: string): string | null {
   try {
-    html = readFileSync(caminho, 'utf-8');
+    return readFileSync(resolve(ROOT, path), 'utf-8');
   } catch {
     return null;
   }
-  return html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1] ?? null;
 }
 
-function lerHeader(): string {
-  const conf = readFileSync(resolve(RAIZ, 'nginx-security-headers.conf'), 'utf-8');
-  const m = conf.match(/add_header Content-Security-Policy "([^"]+)" always;/);
-  expect(m, 'nginx-security-headers.conf must ship a Content-Security-Policy').not.toBeNull();
+function metaPolicy(html: string): string | null {
+  return html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/i)?.[1] ?? null;
+}
+
+function headerPolicy(): string {
+  const conf = read('nginx-security-headers.conf');
+  const m = conf?.match(/add_header Content-Security-Policy "([^"]+)" always;/);
+  expect(m, 'nginx-security-headers.conf must ship a Content-Security-Policy').toBeTruthy();
   return m![1];
 }
 
-/** `{ 'script-src': ['self'], … }` — a ordem das fontes dentro de uma diretiva não importa. */
-function emDiretivas(csp: string): Record<string, string[]> {
-  const saida: Record<string, string[]> = {};
-  for (const parte of csp.split(';')) {
-    const campos = parte.trim().split(/\s+/).filter(Boolean);
-    if (campos.length === 0) continue;
-    saida[campos[0]] = campos.slice(1).sort();
+/** `{ 'script-src': ["'self'"], … }`. */
+function directives(csp: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const part of csp.split(';')) {
+    const fields = part.trim().split(/\s+/).filter(Boolean);
+    if (fields.length > 0) out[fields[0]] = fields.slice(1);
   }
-  return saida;
+  return out;
 }
 
-/**
- * As duas diferenças declaradas — e a única razão pela qual este teste não é uma igualdade seca.
- *
- * `ws:`/`wss:` existem só no `<meta>` porque o Vite serve o index.html tal e qual em dev e o HMR
- * abre um WebSocket; em produção o header não os traz e a interseção os corta. `frame-ancestors`
- * existe só no header porque a diretiva é ignorada em `<meta>` por especificação.
- */
-const SO_NO_META: Readonly<Record<string, readonly string[]>> = { 'connect-src': ['ws:', 'wss:'] };
-const SO_NO_HEADER = ['frame-ancestors'];
-
-describe('B-131 — as duas políticas de CSP dizem a mesma coisa', () => {
-  const meta = lerMeta(resolve(RAIZ, 'index.html'));
-  const header = lerHeader();
-
-  it('o index.html declara um CSP', () => {
-    expect(meta).not.toBeNull();
+describe('the Content-Security-Policy is one policy, configured per deployment', () => {
+  it('index.html declares none: a <meta> policy would intersect with the header', () => {
+    expect(metaPolicy(read('index.html')!)).toBeNull();
   });
 
-  it('as duas trazem exatamente as mesmas diretivas, salvo frame-ancestors', () => {
-    const noMeta = Object.keys(emDiretivas(meta!)).sort();
-    const noHeader = Object.keys(emDiretivas(header))
-      .filter((d) => !SO_NO_HEADER.includes(d))
-      .sort();
-    expect(noHeader).toEqual(noMeta);
+  it('the built index.html declares none either', () => {
+    const built = read('dist/index.html');
+    // The bundle exists only after a build; the source file above is always checked.
+    if (built !== null) expect(metaPolicy(built)).toBeNull();
   });
 
   it.each([
-    'default-src',
-    'script-src',
-    'style-src',
-    'font-src',
-    'img-src',
-    'connect-src',
-    'form-action',
-    'base-uri',
-    'object-src',
-  ])('%s tem as mesmas fontes nas duas', (diretiva) => {
-    const doMeta = emDiretivas(meta!)[diretiva] ?? [];
-    const doHeader = emDiretivas(header)[diretiva] ?? [];
-    const permitidoSoNoMeta = SO_NO_META[diretiva] ?? [];
-
-    // O header nunca pode ser mais ESTREITO: é a interseção que vale, então uma fonte que só o
-    // `<meta>` traz está revogada em produção — o defeito exato do B-131.
-    expect(
-      doMeta.filter((f) => !doHeader.includes(f) && !permitidoSoNoMeta.includes(f)),
-      `${diretiva}: o <meta> permite fontes que o header do nginx revoga. A interseção vale em ` +
-        `produção, então a página pede algo que o navegador vai bloquear — sem erro nenhum.`,
-    ).toEqual([]);
-
-    // Nem mais LARGO: uma fonte só no header é permissão que ninguém declarou precisar.
-    expect(
-      doHeader.filter((f) => !doMeta.includes(f)),
-      `${diretiva}: o header do nginx permite fontes que o <meta> não declara.`,
-    ).toEqual([]);
+    ['connect-src', '$csp_connect_origins'],
+    ['form-action', '$csp_form_origins'],
+  ])('%s takes its environment origins from %s', (directive, variable) => {
+    const sources = directives(headerPolicy())[directive];
+    expect(sources).toContain("'self'");
+    expect(sources).toContain(variable);
   });
 
-  it('frame-ancestors continua fechado no header', () => {
-    // A defesa contra clickjacking, que só pode viver deste lado.
-    expect(emDiretivas(header)['frame-ancestors']).toEqual(["'none'"]);
+  it('the header names no environment host', () => {
+    expect(headerPolicy()).not.toMatch(/usetheo\.dev|getloopscale\.com/);
+  });
+
+  it('nginx-csp-origins.conf defines both variables, empty by default', () => {
+    const conf = read('nginx-csp-origins.conf')!
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n');
+    for (const variable of ['$csp_connect_origins', '$csp_form_origins']) {
+      const block = conf.match(new RegExp(`map \\$host \\${variable} \\{([^}]*)\\}`));
+      expect(block, `nginx-csp-origins.conf defines no ${variable}`).toBeTruthy();
+      expect(block![1].trim()).toBe('default "";');
+    }
+  });
+
+  it('the image installs the origins file where nginx reads its http-level config', () => {
+    expect(read('Dockerfile')).toMatch(
+      /COPY nginx-csp-origins\.conf \/etc\/nginx\/conf\.d\/csp-origins\.conf/,
+    );
+  });
+
+  it('frame-ancestors stays closed', () => {
+    expect(directives(headerPolicy())['frame-ancestors']).toEqual(["'none'"]);
   });
 });
 
-describe('Red Team theo-cloud#67 — script-src sem unsafe-inline', () => {
-  // `'unsafe-inline'` em `script-src` derruba a defesa principal contra XSS. O bundle não tem
-  // handler inline (React usa eventos sintéticos), então a diretiva era espaço morto que só
-  // enfraquecia. Vale para os três artefatos: o fonte, o header e o bundle publicado.
-  it.each([
-    ['index.html', () => lerMeta(resolve(RAIZ, 'index.html'))],
-    ['nginx-security-headers.conf', () => lerHeader()],
-    ['dist/index.html', () => lerMeta(resolve(RAIZ, 'dist/index.html'))],
-  ])('%s', (nome, obter) => {
-    const csp = obter();
-    if (csp === null) {
-      // O bundle só existe depois do build; em CI sem build, não há o que verificar. Os outros
-      // dois são arquivos versionados e nunca caem aqui.
-      expect(nome).toBe('dist/index.html');
-      return;
-    }
-    const scriptSrc = emDiretivas(csp)['script-src'];
-    expect(scriptSrc, `${nome}: script-src deve existir`).toBeDefined();
+describe("Red Team theo-cloud#67: script-src without 'unsafe-inline'", () => {
+  // `'unsafe-inline'` in `script-src` removes the main defence against XSS. The bundle has no
+  // inline handler (React uses synthetic events).
+  it('nginx-security-headers.conf', () => {
+    const scriptSrc = directives(headerPolicy())['script-src'];
+    expect(scriptSrc).toBeDefined();
     expect(scriptSrc).not.toContain("'unsafe-inline'");
     expect(scriptSrc).toContain("'self'");
   });

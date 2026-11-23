@@ -41,6 +41,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # imagem base faz `include /etc/nginx/conf.d/*.conf`, entao um snippet ali seria
 # carregado DUAS vezes — uma pelo glob, no contexto http, e outra pelos includes.
 COPY nginx-security-headers.conf /etc/nginx/security-headers.conf
+COPY nginx-csp-origins.conf /etc/nginx/conf.d/csp-origins.conf
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
