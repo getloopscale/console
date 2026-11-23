@@ -323,7 +323,10 @@ test.describe('M32 — ciclo de vida: retirar de circulação sem quebrar quem u
     // impedir — e cor sozinha não sobrevive a daltonismo nem a impressão.
     await navegarAteOAcervoPeloMenu(page);
 
-    await expect(page.getByText('deprecated')).toBeVisible();
+    // `exact: true` targets the row's badge. Without it the locator also matched the "Deprecated"
+    // KPI card that B-126 added above the list (substring, case-insensitive) and failed on strict
+    // mode, while the badge it is meant to check was still there (#527).
+    await expect(page.getByText('deprecated', { exact: true })).toBeVisible();
     await expect(page.getByText('in use').first()).toBeVisible();
     // O MOTIVO viaja junto: sem ele o operador lê "descontinuada" e não sabe o que usar no lugar,
     // que é a pergunta seguinte, sempre.
@@ -766,14 +769,18 @@ test.describe('M31 — nenhuma tela morta: toda rota aninhada tem volta à orige
     await expect(page).toHaveURL(/\/skills\/sk_ordering$/);
   });
 
-  test('versões vazio oferece o comando COPIÁVEL, não a frase "use a CLI"', async ({ page }) => {
+  test('empty versions list says there is no CLI command yet instead of inventing one', async ({ page }) => {
     // `sk_local` tem uma versão; `sk_velha` não tem nenhuma no mock — é o estado vazio real.
     await page.goto('/skills/sk_velha/versions');
     await expect(page.getByText(/no version published/i)).toBeVisible();
 
-    // O comando vem PREENCHIDO com o identificador. Nomear a ferramenta sem dizer o que digitar
-    // transfere o trabalho para quem já está travado.
-    await expect(page.getByText(/theo skills publish sk_velha/)).toBeVisible();
+    // M31 originally asked for a prefilled `theo skills publish sk_velha` here. B-132/B-133 removed
+    // it on purpose: the CLI registers no `skills` command, so a copyable block would hand over a
+    // command the terminal rejects. The empty state must say that, and must not offer the command
+    // or promise one is "below" (#527).
+    await expect(page.getByText(/publishing a version of an existing skill has no cli command yet/i)).toBeVisible();
+    await expect(page.getByText(/theo skills publish/)).toHaveCount(0);
+    await expect(page.getByText(/command below is already filled in/i)).toHaveCount(0);
 
     // E a saída continua existindo mesmo no estado vazio — que era exatamente onde faltava.
     await expect(page.getByRole('link', { name: /back to sk_velha/i })).toBeVisible();

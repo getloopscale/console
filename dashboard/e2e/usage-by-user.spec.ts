@@ -92,11 +92,12 @@ test.describe('M142 — o consumo por end-user alcançado pelo produto', () => {
       /^M[^M]*L[^M]*L[^M]*$/,
     );
 
-    // (d) VALOR vindo do serviço, que é o que o DoD pede — geometria não é valor. A tabela
-    // acessível de cada gráfico traz o número por período. No de TOKENS, `360` é `300 + 60` do dia
-    // 22 do maior consumidor — a soma que distingue "tokens" de "só entrada". No de CUSTO, `$2.50`
-    // do mesmo dia: afirmar nos dois é o que impede os dois gráficos de plotarem a mesma grandeza
-    // sob títulos diferentes, que é o defeito registrado no #178 deste repositório.
+    // (d) VALUE from the service, which is what the DoD asks for: geometry is not value. Each
+    // chart's accessible table carries the number per period. In the TOKENS chart, `360` is
+    // `300 + 60` from today's point of the top consumer (the mock dates its points relative to
+    // today, #527), the sum that tells "tokens" from "input only". In the COST chart, `$2.50` from
+    // the same day. Asserting both keeps the two charts from plotting the same quantity under
+    // different titles, the defect recorded in #178 of this repository.
     const celulasDe = (g: typeof primeiro) => g.locator('[data-slot="trend-chart-table"] td');
     await expect(celulasDe(graficos.nth(1)).filter({ hasText: /^360$/ })).toHaveCount(1);
     await expect(celulasDe(primeiro).filter({ hasText: /^\$2\.50$/ })).toHaveCount(1);
