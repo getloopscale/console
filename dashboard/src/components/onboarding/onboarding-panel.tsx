@@ -43,7 +43,7 @@ const STEPS: ChecklistStep[] = [
   {
     key: 'logged_in',
     title: 'Sign in',
-    description: 'Connect the CLI to your TheoCloud team.',
+    description: 'Connect the CLI to your LoopScale team.',
     cliCommand: 'theo login',
   },
   {

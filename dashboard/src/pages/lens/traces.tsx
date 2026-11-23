@@ -368,10 +368,10 @@ export function LensTracesPage() {
             ) : (
               <EmptyState
                 title="No traces yet"
-                description="Instrument an agent with the Theo SDK and send OTLP spans to see executions here."
+                description="Instrument an agent with the LoopScale SDK and send OTLP spans to see executions here."
                 action={
                   <a
-                    href="https://docs.usetheo.dev/observability/quickstart"
+                    href="https://docs.getloopscale.com/observability/quickstart"
                     target="_blank"
                     rel="noreferrer"
                     className="text-sm font-medium text-primary underline underline-offset-4"

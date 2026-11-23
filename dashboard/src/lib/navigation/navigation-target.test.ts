@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect } from 'vitest';
-import { BILLING_REDIRECT, NavigationTarget } from './navigation-target';
+import { BILLING_REDIRECT, DOCS_SITE, NavigationTarget } from './navigation-target';
 
 /**
  * B-138 · T1 — parse, don't validate.
@@ -90,6 +90,12 @@ describe('NavigationTarget.parse — the only way to obtain a target', () => {
 
   it('the billing policy still refuses an arbitrary host', () => {
     expect(NavigationTarget.parse('https://evil.example/x', BILLING_REDIRECT)).toBeNull();
+  });
+
+  it('the docs policy admits the LoopScale docs site and no longer the old one (#521)', () => {
+    const docs = NavigationTarget.parse('https://docs.getloopscale.com/teams/create', DOCS_SITE);
+    expect(docs?.value).toBe('https://docs.getloopscale.com/teams/create');
+    expect(NavigationTarget.parse('https://docs.usetheo.dev/teams/create', DOCS_SITE)).toBeNull();
   });
 
   it('carries its proof: toString is the destination', () => {

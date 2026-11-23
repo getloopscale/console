@@ -44,10 +44,10 @@ export function CheckEmailPage() {
             Didn&apos;t receive anything after a couple of minutes? Check your
             spam folder, then contact{' '}
             <a
-              href="mailto:support@usetheo.dev"
+              href="mailto:support@getloopscale.com"
               className="underline hover:text-primary"
             >
-              support@usetheo.dev
+              support@getloopscale.com
             </a>
             .
           </p>

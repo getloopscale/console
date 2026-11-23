@@ -335,7 +335,7 @@ export function WorkspacePage() {
           <EmptyState
             icon={FolderPlus}
             title={prefix ? 'This folder is empty' : 'Your workspace is empty'}
-            description="Upload a file, create a folder, or store files from your app with the Theo storage API, CLI, or SDK."
+            description="Upload a file, create a folder, or store files from your app with the LoopScale storage API, CLI, or SDK."
           />
         ) : (
           <ul className="divide-y divide-border/50">

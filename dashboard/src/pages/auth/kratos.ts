@@ -164,7 +164,7 @@ const GENERIC_KRATOS_PHRASES = [
 type KratosErrorContext = 'login' | 'recovery' | 'verification' | 'registration';
 
 const ACTION_BY_CONTEXT: Record<KratosErrorContext, string> = {
-  login: 'Check your credentials and retry, or contact support@usetheo.dev if it persists.',
+  login: 'Check your credentials and retry, or contact support@getloopscale.com if it persists.',
   recovery: 'Check your email address and network connection, then retry.',
   verification: 'Request a new verification link from the sign-in page.',
   registration: 'Check your inputs and retry, or contact support if it persists.',

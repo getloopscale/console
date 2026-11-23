@@ -278,8 +278,8 @@ export function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <Card.Body className="p-8 space-y-6">
-          {/* Brand — stacked centered: pixel-art mascot logo on top,
-              wordmark "Theo" below. Logo at 60×60 (50% larger than the
+          {/* Brand — stacked centered: brand mark on top,
+              wordmark "LoopScale" below. Logo at 60×60 (50% larger than the
               prior 40×40 to anchor the card visual hierarchy).
               <picture> ships WebP (~2 KB) to modern browsers, falls back to
               PNG (~6 KB) for Safari < 14 / Firefox < 65 / IE. alt="" because
@@ -297,14 +297,14 @@ export function LoginPage() {
               />
             </picture>
             <span className="font-display text-title-sm font-bold tracking-tight text-foreground">
-              Theo
+              LoopScale
             </span>
           </div>
 
           {/* T1.4 microcopy: universal welcome, locked-narrative subtitle. */}
           <div className="space-y-1">
             <h1 className="font-display text-title-sm font-semibold text-foreground">
-              Sign in to Theo
+              Sign in to LoopScale
             </h1>
             <p className="text-body-sm text-muted-foreground">
               Deploy, monitor, and operate your workloads.

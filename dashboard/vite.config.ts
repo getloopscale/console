@@ -112,17 +112,17 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'TheoCloud',
-        short_name: 'Theo',
+        name: 'LoopScale',
+        short_name: 'LoopScale',
         description: 'CLI-first managed cloud for monorepo deployments.',
         theme_color: '#09090b',
         background_color: '#09090b',
         display: 'standalone',
         start_url: '/',
-        // PWA manifest icons — use the real Theo mascot PNGs from public/.
+        // PWA manifest icons: the LoopScale brand PNGs from public/.
         // Previously this was an inline SVG raio (#3ecf8e), shadowing the
-        // brand assets. 192/512 sizes are the Android Chrome standard;
-        // `maskable` on 512 lets Android's adaptive-icon system crop safely.
+        // brand assets. 192/512 sizes are the Android Chrome standard; the
+        // maskable icon keeps the mark inside the safe zone Android crops to.
         icons: [
           {
             src: '/android-chrome-192x192.png',
@@ -134,7 +134,13 @@ export default defineConfig(({ mode }) => ({
             src: '/android-chrome-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
+          },
+          {
+            src: '/maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
           {
             src: '/apple-touch-icon.png',

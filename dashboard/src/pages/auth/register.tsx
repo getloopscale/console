@@ -253,7 +253,7 @@ export function RegisterPage() {
               <Zap className="size-5 text-primary" aria-hidden="true" />
             </div>
             <span className="font-display text-title-sm font-bold tracking-tight text-foreground">
-              Theo
+              LoopScale
             </span>
           </div>
 
@@ -262,7 +262,7 @@ export function RegisterPage() {
               Create account
             </h1>
             <p className="text-body-sm text-muted-foreground">
-              Create your TheoCloud account.
+              Create your LoopScale account.
             </p>
           </div>
 

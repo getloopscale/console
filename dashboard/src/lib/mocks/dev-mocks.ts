@@ -63,11 +63,11 @@ export function getMockSession(): Session | null {
     identity: {
       id: 'mock-user-uuid-0000-0000',
       traits: {
-        email: 'demo@usetheo.dev',
+        email: 'demo@example.com',
         name: 'Demo Operator',
       },
       verifiable_addresses: [
-        { value: 'demo@usetheo.dev', verified: true, via: 'email' },
+        { value: 'demo@example.com', verified: true, via: 'email' },
       ],
     },
     authentication_methods: [
@@ -213,7 +213,7 @@ const FIXTURES: Record<string, unknown> = {
   // -- /engine/api/v1/teams/members (TeamResponse from pages/team.tsx) -----
   '/engine/api/v1/teams/members': {
     members: [
-      { username: 'paulo', name: 'Paulo Henrique', email: 'paulo@usetheo.dev', role: 'owner', joined: '2026-01-15' },
+      { username: 'paulo', name: 'Paulo Henrique', email: 'paulo@example.com', role: 'owner', joined: '2026-01-15' },
       { username: 'alice', name: 'Alice Costa', email: 'alice@acme.com', role: 'admin', joined: '2026-02-03' },
       { username: 'bob', name: 'Bob Tanaka', email: 'bob@acme.com', role: 'admin', joined: '2026-02-18' },
       { username: 'carlos', name: 'Carlos Mendes', email: 'carlos@acme.com', role: 'member', joined: '2026-03-12' },

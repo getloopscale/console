@@ -58,7 +58,7 @@ export function RegisterCompletingScreen({ onReady, maxWaitMs = 60_000 }: Regist
               <p className="text-body-sm text-muted-foreground">
                 Your workspace is still being set up. You can continue to the
                 dashboard — it&rsquo;ll finish in the background. If this keeps
-                happening, contact support@usetheo.dev.
+                happening, contact support@getloopscale.com.
               </p>
             </div>
             <Button variant="primary" size="lg" className="w-full justify-center" onClick={onReady}>

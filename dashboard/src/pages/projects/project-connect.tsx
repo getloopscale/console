@@ -368,10 +368,10 @@ export function ProjectConnectPage() {
               </div>
               <div>
                 {/* #120 (qa-dogfood-cleanup-2026-06-21 T4.1 / ADR-Q3):
-                    explicit "Deploy branch (Theo)" label so the user
+                    explicit "Deploy branch (LoopScale)" label so the user
                     distinguishes this from GitHub's default_branch. */}
                 <dt className="text-label uppercase text-muted-foreground">
-                  Deploy branch (Theo)
+                  Deploy branch (LoopScale)
                 </dt>
                 <dd className="mt-1 font-mono text-foreground">{conn.branch ?? '—'}</dd>
               </div>
@@ -426,10 +426,10 @@ export function ProjectConnectPage() {
           <Card.Header>
             <Card.Title className="inline-flex items-center gap-2">
               <Github className="size-5" aria-hidden="true" />
-              Install the Theo GitHub App
+              Install the LoopScale GitHub App
             </Card.Title>
             <Card.Description>
-              Theo deploys from your GitHub repositories. Install the app on
+              LoopScale deploys from your GitHub repositories. Install the app on
               your org or account first, then come back here to pick a repo.
             </Card.Description>
           </Card.Header>
@@ -588,7 +588,7 @@ function RepoPickerBlock({
       <div className="rounded-md border border-dashed p-4 text-body-sm">
         <p className="font-medium">No repositories available</p>
         <p className="text-muted-foreground">
-          The Theo GitHub App is installed but has no access to any repositories yet.
+          The LoopScale GitHub App is installed but has no access to any repositories yet.
         </p>
         <a
           className="mt-2 inline-block underline hover:text-primary"

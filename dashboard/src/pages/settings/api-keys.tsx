@@ -298,7 +298,7 @@ export function ApiKeysPage() {
     <>
       <PageShell
         title="API Keys"
-        description="Manage your unified Theo platform keys. Each key carries explicit scopes, chosen per product surface."
+        description="Manage your unified LoopScale platform keys. Each key carries explicit scopes, chosen per product surface."
         primaryAction={{
           label: 'Create API Key',
           icon: Plus,

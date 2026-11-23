@@ -97,7 +97,7 @@ export const buildsFixture: Build[] = [
     environment: 'production',
     status: 'succeeded',
     commit_sha: 'a3b2c1d4e5f6g7h8i9j0',
-    created_by: 'paulo@usetheo.dev',
+    created_by: 'paulo@example.com',
     created_at: '2026-05-26T06:38:00Z',
     started_at: '2026-05-26T06:38:10Z',
     finished_at: '2026-05-26T06:42:00Z',
@@ -144,7 +144,7 @@ export const secretsFixture: Secret[] = [
   {
     name: 'STRIPE_SECRET_KEY',
     environments: ['production'],
-    last_updated_by: 'paulo@usetheo.dev',
+    last_updated_by: 'paulo@example.com',
     updated_at: '2026-05-20T10:00:00Z',
     eso_sync_status: 'synced',
   },
@@ -172,7 +172,7 @@ export const teamMembersFixture: TeamMember[] = [
   {
     username: 'paulo',
     name: 'Paulo Henrique',
-    email: 'paulo@usetheo.dev',
+    email: 'paulo@example.com',
     role: 'owner',
     joined: '2026-01-15',
   },
@@ -334,10 +334,10 @@ export function makeProjectConnection(project: string): ProjectConnection {
 export const auditEntriesFixture: AuditEntry[] = [
   {
     id: 'aud-001',
-    actor: 'paulo@usetheo.dev',
+    actor: 'paulo@example.com',
     timestamp: '2026-05-26T06:42:00Z',
     ts: '2026-05-26T06:42:00Z',
-    actor_email: 'paulo@usetheo.dev',
+    actor_email: 'paulo@example.com',
     actor_kind: 'user',
     action: 'deploy.succeeded',
     resource_type: 'project',

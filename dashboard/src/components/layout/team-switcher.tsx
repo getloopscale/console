@@ -141,7 +141,7 @@ export function TeamSwitcher({ fallbackName, onCreateTeam }: TeamSwitcherProps) 
               onCreateTeam();
               return;
             }
-            safeNavigator.openInNewTab('https://docs.usetheo.dev/teams/create', DOCS_SITE);
+            safeNavigator.openInNewTab('https://docs.getloopscale.com/teams/create', DOCS_SITE);
           }}
         >
           {onCreateTeam ? (

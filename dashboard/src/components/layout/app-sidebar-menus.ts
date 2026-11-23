@@ -115,7 +115,7 @@ export interface MenuDefinition {
 export const MENUS: Record<string, MenuDefinition> = {
   main: {
     id: 'main',
-    title: 'TheoCloud',
+    title: 'LoopScale',
     groups: [
       {
         items: [

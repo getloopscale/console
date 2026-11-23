@@ -2,7 +2,7 @@ import { FlowSubmitError } from '@/pages/auth/kratos';
 
 /** O que a tela de recuperação diz quando o SERVIÇO recusou, e não o formulário. */
 export const SERVICE_UNAVAILABLE_MESSAGE =
-  'Recovery service temporarily unavailable. Try again in a minute, or contact support@usetheo.dev.';
+  'Recovery service temporarily unavailable. Try again in a minute, or contact support@getloopscale.com.';
 
 /**
  * O que dizer quando a submissão de um fluxo de recuperação falhou (B-233).

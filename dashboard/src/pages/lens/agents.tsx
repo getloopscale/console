@@ -45,7 +45,7 @@ export function LensAgentsPage() {
             description="An agent appears here once its spans carry the agent.name attribute (the OpenTelemetry agent.* convention) — or are structural Claude-Code spans (claude_code.*). Plain LLM or tool spans without either signal are not counted as agents — instrument an agent to populate this catalogue."
             action={
               <a
-                href="https://docs.usetheo.dev/observability/quickstart"
+                href="https://docs.getloopscale.com/observability/quickstart"
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm font-medium text-primary underline underline-offset-4"

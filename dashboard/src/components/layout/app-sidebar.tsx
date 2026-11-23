@@ -257,7 +257,7 @@ export function AppSidebar({ session }: AppSidebarProps) {
           <Sidebar.Footer className="mt-auto border-t border-border/60">
             <div className="px-3 py-3 space-y-2">
               <a
-                href="https://docs.usetheo.dev"
+                href="https://docs.getloopscale.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-body-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"

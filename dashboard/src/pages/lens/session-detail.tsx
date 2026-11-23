@@ -142,7 +142,7 @@ export function LensSessionDetailPage() {
         ) : items.length === 0 ? (
           <EmptyState
             title="No traces in this session"
-            description="This session has no traces yet — traces are grouped by a shared session.id attribute. Instrument an agent with the Theo SDK and set session.id on your spans."
+            description="This session has no traces yet — traces are grouped by a shared session.id attribute. Instrument an agent with the LoopScale SDK and set session.id on your spans."
             action={
               <Link
                 to="/observability/traces"

@@ -35,7 +35,7 @@ describe('AppSidebar navigation (F-4)', () => {
 
   it('navigates back with PLAIN react-router navigate (no view transition)', () => {
     // The `memory` menu has parent 'main', so rendering at /memory surfaces the
-    // "Back to TheoCloud" control wired to handleBack (the 2nd F-4 call site).
+    // "Back to LoopScale" control wired to handleBack (the 2nd F-4 call site).
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/memory'] });
     const back = screen.getByRole('button', { name: /back to/i });
     navigateSpy.mockClear();

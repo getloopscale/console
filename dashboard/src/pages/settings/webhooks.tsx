@@ -345,7 +345,7 @@ function SecretShownOnceDialog({
             <Alert
               intent="warning"
               title="Store this now"
-              description="This secret verifies that delivered events came from Theo. It cannot be recovered — if you lose it, delete the webhook and create a new one."
+              description="This secret verifies that delivered events came from LoopScale. It cannot be recovered — if you lose it, delete the webhook and create a new one."
             />
           </div>
     </AppModal>

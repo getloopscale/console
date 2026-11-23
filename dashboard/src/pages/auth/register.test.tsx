@@ -96,6 +96,13 @@ describe('RegisterPage', () => {
     expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
   });
 
+  it('names the LoopScale product in the header (#521)', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<RegisterPage />);
+    expect(await screen.findByText('Create your LoopScale account.')).toBeInTheDocument();
+    expect(screen.getByText('LoopScale')).toBeInTheDocument();
+  });
+
   it('test_register_oidc_form_submit_preserves_vanilla_dom', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
     const createElementSpy = vi.spyOn(document, 'createElement');

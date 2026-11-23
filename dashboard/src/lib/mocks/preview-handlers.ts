@@ -52,7 +52,7 @@ export function registerPreviewHandlers() {
       branch: body.branch,
       url: `https://${body.branch.replace(/\W/g, '-')}.preview.acme.com`,
       status: 'creating',
-      created_by: 'demo@usetheo.dev',
+      created_by: 'demo@example.com',
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
     };
