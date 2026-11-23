@@ -162,15 +162,21 @@ export function registerLensHandlers() {
           { status: 400 },
         );
       }
-      // M144 — a série só vem quando pedida, como no serviço real (ADR-3 do M143). O dia 21 está
-      // AUSENTE de propósito no maior consumidor: é a lacuna que o e2e afirma, e sem ela o spec
-      // ficaria verde sobre uma linha contínua.
+      // M144: the series only comes when asked for, as in the real service (ADR-3 of M143). Yesterday
+      // is MISSING on purpose for the top consumer: that is the gap the e2e asserts, and without it
+      // the spec would stay green over a continuous line.
       const bucket = new URL(req.url).searchParams.get("bucket");
       if (bucket !== "day") return Response.json({ ...USAGE_BY_USER, windowDays: days });
 
-      const day = (n: number) => new Date(Date.UTC(2026, 6, n)).toISOString();
+      // Days are counted back from TODAY, like the service, which only returns points inside the
+      // requested window. These used to be fixed dates (2026-07-20..22): the page draws its window
+      // back from Date.now(), so from ~2026-08-21 every point fell outside it and both charts said
+      // "No data in this time range" (#527).
+      const DAY_MS = 86_400_000;
+      const today = Math.floor(Date.now() / DAY_MS) * DAY_MS;
+      const daysAgo = (n: number) => new Date(today - n * DAY_MS).toISOString();
       const ponto = (n: number, i: number, o: number, c: number) => ({
-        periodStart: day(n), inputTokens: i, outputTokens: o,
+        periodStart: daysAgo(n), inputTokens: i, outputTokens: o,
         cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: c,
       });
       return Response.json({
@@ -179,8 +185,8 @@ export function registerLensHandlers() {
         users: USAGE_BY_USER.users.map((u, idx) => ({
           ...u,
           series: idx === 0
-            ? [ponto(20, 100, 40, 1.5), ponto(22, 300, 60, 2.5)] // dia 21 ausente — A LACUNA
-            : [ponto(20, 10, 5, 0.1), ponto(21, 20, 6, 0.2), ponto(22, 30, 7, 0.3)],
+            ? [ponto(2, 100, 40, 1.5), ponto(0, 300, 60, 2.5)] // yesterday missing: THE GAP
+            : [ponto(2, 10, 5, 0.1), ponto(1, 20, 6, 0.2), ponto(0, 30, 7, 0.3)],
         })),
       });
     });

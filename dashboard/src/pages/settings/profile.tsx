@@ -22,12 +22,6 @@ export function ProfilePage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  if (!session) return null;
-
-  const email = session.identity.traits.email ?? '';
-  const name = session.identity.traits.name ?? '';
-  const initials = (name || email).charAt(0).toUpperCase();
-
   // SG-05 CLOSED (plan v1.0 T4.8, 2026-05-26): replaced setTimeout fake with
   // real DELETE /api/v1/tenants/{id}. Backend soft-deletes with grace period;
   // logout invalidates the local session so the user is redirected to /login.
@@ -48,6 +42,16 @@ export function ProfilePage() {
   // Same source as that screen, deliberately: `useDeleteTenant` is NOT widened to accept either
   // id. A hook that takes "whichever one you have" cannot tell a caller it is wrong.
   const { whoami } = useWhoami();
+
+  // Every hook above runs on every render. `useRequireAuth` returns null until the session
+  // resolves, so a hook placed below this guard would run on the second render but not on the
+  // first, and React crashes the page with "Rendered more hooks than during the previous
+  // render" (#527).
+  if (!session) return null;
+
+  const email = session.identity.traits.email ?? '';
+  const name = session.identity.traits.name ?? '';
+  const initials = (name || email).charAt(0).toUpperCase();
 
   const handleDeleteAccount = async () => {
     if (!whoami?.team_id) return;

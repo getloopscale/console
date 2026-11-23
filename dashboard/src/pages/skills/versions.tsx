@@ -201,20 +201,18 @@ export function SkillVersionsPage() {
               description={
                 failed
                   ? 'Try again in a moment. Until then, there is no way to know what is published.'
-                  : 'The skill exists in the registry, but no version has been published — so there is nothing to promote to a channel. Publishing a new version of an existing skill is done through the CLI; the command below is already filled in with this identifier.'
+                  : 'The skill exists in the registry, but no version has been published, so there is nothing to promote to a channel. Publishing a version of an existing skill has no CLI command yet.'
               }
               // `action`, não `children`: é o slot que o componente de fato renderiza
               // (`@usetheo/ui` — `EmptyStateProps.action?: ReactNode`). Passar children faz o
               // conteúdo sumir sem erro algum, e foi o que aconteceu na primeira tentativa.
               //
-              // O comando vem COPIÁVEL e já preenchido, em vez da frase "publique pela CLI".
-              // A auditoria que originou o M31 registrou os dois problemas: sem CTA e **sem
-              // comando copiável**. Um estado vazio que nomeia a ferramenta sem dizer o que
-              // digitar transfere o trabalho para quem já está travado.
+              // M31 asked for a copyable publish command prefilled with this id. B-132/B-133
+              // removed it because the CLI registers no command for skills, so the block now says
+              // so instead of handing over a command the terminal would reject (#527).
               //
-              // Não é um CTA in-app porque a ação não existe in-app: a tela de autoria publica
-              // uma skill NOVA, e esta já existe. Um botão que fingisse levar a algum lugar
-              // seria pior que o comando — o honesto é dar o comando exato e a saída.
+              // There is no in-app CTA either: the authoring screen publishes a NEW skill, and this
+              // one already exists. A button that pretended to lead somewhere would be worse.
               action={
                 failed ? undefined : (
                   <CodeBlock

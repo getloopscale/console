@@ -2,14 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
+const DEFAULT_SESSION = {
+  active: true,
+  identity: {
+    id: 'sess-1',
+    traits: { email: 'paulo@example.com', name: 'Paulo' },
+  },
+};
+// `useRequireAuth` returns null until the session resolves, then the session. The holder lets a
+// case reproduce that sequence instead of starting from a session that is already there.
+const authState = vi.hoisted(() => ({ session: undefined as unknown }));
+
 vi.mock('@/hooks/use-auth', () => ({
-  useRequireAuth: () => ({
-    active: true,
-    identity: {
-      id: 'sess-1',
-      traits: { email: 'paulo@example.com', name: 'Paulo' },
-    },
-  }),
+  useRequireAuth: () => (authState.session === undefined ? DEFAULT_SESSION : authState.session),
 }));
 
 const mockEngineFetch = vi.fn();
@@ -40,6 +45,23 @@ import { ProfilePage } from './profile';
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.session = undefined;
+  });
+
+  // #527 — the page called `useDeleteTenant` and `useWhoami` AFTER the `if (!session) return null`
+  // guard. The first render (no session yet) ran fewer hooks than the next one, and React threw
+  // "Rendered more hooks than during the previous render": /profile showed the crash screen
+  // instead of the account card.
+  it('renders the account once the session arrives after a first render without it', () => {
+    authState.session = null;
+    const { container, rerender } = render(<ProfilePage />);
+    expect(container.textContent).not.toContain('Paulo');
+
+    authState.session = DEFAULT_SESSION;
+    rerender(<ProfilePage />);
+
+    expect(screen.getByRole('heading', { name: /account/i })).toBeInTheDocument();
+    expect(screen.getByText('Paulo')).toBeInTheDocument();
   });
 
   it('test_profile_renders_avatar_with_session_data', () => {
