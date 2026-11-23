@@ -64,7 +64,7 @@ describe('mocks/handlers — full API coverage', () => {
     const res = await call('GET', '/api/v1/auth/whoami');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.email).toBe('demo@usetheo.dev');
+    expect(body.email).toBe('demo@example.com');
     expect(body.teams).toBeInstanceOf(Array);
     expect(body.teams.length).toBeGreaterThanOrEqual(1);
   });

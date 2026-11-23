@@ -30,7 +30,7 @@ export function NSInstructionsCard({ nameservers, domainName }: NSInstructionsCa
       <Card.Header>
         <Card.Title>Configure DNS for {domainName}</Card.Title>
         <Card.Description>
-          Three steps to activate this domain. Theo polls every 30s and updates
+          Three steps to activate this domain. LoopScale polls every 30s and updates
           the status automatically once propagation completes.
         </Card.Description>
       </Card.Header>
@@ -56,7 +56,7 @@ export function NSInstructionsCard({ nameservers, domainName }: NSInstructionsCa
           <li>
             <p className="text-body font-medium">2. Replace the nameservers</p>
             <p className="text-body-sm text-muted-foreground mb-2">
-              Replace the existing nameservers with the two Theo-assigned values
+              Replace the existing nameservers with the two LoopScale-assigned values
               below.
             </p>
             {hasNameservers ? (
@@ -81,7 +81,7 @@ export function NSInstructionsCard({ nameservers, domainName }: NSInstructionsCa
             <p className="text-body font-medium">3. Wait for propagation</p>
             <p className="text-body-sm text-muted-foreground">
               DNS changes can take up to 24 hours to propagate globally —
-              typically much faster (minutes to a few hours). Theo will update
+              typically much faster (minutes to a few hours). LoopScale will update
               the status automatically.
             </p>
           </li>

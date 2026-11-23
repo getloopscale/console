@@ -208,7 +208,7 @@ export function MemoryPage() {
               icon={BookOpen}
               title="Documentation"
               description="Read the architecture + every endpoint."
-              href="https://docs.usetheo.dev/"
+              href="https://docs.getloopscale.com/"
             />
           </div>
         </section>

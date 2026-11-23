@@ -45,7 +45,7 @@ function extractActionableErrorMessage(err: unknown): string {
   // route the user to contact support — the only path that actually
   // unblocks them.
   if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
-    return "Upgrade isn't available right now. Contact support@usetheo.dev — they'll get you unblocked.";
+    return "Upgrade isn't available right now. Contact support@getloopscale.com — they'll get you unblocked.";
   }
   // 5xx + network failures stay retryable.
   return 'Failed to start checkout. Please try again in a moment.';

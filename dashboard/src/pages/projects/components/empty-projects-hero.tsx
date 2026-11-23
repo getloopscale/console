@@ -47,7 +47,7 @@ export function EmptyProjectsHero({ onCreateFromDashboard }: EmptyProjectsHeroPr
             Deploy your first project
           </h2>
           <p className="text-body-sm text-muted-foreground">
-            TheoCloud goes from idea to live URL in about 4 minutes. Pick a starter or use your own repo:
+            LoopScale goes from idea to live URL in about 4 minutes. Pick a starter or use your own repo:
           </p>
         </div>
 

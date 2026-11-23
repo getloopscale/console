@@ -37,9 +37,9 @@ async function navegarAteOAcervoPeloMenu(page: Page) {
   // ESPERA DETERMINÍSTICA entre os dois cliques, e ela não é zelo: `Overview` existe nos DOIS
   // menus. Sem esperar o submenu abrir, sob carga o clique cai no `Overview` da RAIZ e navega
   // para `/` — o teste falhava de forma intermitente, verde sozinho e vermelho em paralelo.
-  // `Back to TheoCloud` só existe dentro de um submenu, então é o sinal que distingue os dois
+  // `Back to LoopScale` só existe dentro de um submenu, então é o sinal que distingue os dois
   // estados. Um `waitForTimeout` aqui esconderia a corrida em vez de eliminá-la.
-  await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
 
   await page.getByRole('button', { name: /^overview$/i }).click();
   await expect(page).toHaveURL(/\/skills$/);
@@ -194,7 +194,7 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
 async function navegarAteOsPacotesPeloMenu(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: /^skills$/i }).click();
-  await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
 
   await page.getByRole('button', { name: /^distribution$/i }).click();
   await expect(page).toHaveURL(/\/bundles$/);
@@ -210,7 +210,7 @@ test.describe('M35 — distribuição: pacotes, tokens delegados e adoção', ()
     // ---- O SUBMENU CONTINUA ABERTO em /bundles ------------------------------------------
     // A asserção que prova a linha de `resolveActiveMenu`. Sem ela o menu volta à raiz e a tela
     // fica alcançável só digitando o endereço — inalcançável para o usuário real.
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
 
     // ---- DETALHE: alcançado pelo nome, que é o caminho da lista --------------------------
     await page.getByRole('link', { name: 'Support skills' }).click();
@@ -363,13 +363,13 @@ test.describe('M31 — descoberta observável: score E qual perna casou', () => 
     // tela alguma até este milestone. A auditoria de 2026-08-03 mediu isso navegando por clique.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^discovery$/i }).click();
     await expect(page).toHaveURL(/\/skills\/discovery$/);
 
     // O submenu continua aberto: `/skills/discovery` depende da mesma linha de
     // `resolveActiveMenu` que serve `/skills`.
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
 
     // Estado inicial NÃO é "nada encontrado" — é "ainda não perguntei". A diferença importa:
     // uma diz que o acervo está vazio, a outra que a busca não aconteceu.
@@ -395,7 +395,7 @@ test.describe('M31 — descoberta observável: score E qual perna casou', () => 
     // esconde deprecadas por padrão. Sem o filtro, o operador teria de confiar na documentação.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^discovery$/i }).click();
 
     await page.getByLabel('Natural-language query').fill('currency');
@@ -482,7 +482,7 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     // havia tela de autoria.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^new skill$/i }).click();
     await expect(page).toHaveURL(/\/skills\/new$/);
 
@@ -522,7 +522,7 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     // então quem escrevia uma skill com script precisava de terminal para publicá-la.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^new skill$/i }).click();
 
     // O caminho precisa ser DESCOBRÍVEL na própria tela: quem chega ali com uma pasta na mão tem
@@ -569,7 +569,7 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     // um sucesso que não é o que está na tela.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^new skill$/i }).click();
 
     await page.getByRole('button', { name: /validate without publishing/i }).click();
@@ -594,7 +594,7 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     // Exibir "válido" sobre um texto que mudou afirmaria algo que ninguém verificou.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^new skill$/i }).click();
 
     await page.getByRole('button', { name: /validate without publishing/i }).click();
@@ -610,7 +610,7 @@ test.describe('M33 — catálogo: ver o que existe sem saber o que procurar', ()
   async function irAoCatalogo(page: Page) {
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^catalog$/i }).click();
     await expect(page).toHaveURL(/\/skills\/catalog$/);
   }
@@ -680,7 +680,7 @@ test.describe('M34 — descobribilidade diagnosticada no momento da autoria', ()
     // uma revisão nova; aqui o texto ainda está na mão do autor.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^new skill$/i }).click();
 
     // O diagnóstico só aparece depois de validar: sem `name`/`description` lidos do frontmatter
@@ -712,7 +712,7 @@ test.describe('M34 — descobribilidade diagnosticada no momento da autoria', ()
     // respondia sobre outra coisa.
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^new skill$/i }).click();
 
     // Descrição LONGA de propósito: acima do piso, para que a única causa candidata a aparecer
@@ -794,7 +794,7 @@ test.describe('M35 — a cadeia bundle → skill → canal é navegável', () =>
   async function irAoPacoteComItens(page: Page) {
     await page.goto('/');
     await page.getByRole('button', { name: /^skills$/i }).click();
-    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /back to loopscale/i })).toBeVisible();
     await page.getByRole('button', { name: /^distribution$/i }).click();
     await page.getByRole('link', { name: 'Support skills' }).click();
   }

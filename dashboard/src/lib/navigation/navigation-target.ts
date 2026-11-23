@@ -54,7 +54,7 @@ export const BILLING_REDIRECT: NavigationPolicy = {
 /** The public documentation site. Reached from help affordances, never with a credential. */
 export const DOCS_SITE: NavigationPolicy = {
   name: 'docs-site',
-  additionalOrigins: ['https://docs.usetheo.dev'],
+  additionalOrigins: ['https://docs.getloopscale.com'],
 };
 
 export class NavigationTarget {

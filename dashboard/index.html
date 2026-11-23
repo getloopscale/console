@@ -5,9 +5,8 @@
     <!-- The Content-Security-Policy is the nginx header (nginx-security-headers.conf), the
          only one: a <meta> policy here would be intersected with it, and could not take
          the origins a deployment configures (nginx-csp-origins.conf). -->
-    <!-- Theo brand favicons. Regenerated 2026-07-17 from the current brand mark
-         (the three-bar "T" glyph + violet gradient, from theo-web Logo.tsx),
-         replacing the previous mascot assets. The SVG favicon renders crisp at
+    <!-- LoopScale brand favicons, copied from the brand kit (getloopscale/brand, web/)
+         for #521, replacing the Theo mark. The SVG favicon renders crisp at
          any size in modern browsers; the PNG/ico set is the fallback (ico
          sizes="any" lets legacy browsers pick the embedded size that fits). -->
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
@@ -30,7 +29,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap"
     />
-    <title>TheoCloud</title>
+    <title>LoopScale</title>
   </head>
   <body>
     <div id="root"></div>

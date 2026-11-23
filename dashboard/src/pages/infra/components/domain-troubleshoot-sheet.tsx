@@ -39,7 +39,7 @@ const TIPS: Record<string, Tip> = {
     icon: AlertTriangle,
     title: 'Certificate issuance failed',
     body:
-      'This usually means DNS propagation hasn\'t completed yet. Check at your registrar that the Theo-assigned nameservers are saved, then click Re-verify after a few minutes.',
+      'This usually means DNS propagation hasn\'t completed yet. Check at your registrar that the LoopScale-assigned nameservers are saved, then click Re-verify after a few minutes.',
   },
   'CF API error': {
     icon: Globe,
@@ -93,7 +93,7 @@ export function DomainTroubleshootSheet({
         <div className="flex items-center gap-1 text-body-sm text-muted-foreground">
           <BookOpen className="size-4" aria-hidden="true" />
           <a
-            href="https://docs.usetheo.dev/domains/troubleshooting"
+            href="https://docs.getloopscale.com/domains/troubleshooting"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"

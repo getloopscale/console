@@ -23,7 +23,7 @@ import { Route, Routes } from 'react-router-dom';
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({
     active: true,
-    identity: { id: 'mock', traits: { email: 'demo@usetheo.dev', name: 'Demo' } },
+    identity: { id: 'mock', traits: { email: 'demo@example.com', name: 'Demo' } },
   }),
 }));
 
@@ -49,7 +49,7 @@ vi.mock('@/hooks/infra/use-secrets', () => ({
 
 vi.mock('@/hooks/settings/use-whoami', () => ({
   useWhoami: () => ({
-    whoami: { user_id: 'm', email: 'demo@usetheo.dev', team_id: 't', team_slug: 'acme', teams: [{ id: 't', slug: 'acme', role: 'owner' }] },
+    whoami: { user_id: 'm', email: 'demo@example.com', team_id: 't', team_slug: 'acme', teams: [{ id: 't', slug: 'acme', role: 'owner' }] },
     loading: false,
     error: false,
   }),

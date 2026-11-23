@@ -88,7 +88,7 @@ function registerAuthHandlers() {
   registerRoute('GET', '/api/v1/auth/whoami', async () => {
     const body: Whoami = {
       user_id: 'mock-user-uuid-0000-0000',
-      email: 'demo@usetheo.dev',
+      email: 'demo@example.com',
       name: 'Demo Operator',
       team_id: 'team-acme',
       team_slug: 'acme',
@@ -353,7 +353,7 @@ function registerSecretHandlers() {
     const secret: Secret = {
       name: body.name,
       environments: body.environments ?? ['production'],
-      last_updated_by: 'demo@usetheo.dev',
+      last_updated_by: 'demo@example.com',
       updated_at: new Date().toISOString(),
       eso_sync_status: 'pending',
     };

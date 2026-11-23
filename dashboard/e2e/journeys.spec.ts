@@ -10,7 +10,7 @@
 
 import { expect, test } from '@playwright/test';
 
-test.describe('TheoCloud dashboard — 6 critical journeys', () => {
+test.describe('LoopScale dashboard — 6 critical journeys', () => {
   test('journey 1: first deploy — overview → projects → detail', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /overview/i })).toBeVisible();

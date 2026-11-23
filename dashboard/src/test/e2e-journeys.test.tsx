@@ -30,7 +30,7 @@ vi.mock('@/hooks/use-auth', () => ({
     active: true,
     identity: {
       id: 'mock-user-uuid-0000-0000',
-      traits: { email: 'demo@usetheo.dev', name: 'Demo Operator' },
+      traits: { email: 'demo@example.com', name: 'Demo Operator' },
     },
   }),
 }));
@@ -86,7 +86,7 @@ vi.mock('@/hooks/settings/use-whoami', () => ({
   useWhoami: () => ({
     whoami: {
       user_id: 'mock',
-      email: 'demo@usetheo.dev',
+      email: 'demo@example.com',
       team_id: 'team-acme',
       team_slug: 'acme',
       teams: [{ id: 'team-acme', slug: 'acme', role: 'owner' }],

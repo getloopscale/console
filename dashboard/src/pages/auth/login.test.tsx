@@ -420,7 +420,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { level: 1, name: 'Sign in to Theo' }),
+        screen.getByRole('heading', { level: 1, name: 'Sign in to LoopScale' }),
       ).toBeInTheDocument();
     });
     expect(

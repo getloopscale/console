@@ -333,7 +333,7 @@ export function LensUsageByUserPage() {
             description="Usage is grouped by the identity your SDK recorded in user.id (falling back to the OpenTelemetry convention gen_ai.user.id). Instrument an agent by setting user.id on spans to start seeing who consumed what."
             action={
               <a
-                href="https://docs.usetheo.dev/observability/quickstart"
+                href="https://docs.getloopscale.com/observability/quickstart"
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm font-medium text-primary underline underline-offset-4"

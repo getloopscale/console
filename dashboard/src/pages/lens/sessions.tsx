@@ -174,10 +174,10 @@ export function LensSessionsPage() {
         ) : sessions.length === 0 ? (
           <EmptyState
             title="No sessions yet"
-            description="Sessions group traces that share a session.id attribute (or the OpenInference gen_ai.conversation.id). Instrument an agent with the Theo SDK — set session.id on your spans — to start."
+            description="Sessions group traces that share a session.id attribute (or the OpenInference gen_ai.conversation.id). Instrument an agent with the LoopScale SDK — set session.id on your spans — to start."
             action={
               <a
-                href="https://docs.usetheo.dev/observability/quickstart"
+                href="https://docs.getloopscale.com/observability/quickstart"
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm font-medium text-primary underline underline-offset-4"

@@ -14,11 +14,11 @@ import { useEffect, type ReactNode } from 'react';
  * and test wrappers don't need to remove it (eventual cleanup safe).
  */
 
-const TITLE_SUFFIX = ' · TheoCloud';
+const TITLE_SUFFIX = ' · LoopScale';
 
 function applyDocumentTitle(title: string): void {
   if (typeof document === 'undefined') return;
-  document.title = title ? `${title}${TITLE_SUFFIX}` : 'TheoCloud';
+  document.title = title ? `${title}${TITLE_SUFFIX}` : 'LoopScale';
 }
 
 /** New canonical API per plan D9 — useEffect that owns document.title. */

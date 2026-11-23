@@ -126,7 +126,7 @@ export interface SessionIdentity {
 export async function fetchSessionIdentity(): Promise<SessionIdentity | null> {
   if (mocksEnabled()) {
     lastSessionStatus = 200;
-    return { id: 'mock-identity', email: 'mock@usetheo.dev' };
+    return { id: 'mock-identity', email: 'mock@example.com' };
   }
   if (sessionProbe) return sessionProbe;
   sessionProbe = (async () => {
