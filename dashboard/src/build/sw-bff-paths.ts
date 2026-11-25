@@ -23,6 +23,7 @@ export const BFF_NAVIGATION_DENYLIST: readonly RegExp[] = [
   /\/self-service\//,
   /\/oauth2\//,
   /^\/v1\/rag-connect\//, // theo-cloud#203 — OAuth "Connect with X" authorize + callback
+  /^\/v1\/integrations\/github\//, // GitHub App install + callback: 302s to and from github.com
 ];
 
 /** True when the pathname is a BFF navigation endpoint that must bypass the SW SPA fallback. */
