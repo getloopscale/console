@@ -97,9 +97,24 @@ describe('usePromote / useRollback (B-013)', () => {
     ).rejects.toThrow('402 plan limit');
   });
 
-  it('rollback nomeia ambiente E build — o promote assume producao, este nao', async () => {
-    mockCloudFetch.mockResolvedValue({ ok: true });
-    const { result } = renderHook(() => useRollback(), { wrapper });
+  // The API accepts a rollback with 202 and finishes it in the background
+  // (getloopscale/loopzero#118). The first call is the POST; every later one is
+  // the status read the hook polls.
+  const accepted = {
+    status: 'in_progress',
+    rolled_back_release: 'rel-current',
+    reactivated_release: 'rel-target',
+    environment: 'production',
+    url: '',
+  };
+  const activeRelease = (id: string | null) => ({
+    active_release: id ? { id, build_id: 'b', status: 'ACTIVE', created_at: '' } : null,
+  });
+  const fast = { pollIntervalMs: 1 };
+
+  it('rollback names the environment AND the build; promote assumes production', async () => {
+    mockCloudFetch.mockResolvedValueOnce(accepted).mockResolvedValue(activeRelease('rel-target'));
+    const { result } = renderHook(() => useRollback(fast), { wrapper });
     await result.current.mutateAsync({ projectName: 'p', environment: 'production', buildId: 'b-9' });
 
     const [path, init] = mockCloudFetch.mock.calls[0];
@@ -110,14 +125,60 @@ describe('usePromote / useRollback (B-013)', () => {
     });
   });
 
-  it('rollback tambem invalida os dois caches', async () => {
-    mockCloudFetch.mockResolvedValue({ ok: true });
-    const spy = vi.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useRollback(), { wrapper });
-    await result.current.mutateAsync({ projectName: 'p', environment: 'production', buildId: 'b-9' });
+  it('rollback follows the 202 on the status endpoint until the target is active', async () => {
+    mockCloudFetch
+      .mockResolvedValueOnce(accepted)
+      .mockResolvedValueOnce(activeRelease(null))
+      .mockResolvedValueOnce(activeRelease(null))
+      .mockResolvedValueOnce(activeRelease('rel-target'));
+    const { result } = renderHook(() => useRollback(fast), { wrapper });
 
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+    const outcome = await result.current.mutateAsync({
+      projectName: 'app x',
+      environment: 'staging',
+      buildId: 'b-9',
+    });
+
+    expect(outcome).toMatchObject({ state: 'succeeded', activeReleaseId: 'rel-target' });
+    expect(mockCloudFetch).toHaveBeenCalledTimes(4);
+    // The environment polled is the one the API answered with.
+    expect(mockCloudFetch.mock.calls[1][0]).toBe('/api/v1/projects/app%20x/status?env=production');
+  });
+
+  it('rollback resolves as failed when the previous release is active again', async () => {
+    mockCloudFetch
+      .mockResolvedValueOnce(accepted)
+      .mockResolvedValueOnce(activeRelease(null))
+      .mockResolvedValueOnce(activeRelease('rel-current'));
+    const { result } = renderHook(() => useRollback(fast), { wrapper });
+
+    const outcome = await result.current.mutateAsync({
+      projectName: 'p',
+      environment: 'production',
+      buildId: 'b-9',
+    });
+
+    expect(outcome).toMatchObject({ state: 'failed', activeReleaseId: 'rel-current' });
+  });
+
+  it('rollback refreshes builds, environments and the project status only when it ended', async () => {
+    let release: (v: unknown) => void = () => {};
+    mockCloudFetch
+      .mockResolvedValueOnce(accepted)
+      .mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useRollback(fast), { wrapper });
+    const pending = result.current.mutateAsync({ projectName: 'p', environment: 'production', buildId: 'b-9' });
+
+    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalledTimes(2));
+    // The 202 arrived and the rollback is still running: nothing to refresh yet.
+    expect(spy).not.toHaveBeenCalled();
+
+    release(activeRelease('rel-target'));
+    await pending;
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(3));
     expect(spy).toHaveBeenCalledWith({ queryKey: queryKeys.builds.all });
     expect(spy).toHaveBeenCalledWith({ queryKey: queryKeys.environments.all });
+    expect(spy).toHaveBeenCalledWith({ queryKey: queryKeys.projectStatus.all });
   });
 });

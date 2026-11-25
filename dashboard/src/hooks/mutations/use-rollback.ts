@@ -1,29 +1,44 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
-import type { RollbackResponse } from '@/lib/api/types';
+import type { ProjectStatusDetail, RollbackResponse } from '@/lib/api/types';
+import { followRollback, type RollbackOutcome } from '@/hooks/deploy/rollback-outcome';
+
+export interface UseRollbackOptions {
+  /** Time between status reads. Defaults to 5 seconds, the cadence of `useProjectStatus`. */
+  pollIntervalMs?: number;
+  /** How long to wait for the outcome. Defaults to `ROLLBACK_DEADLINE_MS`. */
+  deadlineMs?: number;
+}
 
 /**
- * useRollback — reverter um ambiente para um build anterior.
+ * useRollback: return an environment to an earlier build, and wait for it.
  *
- * Irmão de `usePromote`, e fecha a mesma metade do B-013: a chamada sai do
- * diálogo e passa a ter dono. Ver o bloco de `use-promote.ts` para o porquê
- * completo — vale igual aqui, e reverter produção é o outro POST em que perder
- * o refresh de token custa mais caro.
+ * Sibling of `usePromote`: the call lives here and not in the dialog, so it can
+ * be tested without a modal and every caller gets the same cache refresh.
  *
- * A diferença de contrato é só o corpo: o rollback nomeia o ambiente E o build
- * de destino, enquanto o promote nomeia a origem e assume `production`.
+ * The API answers the POST with 202 and finishes the rollback in the background
+ * (getloopscale/loopzero#118). The mutation therefore stays pending after the
+ * 202 and resolves with how the rollback ended, read from the project status
+ * (see `rollback-outcome.ts`). A rollback that failed in the background RESOLVES
+ * with `state: 'failed'`; the mutation rejects only when the API refused the
+ * POST. It resolves null when the session ended before the 202.
  */
-export function useRollback() {
+export function useRollback(options: UseRollbackOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { projectName: string; environment: string; buildId: string }) =>
-      engineFetch<RollbackResponse>(
-        `/api/v1/projects/${encodeURIComponent(vars.projectName)}/rollback`,
+    mutationFn: async (vars: {
+      projectName: string;
+      environment: string;
+      buildId: string;
+    }): Promise<RollbackOutcome | null> => {
+      const project = encodeURIComponent(vars.projectName);
+      const accepted = await engineFetch<RollbackResponse>(
+        `/api/v1/projects/${project}/rollback`,
         {
           method: 'POST',
-          // Por chamada, nunca por diálogo: reverter tem efeito de mundo real, e
-          // um duplo clique ou um retry de rede não pode reverter duas vezes.
+          // One key per call, never per dialog: a rollback changes what serves
+          // traffic, and a double click or a network retry must not run it twice.
           headers: { 'Idempotency-Key': crypto.randomUUID() },
           body: JSON.stringify({
             environment: vars.environment,
@@ -31,10 +46,27 @@ export function useRollback() {
           }),
         },
         { throwOnError: true },
-      ),
+      );
+      if (!accepted) return null;
+
+      const environment = accepted.environment || vars.environment;
+      return followRollback(
+        accepted,
+        () =>
+          engineFetch<ProjectStatusDetail>(
+            `/api/v1/projects/${project}/status?env=${encodeURIComponent(environment)}`,
+            undefined,
+            { throwOnError: true },
+          ),
+        { intervalMs: options.pollIntervalMs, deadlineMs: options.deadlineMs },
+      );
+    },
+    // Runs when the rollback ended, whichever way: the lists show the release
+    // that is active now, which a failed rollback also changed back.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.builds.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.environments.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectStatus.all });
     },
   });
 }

@@ -362,13 +362,23 @@ describe('mocks/handlers — full API coverage', () => {
     expect(res.status).toBe(400);
   });
 
-  it('test_rollback_returns_release_id', async () => {
+  it('test_rollback_answers_202_and_status_then_shows_the_reactivated_release', async () => {
     const res = await call('POST', '/api/v1/projects/acme-web/rollback', {
       build_id: 'bld_01HXYZ_acme_web_001',
+      environment: 'production',
     });
+    expect(res.status).toBe(202);
     const body = await res.json();
-    expect(body.release_id).toBeDefined();
-    expect(body.status).toBe('queued');
+    expect(body).toEqual({
+      status: 'in_progress',
+      rolled_back_release: 'rel-current',
+      reactivated_release: 'rel-bld_01HXYZ_acme_web_001',
+      environment: 'production',
+      url: '',
+    });
+
+    const status = await (await call('GET', '/api/v1/projects/acme-web/status')).json();
+    expect(status.active_release.id).toBe(body.reactivated_release);
   });
 
   it('test_promote_returns_release_id', async () => {
