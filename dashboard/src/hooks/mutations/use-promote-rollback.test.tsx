@@ -1,3 +1,4 @@
+import { ROLLBACKS_QUERY_KEY } from '@/hooks/deploy/use-rollbacks';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -171,12 +172,14 @@ describe('usePromote / useRollback (B-013)', () => {
     const pending = result.current.mutateAsync({ projectName: 'p', environment: 'production', buildId: 'b-9' });
 
     await waitFor(() => expect(mockCloudFetch).toHaveBeenCalledTimes(2));
-    // The 202 arrived and the rollback is still running: nothing to refresh yet.
-    expect(spy).not.toHaveBeenCalled();
+    // The 202 arrived and the rollback is still running: it has a record now, so
+    // the list of rollbacks is read again, and nothing else is.
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith({ queryKey: ROLLBACKS_QUERY_KEY });
 
     release(activeRelease('rel-target'));
     await pending;
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(5));
     expect(spy).toHaveBeenCalledWith({ queryKey: queryKeys.builds.all });
     expect(spy).toHaveBeenCalledWith({ queryKey: queryKeys.environments.all });
     expect(spy).toHaveBeenCalledWith({ queryKey: queryKeys.projectStatus.all });

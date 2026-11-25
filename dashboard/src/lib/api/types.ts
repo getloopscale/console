@@ -610,7 +610,7 @@ export interface RollbackInput {
   build_id: string;
 }
 
-export type { RollbackResponse } from './rollback-types';
+export type { RollbackResponse, RollbackRecord, RollbackRecordStatus, RollbackSide, RollbackListResponse } from './rollback-types';
 
 export interface PromoteInput {
   from_environment: string;

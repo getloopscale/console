@@ -403,4 +403,51 @@ describe('DeploymentsPage', () => {
       expect(chamadas.some((u) => u.includes('?status=running'))).toBe(true);
     });
   });
+
+  // A rollback changes what production runs and builds nothing: it is listed between the
+  // builds, where it happened, with who asked and how it ended.
+  it('lists a rollback as a row of its own between the builds', async () => {
+    mockedEngineFetch.mockImplementation(async (path: string) => {
+      if (path.endsWith('/rollbacks')) {
+        return {
+          rollbacks: [
+            {
+              id: 'rb-1',
+              environment: 'production',
+              status: 'failed',
+              failure_reason: 'sync timeout',
+              from: { release_id: 'rel-new', build_id: 'b-new' },
+              to: { release_id: 'rel-old', build_id: 'b-old' },
+              created_by: 'paulo@loopscale.test',
+              created_at: '2026-06-06T02:00:00Z',
+              finished_at: '2026-06-06T02:01:10Z',
+            },
+          ],
+        };
+      }
+      return {
+        builds: [
+          makeBuild('b-new', { commit_sha: 'bbbbbbb1111', created_at: '2026-06-06T01:00:00Z' }),
+          makeBuild('b-old', { commit_sha: 'aaaaaaa0000', created_at: '2026-06-06T00:00:00Z' }),
+        ],
+        total: 2,
+      } as BuildListResponse;
+    });
+
+    renderPage();
+
+    const row = await screen.findByTestId('rollback-row');
+    expect(within(row).getByText('Rollback failed')).toBeInTheDocument();
+    expect(row).toHaveTextContent('Rollback to aaaaaaa');
+    expect(row).toHaveTextContent('sync timeout');
+    expect(row).toHaveTextContent('1m 10s');
+    expect(within(row).getByRole('link', { name: 'View rollback to aaaaaaa' })).toHaveAttribute(
+      'href',
+      '/projects/teste/deployments/rollbacks/rb-1',
+    );
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows[0]).toBe(row);
+    expect(rows[1]).toHaveTextContent('bbbbbbb');
+    expect(screen.getByText(/Showing 2 of 2 deployments and 1 rollback$/)).toBeInTheDocument();
+  });
 });

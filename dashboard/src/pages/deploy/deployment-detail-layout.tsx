@@ -9,6 +9,7 @@ import { useDeployment } from '@/hooks/deploy/use-deployment';
 import { BuildHeader } from '@/pages/deploy/components/build-header';
 import { DeployTimelineHero } from '@/pages/deploy/components/deploy-timeline-hero';
 import { useProjectStatus } from '@/hooks/use-project-status';
+import { BuildRollbacks } from '@/pages/deploy/components/build-rollbacks';
 import { RollbackDialog } from '@/pages/deploy/components/rollback-dialog';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { CancelBuildDialog } from '@/pages/deploy/components/cancel-build-dialog';
@@ -152,6 +153,7 @@ export function DeploymentDetailLayout() {
             // affordance when absent.
           }}
         />
+        <BuildRollbacks projectName={name} buildId={build.build_id} />
         <nav className="border-b border-border" aria-label="Deployment tabs">
           <ul className="flex gap-1 -mb-px">
             {TABS.map((t) => {

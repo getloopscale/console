@@ -1,3 +1,4 @@
+import { ROLLBACKS_QUERY_KEY } from '@/hooks/deploy/use-rollbacks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -48,6 +49,8 @@ export function useRollback(options: UseRollbackOptions = {}) {
         { throwOnError: true },
       );
       if (!accepted) return null;
+      // The rollback has a record from this moment; the list shows it in progress.
+      void queryClient.invalidateQueries({ queryKey: ROLLBACKS_QUERY_KEY });
 
       const environment = accepted.environment || vars.environment;
       return followRollback(
@@ -67,6 +70,7 @@ export function useRollback(options: UseRollbackOptions = {}) {
       queryClient.invalidateQueries({ queryKey: queryKeys.builds.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.environments.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.projectStatus.all });
+      queryClient.invalidateQueries({ queryKey: ROLLBACKS_QUERY_KEY });
     },
   });
 }

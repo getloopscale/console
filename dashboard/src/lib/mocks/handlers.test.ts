@@ -371,6 +371,7 @@ describe('mocks/handlers — full API coverage', () => {
     const body = await res.json();
     expect(body).toEqual({
       status: 'in_progress',
+      rollback_id: 'rb-1',
       rolled_back_release: 'rel-current',
       reactivated_release: 'rel-bld_01HXYZ_acme_web_001',
       environment: 'production',

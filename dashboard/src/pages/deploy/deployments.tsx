@@ -1,23 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import {
-  ArrowLeft,
-  ArrowUpToLine,
-  CheckCircle2,
-  Play,
-  RefreshCw,
-} from 'lucide-react';
-import {
-  Badge,
-  Button,
-  Card,
-  PageShell,
-  StatusDot,
-  Table,
-  type StatusKind,
-} from '@usetheo/ui';
-import { humanizeAuthor } from '@/lib/formatting/format';
+import { ArrowLeft, CheckCircle2, Play, RefreshCw } from 'lucide-react';
+import { Button, Card, PageShell, Table } from '@usetheo/ui';
 import { estadoDaLista } from '@/lib/list-state';
 import { noDeploysYet } from '@/pages/deploy/empty-states';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
@@ -27,27 +12,14 @@ import { useProjectStatus } from '@/hooks/use-project-status';
 import { useMutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 import { useBuildEnvs } from '@/hooks/deploy/use-build-envs';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
-import { DeploymentRowVisitIcon } from '@/pages/deploy/components/deployment-row-visit-icon';
+import { useRollbacks } from '@/hooks/deploy/use-rollbacks';
+import { DeploymentRow } from '@/pages/deploy/components/deployment-row';
+import { RollbackRow } from '@/pages/deploy/components/rollback-row';
+import { deploymentEntries } from '@/pages/deploy/deployment-entries';
 import { formatDate } from '@/lib/formatting/format';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
 
-const STATUS_MAP: Record<BuildStatus, StatusKind> = {
-  succeeded: 'live',
-  running: 'building',
-  queued: 'building',
-  failed: 'failed',
-  cancelled: 'idle',
-  cancelling: 'idle',
-};
 
-const STATUS_LABEL: Record<BuildStatus, string> = {
-  succeeded: 'Succeeded',
-  running: 'Running',
-  queued: 'Queued',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-  cancelling: 'Cancelling',
-};
 
 const STATUS_FILTERS: { value: 'all' | BuildStatus; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -87,21 +59,6 @@ function envChipLabel(env: string): string {
   return env.charAt(0).toUpperCase() + env.slice(1);
 }
 
-// T4.3 finding 3.8: extend formatDuration to render hours when the
-// build pipeline genuinely exceeds 1h (rare but possible for monorepo
-// installs or first-time Docker layer cache misses on a large image).
-function formatDuration(seconds?: number | null): string {
-  if (!seconds && seconds !== 0) return '—';
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}m ${s}s`;
-  }
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${h}h ${m}m`;
-}
 
 /**
  * DeploymentsPage — Plan v1.0 T1.1.
@@ -272,6 +229,22 @@ export function DeploymentsPage() {
     }
     return out;
   }, [builds, statusFilter, envFilter]);
+  // A rollback is a row of its own, where it happened among the builds.
+  const { rollbacks } = useRollbacks(name);
+  const entries = useMemo(
+    () =>
+      deploymentEntries(filtered, rollbacks, {
+        status: statusFilter,
+        env: envFilter,
+        moreBuildsOnServer: builds.length < total,
+      }),
+    [filtered, rollbacks, statusFilter, envFilter, builds.length, total],
+  );
+  const commitByBuild = useMemo(
+    () => new Map(builds.map((b) => [b.build_id, b.commit_sha])),
+    [builds],
+  );
+  const rollbacksShown = entries.length - filtered.length;
 
   return (
     <PageShell
@@ -467,180 +440,26 @@ export function DeploymentsPage() {
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {filtered.map((b, idx) => {
-                const sha = b.commit_sha.slice(0, 7);
-                const inFlightHere =
-                  mutationInFlight?.targetBuildId === b.build_id
-                    ? mutationInFlight
-                    : null;
-                const isRollingBackTo = inFlightHere?.kind === 'rollback';
-                const isPromotingHere = inFlightHere?.kind === 'promote';
-                // While a long-running mutation is in flight to THIS row,
-                // suppress the canonical Active badge (DB still says old
-                // release is active for another ~90s) — the pulsing
-                // transitional badge expresses the in-flight state
-                // honestly. Same logic covers rollback + promote.
-                //
-                // Red Team theo-cloud#121: ACTIVE per the ROW's own env,
-                // not the global production active. The page fetches both
-                // env statuses (prod + preview); each row marks active when
-                // its env's active_release.build_id matches the row's
-                // build_id. Cross-env contamination (a preview row matching
-                // production's active just because both releases share a
-                // build_id via promote) is no longer possible.
-                const rowEnvActiveBuildId = activeBuildIdByEnv[b.environment];
-                const isActive =
-                  inFlightHere == null && rowEnvActiveBuildId === b.build_id;
-                // Ordering signal: filtered is already sorted by created_at
-                // desc in the hook (most recent first), so #1 is the newest.
-                const orderLabel = `#${idx + 1}`;
-                const startedAtAbs = b.started_at
-                  ? formatDate(b.started_at, 'datetime')
-                  : undefined;
-                return (
-                  <Table.Row key={b.build_id}>
-                    <Table.Cell className="hidden sm:table-cell">
-                      <span className="font-mono text-label tabular-nums text-muted-foreground">
-                        {orderLabel}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {(() => {
-                        const ns = normalizeBuildStatus(b.status);
-                        return (
-                          <StatusDot
-                            status={STATUS_MAP[ns]}
-                            label={STATUS_LABEL[ns]}
-                          />
-                        );
-                      })()}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-label text-foreground">
-                            {sha}
-                          </span>
-                          {isActive && (
-                            <Badge
-                              variant="outline"
-                              className="border-success/50 bg-success/10 text-success text-label uppercase"
-                            >
-                              ● Active
-                            </Badge>
-                          )}
-                          {isRollingBackTo && (
-                            <Badge
-                              variant="outline"
-                              className="border-warning/50 bg-warning/10 text-warning text-label uppercase animate-pulse inline-flex items-center gap-1"
-                              aria-live="polite"
-                            >
-                              <RefreshCw
-                                className="size-3 animate-spin"
-                                aria-hidden="true"
-                              />
-                              Rolling back to {sha}…
-                            </Badge>
-                          )}
-                          {isPromotingHere && (
-                            <Badge
-                              variant="outline"
-                              className="border-primary/50 bg-primary/10 text-primary text-label uppercase animate-pulse inline-flex items-center gap-1"
-                              aria-live="polite"
-                            >
-                              <ArrowUpToLine
-                                className="size-3"
-                                aria-hidden="true"
-                              />
-                              Promoting {sha} to production…
-                            </Badge>
-                          )}
-                          {b.environment && (
-                            <Badge
-                              variant="outline"
-                              className="text-label uppercase"
-                            >
-                              {b.environment}
-                            </Badge>
-                          )}
-                        </div>
-                        {/* Timestamp always visible — primary ordering
-                            signal that mobile users were missing. The
-                            title carries the absolute timestamp for
-                            precision when relative format gets ambiguous
-                            (multiple deploys in the same minute). */}
-                        <span
-                          className="text-label text-muted-foreground tabular-nums"
-                          title={startedAtAbs}
-                        >
-                          {b.started_at
-                            ? formatDate(b.started_at, 'relative')
-                            : '—'}
-                        </span>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell className="hidden md:table-cell">
-                      {/* Red Team theo-cloud#52/#78 closure: the backend
-                          field `created_by` is the user's UUID — rendering
-                          it verbatim leaks an opaque 36-char identifier
-                          that means nothing to the operator. Humanize via
-                          the canonical helper so an email becomes the
-                          local-part (`paulo@example.com → paulo`), a UUID
-                          collapses to a short suffix (`4d6ae2dd`), and a
-                          real name stays as-is. */}
-                      <span
-                        className="text-body-sm text-muted-foreground"
-                        title={b.created_by}
-                      >
-                        {humanizeAuthor(b.created_by)}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell className="hidden md:table-cell">
-                      <span
-                        className="text-body-sm text-muted-foreground tabular-nums"
-                        title={startedAtAbs}
-                      >
-                        {b.started_at
-                          ? formatDate(b.started_at, 'relative')
-                          : '—'}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell
-                      align="right"
-                      numeric
-                      className="hidden md:table-cell"
-                    >
-                      <span className="text-body-sm text-muted-foreground tabular-nums">
-                        {formatDuration(b.duration_seconds)}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell align="right">
-                      <div className="inline-flex items-center gap-1">
-                        {/* T3.1 J-25 — active-only ExternalLink icon
-                            (anti-trap UX: only currently-serving row
-                            gets the open-in-new-tab affordance).
-                            Red Team theo-cloud#121: URL is the ROW's
-                            env URL (preview → preview URL, production
-                            → production URL) — pre-fix this passed
-                            prodStatus?.url unconditionally, so a preview
-                            row marked active would link to production. */}
-                        <DeploymentRowVisitIcon
-                          isActive={isActive}
-                          url={urlByEnv[b.environment]}
-                        />
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link
-                            to={`/projects/${encodeURIComponent(name)}/deployments/${b.build_id}`}
-                            aria-label={`View deployment ${sha}`}
-                          >
-                            View
-                          </Link>
-                        </Button>
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
-                );
-              })}
+              {entries.map((entry) =>
+                entry.kind === 'build' ? (
+                  <DeploymentRow
+                    key={entry.build.build_id}
+                    projectName={name}
+                    build={entry.build}
+                    order={entry.order}
+                    activeBuildId={activeBuildIdByEnv[entry.build.environment]}
+                    url={urlByEnv[entry.build.environment]}
+                    mutationInFlight={mutationInFlight}
+                  />
+                ) : (
+                  <RollbackRow
+                    key={entry.rollback.id}
+                    projectName={name}
+                    rollback={entry.rollback}
+                    targetCommit={commitByBuild.get(entry.rollback.to.build_id)}
+                  />
+                ),
+              )}
             </Table.Body>
           </Table>
         </Card.Body>
@@ -661,6 +480,9 @@ export function DeploymentsPage() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-body-sm text-muted-foreground">
           <span className="tabular-nums">
             Showing {filtered.length} of {total} deployments
+            {rollbacksShown > 0
+              ? ` and ${rollbacksShown} ${rollbacksShown === 1 ? 'rollback' : 'rollbacks'}`
+              : ''}
           </span>
           {builds.length < total && (
             <Button
