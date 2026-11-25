@@ -9,6 +9,7 @@
 - The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com`. CLI commands still read `theo`, since the CLI binary keeps that name (#521).
 
 ### Fixed
+- The link in the sign-up verification email verifies the address. The page read the code only from the URL, and Kratos keeps it in the flow (#534).
 - The dashboard's Profile page opens again. It crashed with "This page crashed: Rendered more hooks than during the previous render" as soon as the session loaded, so the account card and the Delete Account action were unreachable (#527).
 - A skill with no published version no longer says that a CLI command "below" will publish one. The CLI has no command for that, and the page now says so (#527).
 - The dashboard signs in and verifies email on hosts other than usetheo.dev. Its Content-Security-Policy, declared both in index.html and in the nginx header, named the usetheo.dev Kratos and control-plane hosts, so the browser refused every auth request to another host. The nginx header is now the only policy, and it adds the origins a deployment sets in `/etc/nginx/conf.d/csp-origins.conf` (`$csp_connect_origins`, `$csp_form_origins`); the image ships them empty, which allows same-origin only. A deployment that reached Kratos or the control plane on another host must now mount that file (#525).

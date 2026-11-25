@@ -85,6 +85,42 @@ describe('VerificationPage', () => {
     expect(body.csrf_token).toBe('csrf-xyz');
   });
 
+  it('test_verification_link_from_email_verifies_with_the_code_kratos_prefilled', async () => {
+    // The email link goes to Kratos (/self-service/verification?code=X&flow=Y), which
+    // redirects to this page with only ?flow=Y and carries the code as the value of the
+    // flow's `code` node. The page must submit it, as it does for ?code= in the URL.
+    const action = 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc';
+    mockFetch.mockImplementation(async (url: string, opts?: RequestInit) => {
+      if (opts?.method === 'POST' && url === action) {
+        return { ok: true, json: async () => ({ state: 'passed_challenge' }) };
+      }
+      if (String(url).includes('/self-service/verification/flows')) {
+        return {
+          ok: true,
+          json: async () => ({
+            state: 'sent_email',
+            ui: {
+              action,
+              nodes: [
+                { attributes: { name: 'csrf_token', value: 'csrf-xyz' } },
+                { attributes: { name: 'code', type: 'text', value: '567959' } },
+              ],
+            },
+          }),
+        };
+      }
+      return { ok: false, status: 401, json: async () => ({}) };
+    });
+
+    render(<VerificationPage />, { initialEntries: ['/verification?flow=abc'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('Email verified')).toBeInTheDocument();
+    });
+    const post = mockFetch.mock.calls.find(([u, o]) => u === action && o?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body)).code).toBe('567959');
+  });
+
   it('test_verification_success_state_after_send', async () => {
     mockFetch
       .mockResolvedValueOnce({

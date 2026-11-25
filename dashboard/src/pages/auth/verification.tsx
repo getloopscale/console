@@ -29,11 +29,20 @@ export function VerificationPage() {
     if (flowId && urlCode) {
       submitCode(flowId, urlCode);
     } else if (flowId) {
-      // Browser-created flow is empty: Kratos hasn't queued an email yet
-      // because nobody submitted the email field. If the user has an active
-      // session, look up their email and submit it automatically so the
-      // courier dispatches a code BEFORE we show PinInput.
-      ensureCodeRequested(flowId).finally(() => setStatus('input'));
+      // The email link goes to Kratos, which redirects here with only ?flow= and keeps
+      // the code as the value of the flow's `code` node. Submit that code as if it were
+      // in the URL; without one, fall back to requesting it.
+      linkCode(flowId).then((prefilled) => {
+        if (prefilled) {
+          submitCode(flowId, prefilled);
+          return;
+        }
+        // Browser-created flow is empty: Kratos hasn't queued an email yet
+        // because nobody submitted the email field. If the user has an active
+        // session, look up their email and submit it automatically so the
+        // courier dispatches a code BEFORE we show PinInput.
+        ensureCodeRequested(flowId).finally(() => setStatus('input'));
+      });
     } else {
       safeNavigator.goTo(`${KRATOS_URL}/self-service/verification/browser`);
     }
@@ -58,6 +67,26 @@ export function VerificationPage() {
    * code pending is a no-op on Kratos's side (it returns the same flow
    * with the code-input node).
    */
+  /** The code Kratos prefilled in the flow when the user came from the email link. */
+  const linkCode = async (flow: string): Promise<string> => {
+    try {
+      const flowResp = await fetch(flowUrl(KRATOS_URL, 'verification', flow), {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!flowResp.ok) return '';
+      const flowData = await flowResp.json();
+      const codeNode = flowData.ui?.nodes?.find(
+        (n: { attributes: { name?: string; type?: string } }) =>
+          n.attributes.name === 'code' && n.attributes.type !== 'submit',
+      );
+      const value = codeNode?.attributes?.value;
+      return typeof value === 'string' && /^\d{6}$/.test(value) ? value : '';
+    } catch {
+      return '';
+    }
+  };
+
   const ensureCodeRequested = async (flow: string) => {
     try {
       const session = await getSession();
