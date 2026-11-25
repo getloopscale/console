@@ -96,7 +96,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     // All 5 CLI commands visible em panel expanded.
     // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `theo init` (which does NOT
     // exist in @usetheo/cli@0.3.1) replaced with canonical `loopscale project create my-app`.
-    expect(screen.getByText('npm install -g @usetheo/cli')).toBeInTheDocument();
+    expect(screen.getByText('npm install -g @getloopscale/cli')).toBeInTheDocument();
     expect(screen.getByText('loopscale login')).toBeInTheDocument();
     expect(screen.getByText('loopscale project create my-app')).toBeInTheDocument();
     expect(screen.getByText('loopscale deploy')).toBeInTheDocument();

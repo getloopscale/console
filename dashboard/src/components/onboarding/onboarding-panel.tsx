@@ -38,7 +38,7 @@ const STEPS: ChecklistStep[] = [
     key: 'cli_installed',
     title: 'Install the LoopScale CLI',
     description: 'The CLI is your primary tool. Dashboard is for status + history.',
-    cliCommand: 'npm install -g @usetheo/cli',
+    cliCommand: 'npm install -g @getloopscale/cli',
   },
   {
     key: 'logged_in',
