@@ -7,6 +7,7 @@ vi.mock('@/lib/http/config', () => ({
   API_URL: '',
   AUTH_URL: '',
   ACCOUNTS_URL: '',
+  OAUTH_URL: '',
 }));
 
 const mockEngineFetch = vi.fn();
