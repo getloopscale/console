@@ -1,3 +1,4 @@
+import { ConnectionDot, streamStateOf } from '@/pages/deploy/components/connection-dot';
 import { useEffect, useState } from 'react';
 import {
   Check,
@@ -7,8 +8,6 @@ import {
   X,
   AlertTriangle,
   Ban,
-  Wifi,
-  WifiOff,
 } from 'lucide-react';
 import { useDeployTimelineWithSteps } from '@/hooks/deploy/use-deploy-timeline-with-steps';
 import type { PhaseState, OverallStatus, PhaseStep } from '@/hooks/deploy/use-deploy-timeline';
@@ -81,6 +80,8 @@ export function DeployTimelineHero({
     connected,
   } = useDeployTimelineWithSteps(deployId, { initialLastEventID, paused });
 
+  const streamState = streamStateOf(overall, connected);
+
   // For aria-live: announce only the latest phase/status transition.
   const live = describeOverall(overall, phases);
 
@@ -94,6 +95,7 @@ export function DeployTimelineHero({
         .join(' ')}
       aria-label="Deploy timeline"
       data-overall={overall}
+      data-stream={streamState}
       data-testid="deploy-timeline-hero"
     >
       <header className="flex items-center justify-between gap-3 mb-4">
@@ -103,7 +105,7 @@ export function DeployTimelineHero({
             {totalElapsedLabel(phases)}
           </span>
         </div>
-        <ConnectionDot connected={connected} />
+        <ConnectionDot state={streamState} />
       </header>
 
       {aggregatorDegradedReason ? (
@@ -451,29 +453,6 @@ function OverallStatusPill({ overall }: { overall: OverallStatus }) {
     >
       {overallIcon(overall)}
       {label}
-    </span>
-  );
-}
-
-function ConnectionDot({ connected }: { connected: boolean }) {
-  const label = connected ? 'Live updates connected' : 'Reconnecting…';
-  const Icon = connected ? Wifi : WifiOff;
-  return (
-    <span
-      className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-      title={label}
-      aria-label={label}
-    >
-      <Icon size={12} aria-hidden="true" />
-      <span
-        aria-hidden="true"
-        className={[
-          'h-1.5 w-1.5 rounded-full',
-          connected
-            ? 'bg-emerald-500 motion-safe:animate-pulse'
-            : 'bg-muted-foreground',
-        ].join(' ')}
-      />
     </span>
   );
 }

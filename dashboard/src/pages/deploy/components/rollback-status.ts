@@ -46,7 +46,7 @@ export function rollbackPhases(status: RollbackRecordStatus): RollbackPhase[] {
     case 'succeeded':
       return [
         { name: 'Deploy', state: 'completed', label: 'Completed' },
-        { name: 'Live', state: 'completed', label: 'Serving the target release' },
+        { name: 'Live', state: 'completed', label: 'The target release became active' },
       ];
     case 'in_progress':
       return [

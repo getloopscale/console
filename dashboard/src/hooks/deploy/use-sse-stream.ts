@@ -57,6 +57,12 @@ export interface UseSSEStreamOptions<T = unknown> {
   maxEvents?: number;
   /** Freeze updates without closing the connection. */
   paused?: boolean;
+  /**
+   * True for the last event the stream will send. After it the connection is
+   * closed and not reopened: the server has nothing more to say, and a client
+   * that keeps asking reopens the stream for as long as the page is open.
+   */
+  isFinal?: (event: SSEStreamEvent<T>) => boolean;
   /** Side-effect callback on each event. Buffer state still updates. */
   onEvent?: (event: SSEStreamEvent<T>) => void;
   /**
@@ -108,6 +114,8 @@ export function useSSEStream<T = unknown>(
   pausedRef.current = paused;
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+  const isFinalRef = useRef(options.isFinal);
+  isFinalRef.current = options.isFinal;
   const bufferRef = useRef<SSEStreamEvent<T>[]>([]);
   const droppedRef = useRef(0);
   const lastIDRef = useRef<string | null>(initialLastEventID);
@@ -175,6 +183,12 @@ export function useSSEStream<T = unknown>(
         setDroppedCount(droppedRef.current);
       }
       onEventRef.current?.(event);
+      if (isFinalRef.current?.(event)) {
+        cancelled = true;
+        if (reopenTimer) clearTimeout(reopenTimer);
+        es?.close();
+        setConnected(false);
+      }
     };
 
     const open = () => {
