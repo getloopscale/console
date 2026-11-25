@@ -67,6 +67,25 @@ describe('SBOMTab — a missing SBOM and an unreadable one are different finding
     // it — which an absence assertion could not see (src/lib/absence-assertion-ratchet.test.ts).
     expect(await screen.findByText(/could not read the sbom/i)).toBeInTheDocument();
   });
+
+  it('says the build has no SBOM when the API answers 404 for it', async () => {
+    // A build that failed before the SBOM step has none, and the API says so with a 404. Telling
+    // the user to retry would send them after something that will never exist.
+    mockEngineFetch.mockRejectedValue(new ApiError(404, undefined, 'not found'));
+
+    render(<SBOMTab />);
+
+    expect(await screen.findByText(/no sbom for this build/i)).toBeInTheDocument();
+    expect(screen.getByText(/failed before the sbom step/i)).toBeInTheDocument();
+  });
+
+  it('keeps the retry message for a network failure', async () => {
+    mockEngineFetch.mockRejectedValue(new ApiError(0, undefined, 'network request failed'));
+
+    render(<SBOMTab />);
+
+    expect(await screen.findByText(/could not read the sbom/i)).toBeInTheDocument();
+  });
 });
 
 describe('AttestationTab — same distinction, same reason', () => {
@@ -75,7 +94,7 @@ describe('AttestationTab — same distinction, same reason', () => {
       build_id: 'bld-1',
       signed: true,
       image_digest: 'sha256:abc123def456',
-      image_signature: 'ghcr.io/usetheo/app:sha256-abc123.sig',
+      image_signature: 'ghcr.io/getloopscale/app:sha256-abc123.sig',
       signed_at: '2026-06-01T00:00:00Z',
     });
 
@@ -100,5 +119,13 @@ describe('AttestationTab — same distinction, same reason', () => {
     render(<AttestationTab />);
 
     expect(await screen.findByText(/could not read the attestation/i)).toBeInTheDocument();
+  });
+
+  it('says the build has no attestation when the API answers 404 for it', async () => {
+    mockEngineFetch.mockRejectedValue(new ApiError(404, undefined, 'not found'));
+
+    render(<AttestationTab />);
+
+    expect(await screen.findByText(/no attestation for this build/i)).toBeInTheDocument();
   });
 });
