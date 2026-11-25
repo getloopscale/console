@@ -9,6 +9,7 @@
 - The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com`. CLI commands still read `theo`, since the CLI binary keeps that name (#521).
 
 ### Fixed
+- Readiness marks a signal unknown when the status response does not carry the field it reads. Missing fields counted as 0, so "2+ replicas" failed with 2 replicas serving and "logs healthy" passed with nothing measured. The autoscaling and cache signals stay unknown until the API reports an HPA and a hit rate (#542).
 - Add secret keeps its sheet open and shows the reason when the API reports the secret was not saved. The API answers 200 with a failed item, and the sheet closed as if the secret were set (#540).
 - With no environment filter, the Secrets tab lists the secrets of the project's own environments, as `GET /environments` returns them. It asked for production and staging, so preview secrets were missing and every load queried an environment the project does not have (#541).
 - The SBOM and Attestation tabs say a build has none when the API answers 404, as it does for a build that failed before those steps. They used to ask the user to retry, which is now kept for server and network errors (#545).
