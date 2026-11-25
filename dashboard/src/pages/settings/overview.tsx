@@ -57,10 +57,10 @@ export function SettingsPage() {
         <Card.Body>
           <CodeBlock
             caption="Common settings commands"
-            code={`theo whoami
-theo team list
-theo secret set KEY=value
-theo env create staging`}
+            code={`loopscale whoami
+loopscale team list
+loopscale secret set KEY=value
+loopscale env create staging`}
             terminal
             copyable
           />

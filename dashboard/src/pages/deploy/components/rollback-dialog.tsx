@@ -190,7 +190,7 @@ export function RollbackDialog({
 }
 
 /**
- * Translate a canonical TheoError body into actionable user-facing copy.
+ * Translate a canonical LoopScaleError body into actionable user-facing copy.
  * Uses product-language only (no internal terms per Cross-Project Rule 9):
  * we say "deployment infrastructure", never "ArgoCD" or "Kubernetes".
  */

@@ -19,9 +19,9 @@
 // Common error shape (used across all routes)
 // ============================================================================
 
-/** Canonical TheoError envelope.
+/** Canonical LoopScaleError envelope.
  * @see api/internal/routes/audit.go:jsonError + pkg/errors/http */
-export interface TheoError {
+export interface LoopScaleError {
   code: string;
   message: string;
 }

@@ -17,9 +17,13 @@ import { parse } from '@/test/source-scan';
  * literal text and JSX text of every production module under `src/`. Comments that record the
  * project's history may still name Theo.
  *
+ * The CLI binary is `loopscale` (#530), so a command the page tells the user to type must start
+ * with it. A `theo ...` command fails as typed.
+ *
  * Kept on purpose:
- * - The CLI is still the `theo` binary from `@usetheo/cli`, so its install step keeps the CLI's
- *   own name. Lowercase `theo ...` commands do not match the pattern below.
+ * - The npm package name `@usetheo/cli` and the `theo.yaml` file name are contracts owned by the
+ *   CLI and the engine, not copy. Neither has a space after `theo`, so the command pattern skips
+ *   them.
  * - `safe-redirect.ts` and `auth/session.ts` hold environment configuration (auth hosts, the
  *   session cookie domain), which changes with the deployment and not with the copy.
  */
@@ -29,7 +33,10 @@ const SRC = join(ROOT, 'src');
 
 const OLD_BRAND = /TheoCloud|usetheo\.dev|\bTheo\b/;
 
-const ALLOWED_TEXT = new Set(['Install the Theo CLI']);
+const ALLOWED_TEXT = new Set<string>();
+
+/** A command line that starts with the old binary: `theo login`, `$ theo deploy --project x`. */
+const OLD_CLI_COMMAND = /(?:^|[\s`'"$(])theo [a-z][a-z-]*/;
 
 const ENVIRONMENT_CONFIG_FILES = new Set([
   'src/lib/navigation/safe-redirect.ts',
@@ -83,6 +90,23 @@ describe('user-visible copy names LoopScale, not the old brand (#521)', () => {
           .map(({ line, text }) => `${path}:${line} ${JSON.stringify(text)}`),
       );
     expect(offenders).toEqual([]);
+  });
+
+  it('no production text tells the user to run a command with the old theo binary', () => {
+    const offenders = listModules(SRC).flatMap((path) =>
+      visibleTexts(path)
+        .filter(({ text }) => OLD_CLI_COMMAND.test(text))
+        .map(({ line, text }) => `${path}:${line} ${JSON.stringify(text)}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('the old command pattern matches commands and skips package and file names', () => {
+    expect(OLD_CLI_COMMAND.test('theo login --device-flow')).toBe(true);
+    expect(OLD_CLI_COMMAND.test('Run theo domain add <domain> to attach one.')).toBe(true);
+    expect(OLD_CLI_COMMAND.test('npm install -g @usetheo/cli')).toBe(false);
+    expect(OLD_CLI_COMMAND.test('Total deployable apps declared in theo.yaml')).toBe(false);
+    expect(OLD_CLI_COMMAND.test('loopscale login')).toBe(false);
   });
 
   it('the scan sees the strings it guards, so an empty result is not a parse failure', () => {

@@ -472,7 +472,7 @@ export function LoginPage() {
           {/* CLI hint */}
           <CodeBlock
             caption="or use the CLI"
-            code="theo login"
+            code="loopscale login"
             terminal
             copyable
           />

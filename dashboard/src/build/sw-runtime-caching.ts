@@ -59,22 +59,21 @@ export const SW_RUNTIME_CACHING: readonly RegraDeCache[] = [
   // invalidação por `queryKey`; o SW não tem nada equivalente, e é por isso que
   // as duas camadas não podiam coexistir sobre o mesmo dado.
 
-  // Config de runtime — StaleWhileRevalidate: muda pouco, mas tem de atualizar depois de uma
-  // rotação.
+  // Runtime config: NetworkFirst. The container writes /__config.js at start-up, so the network
+  // copy is the only correct one; the cache is just the offline fallback. StaleWhileRevalidate
+  // answered from cache first, so the first load after a config change still ran with the old
+  // file. The build-time copy is kept out of the precache by sw-precache.ts, because a precache
+  // route answers before every rule here (#547).
   //
-  // B-196 — ESTA REGRA VEM ANTES DA DE ASSETS, E A ORDEM É O QUE A FAZ EXISTIR. O Workbox
-  // registra as rotas nesta sequência e a PRIMEIRA que casa atende; `/__config.js` termina em
-  // `.js`, então a regra de assets — que vinha antes — o pegava em `CacheFirst` por 30 dias e
-  // esta aqui nunca rodava. O efeito: depois de o operador rotacionar `AUTH_URL`/`API_URL`, quem
-  // já tinha visitado continuava com a config antiga por até um mês, apontando para hosts que a
-  // política de CSP (B-131) talvez nem permita mais.
-  //
-  // A premissa que torna `CacheFirst` seguro para assets — nome com hash a cada build — não vale
-  // para este arquivo: ele é gerado na subida do contêiner e tem nome fixo.
+  // B-196: THIS RULE COMES BEFORE THE ASSETS RULE, AND THAT ORDER IS WHAT MAKES IT RUN. Workbox
+  // registers routes in this order and the FIRST match answers. `/__config.js` ends in `.js`, so
+  // the assets rule, when it came first, served it CacheFirst for 30 days and this rule never ran.
+  // The hashed-name premise that makes CacheFirst safe for assets does not hold for this file: it
+  // has a fixed name and is generated when the container starts.
   {
     urlPattern: /\/__config\.js$/,
-    handler: 'StaleWhileRevalidate',
-    options: { cacheName: 'theo-config' },
+    handler: 'NetworkFirst',
+    options: { cacheName: 'theo-config', networkTimeoutSeconds: 3 },
   },
   // Assets estáticos — CacheFirst, 30 dias. Cada build emite nomes com hash,
   // então uma entrada velha nunca é servida no lugar de uma nova.

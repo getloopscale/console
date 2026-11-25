@@ -28,7 +28,7 @@ export function DeviceVerifyPage() {
   useEffect(() => {
     if (!deviceChallenge) {
       setError(
-        'Missing device challenge. Please run `theo login --device-flow` again from your terminal.',
+        'Missing device challenge. Please run `loopscale login --device-flow` again from your terminal.',
       );
     }
   }, [deviceChallenge]);
@@ -55,7 +55,7 @@ export function DeviceVerifyPage() {
       if (!resp.ok || !body.redirect_to) {
         setError(
           body.message ??
-            'Could not authorize this device. Double-check the code or run `theo login --device-flow` again.',
+            'Could not authorize this device. Double-check the code or run `loopscale login --device-flow` again.',
         );
         setSubmitting(false);
         return;
@@ -68,7 +68,7 @@ export function DeviceVerifyPage() {
       if (!safeNavigator.goTo(body.redirect_to)) {
         setError(
           'The authentication service returned an unexpected redirect target. ' +
-            'For your safety we did not follow it — run `theo login --device-flow` again.',
+            'For your safety we did not follow it — run `loopscale login --device-flow` again.',
         );
         setSubmitting(false);
         return;

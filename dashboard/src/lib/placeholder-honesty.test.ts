@@ -256,8 +256,10 @@ describe('B-132/B-133 — a tela não anuncia comando de CLI que não existe', (
         // apagar a nota, que é a informação. Mesma dispensa do guarda de caminhos em
         // `docs-claims.test.ts`, pelo mesmo motivo.
         if (/nao ha comando|não há comando|is NOT a real|não existe|nao existe|inexistente|non-existent|does not exist|NAO e um comando|não é um comando|no CLI command yet/i.test(linha)) continue;
-        for (const m of linha.matchAll(/\btheo ([a-z][a-z-]*)((?: --?[a-z][a-z-]*)*)/g)) {
-          achados.push({ arquivo: relative(SRC, f), comando: `theo ${m[1]}${m[2]}` });
+        // The binary is `loopscale` (#530); `theo` stays matched so an old command in a comment
+        // is still checked against the registered ones.
+        for (const m of linha.matchAll(/\b(theo|loopscale) ([a-z][a-z-]*)((?: --?[a-z][a-z-]*)*)/g)) {
+          achados.push({ arquivo: relative(SRC, f), comando: `${m[1]} ${m[2]}${m[3]}` });
         }
       }
     }
@@ -310,5 +312,7 @@ describe('B-132/B-133 — a tela não anuncia comando de CLI que não existe', (
     expect(ehValido('theo team list')).toBe(true);
     expect(ehValido('theo deploy --project x')).toBe(true);
     expect(ehValido('theo billing portal')).toBe(true);
+    expect(ehValido('loopscale whoami')).toBe(true);
+    expect(ehValido('loopscale notify list')).toBe(false);
   });
 });

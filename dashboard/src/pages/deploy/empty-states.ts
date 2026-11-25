@@ -24,7 +24,7 @@ export function noDeploysYet(projeto: string): EmptyStateCopy {
     title: 'No deployments yet',
     // #121 — CTA centrada em deploy. O painel de conexão é a superfície certa quando a pessoa de
     // fato precisa conectar; o estado vazio de deploys não deve presumir desconexão.
-    description: `Trigger a deploy with \`theo deploy --project ${projeto}\` from your terminal, or push to a connected Git branch to auto-deploy. Not connected yet? Open the Repository tab to link a repo.`,
+    description: `Trigger a deploy with \`loopscale deploy --project ${projeto}\` from your terminal, or push to a connected Git branch to auto-deploy. Not connected yet? Open the Repository tab to link a repo.`,
     action: {
       label: 'View deploy instructions',
       onClick: () => {

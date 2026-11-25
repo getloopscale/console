@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@/test/render';
-import { PRIMARY_CANONICO, TEMA_THEO } from './theo-theme';
+import { PRIMARY_CANONICO, TEMA_LOOPSCALE } from './loopscale-theme';
 
 /**
  * B-007 — o tema tem UM dono, e o teste renderiza o mesmo que o app.
@@ -60,7 +60,7 @@ describe('tema do design system (B-007)', () => {
         'default do pacote reprova o WCAG AA em branco-sobre-primary. Se a suíte\n' +
         'renderiza outro, `test/a11y.test.tsx` mede uma cor que ninguém vê.\n\n' +
         'A causa provável é a árvore de teste montar o tema por conta própria em\n' +
-        'vez de importar `lib/theme/theo-theme.ts`, que é o dono único.\n',
+        'vez de importar `lib/theme/loopscale-theme.ts`, que é o dono único.\n',
     ).toBe(PRIMARY_CANONICO);
   });
 
@@ -83,7 +83,7 @@ describe('tema do design system (B-007)', () => {
     // provider escolhe a variante em runtime, e uma sessão que caia em claro por
     // qualquer motivo passaria a mostrar o roxo que reprova o AA — sem nada
     // acusar, porque o modo escuro continuaria certo.
-    const tema = TEMA_THEO.themes[0];
+    const tema = TEMA_LOOPSCALE.themes[0];
     expect(tema.light?.primary, 'variante clara sem o primary canônico').toBe(PRIMARY_CANONICO);
     expect(tema.dark?.primary, 'variante escura sem o primary canônico').toBe(PRIMARY_CANONICO);
   });

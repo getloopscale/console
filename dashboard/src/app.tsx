@@ -102,12 +102,12 @@ export default function App() {
     <BrowserRouter>
       <NuqsAdapter>
         {/* Plan J-10 v1.1 T2.6 — top-level PlanLimitUpgradeModal listens for
-            theo:plan-limit window events emitted by the 402 interceptor in
+            loopscale:plan-limit window events emitted by the 402 interceptor in
             lib/api.ts. Single mount covers every surface (envs / secrets /
             projects / future verticals). Modal is closed by default; opens
             only on 402. */}
         <PlanLimitUpgradeModal />
-        {/* B-218 — mesmo padrão, segundo evento: `lib/http/api.ts` anuncia `theo:session-expired`
+        {/* B-218 — mesmo padrão, segundo evento: `lib/http/api.ts` anuncia `loopscale:session-expired`
             e este componente decide o que aparece. Antes o próprio cliente HTTP montava o `<div>`
             e o estilizava por `cssText`. Montagem única, como o modal acima. */}
         <SessionExpiredNotice />

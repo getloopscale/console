@@ -58,7 +58,7 @@ test.describe('Caixa do AppModal — linha de base visual', () => {
     // Detalhe FIXO: uma mensagem vinda do servidor mudaria a foto sem a caixa ter mudado.
     await page.evaluate(() => {
       window.dispatchEvent(
-        new CustomEvent('theo:plan-limit', {
+        new CustomEvent('loopscale:plan-limit', {
           detail: {
             code: 'PLAN_LIMIT_EXCEEDED',
             message: 'You hit the environment cap on Starter',

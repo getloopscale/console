@@ -149,15 +149,21 @@ export interface BulkUploadResult {
   }>;
 }
 
-/** POST /api/v1/secrets/bulk — atomic batch from .env upload (T1.1 endpoint). */
+/**
+ * POST /api/v1/secrets/bulk — batch from .env upload (T1.1 endpoint).
+ *
+ * Resolves with the per-item results even when some items `failed`, since the caller shows
+ * which keys were saved and retries only the rest. Rejects on a non-2xx answer.
+ */
 export function useBulkUploadSecrets() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: BulkUploadInput) =>
-      engineFetch<BulkUploadResult>('/api/v1/secrets/bulk', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+      engineFetch<BulkUploadResult>(
+        '/api/v1/secrets/bulk',
+        { method: 'POST', body: JSON.stringify(input) },
+        { throwOnError: true },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.secrets.all });
     },

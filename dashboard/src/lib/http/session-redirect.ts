@@ -40,13 +40,13 @@ export function redirectToLogin(reason?: string): void {
     if (safeNavigator.goTo(`/login${params}`)) return;
     redirecting = false;
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('theo:session-redirect-refused'));
+      window.dispatchEvent(new CustomEvent('loopscale:session-redirect-refused'));
     }
   };
 
   if (reason !== 'expired') { navegar(); return; }
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('theo:session-expired'));
+    window.dispatchEvent(new CustomEvent('loopscale:session-expired'));
   }
   setTimeout(navegar, SESSION_EXPIRY_NOTICE_MS);
 }

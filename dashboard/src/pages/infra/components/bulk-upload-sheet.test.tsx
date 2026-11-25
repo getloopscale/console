@@ -100,3 +100,80 @@ describe('BulkUploadSheet — J-22 T3.5', () => {
     expect(onUploaded).toHaveBeenCalledWith(2);
   });
 });
+
+describe('BulkUploadSheet — keys the API did not save', () => {
+  const partialFailure = {
+    results: [
+      { name: 'KEY_A', status: 'created', sync_status: 'pending' },
+      {
+        name: 'KEY_B',
+        status: 'failed',
+        error: 'The secrets backend is not available for this project right now, so the value was not saved.',
+        sync_status: 'failed',
+      },
+    ],
+  };
+
+  function renderAndUpload(onOpenChange = vi.fn(), onUploaded = vi.fn()) {
+    render(
+      <Wrapper>
+        <BulkUploadSheet
+          open
+          onOpenChange={onOpenChange}
+          project="teste"
+          defaultEnvs={['production']}
+          onUploaded={onUploaded}
+        />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/.env content/), {
+      target: { value: ['KEY_A=a', 'KEY_B=b'].join('\n') },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Upload 2 secret/i }));
+    return { onOpenChange, onUploaded };
+  }
+
+  it('keeps the sheet open and shows each key as saved or failed with the API reason', async () => {
+    mockedEngineFetch.mockResolvedValueOnce(partialFailure);
+    const { onOpenChange, onUploaded } = renderAndUpload();
+
+    const results = await screen.findByRole('list', { name: /upload results/i });
+    expect(results).toHaveTextContent(/KEY_A.*saved/i);
+    expect(results).toHaveTextContent(/KEY_B.*failed.*secrets backend is not available/i);
+    expect(screen.getByRole('button', { name: /retry failed/i })).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onUploaded).not.toHaveBeenCalled();
+  });
+
+  it('retries only the failed keys and closes once every key is saved', async () => {
+    mockedEngineFetch.mockResolvedValueOnce(partialFailure).mockResolvedValueOnce({
+      results: [{ name: 'KEY_B', status: 'created', sync_status: 'pending' }],
+    });
+    const { onOpenChange, onUploaded } = renderAndUpload();
+
+    fireEvent.click(await screen.findByRole('button', { name: /retry failed/i }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mockedEngineFetch).toHaveBeenCalledTimes(2);
+    const retryBody = JSON.parse(mockedEngineFetch.mock.calls[1][1]?.body as string);
+    expect(retryBody.secrets).toEqual([{ name: 'KEY_B', value: 'b', envs: ['production'] }]);
+    expect(onUploaded).toHaveBeenCalledWith(2);
+  });
+
+  it('treats a key missing from the API answer as failed instead of saved', async () => {
+    mockedEngineFetch.mockResolvedValueOnce({
+      results: [{ name: 'KEY_A', status: 'created', sync_status: 'pending' }],
+    });
+    const { onOpenChange } = renderAndUpload();
+
+    const results = await screen.findByRole('list', { name: /upload results/i });
+    expect(results).toHaveTextContent(/KEY_B.*failed/i);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('asks the transport to reject a non-2xx answer instead of resolving null', async () => {
+    renderAndUpload();
+    await waitFor(() => expect(mockedEngineFetch).toHaveBeenCalled());
+    expect(mockedEngineFetch.mock.calls[0][2]).toEqual({ throwOnError: true });
+  });
+});

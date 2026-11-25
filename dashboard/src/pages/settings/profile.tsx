@@ -129,8 +129,8 @@ export function ProfilePage() {
             /* B-132/B-133 — `theo account delete` NAO e um comando registrado pela CLI (medido
                2026-08-11). Um bloco copiavel torna a mentira acionavel: a pessoa cola e o
                terminal responde que o comando nao existe. */
-            code={`theo whoami
-theo logout`}
+            code={`loopscale whoami
+loopscale logout`}
             terminal
             copyable
           />

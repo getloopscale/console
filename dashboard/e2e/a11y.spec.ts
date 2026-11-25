@@ -53,8 +53,8 @@ test.describe('Dashboard a11y — DOM + axe (replaces bundle-grep)', () => {
    * intercepta o `fetch` DENTRO da página, então `page.route('**\/api/v1/domains*')` nunca vê
    * a requisição — zero requisições observadas.
    *
-   * A alavanca ficou do lado certo: `window.__THEO_MOCK_NO_DOMAINS`, quarta do mesmo idioma
-   * que `__THEO_MOCK_LOGGED_OUT` já usava. **O teste declara o estado que precisa** em vez de
+   * A alavanca ficou do lado certo: `window.__LOOPSCALE_MOCK_NO_DOMAINS`, quarta do mesmo idioma
+   * que `__LOOPSCALE_MOCK_LOGGED_OUT` já usava. **O teste declara o estado que precisa** em vez de
    * herdar o que o mock por acaso tiver — que é o que o tornava frágil.
    *
    * ## Por que em navegador, se jsdom já cobre
@@ -67,7 +67,7 @@ test.describe('Dashboard a11y — DOM + axe (replaces bundle-grep)', () => {
    */
   test('#81 onboarding: a barra é uma progressbar ARIA com aria-valuenow', async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_NO_DOMAINS?: boolean }).__THEO_MOCK_NO_DOMAINS = true;
+      (window as unknown as { __LOOPSCALE_MOCK_NO_DOMAINS?: boolean }).__LOOPSCALE_MOCK_NO_DOMAINS = true;
     });
     await page.goto('/');
 
@@ -102,7 +102,7 @@ test.describe('Dashboard a11y — DOM + axe (replaces bundle-grep)', () => {
     // Recovery hides its form when a session exists; the dev-mock honors this global
     // to render the signed-out flow (src/lib/dev-mocks.ts § mocksLoggedOut).
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
     });
     // The mocked email-phase flow's ui.action is a fragment (`#mock-submit-recovery`),
     // so the email-submit POST resolves to /recovery?... and escapes the dev-mock's

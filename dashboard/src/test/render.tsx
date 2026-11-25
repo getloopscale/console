@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { Toaster } from '@usetheo/ui';
 import { ThemeProvider } from '@theokit/ui';
-import { TEMA_THEO } from '@/lib/theme/theo-theme';
+import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -55,11 +55,11 @@ function AllProviders({ children, initialEntries = ['/'], historyRouter = false 
   // NuqsAdapter MUST be inside MemoryRouter (consumes router context).
   return (
     <QueryClientProvider client={client}>
-      {/* B-007 — a MESMA config do app (`lib/theme/theo-theme.ts`), e não uma
+      {/* B-007 — a MESMA config do app (`lib/theme/loopscale-theme.ts`), e não uma
           cópia. Antes daqui a árvore de teste montava o `violetForge` cru e
           seguia o `prefers-color-scheme` do ambiente: a suíte inteira
           renderizava em modo CLARO, com um `--primary` que o app nunca mostra. */}
-      <ThemeProvider {...TEMA_THEO}>
+      <ThemeProvider {...TEMA_LOOPSCALE}>
         <Toaster>
           <Router {...routerProps}>
             <NuqsAdapter>

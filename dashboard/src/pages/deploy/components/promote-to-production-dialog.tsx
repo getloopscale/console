@@ -208,7 +208,7 @@ export function PromoteToProductionDialog({
 }
 
 /**
- * Translate a canonical TheoError body into actionable user-facing
+ * Translate a canonical LoopScaleError body into actionable user-facing
  * copy. Mirrors formatRollbackError — same product-language only
  * policy (Cross-Project Rule 9): we say "deployment infrastructure",
  * never "ArgoCD" or "Kubernetes".

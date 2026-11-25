@@ -55,16 +55,16 @@ type Listener = () => void;
 // instances across HMR boundaries; in production builds (single module
 // instance) the behavior is identical.
 interface MutationInFlightGlobals {
-  __theoMutationInFlightStore?: Map<string, MutationInFlight>;
-  __theoMutationInFlightListeners?: Set<Listener>;
+  __loopscaleMutationInFlightStore?: Map<string, MutationInFlight>;
+  __loopscaleMutationInFlightListeners?: Set<Listener>;
 }
 const g = globalThis as MutationInFlightGlobals;
 const store: Map<string, MutationInFlight> =
-  g.__theoMutationInFlightStore ??
-  (g.__theoMutationInFlightStore = new Map());
+  g.__loopscaleMutationInFlightStore ??
+  (g.__loopscaleMutationInFlightStore = new Map());
 const listeners: Set<Listener> =
-  g.__theoMutationInFlightListeners ??
-  (g.__theoMutationInFlightListeners = new Set());
+  g.__loopscaleMutationInFlightListeners ??
+  (g.__loopscaleMutationInFlightListeners = new Set());
 
 function notify() {
   for (const listener of listeners) listener();

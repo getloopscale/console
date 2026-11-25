@@ -13,6 +13,7 @@ import { manualChunks } from './src/build/manual-chunks';
 // runtimeCaching predicate, so a BFF navigation path can never be added to one and
 // forgotten in the other (the recurring #112/#203 bug class).
 import { BFF_NAVIGATION_DENYLIST } from './src/build/sw-bff-paths';
+import { SW_PRECACHE_GLOB_IGNORES } from './src/build/sw-precache';
 import { SW_RUNTIME_CACHING } from './src/build/sw-runtime-caching';
 
 /**
@@ -151,11 +152,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        // The rollup-plugin-visualizer treemap (dist/bundle-stats.html) is a
-        // build-analysis artifact, not an app asset — it must never enter the
-        // SW precache manifest (and it exceeds the 2 MiB workbox limit, which
-        // hard-fails the build). Exclude it explicitly.
-        globIgnores: ['**/bundle-stats.html'],
+        // Files that must never enter the precache manifest (the visualizer
+        // treemap and the runtime config); see src/build/sw-precache.ts.
+        globIgnores: [...SW_PRECACHE_GLOB_IGNORES],
         // EC-04: NEVER cache auth/session endpoints — would serve stale
         // tokens making user appear logged-in when session is gone.
         //

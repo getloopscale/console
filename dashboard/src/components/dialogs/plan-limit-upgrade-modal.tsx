@@ -11,7 +11,7 @@ import { readPlanLimitDetail, type PlanLimitDetail } from '@/lib/http/event-payl
 /**
  * PlanLimitUpgradeModal — Plan J-10 v1.1 T2.6 (NEW).
  *
- * Listens for the global `theo:plan-limit` event emitted by the 402
+ * Listens for the global `loopscale:plan-limit` event emitted by the 402
  * interceptor in lib/api.ts (T1.4). When fired, opens an upgrade modal
  * with CTA → /billing.
  *
@@ -43,15 +43,15 @@ export function PlanLimitUpgradeModal() {
     // modal no exato momento em que ele explica por que a acao foi recusada.
     //
     // O emissor agora valida (`lib/http/event-payloads.ts`), entao este detail nao pode mais vir
-    // de `api.ts`. A guarda fica aqui tambem em profundidade: `theo:plan-limit` e um evento de
+    // de `api.ts`. A guarda fica aqui tambem em profundidade: `loopscale:plan-limit` e um evento de
     // window, e um segundo emissor acrescentado amanha nao herda o cuidado do primeiro.
     const handler = (e: Event) => {
       const ce = e as CustomEvent<unknown>;
       setDetail(readPlanLimitDetail(ce.detail));
       setOpen(true);
     };
-    window.addEventListener('theo:plan-limit', handler);
-    return () => window.removeEventListener('theo:plan-limit', handler);
+    window.addEventListener('loopscale:plan-limit', handler);
+    return () => window.removeEventListener('loopscale:plan-limit', handler);
   }, []);
 
   const resourceLabel = detail?.resource ?? 'this resource';

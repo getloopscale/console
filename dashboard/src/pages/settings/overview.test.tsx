@@ -42,8 +42,8 @@ describe('SettingsPage', () => {
     // Plan v1.2 divergence: no in-app save (CLI-first). Verify CodeBlock renders
     // canonical CLI commands so user knows how to mutate state.
     render(<SettingsPage />);
-    expect(screen.getByText(/theo whoami/)).toBeInTheDocument();
-    expect(screen.getByText(/theo secret set/)).toBeInTheDocument();
+    expect(screen.getByText(/loopscale whoami/)).toBeInTheDocument();
+    expect(screen.getByText(/loopscale secret set/)).toBeInTheDocument();
   });
 
   it('test_settings_danger_zone_delete_requires_phrase_match', async () => {

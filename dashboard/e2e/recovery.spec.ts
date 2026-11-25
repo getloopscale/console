@@ -32,14 +32,14 @@ test.describe('J-04 Recovery — dogfood Cenários B + F (DOM-driven)', () => {
    * padrão, então o teste pedia o formulário de recuperação a uma tela que, corretamente, não o
    * oferece.
    *
-   * A alavanca já existia e é a mesma que o `login.spec.ts` usa: `__THEO_MOCK_LOGGED_OUT`,
+   * A alavanca já existia e é a mesma que o `login.spec.ts` usa: `__LOOPSCALE_MOCK_LOGGED_OUT`,
    * plantado por `addInitScript` — que roda ANTES de qualquer script da aplicação, então a
    * bandeira já está visível na primeira vez que `getSession()` a consulta. Um `page.evaluate`
    * depois do `goto` chegaria tarde: a verificação de sessão acontece na montagem.
    */
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
     });
   });
 

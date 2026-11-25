@@ -27,14 +27,14 @@ import { mocksEnabled } from '@/lib/http/config';
 /**
  * Logged-out mock mode — when `VITE_USE_MOCKS=true` AND EITHER the build-time
  * `VITE_MOCK_LOGGED_OUT=true` env is set OR the runtime flag
- * `window.__THEO_MOCK_LOGGED_OUT === true` is present, `getMockSession()`
+ * `window.__LOOPSCALE_MOCK_LOGGED_OUT === true` is present, `getMockSession()`
  * returns null so auth pages (login, register, recovery, verification) render
  * their forms instead of redirecting to / per the session-gate logic.
  *
  * The build-time env is a whole-server mode (visual validation of all 5 auth
  * surfaces). The runtime flag is a PER-PAGE override for hermetic Playwright
  * e2e: the global webServer runs logged-IN (so dashboard specs work), and an
- * auth-page spec sets `window.__THEO_MOCK_LOGGED_OUT = true` via
+ * auth-page spec sets `window.__LOOPSCALE_MOCK_LOGGED_OUT = true` via
  * `page.addInitScript(...)` BEFORE app load so only that page renders logged-out.
  * Without this, every auth-page e2e redirected to the mock dashboard. Dev-only
  * (gated by mocksEnabled → dead-code-eliminated in production). (Plan T-B.1,
@@ -46,7 +46,7 @@ export function mocksLoggedOut(): boolean {
   if (import.meta.env.VITE_MOCK_LOGGED_OUT === 'true') return true;
   return (
     typeof window !== 'undefined' &&
-    (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT === true
+    (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT === true
   );
 }
 
@@ -361,7 +361,7 @@ let originalFetch: typeof fetch | null = null;
 
 /**
  * Dev-only per-page runtime error injection for a mocked auth flow. When an
- * auth-page e2e sets `window.__THEO_MOCK_FLOW_ERROR = "message"` (via
+ * auth-page e2e sets `window.__LOOPSCALE_MOCK_FLOW_ERROR = "message"` (via
  * page.addInitScript before app load), the GET-flow mock for that flow type
  * carries a `ui.messages` error — so the page's error-render path (e.g. the
  * login "We couldn't sign you in." Alert) is exercised end-to-end in the
@@ -372,7 +372,7 @@ let originalFetch: typeof fetch | null = null;
  */
 function injectRuntimeFlowError(flowType: string, body: unknown): unknown {
   if (typeof window === 'undefined') return body;
-  const msg = (window as unknown as { __THEO_MOCK_FLOW_ERROR?: string }).__THEO_MOCK_FLOW_ERROR;
+  const msg = (window as unknown as { __LOOPSCALE_MOCK_FLOW_ERROR?: string }).__LOOPSCALE_MOCK_FLOW_ERROR;
   if (!msg || flowType !== 'login') return body;
   const flow = body as { ui?: { messages?: unknown[] } } | null;
   if (!flow?.ui) return body;

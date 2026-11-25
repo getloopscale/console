@@ -92,7 +92,7 @@ const ALLOWLIST = new Set<string>([
   // pela árvore de teste. Nenhuma das duas é domínio, então a contagem não as
   // enxerga — e descer o tema para um domínio faria a raiz da aplicação
   // importar de `pages/`.
-  'lib/theme/theo-theme.ts',
+  'lib/theme/loopscale-theme.ts',
 ]);
 
 function arquivos(dir: string, out: string[] = []): string[] {

@@ -32,7 +32,7 @@ describe('SessionExpiredNotice', () => {
   it('announces the expiry when the client says the session ended', () => {
     render(<SessionExpiredNotice />);
 
-    act(() => { window.dispatchEvent(new CustomEvent('theo:session-expired')); });
+    act(() => { window.dispatchEvent(new CustomEvent('loopscale:session-expired')); });
 
     expect(screen.getByRole('status')).toHaveTextContent(/session expired/i);
   });
@@ -42,7 +42,7 @@ describe('SessionExpiredNotice', () => {
     // interrupts. Cutting off someone's screen reader mid-sentence to say the session ended is
     // exactly the wrong moment to interrupt.
     render(<SessionExpiredNotice />);
-    act(() => { window.dispatchEvent(new CustomEvent('theo:session-expired')); });
+    act(() => { window.dispatchEvent(new CustomEvent('loopscale:session-expired')); });
 
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
   });
@@ -53,11 +53,11 @@ describe('SessionExpiredNotice', () => {
     // "Redirecting to login..." forever while nothing redirects — a sentence asserting a future
     // that is not coming, which is the same class of lie this whole sweep is correcting elsewhere.
     render(<SessionExpiredNotice />);
-    act(() => { window.dispatchEvent(new CustomEvent('theo:session-expired')); });
+    act(() => { window.dispatchEvent(new CustomEvent('loopscale:session-expired')); });
 
     expect(screen.getByRole('status')).toHaveTextContent(/redirecting/i);
 
-    act(() => { window.dispatchEvent(new CustomEvent('theo:session-redirect-refused')); });
+    act(() => { window.dispatchEvent(new CustomEvent('loopscale:session-redirect-refused')); });
 
     const aviso = screen.getByRole('status');
     expect(aviso).not.toHaveTextContent(/redirecting/i);
@@ -66,7 +66,7 @@ describe('SessionExpiredNotice', () => {
 
   it('does not fall back while the redirect window is still open', () => {
     render(<SessionExpiredNotice />);
-    act(() => { window.dispatchEvent(new CustomEvent('theo:session-expired')); });
+    act(() => { window.dispatchEvent(new CustomEvent('loopscale:session-expired')); });
     act(() => { vi.advanceTimersByTime(5000); });
 
     expect(screen.getByRole('status')).toHaveTextContent(/redirecting/i);

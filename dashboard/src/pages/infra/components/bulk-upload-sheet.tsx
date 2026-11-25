@@ -2,8 +2,11 @@ import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button, Sheet, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { useBulkUploadSecrets } from '@/hooks/mutations/use-secrets-mutations';
-import { parseDotenv } from '@/pages/infra/components/dotenv';
+import {
+  useBulkUploadSecrets,
+  type BulkUploadResult,
+} from '@/hooks/mutations/use-secrets-mutations';
+import { parseDotenv, type DotenvParseResult } from '@/pages/infra/components/dotenv';
 
 interface BulkUploadSheetProps {
   open: boolean;
@@ -13,6 +16,35 @@ interface BulkUploadSheetProps {
   defaultEnvs?: string[];
   availableEnvs?: string[];
   onUploaded?: (createdCount: number) => void;
+}
+
+type DotenvEntry = DotenvParseResult['entries'][number];
+
+/** What the API said about one key, across the first upload and any retries. */
+type KeyOutcome = { saved: true } | { saved: false; error: string };
+
+/**
+ * POST /secrets/bulk answers 200 and reports each item's own status, so a key is saved only when
+ * its item says `created`. A key the answer does not mention was not saved either.
+ */
+function outcomesFor(
+  sent: readonly DotenvEntry[],
+  result: BulkUploadResult | null,
+): Record<string, KeyOutcome> {
+  const items = new Map((result?.results ?? []).map((r) => [r.name, r]));
+  const outcomes: Record<string, KeyOutcome> = {};
+  for (const entry of sent) {
+    const item = items.get(entry.key);
+    if (item?.status === 'created') {
+      outcomes[entry.key] = { saved: true };
+    } else {
+      outcomes[entry.key] = {
+        saved: false,
+        error: item ? (item.error ?? 'the API gave no reason') : 'the API did not answer for this key',
+      };
+    }
+  }
+  return outcomes;
 }
 
 /**
@@ -26,6 +58,10 @@ interface BulkUploadSheetProps {
  *
  * EC-17 quoted values + comments handled by the parser.
  * EC-14 duplicate-key pre-flight warning surfaced as inline warning row.
+ *
+ * When the API reports some keys failed, the sheet stays open with a saved/failed row per key and
+ * the primary button retries only the failed keys, so a saved key is never sent twice. The .env
+ * content and env scope are locked until every key is saved or the sheet is closed.
  */
 export function BulkUploadSheet({
   open,
@@ -41,11 +77,22 @@ export function BulkUploadSheet({
   const [source, setSource] = useState('');
   const [selectedEnvs, setSelectedEnvs] = useState<string[]>(defaultEnvs);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [outcomes, setOutcomes] = useState<Record<string, KeyOutcome> | null>(null);
   const bulkUpload = useBulkUploadSecrets();
   const submitting = bulkUpload.isPending;
 
   const parsed = useMemo(() => parseDotenv(source), [source]);
   const canSubmit = parsed.entries.length > 0 && selectedEnvs.length > 0;
+  const failedCount = outcomes ? Object.values(outcomes).filter((o) => !o.saved).length : 0;
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && outcomes) {
+      // Some keys are already saved: reopening must not offer to upload them again.
+      setOutcomes(null);
+      setSource('');
+    }
+    onOpenChange(next);
+  };
 
   const toggleEnv = (env: string) => {
     setSelectedEnvs((current) =>
@@ -56,19 +103,28 @@ export function BulkUploadSheet({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitError(null);
+    const toSend = outcomes
+      ? parsed.entries.filter((e) => outcomes[e.key]?.saved === false)
+      : parsed.entries;
     try {
       const result = await bulkUpload.mutateAsync({
         project,
-        secrets: parsed.entries.map((e) => ({
+        secrets: toSend.map((e) => ({
           name: e.key,
           value: e.value,
           envs: selectedEnvs,
         })),
       });
-      const created = (result?.results ?? []).filter((r) => r.status === 'created').length;
+      const merged = { ...outcomes, ...outcomesFor(toSend, result) };
+      const all = Object.values(merged);
+      if (all.some((o) => !o.saved)) {
+        setOutcomes(merged);
+        return;
+      }
+      setOutcomes(null);
       setSource('');
       onOpenChange(false);
-      onUploaded?.(created);
+      onUploaded?.(all.length);
     } catch (err) {
       setSubmitError(
         err instanceof Error
@@ -79,7 +135,7 @@ export function BulkUploadSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <Sheet.Content side="right" className="w-full sm:max-w-lg flex flex-col p-0">
         <Sheet.Header className="px-6 py-5 border-b border-border/60">
           <Sheet.Title>Bulk upload .env</Sheet.Title>
@@ -99,6 +155,7 @@ export function BulkUploadSheet({
               placeholder={'DATABASE_URL=postgres://...\nSTRIPE_KEY="sk_live_..."'}
               value={source}
               onChange={(e) => setSource(e.target.value)}
+              readOnly={outcomes !== null}
               className="mt-1 font-mono text-body-sm"
             />
           </div>
@@ -112,6 +169,7 @@ export function BulkUploadSheet({
                     type="checkbox"
                     checked={selectedEnvs.includes(env)}
                     onChange={() => toggleEnv(env)}
+                    disabled={outcomes !== null}
                     aria-label={`Scope to ${env}`}
                   />
                   {env}
@@ -132,7 +190,18 @@ export function BulkUploadSheet({
                 Line {w.line}: {w.message}
               </div>
             ))}
-            {parsed.entries.length > 0 && (
+            {outcomes ? (
+              <ul aria-label="Upload results" className="text-label font-mono">
+                {Object.entries(outcomes).map(([key, outcome]) => (
+                  <li
+                    key={key}
+                    className={outcome.saved ? 'text-muted-foreground' : 'text-destructive'}
+                  >
+                    {outcome.saved ? `${key}: saved` : `${key}: failed, ${outcome.error}`}
+                  </li>
+                ))}
+              </ul>
+            ) : parsed.entries.length > 0 && (
               <ul className="text-label font-mono text-muted-foreground">
                 {parsed.entries.map((e) => (
                   <li key={e.key}>
@@ -150,7 +219,7 @@ export function BulkUploadSheet({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
             disabled={submitting}
           >
             Cancel
@@ -161,6 +230,8 @@ export function BulkUploadSheet({
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                 Uploading…
               </>
+            ) : outcomes ? (
+              `Retry failed (${failedCount})`
             ) : (
               `Upload ${parsed.entries.length} secret(s)`
             )}

@@ -34,7 +34,7 @@ describe('DeviceVerifyPage', () => {
   it('test_shows_error_when_device_challenge_missing', () => {
     setSearch('?user_code=YC7V3TSE');
     render(<DeviceVerifyPage />);
-    expect(screen.getByTestId('device-verify-error').textContent).toMatch(/run.+theo login/i);
+    expect(screen.getByTestId('device-verify-error').textContent).toMatch(/run.+loopscale login/i);
   });
 
   it('test_submit_disabled_until_code_present', () => {

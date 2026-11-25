@@ -65,7 +65,7 @@ test.describe('J-05 Device Verify — dogfood Cenários (DOM-driven)', () => {
   test('Cenário 2: missing device_challenge shows actionable error', async ({ page }) => {
     await page.goto('/device-verify?user_code=YC7V3TSE');
     await expect(page.getByTestId('device-verify-error')).toBeVisible();
-    await expect(page.getByTestId('device-verify-error')).toContainText(/run.+theo login/i);
+    await expect(page.getByTestId('device-verify-error')).toContainText(/run.+loopscale login/i);
     // Submit button stays disabled — no fetch should fire.
     await expect(page.getByTestId('device-verify-submit')).toBeDisabled();
   });

@@ -82,7 +82,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     mockUseOnboardingState.mockReturnValue(makeHookResult());
     render(<OnboardingPanel />);
     await userEvent.click(screen.getByLabelText(/get your app live/i));
-    expect(screen.getByText('Install the Theo CLI')).toBeInTheDocument();
+    expect(screen.getByText('Install the LoopScale CLI')).toBeInTheDocument();
     expect(screen.getByText('Sign in')).toBeInTheDocument();
     expect(screen.getByText('Initialize your first project')).toBeInTheDocument();
     expect(screen.getByText('Deploy your first project')).toBeInTheDocument();
@@ -95,12 +95,12 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     await userEvent.click(screen.getByLabelText(/get your app live/i));
     // All 5 CLI commands visible em panel expanded.
     // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `theo init` (which does NOT
-    // exist in @usetheo/cli@0.3.1) replaced with canonical `theo project create my-app`.
+    // exist in @usetheo/cli@0.3.1) replaced with canonical `loopscale project create my-app`.
     expect(screen.getByText('npm install -g @usetheo/cli')).toBeInTheDocument();
-    expect(screen.getByText('theo login')).toBeInTheDocument();
-    expect(screen.getByText('theo project create my-app')).toBeInTheDocument();
-    expect(screen.getByText('theo deploy')).toBeInTheDocument();
-    expect(screen.getByText('theo domain add app.example.com')).toBeInTheDocument();
+    expect(screen.getByText('loopscale login')).toBeInTheDocument();
+    expect(screen.getByText('loopscale project create my-app')).toBeInTheDocument();
+    expect(screen.getByText('loopscale deploy')).toBeInTheDocument();
+    expect(screen.getByText('loopscale domain add app.example.com')).toBeInTheDocument();
   });
 
   it('test_optional_label_on_domain_step', async () => {
