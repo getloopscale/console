@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button, Input, Label, Sheet } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { useCreateSecret } from '@/hooks/mutations/use-secrets-mutations';
+import { SecretsNotSavedError, useCreateSecret } from '@/hooks/mutations/use-secrets-mutations';
 
 interface AddSecretSheetProps {
   open: boolean;
@@ -87,6 +87,10 @@ export function AddSecretSheet({
       onOpenChange(false);
       onCreated?.();
     } catch (err) {
+      if (err instanceof SecretsNotSavedError) {
+        setError(err.failures.map((f) => `${f.name} was not saved: ${f.error}`).join(' '));
+        return;
+      }
       setError(
         err instanceof Error
           ? `Add secret failed: ${err.message}. No secret was stored.`

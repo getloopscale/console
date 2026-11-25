@@ -17,6 +17,31 @@ export interface CreateSecretInput {
   project?: string;
 }
 
+/** One secret the API answered for but did not save, with the reason it gave. */
+export interface SecretSaveFailure {
+  name: string;
+  error: string;
+}
+
+/**
+ * POST /secrets/bulk answers 200 even when an item was not saved: the failure is in that item's
+ * `status: "failed"` and `error`. Thrown so a caller cannot read the 200 as success.
+ */
+export class SecretsNotSavedError extends Error {
+  readonly failures: readonly SecretSaveFailure[];
+  constructor(failures: readonly SecretSaveFailure[]) {
+    super(failures.map((f) => `${f.name}: ${f.error}`).join('; '));
+    this.name = 'SecretsNotSavedError';
+    this.failures = failures;
+  }
+}
+
+function failedItems(result: BulkUploadResult | null): SecretSaveFailure[] {
+  return (result?.results ?? [])
+    .filter((r) => r.status === 'failed')
+    .map((r) => ({ name: r.name, error: r.error ?? 'the API gave no reason' }));
+}
+
 /**
  * Create a single secret across one or more environments.
  *
@@ -26,20 +51,31 @@ export interface CreateSecretInput {
  * expects `environment` (singular string) which the UI Sheet cannot
  * forward without losing multi-env support; using /bulk eliminates the
  * schema mismatch class.
+ *
+ * Rejects on a non-2xx answer and on a 200 whose item says `failed`, so the sheet stays open with
+ * the reason instead of closing as if the secret were set.
  */
 export function useCreateSecret() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateSecretInput) =>
-      engineFetch('/api/v1/secrets/bulk', {
-        method: 'POST',
-        body: JSON.stringify({
-          project: input.project,
-          secrets: [
-            { name: input.name, value: input.value, envs: input.environments },
-          ],
-        }),
-      }),
+    mutationFn: async (input: CreateSecretInput) => {
+      const result = await engineFetch<BulkUploadResult>(
+        '/api/v1/secrets/bulk',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            project: input.project,
+            secrets: [
+              { name: input.name, value: input.value, envs: input.environments },
+            ],
+          }),
+        },
+        { throwOnError: true },
+      );
+      const failures = failedItems(result);
+      if (failures.length > 0) throw new SecretsNotSavedError(failures);
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.secrets.all });
     },

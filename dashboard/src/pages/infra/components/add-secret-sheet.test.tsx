@@ -94,4 +94,50 @@ describe('AddSecretSheet — J-22 T3.2', () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(onCreated).toHaveBeenCalled();
   });
+
+  it('keeps the sheet open and shows the API error when the secret failed to save', async () => {
+    // POST /secrets/bulk answers 200 and reports the failure per item (seen on staging).
+    mockedEngineFetch.mockResolvedValue({
+      results: [
+        {
+          name: 'GREETING',
+          status: 'failed',
+          error: 'The secrets backend is not available for this project right now, so the value was not saved.',
+          error_code: 'STORE_SET_FAILED',
+          sync_status: 'failed',
+        },
+      ],
+    });
+    const onOpenChange = vi.fn();
+    const onCreated = vi.fn();
+    render(
+      <Wrapper>
+        <AddSecretSheet open onOpenChange={onOpenChange} project="hello" onCreated={onCreated} />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Key$/i), { target: { value: 'GREETING' } });
+    fireEvent.change(screen.getByLabelText(/^Value$/i), { target: { value: 'hi' } });
+    fireEvent.click(screen.getByRole('button', { name: /add secret/i }));
+
+    expect(await screen.findByText(/secrets backend is not available/i)).toBeInTheDocument();
+    expect(screen.getByText(/GREETING/)).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it('keeps the sheet open when the request itself fails', async () => {
+    mockedEngineFetch.mockRejectedValue(new Error('API request failed with status 503'));
+    const onOpenChange = vi.fn();
+    render(
+      <Wrapper>
+        <AddSecretSheet open onOpenChange={onOpenChange} project="hello" />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Key$/i), { target: { value: 'GREETING' } });
+    fireEvent.change(screen.getByLabelText(/^Value$/i), { target: { value: 'hi' } });
+    fireEvent.click(screen.getByRole('button', { name: /add secret/i }));
+
+    expect(await screen.findByText(/status 503/i)).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
 });
