@@ -154,6 +154,7 @@ export function SecretsPage() {
       onOpenChange={setAddOpen}
       defaultEnvs={defaultEnvs}
       project={name}
+      availableEnvs={projectEnvs}
     />
 
     <BulkUploadSheet
@@ -161,6 +162,7 @@ export function SecretsPage() {
       onOpenChange={setBulkOpen}
       project={name}
       defaultEnvs={defaultEnvs}
+      availableEnvs={projectEnvs}
     />
 
     <RotateSecretDialog
