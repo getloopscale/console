@@ -1,25 +1,42 @@
 import { engineFetch } from '@/lib/http/api';
 import type { InstallationRepositoriesResponse, ProjectConnection } from '@/lib/api/types';
 
+/** A GitHub App installation GitHub confirmed the team can use. */
+export interface GitHubInstallation {
+  id: number;
+  account_login: string;
+  account_type: string;
+}
+
 /**
- * The two GitHub-connect calls, as plain async functions.
+ * The GitHub-connect calls, as plain async functions.
  *
- * Deliberately not mutations or queries: the repository list is fetched from an effect keyed on the
- * installation id with its own cancellation flag, and the connect call runs inside a submit handler
- * that owns its busy state and its error copy. Wrapping either in TanStack would replace working
- * cancellation and error routing with a cache neither one reads.
+ * The repository list is fetched from an effect keyed on the installation id with its own
+ * cancellation flag, and the connect call runs inside a submit handler that owns its busy state
+ * and its error copy.
  *
- * Both stay in the default `T | null` mode, and that is a decision rather than an omission. Each
- * caller already branches on `null` and renders a specific, actionable message — "we couldn't load
- * your repositories" and "couldn't connect repository" — so `throwOnError` would move that copy
- * into a catch without changing what the user sees. B-235 is about refusals that reach nobody; here
- * they reach a message.
+ * All of them reject with `ApiError` on a refusal. The page needs the status: the engine answers
+ * 403 for an installation GitHub has not confirmed for the team, and the page then offers the
+ * authorization instead of a retry.
  */
+
+/** The installations GitHub confirmed for the signed-in user's team. Empty when there is none. */
+export async function fetchGitHubInstallations(): Promise<GitHubInstallation[]> {
+  const data = await engineFetch<{ installations: GitHubInstallation[] }>(
+    '/api/v1/integrations/github/installations',
+    {},
+    { throwOnError: true },
+  );
+  return data?.installations ?? [];
+}
+
 export function fetchInstallationRepositories(
   installationID: number,
 ): Promise<InstallationRepositoriesResponse | null> {
   return engineFetch<InstallationRepositoriesResponse>(
     `/api/v1/integrations/github/installations/${installationID}/repositories`,
+    {},
+    { throwOnError: true },
   );
 }
 
@@ -30,6 +47,7 @@ export function connectProjectRepository(
   return engineFetch<ProjectConnection>(
     `/api/v1/projects/${encodeURIComponent(projectName)}/connect`,
     { method: 'POST', body: JSON.stringify(body) },
+    { throwOnError: true },
   );
 }
 

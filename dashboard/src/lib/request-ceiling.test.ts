@@ -45,6 +45,9 @@ const SEM_TETO_JUSTIFICADO = new Set([
   '/v1/dashboard/lens/evaluators',
   '/v1/dashboard/lens/alert-rules',
   '/v1/dashboard/status/versions', // um por serviço do produto
+  // One installation per GitHub account or organization the team authorized. The engine
+  // endpoint takes no `limit`.
+  '/api/v1/integrations/github/installations',
   '/v1/billing',
   '/v1/auth/me',
   // Agregações, não coleções. A heurística abaixo as pega por terminarem em `s`;

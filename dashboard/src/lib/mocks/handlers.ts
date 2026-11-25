@@ -55,15 +55,6 @@ import { registerPromptlyHandlers } from './promptly-handlers';
 import { registerDomainHandlers, resetDomainMocks } from './domain-handlers';
 import { registerPreviewHandlers, resetPreviewMocks } from './preview-handlers';
 
-/**
- * Cursor da sequência de `/connect` (ver a rota lá embaixo, issue #378).
- *
- * Vive no módulo, logo o escopo é a CARGA DA PÁGINA — cada `goto` do teste começa do zero, que
- * é o que um cenário de polling precisa. Guardá-lo em `window` daria o mesmo escopo com mais
- * superfície pública; guardá-lo no `db` misturaria estado de teste com estado de domínio.
- */
-let connectSequenceCursor = 0;
-
 // ============================================================================
 // In-memory "DB" — mutates per session to simulate CRUD persistence
 // ============================================================================
@@ -187,29 +178,9 @@ function registerProjectHandlers() {
     });
   });
 
-  // GitHub repo connection
-  //
-  // ALAVANCA DE SEQUÊNCIA — `window.__LOOPSCALE_MOCK_CONNECT_SEQUENCE` (issue #378).
-  //
-  // Esta rota é servida EM PROCESSO pelo dublê, não pela rede. Consequência que custou caro:
-  // um `page.route('**/projects/*/connect')` no Playwright **nunca dispara** aqui, e os
-  // cenários do e2e que montavam uma sequência de respostas para exercitar a máquina de
-  // estados do polling estavam, na prática, testando a resposta estática do fixture. Como o
-  // arquivo é `mode: 'serial'` e o primeiro cenário falhava por outro motivo, eles ficaram
-  // PULADOS — nunca executados — e ninguém percebeu.
-  //
-  // A alavanca segue o padrão que já existia para sessão (`__LOOPSCALE_MOCK_LOGGED_OUT`): o teste
-  // planta a sequência com `addInitScript`, e cada GET consome a próxima. Esgotada, a última
-  // se repete — para que o polling continue estável no estado final em vez de voltar ao
-  // começo, que seria um comportamento que servidor nenhum tem.
+  // GitHub repo connection. Served in process, so a Playwright `page.route` on these paths
+  // never fires (issue #378).
   registerRoute('GET', '/api/v1/projects/{name}/connect', async (_req, { name }) => {
-    const seq = (window as unknown as { __LOOPSCALE_MOCK_CONNECT_SEQUENCE?: ProjectConnection[] })
-      .__LOOPSCALE_MOCK_CONNECT_SEQUENCE;
-    if (Array.isArray(seq) && seq.length > 0) {
-      const i = Math.min(connectSequenceCursor, seq.length - 1);
-      connectSequenceCursor += 1;
-      return Response.json(seq[i]!);
-    }
     const conn: ProjectConnection = makeProjectConnection(name);
     return Response.json(conn);
   });
@@ -247,6 +218,17 @@ function registerProjectHandlers() {
 
   registerRoute('DELETE', '/api/v1/projects/{name}/connect', async () => {
     return Response.json({ connected: false });
+  });
+
+  // The GitHub App installations GitHub confirmed for the team. Served in process like the
+  // routes above, so an e2e test sets the list with `window.__LOOPSCALE_MOCK_GITHUB_INSTALLATIONS`
+  // (through `addInitScript`) and not with `page.route`. With no list set there is none, which
+  // is the state of a team that has not authorized GitHub yet.
+  registerRoute('GET', '/api/v1/integrations/github/installations', async () => {
+    const installations =
+      (window as unknown as { __LOOPSCALE_MOCK_GITHUB_INSTALLATIONS?: unknown[] })
+        .__LOOPSCALE_MOCK_GITHUB_INSTALLATIONS ?? [];
+    return Response.json({ installations });
   });
 }
 

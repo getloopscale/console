@@ -4,52 +4,74 @@
 package routes
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
+	"github.com/usetheoai/theo-cloud/internal/auth"
 	cloudmetrics "github.com/usetheoai/theo-cloud/internal/metrics"
 )
 
-// GitHubIntegrationsHandler implements the dashboard install handshake:
-//
-//	(1) GET  /v1/integrations/github/install
-//	    Sets a CSRF state cookie + 302 redirects to the GitHub App install URL.
-//	(2) GET  /v1/integrations/github/callback?installation_id=N&state=X&setup_action=...
-//	    Validates state, distinguishes install vs update, redirects browser
-//	    back to the dashboard with installation_id in the query.
-//
-// Plan J-09 T1.1 (2026-06-05). The handler does NOT persist the installation
-// — dashboard's first POST /api/v1/projects/{name}/connect carries the
-// installation_id through to the engine which calls SaveInstallation as a
-// side-effect of LinkRepository. This keeps the callback free of engine RPC
-// (no extra auth dance) while the runtime invariant holds: by the time any
-// `auto_deploy` webhook fires, the installation is in the DB.
-type GitHubIntegrationsHandler struct {
-	appSlug         string // GitHub App slug, e.g. "theo-platform"
-	dashboardURL    string // e.g. "https://app-dev.usetheo.dev"
-	loginURL        string // e.g. "https://app-dev.usetheo.dev/login" — used on session expiry (EC-15)
-	cookieDomain    string // explicit Domain= on the state cookie (EC-2 host-only)
-	cookieSecure    bool   // false only in tests
-	sessionResolver func(r *http.Request) bool
+// GitHubInstallationClaimer asks the engine to bind to the user's tenant the
+// App installations GitHub confirms that user can access. It returns how many
+// installations the tenant has after the claim.
+type GitHubInstallationClaimer interface {
+	ClaimInstallations(ctx context.Context, user *auth.UserContext, code string) (int, error)
 }
 
-// NewGitHubIntegrationsHandler wires the handler. sessionResolver returns
-// true if the inbound request carries a valid Kratos session — used to
-// decide between callback completion and the EC-15 login-redirect path.
-// Production wires this to Kratos /sessions/whoami; tests stub.
-func NewGitHubIntegrationsHandler(appSlug, dashboardURL, loginURL, cookieDomain string, sessionResolver func(r *http.Request) bool) *GitHubIntegrationsHandler {
-	return &GitHubIntegrationsHandler{
-		appSlug:         appSlug,
-		dashboardURL:    dashboardURL,
-		loginURL:        loginURL,
-		cookieDomain:    cookieDomain,
-		cookieSecure:    true,
-		sessionResolver: sessionResolver,
+// GitHubIntegrationsConfig holds what the connect handshake needs.
+type GitHubIntegrationsConfig struct {
+	// AppSlug names the App's install page: <web base>/apps/<slug>/installations/new.
+	AppSlug string
+	// AppClientID is the App's OAuth client id. Empty disables the handshake.
+	AppClientID string
+	// GitHubWebBaseURL is the GitHub web root. Empty means https://github.com.
+	GitHubWebBaseURL string
+	// DashboardURL is the dashboard origin the browser returns to.
+	DashboardURL string
+	// CallbackURL is the public URL of Callback, registered on the App as a
+	// user authorization callback URL.
+	CallbackURL string
+	// LoginURL receives the browser when the session ended during the flow.
+	LoginURL string
+	// CookieDomain is the Domain attribute of the flow cookies. Empty is host-only.
+	CookieDomain string
+	Sessions     auth.SessionAuthenticator
+	Claimer      GitHubInstallationClaimer
+}
+
+// GitHubIntegrationsHandler implements the GitHub connect handshake:
+//
+//	(1) GET /v1/integrations/github/install?return_to=...
+//	    Sets a CSRF state cookie and sends the browser to GitHub's user
+//	    authorization page for the App.
+//	(2) GET /v1/integrations/github/callback?code=...&state=...
+//	    Checks the state, then hands the code to the engine as the signed-in
+//	    user. The engine binds the installations GitHub confirms that user can
+//	    access. With at least one bound the browser returns to the dashboard,
+//	    which lists them. With none it goes to the App's install page once, and
+//	    GitHub returns here again after the install.
+//
+// The code is used once, server side. It is never logged and never placed in a
+// redirect, a cookie or a response body. The dashboard reads the installations
+// from the engine and takes no installation id from a URL.
+type GitHubIntegrationsHandler struct {
+	cfg          GitHubIntegrationsConfig
+	cookieSecure bool // false only in tests
+}
+
+// NewGitHubIntegrationsHandler wires the handler.
+func NewGitHubIntegrationsHandler(cfg GitHubIntegrationsConfig) *GitHubIntegrationsHandler {
+	cfg.GitHubWebBaseURL = strings.TrimRight(cfg.GitHubWebBaseURL, "/")
+	if cfg.GitHubWebBaseURL == "" {
+		cfg.GitHubWebBaseURL = "https://github.com"
 	}
+	return &GitHubIntegrationsHandler{cfg: cfg, cookieSecure: true}
 }
 
 // WithInsecureCookieForTests disables the Secure attribute so cookies survive
@@ -60,166 +82,280 @@ func (h *GitHubIntegrationsHandler) WithInsecureCookieForTests() *GitHubIntegrat
 }
 
 const (
-	stateCookieName = "theo_gh_install_state"
-	stateCookieTTL  = 600 // seconds (10 minute install window)
+	stateCookieName    = "loopscale_gh_connect_state"
+	returnToCookieName = stateCookieName + "_return_to"
+	// afterInstallCookieName marks a flow that already went through the App's
+	// install page, so an empty claim ends it instead of sending the user to
+	// install again.
+	afterInstallCookieName = stateCookieName + "_after_install"
+	stateCookieTTL         = 600 // seconds
+
+	defaultReturnTo = "/projects"
 )
 
-// InitiateInstall sets the state cookie + 302 redirects to GitHub.
-// GET /v1/integrations/github/install?return_to=/projects/{name}/connect
-func (h *GitHubIntegrationsHandler) InitiateInstall(w http.ResponseWriter, r *http.Request) {
-	state, err := newStateToken()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Could not start the install. Try again.")
-		return
-	}
+// Values of the github_error parameter the dashboard turns into a message.
+const (
+	githubErrorNoInstallation      = "NO_INSTALLATION"
+	githubErrorAuthorizationDenied = "AUTHORIZATION_DENIED"
+	githubErrorNotConfigured       = "GITHUB_OAUTH_NOT_CONFIGURED"
+	githubErrorServiceUnavailable  = "SERVICE_UNAVAILABLE"
+	githubErrorInternal            = "INTERNAL_ERROR"
+)
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName,
-		Value:    state,
-		Path:     "/",
-		Domain:   h.cookieDomain,
-		MaxAge:   stateCookieTTL,
-		HttpOnly: true,
-		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	// return_to is informational — we store it as a second cookie so the
-	// callback knows where to land in the dashboard. Falls back to the
-	// connect page index when absent.
-	returnTo := r.URL.Query().Get("return_to")
-	if returnTo == "" {
-		returnTo = "/projects"
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName + "_return_to",
-		Value:    returnTo,
-		Path:     "/",
-		Domain:   h.cookieDomain,
-		MaxAge:   stateCookieTTL,
-		HttpOnly: true,
-		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	installURL := "https://github.com/apps/" + h.appSlug + "/installations/new?state=" + url.QueryEscape(state)
-	http.Redirect(w, r, installURL, http.StatusFound)
+// claimErrorCodes are the claim failures the dashboard has a message for. Any
+// other value becomes INTERNAL_ERROR, so nothing an upstream wrote reaches the
+// redirect URL.
+var claimErrorCodes = map[string]bool{
+	"INVALID_REQUEST":             true,
+	"GITHUB_CODE_REJECTED":        true,
+	"UNAUTHORIZED":                true,
+	"INSUFFICIENT_ROLE":           true,
+	"RATE_LIMITED":                true,
+	"GITHUB_UNAVAILABLE":          true,
+	githubErrorNotConfigured:      true,
+	githubErrorServiceUnavailable: true,
+	githubErrorInternal:           true,
 }
 
-// Callback handles the post-install redirect from GitHub.
-//
-// Two acceptance paths:
-//
-//  1. Cookie + state match (Install button -> Install URL -> Callback URL).
-//     This is the primary path: the user clicks Install on the dashboard,
-//     we set the CSRF state cookie, GitHub returns it on redirect, and we
-//     verify exact match. Classic OAuth-style CSRF defense.
-//
-//  2. Cookie missing OR cookie expired BUT installation_id + recognised
-//     setup_action present. This handles the Setup URL flow, where GitHub
-//     redirects users with NO state parameter — the user installs the App
-//     directly from github.com/apps/<slug> or from an account that already
-//     trusts the App. The callback persists NOTHING on its own (T1.1
-//     deliberately defers persistence to POST /connect), so an attacker
-//     forging this path achieves nothing more than landing the user on
-//     /projects?installed=1&installation_id=<X> — which still requires
-//     the user to actively click "Connect" in the dashboard and POST a
-//     valid {repo, installation_id} pair. The engine then validates the
-//     installation_id against the GitHub API via a JWT-authenticated
-//     installation token mint; a forged ID returns 401/404 from GitHub.
-//     So Path 2 is safe to accept: it's an attractive-nuisance defence
-//     boundary at most, and rejecting it makes the legitimate Setup URL
-//     flow unusable.
+// InitiateInstall starts the handshake.
+// GET /v1/integrations/github/install?return_to=/projects/{name}/connect
+func (h *GitHubIntegrationsHandler) InitiateInstall(w http.ResponseWriter, r *http.Request) {
+	returnTo := r.URL.Query().Get("return_to")
+	if returnTo == "" {
+		returnTo = defaultReturnTo
+	}
+	h.startAuthorization(w, r, returnTo, false)
+}
+
+// startAuthorization sets the flow cookies and sends the browser to GitHub's
+// user authorization page.
+func (h *GitHubIntegrationsHandler) startAuthorization(w http.ResponseWriter, r *http.Request, returnTo string, afterInstall bool) {
+	if h.cfg.AppClientID == "" {
+		slog.Error("github connect: GITHUB_APP_CLIENT_ID is not set")
+		http.Redirect(w, r, h.dashboardURL(returnTo, githubErrorNotConfigured), http.StatusFound)
+		return
+	}
+	state, ok := h.setFlowCookies(w, returnTo, afterInstall)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Could not start the GitHub authorization. Try again.")
+		return
+	}
+	q := url.Values{}
+	q.Set("client_id", h.cfg.AppClientID)
+	q.Set("state", state)
+	q.Set("redirect_uri", h.cfg.CallbackURL)
+	http.Redirect(w, r, h.cfg.GitHubWebBaseURL+"/login/oauth/authorize?"+q.Encode(), http.StatusFound)
+}
+
+// setFlowCookies issues a new state and (re)starts the ten minute window.
+func (h *GitHubIntegrationsHandler) setFlowCookies(w http.ResponseWriter, returnTo string, afterInstall bool) (string, bool) {
+	state, err := newStateToken()
+	if err != nil {
+		slog.Error("github connect: state token generation failed", "error", err)
+		return "", false
+	}
+	h.setCookie(w, stateCookieName, state)
+	h.setCookie(w, returnToCookieName, returnTo)
+	if afterInstall {
+		h.setCookie(w, afterInstallCookieName, "1")
+	}
+	return state, true
+}
+
+func (h *GitHubIntegrationsHandler) setCookie(w http.ResponseWriter, name, value string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		Domain:   h.cfg.CookieDomain,
+		MaxAge:   stateCookieTTL,
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *GitHubIntegrationsHandler) clearFlowCookies(w http.ResponseWriter) {
+	for _, name := range []string{stateCookieName, returnToCookieName, afterInstallCookieName} {
+		clearCookie(w, name, h.cfg.CookieDomain, h.cookieSecure)
+	}
+}
+
+// Callback receives the browser back from GitHub, after the user authorization
+// and after an App install.
+// GET /v1/integrations/github/callback
 func (h *GitHubIntegrationsHandler) Callback(w http.ResponseWriter, r *http.Request) {
-	installationIDStr := r.URL.Query().Get("installation_id")
-	if installationIDStr == "" {
-		writeError(w, http.StatusBadRequest, "MISSING_INSTALLATION_ID",
-			"Install did not complete. Please retry.")
-		return
-	}
-	// Validate installation_id is a positive integer -- defends against
-	// path-traversal / SQL-injection probes piggy-backing the query.
-	if _, parseErr := strconv.ParseInt(installationIDStr, 10, 64); parseErr != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_INSTALLATION_ID",
-			"Install did not complete. Please retry.")
-		return
-	}
-
-	// EC-1: distinguish setup_action.
-	setupAction := r.URL.Query().Get("setup_action")
-	// Declarado sem valor: todo ramo do switch atribui, entao um valor inicial seria escrito
-	// e descartado sem nunca ser lido (ineffassign). Declarar vazio deixa o compilador
-	// reclamar se um ramo novo esquecer de atribuir — a inicializacao mascarava isso.
-	var resultQuery string
+	q := r.URL.Query()
+	setupAction := q.Get("setup_action")
 	switch setupAction {
-	case "", "install":
-		resultQuery = "installed=1"
-	case "update":
-		resultQuery = "updated=1"
+	case "", "install", "update", "request":
 	default:
-		writeError(w, http.StatusBadRequest, "UNKNOWN_SETUP_ACTION",
-			"Unrecognised install state. Please retry.")
+		writeError(w, http.StatusBadRequest, "UNKNOWN_SETUP_ACTION", "Unrecognised install state. Please retry.")
+		return
+	}
+	returnTo := h.returnToPath(r)
+
+	// GitHub returns without state when the App was installed or reconfigured
+	// from github.com. A code that arrives with no state cannot be tied to
+	// this browser, so it is dropped and the authorization starts here.
+	queryState := q.Get("state")
+	if queryState == "" {
+		h.startAuthorization(w, r, returnTo, setupAction != "")
+		return
+	}
+	stateCookie, err := r.Cookie(stateCookieName)
+	if err != nil || stateCookie.Value == "" || stateCookie.Value != queryState {
+		writeError(w, http.StatusBadRequest, "STATE_MISMATCH",
+			"The GitHub authorization session does not match or has expired. Start again from the dashboard.")
 		return
 	}
 
-	// Path 1: cookie + state match. Most defensive, no behaviour change.
-	statePath := false
-	stateCookie, cookieErr := r.Cookie(stateCookieName)
-	queryState := r.URL.Query().Get("state")
-	switch {
-	case cookieErr == nil && stateCookie.Value != "" && queryState != "":
-		if queryState != stateCookie.Value {
-			writeError(w, http.StatusBadRequest, "STATE_MISMATCH",
-				"Install session does not match. Please retry the GitHub App install.")
+	user, ok := h.signedInUser(w, r, returnTo)
+	if !ok {
+		return
+	}
+
+	if q.Get("error") != "" {
+		h.finish(w, r, returnTo, githubErrorAuthorizationDenied)
+		return
+	}
+
+	afterInstall := setupAction != ""
+	if c, cErr := r.Cookie(afterInstallCookieName); cErr == nil && c.Value != "" {
+		afterInstall = true
+	}
+
+	code := q.Get("code")
+	if code == "" {
+		if setupAction == "" {
+			writeError(w, http.StatusBadRequest, "MISSING_CODE", "The GitHub authorization did not complete. Please retry.")
 			return
 		}
-		statePath = true
-	case cookieErr == nil && stateCookie.Value != "" && queryState == "":
-		// Cookie present but no state in URL: ambiguous. Could be Setup URL
-		// fired in the middle of a Callback URL session. Prefer safety --
-		// reject and ask user to retry.
-		writeError(w, http.StatusBadRequest, "MISSING_STATE",
-			"Install session expired. Please retry the GitHub App install.")
+		// The App returned from its install page without a code: it does not
+		// request the authorization during installation. Ask for it now.
+		h.startAuthorization(w, r, returnTo, true)
 		return
-	default:
-		// Path 2: Setup URL flow. Cookie absent OR expired AND no state in URL.
-		// Allowed under the safety analysis above. Counter still increments
-		// so SLO can observe install rate; the counter is bucketed by
-		// setup_action which already lets us slice install vs update.
 	}
 
-	// EC-15: if the Kratos session has expired, push the user through login
-	// preserving the installation_id so the connect flow resumes after sign-in.
-	if h.sessionResolver != nil && !h.sessionResolver(r) {
-		// loginURL?return_to=<dashboard>/projects?installation_id=<id>
-		returnTo := h.returnToOrDefault(r) + "?" + resultQuery + "&installation_id=" + url.QueryEscape(installationIDStr)
-		dest := h.loginURL + "?return_to=" + url.QueryEscape(returnTo)
+	installations, err := h.claim(r.Context(), user, code)
+	if err != nil {
+		h.finish(w, r, returnTo, claimErrorCode(err))
+		return
+	}
+	if installations > 0 {
+		if setupAction == "install" || setupAction == "update" {
+			cloudmetrics.IncGitHubAppInstallation(setupAction)
+		}
+		h.clearFlowCookies(w)
+		dest := h.dashboardURL(returnTo, "")
+		if setupAction == "update" {
+			dest = withQueryParam(dest, "updated", "1")
+		}
 		http.Redirect(w, r, dest, http.StatusFound)
 		return
 	}
-
-	// Happy path — record metric + redirect dashboard.
-	cloudmetrics.IncGitHubAppInstallation(setupAction)
-
-	// Clear the state cookies only if we actually consumed them. Setup URL
-	// path leaves stale cookies untouched so a subsequent Install button
-	// click (rare) still works without an extra reload.
-	if statePath {
-		clearCookie(w, stateCookieName, h.cookieDomain, h.cookieSecure)
-		clearCookie(w, stateCookieName+"_return_to", h.cookieDomain, h.cookieSecure)
+	if afterInstall {
+		// The user came back from the install page and GitHub still reports no
+		// installation they can access. Sending them there again would loop.
+		h.finish(w, r, returnTo, githubErrorNoInstallation)
+		return
 	}
-
-	dest := h.returnToOrDefault(r) + "?" + resultQuery + "&installation_id=" + url.QueryEscape(installationIDStr)
-	http.Redirect(w, r, dest, http.StatusFound)
+	state, ok := h.setFlowCookies(w, returnTo, false)
+	if !ok {
+		h.finish(w, r, returnTo, githubErrorInternal)
+		return
+	}
+	installPage := h.cfg.GitHubWebBaseURL + "/apps/" + url.PathEscape(h.cfg.AppSlug) + "/installations/new?state=" + url.QueryEscape(state)
+	http.Redirect(w, r, installPage, http.StatusFound)
 }
 
-func (h *GitHubIntegrationsHandler) returnToOrDefault(r *http.Request) string {
-	if c, err := r.Cookie(stateCookieName + "_return_to"); err == nil && c.Value != "" {
-		if path, ok := safeDashboardPath(c.Value); ok {
-			return h.dashboardURL + path
-		}
+// signedInUser resolves the caller from the session cookie. On failure it has
+// already answered: the login page when there is no session, the dashboard
+// with an error otherwise.
+func (h *GitHubIntegrationsHandler) signedInUser(w http.ResponseWriter, r *http.Request, returnTo string) (*auth.UserContext, bool) {
+	if h.cfg.Sessions == nil {
+		slog.Error("github connect: no session authenticator configured")
+		h.finish(w, r, returnTo, githubErrorInternal)
+		return nil, false
 	}
-	return h.dashboardURL + "/projects"
+	user, err := h.cfg.Sessions.Authenticate(r)
+	switch {
+	case err == nil && user != nil:
+		return user, true
+	case errors.Is(err, auth.ErrNoSession):
+		// The code is single use and short lived, so it is not carried through
+		// the login. The user starts the authorization again from the page.
+		h.clearFlowCookies(w)
+		http.Redirect(w, r, h.cfg.LoginURL+"?return_to="+url.QueryEscape(h.dashboardURL(returnTo, "")), http.StatusFound)
+		return nil, false
+	case errors.Is(err, auth.ErrIdentityProviderUnavailable):
+		slog.Warn("github connect: session could not be checked", "error", err)
+		h.finish(w, r, returnTo, githubErrorServiceUnavailable)
+		return nil, false
+	default:
+		slog.Error("github connect: caller could not be resolved", "error", err)
+		h.finish(w, r, returnTo, githubErrorInternal)
+		return nil, false
+	}
+}
+
+func (h *GitHubIntegrationsHandler) claim(ctx context.Context, user *auth.UserContext, code string) (int, error) {
+	if h.cfg.Claimer == nil {
+		return 0, &GitHubClaimError{Code: githubErrorInternal, Err: errors.New("no claimer configured")}
+	}
+	n, err := h.cfg.Claimer.ClaimInstallations(ctx, user, code)
+	if err != nil {
+		// Only the mapped code is logged. The error value may quote an upstream
+		// answer, and the request's query holds the code.
+		slog.Warn("github connect: claim failed", "code", claimErrorCode(err), "tenant", user.TenantID)
+		return 0, err
+	}
+	return n, nil
+}
+
+// claimErrorCode maps a claim failure to a value the dashboard knows.
+func claimErrorCode(err error) string {
+	var claimErr *GitHubClaimError
+	if errors.As(err, &claimErr) && claimErrorCodes[claimErr.Code] {
+		return claimErr.Code
+	}
+	return githubErrorInternal
+}
+
+// finish ends the flow on the dashboard with an error code.
+func (h *GitHubIntegrationsHandler) finish(w http.ResponseWriter, r *http.Request, returnTo, githubError string) {
+	h.clearFlowCookies(w)
+	http.Redirect(w, r, h.dashboardURL(returnTo, githubError), http.StatusFound)
+}
+
+// returnToPath reads the dashboard path the flow returns to.
+func (h *GitHubIntegrationsHandler) returnToPath(r *http.Request) string {
+	if c, err := r.Cookie(returnToCookieName); err == nil && c.Value != "" {
+		return c.Value
+	}
+	return defaultReturnTo
+}
+
+// dashboardURL anchors returnTo under the dashboard origin and, when
+// githubError is set, adds it as the github_error parameter.
+func (h *GitHubIntegrationsHandler) dashboardURL(returnTo, githubError string) string {
+	path, ok := safeDashboardPath(returnTo)
+	if !ok {
+		path = defaultReturnTo
+	}
+	dest := h.cfg.DashboardURL + path
+	if githubError != "" {
+		dest = withQueryParam(dest, "github_error", githubError)
+	}
+	return dest
+}
+
+func withQueryParam(rawURL, key, value string) string {
+	sep := "?"
+	if strings.Contains(rawURL, "?") {
+		sep = "&"
+	}
+	return rawURL + sep + url.QueryEscape(key) + "=" + url.QueryEscape(value)
 }
 
 // safeDashboardPath returns the value as a dashboard-anchored path if it is

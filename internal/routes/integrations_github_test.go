@@ -4,367 +4,133 @@
 package routes
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
-// newHandler builds a handler with deterministic dependencies for tests.
-// sessionResolver defaults to "session present" so tests focused on the
-// happy path don't have to wire a stub. Pass an override to exercise EC-15.
-func newHandler(t *testing.T, sessionResolver func(*http.Request) bool) *GitHubIntegrationsHandler {
-	t.Helper()
-	if sessionResolver == nil {
-		sessionResolver = func(*http.Request) bool { return true }
-	}
-	h := NewGitHubIntegrationsHandler(
-		"theo-platform",
-		"https://app-dev.usetheo.dev",
-		"https://auth-dev.usetheo.dev/login",
-		"",
-		sessionResolver,
-	).WithInsecureCookieForTests()
-	return h
+const (
+	ghTestDashboardURL = "https://app.example.test"
+	ghTestCallbackURL  = "https://app.example.test/v1/integrations/github/callback"
+	ghTestLoginURL     = "https://auth.example.test/login"
+	ghTestClientID     = "Iv1.testclientid"
+	ghTestAppSlug      = "loopscale-test"
+	// ghTestOAuthCode stands for the one-time code GitHub hands the callback. The
+	// tests search the logs and every redirect for it.
+	ghTestOAuthCode = "gho-code-5f1c9e7a"
+)
+
+var ghTestUser = &auth.UserContext{Subject: "user-1", Email: "dev@example.test", TenantID: "tenant-1"}
+
+type fakeSessions struct {
+	user *auth.UserContext
+	err  error
 }
 
-// stateFromInstall runs InitiateInstall once and returns the state token
-// that the handler set in its cookie + the Set-Cookie attributes for
-// downstream assertions.
-func stateFromInstall(t *testing.T, h *GitHubIntegrationsHandler, returnTo string) (state, returnCookieValue string, recorder *httptest.ResponseRecorder) {
+func (f fakeSessions) Authenticate(*http.Request) (*auth.UserContext, error) {
+	return f.user, f.err
+}
+
+type claimCall struct {
+	user *auth.UserContext
+	code string
+}
+
+type fakeClaimer struct {
+	installations int
+	err           error
+	calls         []claimCall
+}
+
+func (f *fakeClaimer) ClaimInstallations(_ context.Context, user *auth.UserContext, code string) (int, error) {
+	f.calls = append(f.calls, claimCall{user: user, code: code})
+	return f.installations, f.err
+}
+
+func newHandler(t *testing.T, sessions auth.SessionAuthenticator, claimer GitHubInstallationClaimer) *GitHubIntegrationsHandler {
+	t.Helper()
+	if sessions == nil {
+		sessions = fakeSessions{user: ghTestUser}
+	}
+	if claimer == nil {
+		claimer = &fakeClaimer{}
+	}
+	return NewGitHubIntegrationsHandler(GitHubIntegrationsConfig{
+		AppSlug:      ghTestAppSlug,
+		AppClientID:  ghTestClientID,
+		DashboardURL: ghTestDashboardURL,
+		CallbackURL:  ghTestCallbackURL,
+		LoginURL:     ghTestLoginURL,
+		Sessions:     sessions,
+		Claimer:      claimer,
+	}).WithInsecureCookieForTests()
+}
+
+// startInstall runs InitiateInstall and returns the state it set.
+func startInstall(t *testing.T, h *GitHubIntegrationsHandler, returnTo string) (state string, w *httptest.ResponseRecorder) {
 	t.Helper()
 	target := "/v1/integrations/github/install"
 	if returnTo != "" {
 		target += "?return_to=" + url.QueryEscape(returnTo)
 	}
-	req := httptest.NewRequest(http.MethodGet, target, nil)
-	w := httptest.NewRecorder()
-	h.InitiateInstall(w, req)
+	w = httptest.NewRecorder()
+	h.InitiateInstall(w, httptest.NewRequest(http.MethodGet, target, nil))
 	if w.Code != http.StatusFound {
 		t.Fatalf("InitiateInstall: status = %d, want 302", w.Code)
 	}
-	for _, c := range w.Result().Cookies() {
-		switch c.Name {
-		case stateCookieName:
-			state = c.Value
-		case stateCookieName + "_return_to":
-			returnCookieValue = c.Value
-		}
-	}
+	state = cookieValue(w, stateCookieName)
 	if state == "" {
-		t.Fatalf("InitiateInstall did not set %s cookie", stateCookieName)
+		t.Fatalf("InitiateInstall did not set the %s cookie", stateCookieName)
 	}
-	return state, returnCookieValue, w
+	return state, w
 }
 
-func TestInitiateInstall_SetsStateCookieAndRedirectsToGitHub(t *testing.T) {
-	h := newHandler(t, nil)
-	state, returnCookie, w := stateFromInstall(t, h, "/projects/demo/connect")
-
-	if len(state) != 64 {
-		t.Fatalf("state token length = %d, want 64 (32B hex-encoded)", len(state))
-	}
-	if returnCookie != "/projects/demo/connect" {
-		t.Fatalf("return_to cookie = %q, want %q", returnCookie, "/projects/demo/connect")
-	}
-	loc := w.Header().Get("Location")
-	if !strings.HasPrefix(loc, "https://github.com/apps/theo-platform/installations/new") {
-		t.Fatalf("Location = %q, want GitHub App install URL", loc)
-	}
-	if !strings.Contains(loc, "state="+url.QueryEscape(state)) {
-		t.Fatalf("Location = %q, missing state=%s", loc, state)
-	}
-}
-
-func TestInitiateInstall_DefaultReturnToWhenAbsent(t *testing.T) {
-	h := newHandler(t, nil)
-	_, returnCookie, _ := stateFromInstall(t, h, "")
-	if returnCookie != "/projects" {
-		t.Fatalf("return_to fallback = %q, want %q", returnCookie, "/projects")
-	}
-}
-
-func TestInitiateInstall_DoubleClickLastStateWins(t *testing.T) {
-	// EC-3: two clicks within a few seconds. The handler is stateless on
-	// the server, so the second cookie overwrites the first. Verifying
-	// that the second InitiateInstall returns a *different* token + that
-	// the callback only accepts the latest state cookie.
-	h := newHandler(t, nil)
-	state1, _, _ := stateFromInstall(t, h, "")
-	state2, _, _ := stateFromInstall(t, h, "")
-	if state1 == state2 {
-		t.Fatalf("expected distinct tokens, got same: %q", state1)
-	}
-}
-
-// Path 2 (Setup URL flow, 2026-06-06): GitHub redirects the user with
-// installation_id + setup_action but NO state. We accept it because the
-// callback persists nothing of its own -- the next POST /connect is what
-// actually links the repo, and that endpoint validates the installation_id
-// via a JWT-authenticated installation token mint against the real GitHub
-// API. A forged ID would fail at that gate.
-func TestCallback_SetupURLPath_NoCookieNoState_AcceptedAsInstall(t *testing.T) {
-	h := newHandler(t, nil)
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/integrations/github/callback?installation_id=42&setup_action=install", nil)
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302 (Setup URL path accepted)", w.Code)
-	}
-	loc := w.Header().Get("Location")
-	if !strings.Contains(loc, "installation_id=42") {
-		t.Fatalf("Location = %q, want installation_id=42 in query", loc)
-	}
-	if !strings.Contains(loc, "installed=1") {
-		t.Fatalf("Location = %q, want installed=1 in query", loc)
-	}
-}
-
-// Same Setup URL path with setup_action=update.
-func TestCallback_SetupURLPath_NoCookieNoState_UpdateAccepted(t *testing.T) {
-	h := newHandler(t, nil)
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/integrations/github/callback?installation_id=99&setup_action=update", nil)
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302 (Setup URL update accepted)", w.Code)
-	}
-	loc := w.Header().Get("Location")
-	if !strings.Contains(loc, "updated=1") {
-		t.Fatalf("Location = %q, want updated=1 in query", loc)
-	}
-}
-
-// Cookie present + state in URL missing = ambiguous; keep rejecting to
-// avoid CSRF where attacker forges a Setup URL while a legitimate Install
-// session is in flight.
-func TestCallback_CookiePresentButStateMissingFromURL_400(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/integrations/github/callback?installation_id=42", nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (cookie + no state in URL)", w.Code)
-	}
-	body := mustDecodeError(t, w)
-	if body["code"] != "MISSING_STATE" {
-		t.Fatalf("code = %v, want MISSING_STATE", body["code"])
-	}
-}
-
-// Defense-in-depth: installation_id MUST parse as a positive integer.
-func TestCallback_InvalidInstallationID_400(t *testing.T) {
-	h := newHandler(t, nil)
-	req := httptest.NewRequest(http.MethodGet,
-		"/v1/integrations/github/callback?installation_id=../etc/passwd&setup_action=install", nil)
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (invalid installation_id)", w.Code)
-	}
-	body := mustDecodeError(t, w)
-	if body["code"] != "INVALID_INSTALLATION_ID" {
-		t.Fatalf("code = %v, want INVALID_INSTALLATION_ID", body["code"])
-	}
-}
-
-func TestCallback_StateMismatch_400(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=42&state=tampered", nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (state mismatch)", w.Code)
-	}
-	body := mustDecodeError(t, w)
-	if body["code"] != "STATE_MISMATCH" {
-		t.Fatalf("code = %v, want STATE_MISMATCH", body["code"])
-	}
-}
-
-func TestCallback_MissingInstallationID_400(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?state="+state, nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (missing installation_id)", w.Code)
-	}
-	body := mustDecodeError(t, w)
-	if body["code"] != "MISSING_INSTALLATION_ID" {
-		t.Fatalf("code = %v, want MISSING_INSTALLATION_ID", body["code"])
-	}
-}
-
-func TestCallback_UnknownSetupAction_400(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=99&state="+state+"&setup_action=cancel", nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (unknown setup_action)", w.Code)
-	}
-	body := mustDecodeError(t, w)
-	if body["code"] != "UNKNOWN_SETUP_ACTION" {
-		t.Fatalf("code = %v, want UNKNOWN_SETUP_ACTION", body["code"])
-	}
-}
-
-func TestCallback_HappyPath_RedirectsToDashboardWithInstallationID(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "/projects/demo/connect")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=12345&state="+state, nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	req.AddCookie(&http.Cookie{Name: stateCookieName + "_return_to", Value: "/projects/demo/connect"})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302", w.Code)
-	}
-	loc := w.Header().Get("Location")
-	want := "https://app-dev.usetheo.dev/projects/demo/connect?installed=1&installation_id=12345"
-	if loc != want {
-		t.Fatalf("Location = %q, want %q", loc, want)
-	}
-}
-
-func TestCallback_HappyPath_DefaultsReturnToProjects(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=7&state="+state, nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	// Note: return_to cookie NOT attached -- handler should default to /projects.
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302", w.Code)
-	}
-	loc := w.Header().Get("Location")
-	want := "https://app-dev.usetheo.dev/projects?installed=1&installation_id=7"
-	if loc != want {
-		t.Fatalf("Location = %q, want %q", loc, want)
-	}
-}
-
-func TestCallback_SetupActionUpdate_ReportsUpdatedFlag(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=88&state="+state+"&setup_action=update", nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302 (update path)", w.Code)
-	}
-	loc := w.Header().Get("Location")
-	if !strings.Contains(loc, "updated=1") || strings.Contains(loc, "installed=1") {
-		t.Fatalf("Location = %q, want updated=1 (and no installed=1)", loc)
-	}
-}
-
-func TestCallback_HappyPath_ClearsStateCookies(t *testing.T) {
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=1&state="+state, nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	req.AddCookie(&http.Cookie{Name: stateCookieName + "_return_to", Value: "/projects"})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	var cleared int
+func cookieValue(w *httptest.ResponseRecorder, name string) string {
+	value := ""
 	for _, c := range w.Result().Cookies() {
-		if c.Name == stateCookieName || c.Name == stateCookieName+"_return_to" {
-			if c.MaxAge != -1 {
-				t.Fatalf("cookie %q MaxAge = %d, want -1 (cleared)", c.Name, c.MaxAge)
-			}
-			cleared++
+		if c.Name == name {
+			value = c.Value
 		}
 	}
-	if cleared != 2 {
-		t.Fatalf("cleared = %d cookies, want 2 (state + return_to)", cleared)
-	}
+	return value
 }
 
-func TestCallback_SessionExpired_RedirectsToLoginPreservingInstallationID(t *testing.T) {
-	// EC-15: Kratos session expired between install start + callback. The
-	// handler must route through /login?return_to=<dashboard>... so the
-	// connect flow resumes after re-auth, with the installation_id intact.
-	h := newHandler(t, func(*http.Request) bool { return false })
-	state, _, _ := stateFromInstall(t, h, "/projects/demo/connect")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=42&state="+state, nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	req.AddCookie(&http.Cookie{Name: stateCookieName + "_return_to", Value: "/projects/demo/connect"})
+// callback sends the GitHub return with the state cookies of a started flow.
+func callback(h *GitHubIntegrationsHandler, query url.Values, cookieState, returnTo string, extra ...*http.Cookie) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?"+query.Encode(), nil)
+	if cookieState != "" {
+		req.AddCookie(&http.Cookie{Name: stateCookieName, Value: cookieState})
+	}
+	if returnTo != "" {
+		req.AddCookie(&http.Cookie{Name: returnToCookieName, Value: returnTo})
+	}
+	for _, c := range extra {
+		req.AddCookie(c)
+	}
 	w := httptest.NewRecorder()
 	h.Callback(w, req)
+	return w
+}
+
+func mustLocation(t *testing.T, w *httptest.ResponseRecorder) *url.URL {
+	t.Helper()
 	if w.Code != http.StatusFound {
-		t.Fatalf("status = %d, want 302", w.Code)
+		t.Fatalf("status = %d, want 302; body = %s", w.Code, w.Body.String())
 	}
-	loc := w.Header().Get("Location")
-	if !strings.HasPrefix(loc, "https://auth-dev.usetheo.dev/login?return_to=") {
-		t.Fatalf("Location = %q, want login URL prefix", loc)
+	loc, err := url.Parse(w.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("Location does not parse: %v", err)
 	}
-	if !strings.Contains(loc, "installation_id%3D42") {
-		t.Fatalf("Location = %q, must preserve installation_id=42 in return_to", loc)
-	}
-}
-
-func TestCallback_ReturnToCookie_DefendsAgainstOpenRedirect(t *testing.T) {
-	// EC-4: a hostile return_to cookie ("https://evil.com/x") MUST be
-	// anchored under the dashboard origin; we never let it become the
-	// destination of the Location header.
-	h := newHandler(t, nil)
-	state, _, _ := stateFromInstall(t, h, "")
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/callback?installation_id=9&state="+state, nil)
-	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: state})
-	req.AddCookie(&http.Cookie{Name: stateCookieName + "_return_to", Value: "https://evil.com/x"})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
-	loc := w.Header().Get("Location")
-	if !strings.HasPrefix(loc, "https://app-dev.usetheo.dev/") {
-		t.Fatalf("Location = %q, want anchored to dashboard origin", loc)
-	}
-	if strings.Contains(loc, "evil.com") {
-		t.Fatalf("Location = %q, leaked evil host", loc)
-	}
-}
-
-func TestInitiateInstall_StateCookieAttributesAreSafe(t *testing.T) {
-	// EC-2: cookie must be HttpOnly + SameSite=Lax. Secure is asserted
-	// via the production constructor (Tests use WithInsecureCookieForTests
-	// to survive httptest's plain HTTP).
-	h := NewGitHubIntegrationsHandler("theo-platform", "https://app-dev.usetheo.dev", "https://auth-dev.usetheo.dev/login", "", nil)
-	req := httptest.NewRequest(http.MethodGet, "/v1/integrations/github/install", nil)
-	w := httptest.NewRecorder()
-	h.InitiateInstall(w, req)
-	for _, c := range w.Result().Cookies() {
-		if c.Name != stateCookieName {
-			continue
-		}
-		if !c.HttpOnly {
-			t.Fatalf("state cookie HttpOnly = false, want true")
-		}
-		if c.SameSite != http.SameSiteLaxMode {
-			t.Fatalf("state cookie SameSite = %v, want Lax", c.SameSite)
-		}
-		if !c.Secure {
-			t.Fatalf("state cookie Secure = false, want true (production constructor)")
-		}
-		if c.MaxAge != stateCookieTTL {
-			t.Fatalf("state cookie MaxAge = %d, want %d", c.MaxAge, stateCookieTTL)
-		}
-	}
+	return loc
 }
 
 func mustDecodeError(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
@@ -374,4 +140,428 @@ func mustDecodeError(t *testing.T, w *httptest.ResponseRecorder) map[string]any 
 		t.Fatalf("decode error body: %v", err)
 	}
 	return body
+}
+
+// captureLogs routes the default logger to a buffer for the duration of a test.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return &buf
+}
+
+func TestInitiateInstall_RedirectsToUserAuthorizationWithStateAndClientID(t *testing.T) {
+	h := newHandler(t, nil, nil)
+	state, w := startInstall(t, h, "/projects/demo/connect")
+
+	if len(state) != 64 {
+		t.Fatalf("state token length = %d, want 64 (32 bytes, hex)", len(state))
+	}
+	if got := cookieValue(w, returnToCookieName); got != "/projects/demo/connect" {
+		t.Fatalf("return_to cookie = %q, want /projects/demo/connect", got)
+	}
+	loc := mustLocation(t, w)
+	if got := loc.Scheme + "://" + loc.Host + loc.Path; got != "https://github.com/login/oauth/authorize" {
+		t.Fatalf("Location = %q, want the GitHub authorize page", got)
+	}
+	q := loc.Query()
+	if q.Get("client_id") != ghTestClientID {
+		t.Fatalf("client_id = %q, want %q", q.Get("client_id"), ghTestClientID)
+	}
+	if q.Get("state") != state {
+		t.Fatalf("state = %q, want the cookie's %q", q.Get("state"), state)
+	}
+	if q.Get("redirect_uri") != ghTestCallbackURL {
+		t.Fatalf("redirect_uri = %q, want %q", q.Get("redirect_uri"), ghTestCallbackURL)
+	}
+}
+
+func TestInitiateInstall_UsesTheConfiguredGitHubWebBase(t *testing.T) {
+	h := NewGitHubIntegrationsHandler(GitHubIntegrationsConfig{
+		AppSlug: ghTestAppSlug, AppClientID: ghTestClientID, GitHubWebBaseURL: "https://github.internal.test/",
+		DashboardURL: ghTestDashboardURL, CallbackURL: ghTestCallbackURL, LoginURL: ghTestLoginURL,
+	})
+	_, w := startInstall(t, h, "")
+	if loc := w.Header().Get("Location"); !strings.HasPrefix(loc, "https://github.internal.test/login/oauth/authorize?") {
+		t.Fatalf("Location = %q, want the configured web base", loc)
+	}
+}
+
+func TestInitiateInstall_WithoutClientID_ReturnsToDashboardWithError(t *testing.T) {
+	h := NewGitHubIntegrationsHandler(GitHubIntegrationsConfig{
+		AppSlug: ghTestAppSlug, DashboardURL: ghTestDashboardURL, CallbackURL: ghTestCallbackURL, LoginURL: ghTestLoginURL,
+	})
+	w := httptest.NewRecorder()
+	h.InitiateInstall(w, httptest.NewRequest(http.MethodGet, "/v1/integrations/github/install?return_to=%2Fprojects%2Fdemo%2Fconnect", nil))
+	loc := mustLocation(t, w)
+	if loc.Host != "app.example.test" || loc.Path != "/projects/demo/connect" {
+		t.Fatalf("Location = %q, want the dashboard connect page", loc)
+	}
+	if got := loc.Query().Get("github_error"); got != "GITHUB_OAUTH_NOT_CONFIGURED" {
+		t.Fatalf("github_error = %q, want GITHUB_OAUTH_NOT_CONFIGURED", got)
+	}
+}
+
+func TestInitiateInstall_DefaultReturnToWhenAbsent(t *testing.T) {
+	h := newHandler(t, nil, nil)
+	_, w := startInstall(t, h, "")
+	if got := cookieValue(w, returnToCookieName); got != "/projects" {
+		t.Fatalf("return_to fallback = %q, want /projects", got)
+	}
+}
+
+func TestInitiateInstall_EachStartGetsItsOwnState(t *testing.T) {
+	h := newHandler(t, nil, nil)
+	state1, _ := startInstall(t, h, "")
+	state2, _ := startInstall(t, h, "")
+	if state1 == state2 {
+		t.Fatalf("expected distinct tokens, got the same: %q", state1)
+	}
+}
+
+func TestInitiateInstall_StateCookieAttributesAreSafe(t *testing.T) {
+	// Built without WithInsecureCookieForTests: this is the production shape.
+	h := NewGitHubIntegrationsHandler(GitHubIntegrationsConfig{
+		AppSlug: ghTestAppSlug, AppClientID: ghTestClientID,
+		DashboardURL: ghTestDashboardURL, CallbackURL: ghTestCallbackURL, LoginURL: ghTestLoginURL,
+	})
+	w := httptest.NewRecorder()
+	h.InitiateInstall(w, httptest.NewRequest(http.MethodGet, "/v1/integrations/github/install", nil))
+	seen := false
+	for _, c := range w.Result().Cookies() {
+		if c.Name != stateCookieName {
+			continue
+		}
+		seen = true
+		if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.MaxAge != stateCookieTTL {
+			t.Fatalf("state cookie = %+v, want HttpOnly, Secure, SameSite=Lax, MaxAge=%d", c, stateCookieTTL)
+		}
+	}
+	if !seen {
+		t.Fatal("no state cookie set")
+	}
+}
+
+func TestCallback_StateMismatch_RefusedWithoutClaim(t *testing.T) {
+	claimer := &fakeClaimer{installations: 1}
+	h := newHandler(t, nil, claimer)
+	state, _ := startInstall(t, h, "")
+
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {"another-state"}}, state, "")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if code, _ := mustDecodeError(t, w)["code"].(string); code != "STATE_MISMATCH" {
+		t.Fatalf("code = %q, want STATE_MISMATCH", code)
+	}
+	if len(claimer.calls) != 0 {
+		t.Fatalf("claim ran %d time(s) on a state mismatch, want 0", len(claimer.calls))
+	}
+}
+
+func TestCallback_StateWithoutCookie_RefusedWithoutClaim(t *testing.T) {
+	claimer := &fakeClaimer{installations: 1}
+	h := newHandler(t, nil, claimer)
+
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {"forged"}}, "", "")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if len(claimer.calls) != 0 {
+		t.Fatalf("claim ran %d time(s) without a state cookie, want 0", len(claimer.calls))
+	}
+}
+
+func TestCallback_WithoutState_RestartsAuthorizationAndDropsTheCode(t *testing.T) {
+	// GitHub returns here without state when the App is installed from
+	// github.com. That code has no state to check, so it is not used.
+	claimer := &fakeClaimer{installations: 1}
+	h := newHandler(t, nil, claimer)
+
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "installation_id": {"42"}, "setup_action": {"install"}}, "", "")
+	loc := mustLocation(t, w)
+	if loc.Host != "github.com" || loc.Path != "/login/oauth/authorize" {
+		t.Fatalf("Location = %q, want the GitHub authorize page", loc)
+	}
+	if state := cookieValue(w, stateCookieName); state == "" || loc.Query().Get("state") != state {
+		t.Fatalf("authorize state %q does not match the new cookie %q", loc.Query().Get("state"), state)
+	}
+	if strings.Contains(loc.String(), ghTestOAuthCode) {
+		t.Fatalf("Location = %q carries the code", loc)
+	}
+	if len(claimer.calls) != 0 {
+		t.Fatalf("claim ran %d time(s) with no state, want 0", len(claimer.calls))
+	}
+}
+
+func TestCallback_UnknownSetupAction_400(t *testing.T) {
+	h := newHandler(t, nil, nil)
+	state, _ := startInstall(t, h, "")
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}, "setup_action": {"bogus"}}, state, "")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if code, _ := mustDecodeError(t, w)["code"].(string); code != "UNKNOWN_SETUP_ACTION" {
+		t.Fatalf("code = %q, want UNKNOWN_SETUP_ACTION", code)
+	}
+}
+
+func TestCallback_CodeIsClaimedAsTheSignedInUser(t *testing.T) {
+	claimer := &fakeClaimer{installations: 2}
+	h := newHandler(t, fakeSessions{user: ghTestUser}, claimer)
+	state, _ := startInstall(t, h, "/projects/demo/connect")
+
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}}, state, "/projects/demo/connect")
+
+	if len(claimer.calls) != 1 {
+		t.Fatalf("claim ran %d time(s), want 1", len(claimer.calls))
+	}
+	call := claimer.calls[0]
+	if call.code != ghTestOAuthCode {
+		t.Fatalf("claimed code = %q, want the callback's code", call.code)
+	}
+	if call.user == nil || call.user.Subject != "user-1" || call.user.TenantID != "tenant-1" {
+		t.Fatalf("claim identity = %+v, want user-1 of tenant-1", call.user)
+	}
+	loc := mustLocation(t, w)
+	if loc.String() != ghTestDashboardURL+"/projects/demo/connect" {
+		t.Fatalf("Location = %q, want the connect page with no extra query", loc)
+	}
+	for _, name := range []string{stateCookieName, returnToCookieName, afterInstallCookieName} {
+		cleared := false
+		for _, c := range w.Result().Cookies() {
+			if c.Name == name && c.MaxAge < 0 {
+				cleared = true
+			}
+		}
+		if !cleared {
+			t.Fatalf("cookie %s was not cleared after the claim", name)
+		}
+	}
+}
+
+func TestCallback_AccessUpdate_ReturnsWithUpdatedFlag(t *testing.T) {
+	h := newHandler(t, nil, &fakeClaimer{installations: 1})
+	state, _ := startInstall(t, h, "")
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}, "installation_id": {"42"}, "setup_action": {"update"}}, state, "/projects/demo/connect")
+	loc := mustLocation(t, w)
+	if loc.Path != "/projects/demo/connect" || loc.Query().Get("updated") != "1" {
+		t.Fatalf("Location = %q, want the connect page with updated=1", loc)
+	}
+	if loc.Query().Has("installation_id") {
+		t.Fatalf("Location = %q must not carry installation_id", loc)
+	}
+}
+
+func TestCallback_EmptyClaim_SendsTheUserToTheAppInstallPage(t *testing.T) {
+	h := newHandler(t, nil, &fakeClaimer{installations: 0})
+	state, _ := startInstall(t, h, "/projects/demo/connect")
+
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}}, state, "/projects/demo/connect")
+
+	loc := mustLocation(t, w)
+	if got := loc.Scheme + "://" + loc.Host + loc.Path; got != "https://github.com/apps/"+ghTestAppSlug+"/installations/new" {
+		t.Fatalf("Location = %q, want the App install page", got)
+	}
+	newState := cookieValue(w, stateCookieName)
+	if newState == "" || loc.Query().Get("state") != newState {
+		t.Fatalf("install page state %q does not match the cookie %q", loc.Query().Get("state"), newState)
+	}
+	if got := cookieValue(w, returnToCookieName); got != "/projects/demo/connect" {
+		t.Fatalf("return_to cookie = %q, want it kept for the way back", got)
+	}
+}
+
+func TestCallback_EmptyClaimAfterInstall_ReturnsToDashboardWithErrorAndNoLoop(t *testing.T) {
+	h := newHandler(t, nil, &fakeClaimer{installations: 0})
+	state, _ := startInstall(t, h, "")
+
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}, "installation_id": {"42"}, "setup_action": {"install"}}, state, "/projects/demo/connect")
+
+	loc := mustLocation(t, w)
+	if loc.Host != "app.example.test" || loc.Path != "/projects/demo/connect" {
+		t.Fatalf("Location = %q, want the dashboard, not GitHub again", loc)
+	}
+	if got := loc.Query().Get("github_error"); got != "NO_INSTALLATION" {
+		t.Fatalf("github_error = %q, want NO_INSTALLATION", got)
+	}
+}
+
+func TestCallback_InstallWithoutCode_AuthorizesOnceThenStopsOnEmptyClaim(t *testing.T) {
+	// An App that does not request authorization during installation returns
+	// from the install with no code. The callback asks for the authorization
+	// and remembers the install, so a second empty claim ends the flow.
+	claimer := &fakeClaimer{installations: 0}
+	h := newHandler(t, nil, claimer)
+	state, _ := startInstall(t, h, "")
+
+	first := callback(h, url.Values{"state": {state}, "installation_id": {"42"}, "setup_action": {"install"}}, state, "/projects/demo/connect")
+	loc := mustLocation(t, first)
+	if loc.Path != "/login/oauth/authorize" {
+		t.Fatalf("Location = %q, want the GitHub authorize page", loc)
+	}
+	if len(claimer.calls) != 0 {
+		t.Fatalf("claim ran %d time(s) without a code, want 0", len(claimer.calls))
+	}
+	marker := cookieValue(first, afterInstallCookieName)
+	if marker == "" {
+		t.Fatalf("the %s cookie was not set", afterInstallCookieName)
+	}
+
+	nextState := cookieValue(first, stateCookieName)
+	second := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {nextState}}, nextState, "/projects/demo/connect",
+		&http.Cookie{Name: afterInstallCookieName, Value: marker})
+	loc = mustLocation(t, second)
+	if loc.Host != "app.example.test" || loc.Query().Get("github_error") != "NO_INSTALLATION" {
+		t.Fatalf("Location = %q, want the dashboard with NO_INSTALLATION", loc)
+	}
+}
+
+func TestCallback_ClaimError_MapsToDashboardErrorCode(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"code rejected", &GitHubClaimError{Code: "GITHUB_CODE_REJECTED"}, "GITHUB_CODE_REJECTED"},
+		{"member role", &GitHubClaimError{Code: "INSUFFICIENT_ROLE"}, "INSUFFICIENT_ROLE"},
+		{"rate limited", &GitHubClaimError{Code: "RATE_LIMITED"}, "RATE_LIMITED"},
+		{"github down", &GitHubClaimError{Code: "GITHUB_UNAVAILABLE"}, "GITHUB_UNAVAILABLE"},
+		{"not configured", &GitHubClaimError{Code: "GITHUB_OAUTH_NOT_CONFIGURED"}, "GITHUB_OAUTH_NOT_CONFIGURED"},
+		{"engine unreachable", &GitHubClaimError{Code: "SERVICE_UNAVAILABLE"}, "SERVICE_UNAVAILABLE"},
+		{"unknown code is not echoed", &GitHubClaimError{Code: "<script>alert(1)</script>"}, "INTERNAL_ERROR"},
+		{"untyped error", errors.New("boom " + ghTestOAuthCode), "INTERNAL_ERROR"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHandler(t, nil, &fakeClaimer{err: tc.err})
+			state, _ := startInstall(t, h, "")
+			w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}}, state, "/projects/demo/connect")
+			loc := mustLocation(t, w)
+			if loc.Host != "app.example.test" || loc.Path != "/projects/demo/connect" {
+				t.Fatalf("Location = %q, want the dashboard connect page", loc)
+			}
+			if got := loc.Query().Get("github_error"); got != tc.want {
+				t.Fatalf("github_error = %q, want %q", got, tc.want)
+			}
+			if len(loc.Query()) != 1 {
+				t.Fatalf("Location = %q, want github_error as the only parameter", loc)
+			}
+		})
+	}
+}
+
+func TestCallback_AuthorizationDenied_ReturnsToDashboardWithError(t *testing.T) {
+	claimer := &fakeClaimer{}
+	h := newHandler(t, nil, claimer)
+	state, _ := startInstall(t, h, "")
+	w := callback(h, url.Values{"error": {"access_denied"}, "error_description": {"The user denied"}, "state": {state}}, state, "/projects/demo/connect")
+	loc := mustLocation(t, w)
+	if got := loc.Query().Get("github_error"); got != "AUTHORIZATION_DENIED" {
+		t.Fatalf("github_error = %q, want AUTHORIZATION_DENIED", got)
+	}
+	if strings.Contains(loc.String(), "denied") && !strings.Contains(loc.String(), "AUTHORIZATION_DENIED") {
+		t.Fatalf("Location = %q echoes GitHub's text", loc)
+	}
+	if len(claimer.calls) != 0 {
+		t.Fatalf("claim ran %d time(s) after a denial, want 0", len(claimer.calls))
+	}
+}
+
+func TestCallback_NeitherCodeNorInstall_400(t *testing.T) {
+	h := newHandler(t, nil, nil)
+	state, _ := startInstall(t, h, "")
+	w := callback(h, url.Values{"state": {state}}, state, "")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if code, _ := mustDecodeError(t, w)["code"].(string); code != "MISSING_CODE" {
+		t.Fatalf("code = %q, want MISSING_CODE", code)
+	}
+}
+
+func TestCallback_SessionExpired_RedirectsToLoginWithoutTheCode(t *testing.T) {
+	claimer := &fakeClaimer{installations: 1}
+	h := newHandler(t, fakeSessions{err: auth.ErrNoSession}, claimer)
+	state, _ := startInstall(t, h, "")
+
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}}, state, "/projects/demo/connect")
+
+	loc := mustLocation(t, w)
+	if !strings.HasPrefix(loc.String(), ghTestLoginURL+"?return_to=") {
+		t.Fatalf("Location = %q, want the login page", loc)
+	}
+	if got := loc.Query().Get("return_to"); got != ghTestDashboardURL+"/projects/demo/connect" {
+		t.Fatalf("return_to = %q, want the connect page", got)
+	}
+	if strings.Contains(loc.String(), ghTestOAuthCode) {
+		t.Fatalf("Location = %q carries the code", loc)
+	}
+	if len(claimer.calls) != 0 {
+		t.Fatalf("claim ran %d time(s) with no session, want 0", len(claimer.calls))
+	}
+}
+
+func TestCallback_SessionCheckFailure_ReturnsToDashboardWithError(t *testing.T) {
+	claimer := &fakeClaimer{installations: 1}
+	h := newHandler(t, fakeSessions{err: auth.ErrIdentityProviderUnavailable}, claimer)
+	state, _ := startInstall(t, h, "")
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}}, state, "/projects/demo/connect")
+	if got := mustLocation(t, w).Query().Get("github_error"); got != "SERVICE_UNAVAILABLE" {
+		t.Fatalf("github_error = %q, want SERVICE_UNAVAILABLE", got)
+	}
+	if len(claimer.calls) != 0 {
+		t.Fatalf("claim ran %d time(s) with an unchecked session, want 0", len(claimer.calls))
+	}
+}
+
+func TestCallback_CodeNeverReachesLogsOrRedirects(t *testing.T) {
+	outcomes := map[string]*fakeClaimer{
+		"claimed":     {installations: 1},
+		"empty":       {installations: 0},
+		"claim error": {err: &GitHubClaimError{Code: "GITHUB_UNAVAILABLE", Err: errors.New("engine answered 502")}},
+		"untyped":     {err: errors.New("unexpected")},
+	}
+	for name, claimer := range outcomes {
+		t.Run(name, func(t *testing.T) {
+			logs := captureLogs(t)
+			h := newHandler(t, nil, claimer)
+			state, _ := startInstall(t, h, "")
+			for _, query := range []url.Values{
+				{"code": {ghTestOAuthCode}, "state": {state}},
+				{"code": {ghTestOAuthCode}, "state": {state}, "installation_id": {"42"}, "setup_action": {"install"}},
+			} {
+				w := callback(h, query, state, "/projects/demo/connect")
+				if loc := w.Header().Get("Location"); strings.Contains(loc, ghTestOAuthCode) {
+					t.Fatalf("Location = %q carries the code", loc)
+				}
+				if strings.Contains(w.Body.String(), ghTestOAuthCode) {
+					t.Fatalf("response body carries the code: %s", w.Body.String())
+				}
+				for _, c := range w.Result().Cookies() {
+					if strings.Contains(c.Value, ghTestOAuthCode) {
+						t.Fatalf("cookie %s carries the code", c.Name)
+					}
+				}
+			}
+			if strings.Contains(logs.String(), ghTestOAuthCode) {
+				t.Fatalf("logs carry the code:\n%s", logs.String())
+			}
+		})
+	}
+}
+
+func TestCallback_ReturnToCookie_DefendsAgainstOpenRedirect(t *testing.T) {
+	h := newHandler(t, nil, &fakeClaimer{installations: 1})
+	state, _ := startInstall(t, h, "")
+	w := callback(h, url.Values{"code": {ghTestOAuthCode}, "state": {state}}, state, "https://evil.example/x")
+	loc := w.Header().Get("Location")
+	if !strings.HasPrefix(loc, ghTestDashboardURL+"/") {
+		t.Fatalf("Location = %q, want it anchored to the dashboard origin", loc)
+	}
+	if strings.Contains(loc, "evil.example") {
+		t.Fatalf("Location = %q leaks the hostile host", loc)
+	}
 }

@@ -388,6 +388,24 @@ describe('mocks/handlers — full API coverage', () => {
     expect(body.repo).toMatch(/^acme\//);
   });
 
+  it('lists no GitHub installation until a test sets some', async () => {
+    const empty = await (await call('GET', '/api/v1/integrations/github/installations')).json();
+    expect(empty).toEqual({ installations: [] });
+
+    const holder = window as unknown as { __LOOPSCALE_MOCK_GITHUB_INSTALLATIONS?: unknown };
+    holder.__LOOPSCALE_MOCK_GITHUB_INSTALLATIONS = [
+      { id: 7, account_login: 'acme', account_type: 'Organization' },
+    ];
+    try {
+      const listed = await (await call('GET', '/api/v1/integrations/github/installations')).json();
+      expect(listed.installations).toEqual([
+        { id: 7, account_login: 'acme', account_type: 'Organization' },
+      ]);
+    } finally {
+      delete holder.__LOOPSCALE_MOCK_GITHUB_INSTALLATIONS;
+    }
+  });
+
   it('test_project_disconnect_returns_disconnected', async () => {
     const res = await call('DELETE', '/api/v1/projects/acme-web/connect');
     const body = await res.json();
