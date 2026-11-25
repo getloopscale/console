@@ -9,6 +9,7 @@
 - The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com`. CLI commands still read `theo`, since the CLI binary keeps that name (#521).
 
 ### Fixed
+- The Deployments footer counts the rows the status and environment filters leave on screen. With "Failed" selected it said "Showing 4 of 4 deployments" over 2 rows (#543).
 - The project Overview suggests `loopscale status`, `loopscale logs` and `loopscale deploy`, the published CLI binary. It suggested the `theo` commands, which fail as typed (#530).
 - "Install GitHub App" reaches GitHub. The service worker answered `/v1/integrations/github/install` with the dashboard's "Page not found" (#536).
 - The link in the sign-up verification email verifies the address. The page read the code only from the URL, and Kratos keeps it in the flow (#534).

@@ -60,7 +60,7 @@ function makeBuild(id: string, overrides: Partial<Build> = {}): Build {
     environment: 'production',
     status: 'succeeded',
     commit_sha: 'abc1234567890',
-    created_by: 'paulo@theo.test',
+    created_by: 'paulo@loopscale.test',
     created_at: '2026-06-06T00:00:00Z',
     ...overrides,
   };
@@ -86,7 +86,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/projects/teste/deployments']}>
-        <NuqsTestingAdapter>
+        <NuqsTestingAdapter hasMemory>
           <Routes>
             <Route path="/projects/:name/deployments" element={<DeploymentsPage />} />
           </Routes>
@@ -272,7 +272,7 @@ describe('DeploymentsPage', () => {
             git_commit: '013e5ca017a1f01b04fa3850f40d1f7392266674',
             created_at: '2026-06-30T06:11:26Z',
           },
-          url: 'https://example-app-production.prod-dev.usetheo.dev',
+          url: 'https://example-app-production.getloopscale.app',
           last_build: { build_id: 'build-bba6f3b997377da1', environment: 'production' },
         };
       }
@@ -283,7 +283,7 @@ describe('DeploymentsPage', () => {
             git_commit: '013e5ca017a1f01b04fa3850f40d1f7392266674',
             created_at: '2026-06-29T14:50:00Z',
           },
-          url: 'https://example-app-preview.prod-dev.usetheo.dev',
+          url: 'https://example-app-preview.getloopscale.app',
           last_build: { build_id: 'build-b431fb74a6dfc7cc', environment: 'preview' },
         };
       }
@@ -358,6 +358,26 @@ describe('DeploymentsPage', () => {
     // Note: the Visit icon component renders a link only when isActive;
     // since previewActive is set above, the preview URL link should exist.
     expect(previewVisitLink).not.toBeNull();
+  });
+
+  it('counts only the rows the status filter shows in the footer', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      builds: [
+        makeBuild('b-1', { commit_sha: 'aaaaaaa', status: 'failed' }),
+        makeBuild('b-2', { commit_sha: 'bbbbbbb', status: 'failed' }),
+        makeBuild('b-3', { commit_sha: 'ccccccc', status: 'succeeded' }),
+        makeBuild('b-4', { commit_sha: 'ddddddd', status: 'succeeded' }),
+      ],
+      total: 4,
+    } as BuildListResponse);
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Showing 4 of 4 deployments')).toBeInTheDocument());
+
+    const group = screen.getByRole('group', { name: /filter by status/i });
+    await userEvent.click(within(group).getByRole('button', { name: /^failed$/i }));
+
+    await waitFor(() => expect(screen.getByText('Showing 2 of 4 deployments')).toBeInTheDocument());
   });
 
   it('test_status_filter_chips_work', async () => {
