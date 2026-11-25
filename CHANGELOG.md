@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
+
 ### Changed
 - The images are published as `ghcr.io/getloopscale/loopzero-cloud` and `ghcr.io/getloopscale/loopzero-dashboard`, the names the LoopZero engine pulls. Nothing new is published under `theo-cloud` or `theo-dashboard` (#520).
 - The control plane reads its own settings under the `LOOPZERO_` prefix, the names the LoopZero Helm chart sets: `LOOPZERO_ENV`, `LOOPZERO_SERVICE_AUTH_SECRET`, `LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY`, `LOOPZERO_TRACING_ENABLED`, `LOOPZERO_EXPORT_DIR`, `LOOPZERO_PROMETHEUS_URL`, `LOOPZERO_COST_AGGREGATOR_INTERVAL` and `LOOPZERO_RAG_OAUTH_<PROVIDER>_*`. The `THEO_` names are no longer read, so an install that still sets them must rename them (#523).

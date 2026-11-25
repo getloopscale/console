@@ -1,4 +1,4 @@
-import { ACCOUNTS_URL, API_URL, AUTH_URL } from '@/lib/http/config';
+import { ACCOUNTS_URL, API_URL, AUTH_URL, OAUTH_URL } from '@/lib/http/config';
 
 /**
  * isSafeRedirectUrl — OWASP A01 boundary helper for server-supplied
@@ -26,7 +26,7 @@ import { ACCOUNTS_URL, API_URL, AUTH_URL } from '@/lib/http/config';
  */
 function configuredOrigins(): string[] {
   const out: string[] = [];
-  for (const raw of [API_URL, AUTH_URL, ACCOUNTS_URL]) {
+  for (const raw of [API_URL, AUTH_URL, ACCOUNTS_URL, OAUTH_URL]) {
     if (!raw) continue;
     try {
       const u = new URL(raw);

@@ -15,6 +15,7 @@ vi.mock('@/lib/http/config', () => ({
   API_URL: 'https://cloud.exemplo.test',
   AUTH_URL: 'http://auth.local:4433',
   ACCOUNTS_URL: '',
+  OAUTH_URL: 'https://oauth.exemplo.test',
 }));
 
 const { isSafeRedirectUrl } = await import('./safe-redirect');
@@ -28,6 +29,12 @@ describe('as origens que o operador configurou', () => {
     // Sem este ramo o guarda bricava login, verificação e recuperação em qualquer deployment cujo
     // host de auth não fosse um dos seis literais da lista.
     expect(isSafeRedirectUrl('https://cloud.exemplo.test/x')).toBe(true);
+  });
+
+  it('aceita a origem pública do OAuth2 configurada (o Hydra, para onde o device flow redireciona)', () => {
+    // O CLI autoriza pelo device flow: depois do accept, o Hydra manda o navegador para
+    // `<origem pública do Hydra>/oauth2/device/verify`, que fica num host diferente do console.
+    expect(isSafeRedirectUrl('https://oauth.exemplo.test/oauth2/device/verify?user_code=X')).toBe(true);
   });
 
   it('RECUSA a origem configurada em http quando a página está em https — sem downgrade', () => {

@@ -8,6 +8,8 @@ interface TheoConfig {
   API_URL: string;
   AUTH_URL: string;
   ACCOUNTS_URL: string;
+  /** The OAuth2 server's public origin (Hydra). The CLI device flow redirects there. */
+  OAUTH_URL?: string;
 }
 
 declare global {
@@ -21,6 +23,7 @@ function getConfig(): TheoConfig {
     API_URL: "",
     AUTH_URL: "",
     ACCOUNTS_URL: "",
+    OAUTH_URL: "",
   };
 }
 
@@ -32,6 +35,9 @@ export const AUTH_URL = getConfig().AUTH_URL;
 
 /** Base URL for accounts. Empty = same-origin. */
 export const ACCOUNTS_URL = getConfig().ACCOUNTS_URL;
+
+/** Public origin of the OAuth2 server (Hydra). Empty = none besides the ones above. */
+export const OAUTH_URL = getConfig().OAUTH_URL ?? "";
 
 /**
  * "A camada de mock de dev esta ativa?" — unica fonte de verdade.
