@@ -136,7 +136,19 @@ describe('B-196 — quem atende cada caminho é a PRIMEIRA regra que casa', () =
     // a política de CSP talvez já não permita.
     const regra = quemAtende('https://app.usetheo.dev/__config.js');
     expect(regra?.options?.cacheName).toBe('theo-config');
-    expect(regra?.handler).toBe('StaleWhileRevalidate');
+    expect(regra?.handler).toBe('NetworkFirst');
+  });
+
+  it('reads the runtime config from the network first and keeps the cache as offline fallback', () => {
+    // StaleWhileRevalidate answered from cache first, so the request after a config change still
+    // got the old file, without the auth host the login form posts to.
+    const regra = quemAtende('https://app.usetheo.dev/__config.js');
+    expect(regra?.handler).toBe('NetworkFirst');
+    expect(regra?.options?.networkTimeoutSeconds).toBeGreaterThan(0);
+    expect(regra?.options?.networkTimeoutSeconds).toBeLessThanOrEqual(5);
+    const configIndex = SW_RUNTIME_CACHING.indexOf(regra!);
+    const assetsIndex = SW_RUNTIME_CACHING.findIndex((r) => r.options?.cacheName === 'theo-assets');
+    expect(configIndex).toBeLessThan(assetsIndex);
   });
 
   it('um asset com hash continua em CacheFirst', () => {

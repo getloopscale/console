@@ -9,6 +9,7 @@
 - The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com`. CLI commands still read `theo`, since the CLI binary keeps that name (#521).
 
 ### Fixed
+- A returning user can sign in with a password and approve `loopscale login --device-flow` again. The service worker precached the build-time `/__config.js`, which has no auth host, and served it instead of the one the container writes, so login failed with "Network error" and Authorize with "unexpected redirect target". The file is left out of the precache and read from the network first (#547).
 - Scale applies the replica count to the project's own server app, with a picker when there are several. It sent `app: "api"` for every project. The cost card shows the running and configured counts the API reports instead of the requested count (#539).
 - Readiness marks a signal unknown when the status response does not carry the field it reads. Missing fields counted as 0, so "2+ replicas" failed with 2 replicas serving and "logs healthy" passed with nothing measured. The autoscaling and cache signals stay unknown until the API reports an HPA and a hit rate (#542).
 - Add secret keeps its sheet open and shows the reason when the API reports the secret was not saved. The API answers 200 with a failed item, and the sheet closed as if the secret were set (#540).
