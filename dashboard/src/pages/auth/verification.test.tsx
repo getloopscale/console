@@ -5,6 +5,7 @@ vi.mock('@/lib/http/config', () => ({
   API_URL: 'https://auth-dev.usetheo.dev',
   AUTH_URL: '',
   ACCOUNTS_URL: '',
+  OAUTH_URL: '',
 }));
 
 const mockFetch = vi.fn();
