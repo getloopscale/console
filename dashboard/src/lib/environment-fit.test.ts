@@ -82,7 +82,6 @@ const JSDOM_BY_TRANSITIVE_IMPORT: readonly string[] = [
   'lib/auth-channel.test.ts',
   'lib/cache-policy.test.ts',
   'lib/http/query-client.test.ts',
-  'lib/mocks/handlers.test.ts',
   'lib/navigation/navigation-target.test.ts',
   'lib/navigation/safe-navigator.test.ts',
   'pages/auth/kratos.test.ts',

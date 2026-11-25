@@ -267,6 +267,17 @@ type Config struct {
 	// Env: GITHUB_APP_SLUG (default: "theo-platform")
 	GitHubAppSlug string
 
+	// GitHubAppClientID is the OAuth client id of the GitHub App. The dashboard's
+	// connect flow sends the browser to GitHub's user authorization page with it.
+	// It is public, not a secret; the client secret lives in the engine only.
+	// Empty disables the connect flow.
+	// Env: GITHUB_APP_CLIENT_ID
+	GitHubAppClientID string
+
+	// GitHubWebBaseURL is the GitHub web root the browser is sent to.
+	// Env: GITHUB_WEB_BASE_URL (default: "https://github.com")
+	GitHubWebBaseURL string
+
 	// AppPublicURL is the user-facing dashboard origin
 	// (e.g. https://app-dev.usetheo.dev). The GitHub App callback redirects
 	// the browser back to this origin + the return_to path.
@@ -320,6 +331,8 @@ func Load() Config {
 	cfg.ServiceAuthSecret = Secret(envOr("LOOPZERO_SERVICE_AUTH_SECRET", devSecretFor(cfg.Environment)))
 	// J-09 T1.1 — GitHub App install handshake.
 	cfg.GitHubAppSlug = envOr("GITHUB_APP_SLUG", "theo-platform")
+	cfg.GitHubAppClientID = envOr("GITHUB_APP_CLIENT_ID", "")
+	cfg.GitHubWebBaseURL = envOr("GITHUB_WEB_BASE_URL", "https://github.com")
 	cfg.AppPublicURL = envOr("APP_PUBLIC_URL", cfg.BillingReturnURL)
 	cfg.CloudPublicURL = envOr("CLOUD_PUBLIC_URL", cfg.AppPublicURL)
 	cfg.AuthCookieDomain = envOr("AUTH_COOKIE_DOMAIN", "")

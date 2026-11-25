@@ -20,10 +20,12 @@ import { parse } from '@/test/source-scan';
  * The CLI binary is `loopscale` (#530), so a command the page tells the user to type must start
  * with it. A `theo ...` command fails as typed.
  *
+ * The CLI is published as `@getloopscale/cli` (#556). An install command that names the old
+ * `@usetheo/cli` package installs something else, so no visible text may name it.
+ *
  * Kept on purpose:
- * - The npm package name `@usetheo/cli` and the `theo.yaml` file name are contracts owned by the
- *   CLI and the engine, not copy. Neither has a space after `theo`, so the command pattern skips
- *   them.
+ * - The `theo.yaml` file name is a contract owned by the CLI and the engine, not copy. It has no
+ *   space after `theo`, so the command pattern skips it.
  * - `safe-redirect.ts` and `auth/session.ts` hold environment configuration (auth hosts, the
  *   session cookie domain), which changes with the deployment and not with the copy.
  */
@@ -37,6 +39,9 @@ const ALLOWED_TEXT = new Set<string>();
 
 /** A command line that starts with the old binary: `theo login`, `$ theo deploy --project x`. */
 const OLD_CLI_COMMAND = /(?:^|[\s`'"$(])theo [a-z][a-z-]*/;
+
+/** The npm package the CLI was published as before the rename. */
+const OLD_CLI_PACKAGE = /@usetheo\/cli/;
 
 const ENVIRONMENT_CONFIG_FILES = new Set([
   'src/lib/navigation/safe-redirect.ts',
@@ -99,6 +104,20 @@ describe('user-visible copy names LoopScale, not the old brand (#521)', () => {
         .map(({ line, text }) => `${path}:${line} ${JSON.stringify(text)}`),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it('no production text names the old @usetheo/cli package', () => {
+    const offenders = listModules(SRC).flatMap((path) =>
+      visibleTexts(path)
+        .filter(({ text }) => OLD_CLI_PACKAGE.test(text))
+        .map(({ line, text }) => `${path}:${line} ${JSON.stringify(text)}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('the old package pattern matches the old install command and skips the new one', () => {
+    expect(OLD_CLI_PACKAGE.test('npm install -g @usetheo/cli')).toBe(true);
+    expect(OLD_CLI_PACKAGE.test('npm install -g @getloopscale/cli')).toBe(false);
   });
 
   it('the old command pattern matches commands and skips package and file names', () => {

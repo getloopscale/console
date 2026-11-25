@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useConexaoDoProjeto } from '@/hooks/projects/use-project-connection';
+import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Github, Link2, Loader2, Unlink2 } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, Input, Label, PageShell } from '@usetheo/ui';
@@ -7,55 +6,37 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useProjectConnected } from '@/hooks/projects/use-project-connection';
+import { useGitHubInstallations } from '@/hooks/projects/use-github-installations';
 import {
   fetchInstallationRepositories,
   connectProjectRepository,
   disconnectProjectRepository,
 } from '@/hooks/projects/github-connect';
-import { derivarConexaoEfetiva, derivarEstado } from '@/hooks/projects/connect-fsm';
-import type { ConnectState } from '@/hooks/projects/connect-fsm';
+import { deriveConnectStep } from '@/hooks/projects/connect-fsm';
+import {
+  githubErrorMessage,
+  INSTALLATION_NEEDS_AUTHORIZATION,
+} from '@/hooks/projects/github-connect-errors';
+import { ApiError } from '@/lib/http/api';
 import { safeNavigator } from '@/lib/navigation';
-import type {
-  InstallationRepository,
-} from '@/lib/api/types';
+import type { InstallationRepository } from '@/lib/api/types';
 
 /**
- * ProjectConnectPage — Plan J-09 T1.2 + T3.1.
+ * ProjectConnectPage: link a project to a GitHub repository.
  *
- * Finite-state machine for the install + connect workflow:
+ * The page reads two things from the engine: the project's connection and the GitHub App
+ * installations GitHub confirmed for the team. From those it shows one of four steps (see
+ * `deriveConnectStep`): the linked repository, the button that starts the GitHub authorization,
+ * the account picker, or the repository picker.
  *
- *   idle              — Not connected; no GitHub App installation yet.
- *                       Render "Install GitHub App" button.
- *   installing        — User clicked install; tab opened to GitHub.
- *                       Poll GET /connect every 2s up to 5min waiting
- *                       for installation_id to appear. Tab visibility
- *                       triggers an instant (debounced) refetch.
- *   has_installation  — installation_id known; show the repo form
- *                       (slug input today, T2.2 will swap in the picker).
- *   connected         — Repository is linked; show details + disconnect.
- *   error             — Polling timed out OR connect call failed.
+ * The authorization runs in this tab. The button goes to `/v1/integrations/github/install`, GitHub
+ * asks the user to authorize (and to install the App when it is missing), and the control plane
+ * sends the browser back here. That return is a fresh page load, so there is nothing to poll.
  *
- * Once the dashboard issues POST /connect with a valid {repo, installation_id,
- * branch, auto_deploy} payload the backend persists the installation via
- * engine.LinkRepository -- no extra call needed from the dashboard.
+ * The page URL can carry `github_error=<code>` (shown as a sentence) and `updated=1` (a banner).
+ * It never supplies an installation id.
  */
-const POLL_TIMEOUT_MS = 5 * 60 * 1_000; // 5 min cap (EC-3 cancel guard)
-/**
- * A mensagem do prazo esgotado.
- *
- * Ela vai para `installError` e não para um sinalizador próprio, e isso é o que
- * faz o polling parar: `installError` é entrada da FSM, então preenchê-lo tira
- * o estado de `installing`, e `refetchInterval` devolve `false` na sequência.
- *
- * Um sinalizador separado teria virado laço: o efeito do prazo o zeraria ao sair
- * de `installing`, a mensagem sumiria, a FSM voltaria a `installing`, e o prazo
- * recomeçaria. Uma peça de estado a menos, e ela já é reiniciada no lugar certo
- * — `handleInstallClick`, que sempre limpou o `installError`.
- */
-const INSTALL_DEADLINE_MESSAGE =
-  "We didn't see the GitHub install complete. Try again from the install button.";
-const VISIBILITY_DEBOUNCE_MS = 500;
-
 export function ProjectConnectPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
@@ -63,153 +44,65 @@ export function ProjectConnectPage() {
 
   const [searchParams] = useSearchParams();
   const isAccessUpdated = searchParams.get('updated') === '1';
-  // Plan J-09 T1.1 callback redirects here as
-  //   /projects/:name/connect?installed=1&installation_id=<id>
-  // (or ?updated=1 when setup_action=update). The backend GET /connect
-  // reads from project_repositories which is empty until POST /connect
-  // runs, so without merging the query param into our state the FSM
-  // would stay at idle ("Install GitHub App" forever). Parse it once
-  // per mount.
-  const installedQueryID = (() => {
-    const raw = searchParams.get('installation_id');
-    if (!raw) return undefined;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-  })();
+  const githubError = githubErrorMessage(searchParams.get('github_error'));
 
   const [busy, setBusy] = useState(false);
-  const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
   const [autoDeploy, setAutoDeploy] = useState(true);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
-  const [installError, setInstallError] = useState<string | null>(null);
+  const [selectedInstallationId, setSelectedInstallationId] = useState<number | undefined>();
+  // True once the engine answered 403 for the installation in use: GitHub has not confirmed it
+  // for this team, and only a new authorization changes that.
+  const [needsAuthorization, setNeedsAuthorization] = useState(false);
 
-  // T2.2 — repo picker state. repos === null while fetching, [] after a
-  // successful response with no accessible repos. Picker also tracks the
-  // selected repo's full_name and a client-side filter string.
+  // repos === null while fetching, [] after a successful response with no accessible repos.
   const [repos, setRepos] = useState<InstallationRepository[] | null>(null);
   const [reposError, setReposError] = useState<string | null>(null);
   const [selectedRepo, setSelectedRepo] = useState('');
   const [repoFilter, setRepoFilter] = useState('');
 
-  const lastVisibilityFetchRef = useRef(0);
-
-
-  const conexao = useConexaoDoProjeto(name, {
-    busy,
-    repoUrl,
-    connectError,
-    installError,
-    installedQueryID,
-  });
+  const conexao = useProjectConnected(name);
   const conn = conexao.data ?? null;
-  const loading = conexao.isLoading;
+  const installationsQuery = useGitHubInstallations({
+    enabled: conexao.isSuccess && !conn?.connected,
+  });
+  const installations = installationsQuery.data ?? [];
 
-  // Effective conn: merge ?installation_id=<id> query param into the
-  // backend response so the FSM transitions to has_installation right
-  // after the callback redirect, without waiting for project_repositories
-  // to be populated (which only happens after POST /connect). Backend
-  // installation_id always wins if present (post-Connect persistence).
-  const effectiveConn = useMemo(
-    () => derivarConexaoEfetiva(conn, installedQueryID),
-    [conn, installedQueryID],
-  );
+  const step = deriveConnectStep(conn, installations, selectedInstallationId);
+  const installationID = step.step === 'pick_repository' ? step.installationId : undefined;
 
-  // FSM derivation. Single useState would have desync hazards across
-  // refetches; deriving from `effectiveConn` keeps the FSM as a function
-  // of state.
-  const state: ConnectState = useMemo(
-    () => derivarEstado(effectiveConn, { busy, repoUrl, connectError, installError }),
-    [effectiveConn, busy, repoUrl, connectError, installError],
-  );
-
-
-  /**
-   * O PRAZO do polling — e só ele. O polling em si é `refetchInterval`.
-   *
-   * A separação é o ponto: antes um único `setInterval` fazia as duas coisas, e
-   * o teto de 5 min era checado DENTRO do tique. Isso amarrava a precisão do
-   * prazo ao período do tique e escondia a regra no meio do laço de busca.
-   *
-   * Agora o `setTimeout` cuida do prazo (que é o trabalho dele) e a mensagem de
-   * erro é DERIVADA do sinalizador, em vez de escrita por efeito colateral de
-   * dentro do tique.
-   */
+  // Fetch the repositories of the installation in use, once per installation.
   useEffect(() => {
-    if (state !== 'installing') return;
-    const id = window.setTimeout(
-      () => setInstallError(INSTALL_DEADLINE_MESSAGE),
-      POLL_TIMEOUT_MS,
-    );
-    return () => window.clearTimeout(id);
-  }, [state]);
-
-  // Visibility-change refetch: when user comes back from the GitHub
-  // install tab the dashboard should pick up installation_id without
-  // waiting for the next polling tick. Debounced at 500ms (EC-3) so
-  // rapid alt-tab does not amplify request volume.
-  useEffect(() => {
-    if (state !== 'installing') return;
-    const handler = () => {
-      if (document.visibilityState !== 'visible') return;
-      const now = Date.now();
-      if (now - lastVisibilityFetchRef.current < VISIBILITY_DEBOUNCE_MS) return;
-      lastVisibilityFetchRef.current = now;
-      void conexao.refetch();
-    };
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
-  }, [state]);
-
-  // EC-14: ?updated=1 triggers a one-shot refetch + a banner. We never
-  // remove the param from the URL — operators may want to bookmark the
-  // updated-access landing page during incident triage.
-  useEffect(() => {
-    if (!isAccessUpdated) return;
-    void conexao.refetch();
-  }, [isAccessUpdated]);
-
-  // T2.2 — fetch repos when we transition into has_installation. We do
-  // NOT re-fetch on every render; the dependency on installation_id
-  // ensures the call fires exactly once per installation_id value.
-  const installationID = effectiveConn?.installation_id;
-  useEffect(() => {
-    if (!installationID || effectiveConn?.connected) return;
+    if (!installationID) return;
     let cancelled = false;
     setReposError(null);
     setRepos(null);
+    setSelectedRepo('');
+    setNeedsAuthorization(false);
     void fetchInstallationRepositories(installationID)
       .then((data) => {
         if (cancelled) return;
         setRepos(data?.repositories ?? []);
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        setReposError(
-          "We couldn't load your repositories. Try again in a moment.",
-        );
+        if (e instanceof ApiError && e.status === 403) {
+          setNeedsAuthorization(true);
+        } else {
+          setReposError("We couldn't load your repositories. Try again in a moment.");
+        }
         setRepos([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [installationID, effectiveConn?.connected]);
+  }, [installationID]);
 
-  const handleInstallClick = () => {
-    setInstallError(null);
-    const returnTo = encodeURIComponent(
-      `/projects/${encodeURIComponent(name)}/connect`,
-    );
-    const installUrl = `/v1/integrations/github/install?return_to=${returnTo}`;
-    // `noopener,noreferrer` lives in the boundary now. A popup blocker still leaves the
-    // user here waiting for installation_id, which the polling FSM handles.
-    safeNavigator.openInNewTab(installUrl);
-    setBusy(true);
-    // Trigger an immediate poll so state flips to 'installing' even
-    // before the 2s interval fires.
-    void conexao.refetch();
+  const handleAuthorize = () => {
+    const returnTo = encodeURIComponent(`/projects/${encodeURIComponent(name)}/connect`);
+    safeNavigator.goTo(`/v1/integrations/github/install?return_to=${returnTo}`);
   };
 
   const handleDisconnect = async () => {
@@ -235,45 +128,32 @@ export function ProjectConnectPage() {
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
     setConnectError(null);
-    if (!effectiveConn?.installation_id) {
-      setConnectError(
-        'Install the GitHub App first to authorize this repository.',
-      );
+    if (!installationID) {
+      setConnectError('Pick a GitHub account first.');
       return;
     }
-    // Picker-first (T2.2): selectedRepo is the canonical source of the
-    // owner/name slug. The legacy text input is preserved as a fallback
-    // only when the picker did not deliver any repos (operator can still
-    // type a slug while debugging).
-    let repoSlug = selectedRepo.trim();
+    const repoSlug = selectedRepo.trim();
     if (!repoSlug) {
-      const slugMatch = repoUrl
-        .trim()
-        .match(/^(?:https?:\/\/github\.com\/)?([^/\s]+\/[^/\s]+)$/);
-      if (!slugMatch) {
-        setConnectError('Pick a repository or enter owner/name.');
-        return;
-      }
-      repoSlug = slugMatch[1].replace(/\.git$/, '');
+      setConnectError('Pick a repository to connect.');
+      return;
     }
     setBusy(true);
     try {
-      const res = await connectProjectRepository(name, {
+      await connectProjectRepository(name, {
         repo: repoSlug,
-        installation_id: effectiveConn.installation_id,
+        installation_id: installationID,
         branch,
         auto_deploy: autoDeploy,
       });
-      if (res === null) {
-        setConnectError(
-          "Couldn't connect repository. Try again in a moment.",
-        );
-        return;
-      }
       await conexao.refetch();
-      setRepoUrl('');
       setSelectedRepo('');
       setRepoFilter('');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setNeedsAuthorization(true);
+      } else {
+        setConnectError("Couldn't connect repository. Try again in a moment.");
+      }
     } finally {
       setBusy(false);
     }
@@ -291,7 +171,7 @@ export function ProjectConnectPage() {
     );
   }
 
-  if (loading) {
+  if (conexao.isLoading || (!conn?.connected && installationsQuery.isLoading)) {
     return (
       <PageShell title="Connect">
         <div className="flex items-center justify-center py-12">
@@ -303,6 +183,13 @@ export function ProjectConnectPage() {
       </PageShell>
     );
   }
+
+  const authorizeButton = (label: string) => (
+    <Button type="button" onClick={handleAuthorize} className="inline-flex items-center gap-2">
+      <Github className="size-4" aria-hidden="true" />
+      {label}
+    </Button>
+  );
 
   return (
     <PageShell title="Repository connection" description={`GitHub link for ${name}.`}>
@@ -318,12 +205,16 @@ export function ProjectConnectPage() {
         </Button>
       </div>
 
-      {isAccessUpdated && state !== 'connected' && (
+      {isAccessUpdated && step.step !== 'connected' && (
         <Alert
           intent="info"
           className="mb-4"
           description="Repository access updated. Pick a repository to refresh the connection."
         />
+      )}
+
+      {githubError && step.step !== 'connected' && (
+        <Alert intent="destructive" className="mb-4" description={githubError} />
       )}
 
       {conn?.connected ? (
@@ -421,38 +312,26 @@ export function ProjectConnectPage() {
             />
           </Card.Body>
         </Card>
-      ) : !effectiveConn?.installation_id ? (
+      ) : installationsQuery.isError ? (
+        <Alert
+          intent="destructive"
+          title="Could not load your GitHub installations"
+          description="The request to the engine failed. Reload the page to try again."
+        />
+      ) : step.step === 'authorize' ? (
         <Card>
           <Card.Header>
             <Card.Title className="inline-flex items-center gap-2">
               <Github className="size-5" aria-hidden="true" />
-              Install the LoopScale GitHub App
+              Connect LoopScale to GitHub
             </Card.Title>
             <Card.Description>
-              LoopScale deploys from your GitHub repositories. Install the app on
-              your org or account first, then come back here to pick a repo.
+              LoopScale deploys from your GitHub repositories. GitHub asks you to authorize
+              LoopScale and, if the LoopScale App is not installed yet, to install it on your
+              account or organization. You come back here to pick a repository.
             </Card.Description>
           </Card.Header>
-          <Card.Body className="space-y-4">
-            <Button
-              type="button"
-              onClick={handleInstallClick}
-              disabled={busy}
-              className="inline-flex items-center gap-2"
-            >
-              {busy && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              <Github className="size-4" aria-hidden="true" />
-              Install GitHub App
-            </Button>
-            {installError && (
-              <Alert intent="destructive" description={installError} />
-            )}
-            {state === 'installing' && !installError && (
-              <p className="text-body-sm text-muted-foreground">
-                Waiting for the GitHub install to complete. Keep this tab open.
-              </p>
-            )}
-          </Card.Body>
+          <Card.Body>{authorizeButton('Continue to GitHub')}</Card.Body>
         </Card>
       ) : (
         <Card>
@@ -467,36 +346,46 @@ export function ProjectConnectPage() {
           </Card.Header>
           <Card.Body>
             <form onSubmit={handleConnect} className="space-y-4">
-              {/* T4.5 of plan 2026-06-11-code-review-remediation v1.2 + ADR D6:
-                  4-state repo picker extracted to <RepoPickerBlock /> below
-                  the page export. Closes the project-connect.tsx
-                  god-component finding by collapsing the inline 80-line
-                  4-branch tree into a single component call. */}
-              {repos !== null || effectiveConn?.installation_id ? (
-                <RepoPickerBlock
-                  repos={repos}
-                  reposError={reposError}
-                  installationId={effectiveConn?.installation_id}
-                  selectedRepo={selectedRepo}
-                  setSelectedRepo={setSelectedRepo}
-                  repoFilter={repoFilter}
-                  setRepoFilter={setRepoFilter}
-                  onPickBranch={setBranch}
-                />
-              ) : (
-                // Debug fallback — picker fetch never fired (no installation_id
-                // somehow): show the legacy slug input.
-                <div>
-                  <Label htmlFor="repo-url">Repository</Label>
-                  <Input
-                    id="repo-url"
-                    type="text"
-                    placeholder="owner/repo or https://github.com/owner/repo"
-                    value={repoUrl}
-                    onChange={(e) => setRepoUrl(e.target.value)}
-                    required
-                  />
+              {installations.length > 1 && (
+                <div className="space-y-2">
+                  <Label htmlFor="github-account">GitHub account</Label>
+                  <select
+                    id="github-account"
+                    className="w-full rounded-md border bg-background px-3 py-2 text-body-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={installationID ?? ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setSelectedInstallationId(Number.isFinite(id) && id > 0 ? id : undefined);
+                    }}
+                  >
+                    <option value="">Pick an account…</option>
+                    {installations.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {`${i.account_login} (${i.account_type})`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              )}
+
+              {needsAuthorization ? (
+                <div className="space-y-3">
+                  <Alert intent="warning" description={INSTALLATION_NEEDS_AUTHORIZATION} />
+                  {authorizeButton('Authorize on GitHub')}
+                </div>
+              ) : (
+                installationID !== undefined && (
+                  <RepoPickerBlock
+                    repos={repos}
+                    reposError={reposError}
+                    installationId={installationID}
+                    selectedRepo={selectedRepo}
+                    setSelectedRepo={setSelectedRepo}
+                    repoFilter={repoFilter}
+                    setRepoFilter={setRepoFilter}
+                    onPickBranch={setBranch}
+                  />
+                )
               )}
 
               <div>
@@ -528,7 +417,12 @@ export function ProjectConnectPage() {
                 <Alert intent="destructive" description={connectError} />
               )}
 
-              <Button type="submit" disabled={busy || (repos !== null && repos.length === 0)}>
+              <Button
+                type="submit"
+                disabled={
+                  busy || needsAuthorization || installationID === undefined || repos === null || repos.length === 0
+                }
+              >
                 {busy && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                 <Link2 className="size-4" aria-hidden="true" />
                 {busy ? 'Connecting…' : 'Connect repository'}
@@ -573,6 +467,10 @@ function RepoPickerBlock({
   setRepoFilter: (v: string) => void;
   onPickBranch: (branch: string) => void;
 }) {
+  // The list could not be loaded: say so, and do not claim the App has no repositories.
+  if (reposError) {
+    return <Alert intent="destructive" description={reposError} />;
+  }
   // State 1: loading (App installed, fetch in flight)
   if (repos === null && installationId) {
     return (
@@ -640,9 +538,6 @@ function RepoPickerBlock({
               </option>
             ))}
         </select>
-        {reposError && (
-          <p className="text-label text-destructive">{reposError}</p>
-        )}
       </div>
     );
   }

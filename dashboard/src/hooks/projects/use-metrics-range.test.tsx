@@ -71,7 +71,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
       signal: 'uptime_24h',
       range: '7d',
       status: 'collecting',
-      collecting_hint: 'Coletando dados...',
+      collecting_hint: 'Collecting data...',
       data: [],
     };
     mockedEngineFetch.mockResolvedValue(fixture);
@@ -83,7 +83,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.status).toBe('collecting');
-    expect(result.current.collectingHint).toBe('Coletando dados...');
+    expect(result.current.collectingHint).toBe('Collecting data...');
     expect(result.current.data).toEqual([]);
   });
 

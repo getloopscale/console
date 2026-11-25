@@ -34,6 +34,11 @@ export const queryKeys = {
     // propósito: invalidar o projeto alcança a conexão dele.
     conexao: (name: string) => ['projects', name, 'connect'] as const,
   },
+  integrations: {
+    // The GitHub App installations GitHub confirmed for the team. Not under a project: the list
+    // belongs to the team and every project's connect page reads the same one.
+    githubInstallations: ['integrations', 'github', 'installations'] as const,
+  },
   builds: {
     all: ['builds'] as const,
     list: (project: string | undefined, filters?: Record<string, unknown>) =>

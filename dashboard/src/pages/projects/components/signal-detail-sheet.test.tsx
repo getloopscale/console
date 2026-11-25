@@ -3,7 +3,7 @@
  *
  * Asserts:
  *  - Renders signal label + project/env subtitle
- *  - EC-8: collecting state shows "Coletando dados..." hint
+ *  - EC-8: collecting state shows the "Collecting data..." hint
  *  - EC-5: prometheus_unreachable shows honest error message
  *  - Happy path with data: renders table with rows
  *  - EC-13: Grafana button disabled when grafanaBaseURL not configured
@@ -86,12 +86,12 @@ describe('SignalDetailSheet — T3.3 J-18', () => {
     expect(screen.getByText(/staging/)).toBeInTheDocument();
   });
 
-  it('EC-8: shows "Coletando dados..." when status=collecting', async () => {
+  it('EC-8: shows the hint the API sends when status=collecting', async () => {
     mockedEngineFetch.mockResolvedValue({
       signal: 'uptime_24h',
       range: '7d',
       status: 'collecting',
-      collecting_hint: 'Coletando dados...',
+      collecting_hint: 'Collecting data...',
       data: [],
     });
 
@@ -107,7 +107,30 @@ describe('SignalDetailSheet — T3.3 J-18', () => {
       ),
     );
 
-    expect(await screen.findByText('Coletando dados...')).toBeInTheDocument();
+    expect(await screen.findByText('Collecting data...')).toBeInTheDocument();
+  });
+
+  it('EC-8: falls back to an English hint when the API sends none', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      signal: 'uptime_24h',
+      range: '7d',
+      status: 'collecting',
+      data: [],
+    });
+
+    render(
+      withQueryClient(
+        <SignalDetailSheet
+          open={true}
+          onOpenChange={() => {}}
+          signal="uptime_24h"
+          projectName="newproj"
+          env="production"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText('Collecting data...')).toBeInTheDocument();
   });
 
   it('renders table with datapoints when status=ok and data is present', async () => {

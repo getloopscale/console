@@ -1319,31 +1319,6 @@ func main() {
 	r.Get("/auth/consent", consentHandler.Consent)
 	r.Get("/auth/device", consentHandler.DeviceVerify)
 
-	// J-09 T1.1 — GitHub App install handshake (browser redirects).
-	// /v1/integrations/github/install sets a CSRF state cookie + 302s to GitHub.
-	// /v1/integrations/github/callback validates the state + bounces back to
-	// the dashboard, preserving installation_id so the next POST
-	// /api/v1/projects/{name}/connect can carry it through.
-	loginURL := cfg.AppPublicURL + "/login"
-	if cfg.KratosPublicURL != "" {
-		loginURL = cfg.KratosPublicURL + "/login"
-	}
-	ghIntegrations := routes.NewGitHubIntegrationsHandler(
-		cfg.GitHubAppSlug,
-		cfg.AppPublicURL,
-		loginURL,
-		cfg.AuthCookieDomain,
-		func(req *http.Request) bool {
-			// EC-15: cheap session check — we only need a valid Kratos
-			// browser session cookie to know the user can complete the
-			// connect flow without re-login. The session itself is
-			// validated on every API call the flow makes afterwards.
-			return req.Header.Get("Cookie") != ""
-		},
-	)
-	r.Get("/v1/integrations/github/install", ghIntegrations.InitiateInstall)
-	r.Get("/v1/integrations/github/callback", ghIntegrations.Callback)
-
 	// Plan 0 — Platform API Keys (/v1/api-keys/*).
 	// D8 dispatch lockdown: this route group uses requireJWT (session cookie
 	// from Ory Hydra OIDC). It does NOT use RequireScope — that middleware
@@ -1685,6 +1660,40 @@ func main() {
 		Timeout:   180 * time.Second,
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
+	// GitHub connect handshake (browser redirects, so not behind requireJWT:
+	// the callback resolves the caller from the session cookie itself).
+	// /v1/integrations/github/install sets a CSRF state cookie and sends the
+	// browser to GitHub's user authorization page for the App.
+	// /v1/integrations/github/callback checks the state and hands the code to
+	// the engine as the signed-in user, with the same client and service
+	// credentials as the /engine proxy below.
+	loginURL := cfg.AppPublicURL + "/login"
+	if cfg.KratosPublicURL != "" {
+		loginURL = cfg.KratosPublicURL + "/login"
+	}
+	if cfg.GitHubAppClientID == "" {
+		logger.Warn("GITHUB_APP_CLIENT_ID is not set: connecting a GitHub repository from the dashboard is disabled")
+	}
+	// A nil *auth.ServiceSigner stored in the interface would not compare
+	// equal to nil, so the interface is only set when there is a signer.
+	var claimSigner routes.EngineRequestSigner
+	if serviceSigner != nil {
+		claimSigner = serviceSigner
+	}
+	ghIntegrations := routes.NewGitHubIntegrationsHandler(routes.GitHubIntegrationsConfig{
+		AppSlug:          cfg.GitHubAppSlug,
+		AppClientID:      cfg.GitHubAppClientID,
+		GitHubWebBaseURL: cfg.GitHubWebBaseURL,
+		DashboardURL:     cfg.AppPublicURL,
+		CallbackURL:      cfg.CloudPublicURL + "/v1/integrations/github/callback",
+		LoginURL:         loginURL,
+		CookieDomain:     cfg.AuthCookieDomain,
+		Sessions:         sessionAuthenticator,
+		Claimer:          routes.NewEngineGitHubClaimer(engineURL, engineClient, serviceSecret, claimSigner),
+	})
+	r.Get("/v1/integrations/github/install", ghIntegrations.InitiateInstall)
+	r.Get("/v1/integrations/github/callback", ghIntegrations.Callback)
+
 	// CANONICAL FIX 2026-06-15 (FAANG): GitHub webhook authenticates via
 	// HMAC signature (X-Hub-Signature-256 header) — NOT Bearer JWT. The
 	// requireJWT middleware was wrongly blocking webhook deliveries on
