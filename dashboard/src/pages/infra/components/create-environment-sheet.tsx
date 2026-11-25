@@ -23,6 +23,27 @@ interface CreateEnvironmentSheetProps {
 
 const NAME_PATTERN = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
 
+interface PlanLimitRefusal {
+  message: string;
+  upgradeUrl: string;
+}
+
+/**
+ * A 402 from POST /environments carries `message` and `upgrade_url` in its body. Only an in-app
+ * path is followed as a link; anything else falls back to the billing page.
+ */
+function readPlanLimitRefusal(err: unknown): PlanLimitRefusal | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const { status, body } = err as { status?: unknown; body?: unknown };
+  if (status !== 402 || typeof body !== 'object' || body === null) return null;
+  const { message, upgrade_url: upgradeUrl } = body as { message?: unknown; upgrade_url?: unknown };
+  const inApp = typeof upgradeUrl === 'string' && upgradeUrl.startsWith('/') && !upgradeUrl.startsWith('//');
+  return {
+    message: typeof message === 'string' && message.trim() ? message : 'Your plan does not allow another environment.',
+    upgradeUrl: inApp ? upgradeUrl : '/billing',
+  };
+}
+
 /**
  * CreateEnvironmentSheet — M2 v1.2 T5.1 (2026-06-07).
  *
@@ -49,6 +70,7 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
   const [isProtected, setIsProtected] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planLimit, setPlanLimit] = useState<PlanLimitRefusal | null>(null);
 
   // B-113 — a lista vem do hook canônico, e não de uma segunda leitura própria.
   // Esta folha lia por `useEngineApi('/api/v1/projects')`, chave `['engine','/api/v1/projects']`.
@@ -79,6 +101,7 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setPlanLimit(null);
     if (!NAME_PATTERN.test(name)) {
       setError('Name must be lowercase, 3-40 chars, hyphens allowed.');
       return;
@@ -104,6 +127,12 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
       setIsProtected(false);
       onOpenChange(false);
     } catch (e) {
+      const refusal = readPlanLimitRefusal(e);
+      if (refusal) {
+        // A plan limit is not transient: retrying cannot succeed, so the copy says what to do.
+        setPlanLimit(refusal);
+        return;
+      }
       // T0.1 TCIA — sponsor critério #6
       setError(
         e instanceof Error
@@ -255,6 +284,14 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
             </div>
 
         {error && <Alert intent="destructive" description={error} />}
+        {planLimit && (
+          <div className="space-y-2">
+            <Alert intent="destructive" description={planLimit.message} />
+            <Link to={planLimit.upgradeUrl} className="text-body-sm font-medium underline">
+              Upgrade your plan
+            </Link>
+          </div>
+        )}
       </form>
     </AppModal>
   );

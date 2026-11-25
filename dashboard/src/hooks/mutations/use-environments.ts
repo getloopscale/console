@@ -63,11 +63,13 @@ export function useDeleteEnvironment() {
 export function useCreateEnvironment() {
   const queryClient = useQueryClient();
   return useMutation({
+    // Rejects on a non-2xx answer so the caller can tell a plan limit (402) from a failure.
     mutationFn: (input: { name: string; project: string; protected?: boolean }) =>
-      engineFetch<Environment>('/api/v1/environments', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+      engineFetch<Environment>(
+        '/api/v1/environments',
+        { method: 'POST', body: JSON.stringify(input) },
+        { throwOnError: true },
+      ),
     onSuccess: () => {
       // Canonical key tree for downstream consumers using queryKeys.environments.
       queryClient.invalidateQueries({ queryKey: queryKeys.environments.all });
