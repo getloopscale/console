@@ -16,6 +16,14 @@ interface RawSecretRow {
   app: string;
 }
 
+/**
+ * A secret row as the Secrets screen lists it. `app` is the app the secret is scoped to, absent
+ * for a project-wide secret (the API's app ""). Delete and rotate address a secret by it.
+ */
+export interface ProjectSecret extends Secret {
+  app?: string;
+}
+
 interface RawSecretListResponse {
   secrets: RawSecretRow[];
 }
@@ -33,10 +41,12 @@ interface RawSecretListResponse {
  *     UI shows multi-env badges on a single row.
  */
 export function useSecrets(opts: { project: string; env?: string }): {
-  secrets: Secret[];
+  secrets: ProjectSecret[];
   loading: boolean;
   error: boolean;
   refetch: () => void;
+  /** True only when every environment's list answered, so `secrets` is a measurement. */
+  measured: boolean;
 } {
   const { project, env } = opts;
   const queryClient = useQueryClient();
@@ -52,31 +62,37 @@ export function useSecrets(opts: { project: string; env?: string }): {
         const params = new URLSearchParams({ project, env: e });
         const r = await engineFetch<RawSecretListResponse>(
           `/api/v1/secrets?${params.toString()}`,
+          {},
+          { throwOnError: true },
         );
         if (r && Array.isArray(r.secrets)) rows.push(...r.secrets);
       }
-      // Group by `name` so the UI shows one row per key with the union of envs.
-      const byName = new Map<string, Secret>();
+      // Group by (`app`, `name`) so the UI shows one row per key with the union of envs. The same
+      // name in two apps is two secrets: delete and rotate address one of them by its app.
+      const byKey = new Map<string, ProjectSecret>();
       for (const row of rows) {
-        const existing = byName.get(row.name);
+        const key = `${row.app ?? ''}\u0000${row.name}`;
+        const existing = byKey.get(key);
         if (existing) {
           if (!existing.environments.includes(row.environment)) {
             existing.environments.push(row.environment);
           }
         } else {
-          byName.set(row.name, {
+          byKey.set(key, {
             name: row.name,
             environments: [row.environment],
+            ...(row.app ? { app: row.app } : {}),
           });
         }
       }
-      return Array.from(byName.values());
+      return Array.from(byKey.values());
     },
   });
   return {
     secrets: query.data ?? [],
     loading: query.isLoading || (!env && projectEnvs.loading),
     error: query.isError || (query.isFetched && query.data === null),
+    measured: query.isSuccess && !projectEnvs.error,
     refetch: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.secrets.all });
     },

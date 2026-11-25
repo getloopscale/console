@@ -186,3 +186,24 @@ describe('SignalGrid — T3.2 J-18 (EC-7 absorption: 8 pills always render)', ()
     expect(screen.getByText(/m ago/)).toBeInTheDocument();
   });
 });
+
+describe('SignalGrid — how real values read', () => {
+  it('rounds latency to whole milliseconds and shows small RPS with two decimals', () => {
+    render(
+      <SignalGrid
+        signals={{
+          status: 'Healthy',
+          replicas: 2,
+          uptime_24h: null,
+          p95_latency: 94.99999999999999,
+          error_rate: null,
+          rps: 0.2,
+          alerts_active: null,
+          last_deploy_time: null,
+        }}
+      />,
+    );
+    expect(screen.getByText('95ms')).toBeInTheDocument();
+    expect(screen.getByText('0.20')).toBeInTheDocument();
+  });
+});

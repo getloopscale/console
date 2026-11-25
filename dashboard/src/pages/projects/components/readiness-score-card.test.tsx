@@ -8,46 +8,56 @@ beforeEach(() => {
 
 describe('ReadinessScoreCard', () => {
   it('test_score_card_renders_value_and_threshold_color_classes', () => {
-    const { rerender } = render(<ReadinessScoreCard score={95} projectName="p1" />);
+    const { rerender } = render(<ReadinessScoreCard score={95} projectName="p1" measuredSignals={8} totalSignals={8} />);
     let bigNumber = screen.getByLabelText(/Readiness score 95/);
     expect(bigNumber.className).toMatch(/text-success/);
     expect(screen.getByText('Production ready')).toBeInTheDocument();
 
-    rerender(<ReadinessScoreCard score={70} projectName="p1" />);
+    rerender(<ReadinessScoreCard score={70} projectName="p1" measuredSignals={8} totalSignals={8} />);
     bigNumber = screen.getByLabelText(/Readiness score 70/);
     expect(bigNumber.className).toMatch(/text-warning/);
     expect(screen.getByText('Needs attention')).toBeInTheDocument();
 
-    rerender(<ReadinessScoreCard score={30} projectName="p1" />);
+    rerender(<ReadinessScoreCard score={30} projectName="p1" measuredSignals={8} totalSignals={8} />);
     bigNumber = screen.getByLabelText(/Readiness score 30/);
     expect(bigNumber.className).toMatch(/text-destructive/);
     expect(screen.getByText('Action required')).toBeInTheDocument();
   });
 
   it('test_score_card_renders_em_dash_when_loading (EC-6)', () => {
-    render(<ReadinessScoreCard score={null} projectName="p1" />);
+    render(<ReadinessScoreCard score={null} projectName="p1" measuredSignals={8} totalSignals={8} />);
     expect(screen.getByLabelText('Score loading')).toHaveTextContent('—');
   });
 
   it('test_score_card_delta_uses_localStorage_prev_render (EC-11)', async () => {
     // First render — no prior snapshot — no delta visible.
-    const { unmount } = render(<ReadinessScoreCard score={80} projectName="p1" />);
+    const { unmount } = render(<ReadinessScoreCard score={80} projectName="p1" measuredSignals={8} totalSignals={8} />);
     expect(screen.queryByLabelText(/Delta vs previous render/)).toBeNull();
     unmount();
 
     // localStorage now has 80; next render with 95 → +15.
-    render(<ReadinessScoreCard score={95} projectName="p1" />);
+    render(<ReadinessScoreCard score={95} projectName="p1" measuredSignals={8} totalSignals={8} />);
     const delta = await screen.findByLabelText(/Delta vs previous render/);
     expect(delta.textContent).toMatch(/\+15/);
     expect(delta.className).toMatch(/text-success/);
   });
 
   it('test_score_card_delta_negative_renders_em_dash_minus', async () => {
-    render(<ReadinessScoreCard score={90} projectName="p2" />);
+    render(<ReadinessScoreCard score={90} projectName="p2" measuredSignals={8} totalSignals={8} />);
     // Re-render with lower score.
-    render(<ReadinessScoreCard score={70} projectName="p2" />);
+    render(<ReadinessScoreCard score={70} projectName="p2" measuredSignals={8} totalSignals={8} />);
     const delta = await screen.findByLabelText(/Delta vs previous render/);
     expect(delta.textContent).toMatch(/–20|−20|-20/); // accept en-dash or hyphen
     expect(delta.className).toMatch(/text-destructive/);
+  });
+
+  it('does not call a project production ready while some signals are not measured', () => {
+    // Staging loop-app: one signal measured and passing read "100 / 100, Production ready".
+    const { container } = render(
+      <ReadinessScoreCard score={100} projectName="p3" measuredSignals={1} totalSignals={8} />,
+    );
+    expect(screen.queryByText('Production ready')).toBeNull();
+    expect(container.textContent).not.toMatch(/100/);
+    expect(screen.getByText(/1 of 8 signals measured/)).toBeInTheDocument();
   });
 });

@@ -10,6 +10,33 @@ import {
 
 const POLL_INTERVAL_MS = 2_000;
 
+/** GET /projects/{name}/connect. A 404 `NOT_CONNECTED` is the answer "no repository", not a failure. */
+async function fetchProjectConnection(name: string): Promise<ProjectConnection> {
+  try {
+    const data = await engineFetch<ProjectConnection>(
+      `/api/v1/projects/${encodeURIComponent(name)}/connect`,
+      {},
+      { throwOnError: true },
+    );
+    return data ?? { connected: false };
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return { connected: false };
+    throw e;
+  }
+}
+
+/**
+ * Whether the project has a repository connected, for screens that only read it (Readiness).
+ * Shares the query key with `useConexaoDoProjeto`, without its polling.
+ */
+export function useProjectConnected(name: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.projects.conexao(name ?? ''),
+    queryFn: () => fetchProjectConnection(name ?? ''),
+    enabled: !!name,
+  });
+}
+
 /**
  * A conexão de um projeto com o repositório do GitHub — leitura e polling.
  *
@@ -55,19 +82,7 @@ export function useConexaoDoProjeto(
 
   return useQuery({
     queryKey: queryKeys.projects.conexao(name),
-    queryFn: async (): Promise<ProjectConnection> => {
-      try {
-        const data = await engineFetch<ProjectConnection>(
-          `/api/v1/projects/${encodeURIComponent(name)}/connect`,
-          {},
-          { throwOnError: true },
-        );
-        return data ?? { connected: false };
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 404) return { connected: false };
-        throw e;
-      }
-    },
+    queryFn: () => fetchProjectConnection(name),
     enabled: !!name,
     refetchInterval: (query) => {
       const efetiva = derivarConexaoEfetiva(query.state.data ?? null, installedQueryID);

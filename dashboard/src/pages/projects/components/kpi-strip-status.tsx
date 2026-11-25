@@ -1,6 +1,7 @@
 import { Card } from '@usetheo/ui';
 import { SLO, sloTone } from '@/pages/projects/components/slo-tones';
 import { Activity, AlertTriangle, Cpu, Clock, TrendingUp } from 'lucide-react';
+import { formatLatencyMs, formatRps } from '@/pages/projects/components/metric-format';
 
 /**
  * KPIStripStatus — Plan J-18 T3.1.
@@ -35,7 +36,11 @@ export interface KPIStripStatusProps {
   errorRate?: number | null;
   /** Requests per second over 1min window; null → "—". */
   rps?: number | null;
+  /** Signals whose series the API says is still being collected: shown as "Collecting…". */
+  collecting?: Partial<Record<'replicas' | 'uptime24h' | 'p95LatencyMs' | 'errorRate' | 'rps', boolean>>;
 }
+
+const COLLECTING = 'Collecting…';
 
 type Tone = 'success' | 'warning' | 'destructive' | 'muted';
 
@@ -67,11 +72,6 @@ function KPICard({ icon: Icon, label, value, tone }: KPICardProps) {
   );
 }
 
-function formatNullable(value: number | null | undefined, suffix = ''): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
-  return `${value}${suffix}`;
-}
-
 // B-194 — os três limiares moravam aqui E em `signal-grid.tsx`, byte a byte. Números duplicados
 // não divergem no dia da cópia; divergem no dia em que alguém muda um.
 const uptimeTone = (v: number | null | undefined): Tone => sloTone(v, SLO.uptime);
@@ -79,7 +79,12 @@ const errorRateTone = (v: number | null | undefined): Tone => sloTone(v, SLO.err
 const p95Tone = (v: number | null | undefined): Tone => sloTone(v, SLO.p95LatencyMs);
 
 export function KPIStripStatus(props: KPIStripStatusProps) {
-  const { replicas, uptime24h, p95LatencyMs, errorRate, rps } = props;
+  const { replicas, uptime24h, p95LatencyMs, errorRate, rps, collecting = {} } = props;
+  // A missing value reads "Collecting…" when the API said so, and "—" otherwise.
+  const orEmpty = (key: keyof NonNullable<KPIStripStatusProps['collecting']>, text: string | null) =>
+    text ?? (collecting[key] ? COLLECTING : '—');
+  const finite = (v: number | null | undefined): v is number =>
+    typeof v === 'number' && Number.isFinite(v);
 
   return (
     <div
@@ -90,31 +95,31 @@ export function KPIStripStatus(props: KPIStripStatusProps) {
       <KPICard
         icon={Cpu}
         label="Replicas"
-        value={formatNullable(replicas)}
+        value={orEmpty('replicas', finite(replicas) ? String(replicas) : null)}
         tone={typeof replicas !== 'number' || !Number.isFinite(replicas) ? 'muted' : replicas === 0 ? 'destructive' : 'success'}
       />
       <KPICard
         icon={Activity}
         label="Uptime 24h"
-        value={typeof uptime24h !== 'number' || !Number.isFinite(uptime24h) ? '—' : `${uptime24h.toFixed(2)}%`}
+        value={orEmpty('uptime24h', finite(uptime24h) ? `${uptime24h.toFixed(2)}%` : null)}
         tone={uptimeTone(uptime24h)}
       />
       <KPICard
         icon={Clock}
         label="p95 Latency"
-        value={typeof p95LatencyMs !== 'number' || !Number.isFinite(p95LatencyMs) ? '—' : `${p95LatencyMs}ms`}
+        value={orEmpty('p95LatencyMs', formatLatencyMs(p95LatencyMs))}
         tone={p95Tone(p95LatencyMs)}
       />
       <KPICard
         icon={AlertTriangle}
         label="Error Rate"
-        value={typeof errorRate !== 'number' || !Number.isFinite(errorRate) ? '—' : `${errorRate.toFixed(2)}%`}
+        value={orEmpty('errorRate', finite(errorRate) ? `${errorRate.toFixed(2)}%` : null)}
         tone={errorRateTone(errorRate)}
       />
       <KPICard
         icon={TrendingUp}
         label="RPS"
-        value={formatNullable(rps)}
+        value={orEmpty('rps', formatRps(rps))}
         tone={typeof rps !== 'number' || !Number.isFinite(rps) ? 'muted' : 'success'}
       />
     </div>

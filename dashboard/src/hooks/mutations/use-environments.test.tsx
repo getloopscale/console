@@ -55,6 +55,7 @@ describe('useCreateEnvironment', () => {
     expect(mockedEngineFetch).toHaveBeenCalledWith(
       '/api/v1/environments',
       expect.objectContaining({ method: 'POST' }),
+      { throwOnError: true },
     );
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: queryKeys.environments.all,

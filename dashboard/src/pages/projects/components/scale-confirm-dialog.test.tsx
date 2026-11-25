@@ -89,4 +89,24 @@ describe('ScaleConfirmDialog', () => {
     // ConfirmDialog renders nothing when open=false (Radix Portal pattern).
     expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
+
+  it('names only the target when the API reported no current count', () => {
+    // Staging: 2 replicas running, nothing reported, and the dialog said "1 → 1 replicas (no
+    // change)" (#552).
+    const { container } = render(
+      <ScaleConfirmDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        projectName="loop-app"
+        environment="production"
+        currentReplicas={null}
+        proposedReplicas={1}
+        estimatedMonthlyUSD={36.5}
+        deltaUSD={0}
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/to 1 replica\b/i)).toBeInTheDocument();
+    expect(container.ownerDocument.body.textContent).not.toMatch(/no change|→/);
+  });
 });

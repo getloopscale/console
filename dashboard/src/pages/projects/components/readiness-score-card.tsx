@@ -20,6 +20,9 @@ export interface ReadinessScoreCardProps {
   score: number | null;
   /** Project name — used as localStorage key for delta-vs-prev computation. */
   projectName: string;
+  /** Signals with a measured status. Below `totalSignals`, no score or verdict is shown. */
+  measuredSignals: number;
+  totalSignals: number;
 }
 
 const STORAGE_PREFIX = 'theo:readiness-score-prev:';
@@ -39,11 +42,16 @@ function thresholdLabel(score: number): string {
 export function ReadinessScoreCard({
   score,
   projectName,
+  measuredSignals,
+  totalSignals,
 }: ReadinessScoreCardProps) {
   const [previousScore, setPreviousScore] = useState<number | null>(null);
+  // A score over part of the signals is not a verdict on the project: one passing signal out of
+  // eight read "100 / 100, Production ready" (#549). The card shows the measured share instead.
+  const partial = measuredSignals < totalSignals;
 
   useEffect(() => {
-    if (score === null) return;
+    if (score === null || partial) return;
     const key = `${STORAGE_PREFIX}${projectName}`;
     const prevRaw = localStorage.getItem(key);
     const prev = prevRaw === null ? null : Number(prevRaw);
@@ -53,7 +61,7 @@ export function ReadinessScoreCard({
     // Update stored prev after computing this render's delta — next render
     // will see this score as its "previous".
     localStorage.setItem(key, String(score));
-  }, [score, projectName]);
+  }, [score, projectName, partial]);
 
   if (score === null) {
     return (
@@ -65,6 +73,26 @@ export function ReadinessScoreCard({
             </p>
             <p className="text-display font-bold text-muted-foreground" aria-label="Score loading">
               —
+            </p>
+          </div>
+        </Card.Body>
+      </Card>
+    );
+  }
+
+  if (partial) {
+    return (
+      <Card>
+        <Card.Body>
+          <div className="space-y-2">
+            <p className="text-label text-muted-foreground uppercase tracking-wide">
+              Readiness score
+            </p>
+            <p className="text-display font-bold tabular-nums text-muted-foreground">
+              {measuredSignals} of {totalSignals}
+            </p>
+            <p className="text-body-sm text-muted-foreground">
+              {measuredSignals} of {totalSignals} signals measured. The score needs every signal.
             </p>
           </div>
         </Card.Body>

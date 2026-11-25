@@ -20,9 +20,12 @@ vi.mock('@/hooks/deploy/use-deployment', () => ({
   useDeployment: (buildId: string | undefined) => mockUseDeployment(buildId),
 }));
 // The confirm dialog's type-to-confirm flow has its own tests; here it only has to call onConfirm.
+const mockDialogProps = vi.fn();
 vi.mock('@/pages/projects/components/scale-confirm-dialog', () => ({
-  ScaleConfirmDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) =>
-    open ? <button type="button" onClick={onConfirm}>Confirm scale</button> : null,
+  ScaleConfirmDialog: (props: { open: boolean; onConfirm: () => void }) => {
+    mockDialogProps(props);
+    return props.open ? <button type="button" onClick={props.onConfirm}>Confirm scale</button> : null;
+  },
 }));
 
 import { ProjectScalePage } from './project-scale';
@@ -147,5 +150,15 @@ describe('ProjectScalePage — real current replicas (M15 T1)', () => {
     mockUseProjectStatus.mockReturnValue({ status: status({ plan_tier: 'starter' }) });
     renderAt('/projects/demo/scale');
     expect(screen.getByTestId('configured-replicas')).toHaveTextContent(/not reported/i);
+  });
+
+  it('gives the confirmation no current count when the API reports none', () => {
+    // The slider seed is not the project's count; passing it made the dialog claim "no change".
+    mockUseProjectStatus.mockReturnValue({ status: status({ plan_tier: 'starter' }) });
+    renderAt('/projects/demo/scale');
+    fireEvent.click(screen.getByRole('button', { name: /apply scale/i }));
+    expect(mockDialogProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ open: true, currentReplicas: null }),
+    );
   });
 });

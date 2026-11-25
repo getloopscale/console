@@ -116,10 +116,59 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
     expect(mockEngineFetch).toHaveBeenCalledWith(
       '/api/v1/environments',
       expect.objectContaining({ method: 'POST' }),
+      { throwOnError: true },
     );
     // Assert the body is the canonical M2 shape {name, project, protected}.
     const [, init] = mockEngineFetch.mock.calls[0]!;
     const body = JSON.parse((init as { body: string }).body);
     expect(body).toMatchObject({ name: 'staging', project: 'web' });
+  });
+
+  it('shows the plan limit message and an upgrade link when the API answers 402', async () => {
+    // Staging, Starter plan: POST /api/v1/environments answered 402 PLAN_LIMIT_EXCEEDED and the
+    // dialog said "Try again in a moment", which cannot succeed (#551).
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'loop-app' }],
+      loading: false,
+      error: false,
+      isSuccess: true,
+    });
+    const planLimit = Object.assign(new Error('API request failed with status 402'), {
+      status: 402,
+      body: {
+        code: 'PLAN_LIMIT_EXCEEDED',
+        limit: 'environments',
+        max: 1,
+        current: 1,
+        message:
+          'Plan limit reached: Starter allows 1 environments (current: 1). Upgrade your plan to continue.',
+        upgrade_url: '/billing',
+      },
+    });
+    mockEngineFetch.mockRejectedValue(planLimit);
+    const onOpenChange = vi.fn();
+    render(<CreateEnvironmentSheet open={true} onOpenChange={onOpenChange} />);
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'qa-check' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create environment/i }));
+
+    expect(await screen.findByText(/Starter allows 1 environments/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /upgrade/i })).toHaveAttribute('href', '/billing');
+    expect(document.body.textContent).not.toMatch(/try again|retry/i);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('asks the transport to reject a non-2xx answer instead of resolving null', async () => {
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'web' }],
+      loading: false,
+      error: false,
+      isSuccess: true,
+    });
+    mockEngineFetch.mockResolvedValue({ name: 'staging', status: 'active' });
+    render(<CreateEnvironmentSheet open={true} onOpenChange={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'staging' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create environment/i }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockEngineFetch.mock.calls[0]![2]).toEqual({ throwOnError: true });
   });
 });

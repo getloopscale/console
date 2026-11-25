@@ -357,7 +357,7 @@ export function ProjectScalePage() {
         onOpenChange={setConfirmOpen}
         projectName={name}
         environment="production"
-        currentReplicas={baselineReplicas}
+        currentReplicas={configuredReplicas}
         proposedReplicas={proposedReplicas}
         estimatedMonthlyUSD={cost.estimatedMonthlyUSD}
         deltaUSD={cost.deltaUSD}

@@ -1,11 +1,11 @@
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useDeleteSecret } from '@/hooks/mutations/use-secrets-mutations';
-import type { Secret } from '@/lib/api/types';
+import type { ProjectSecret } from '@/hooks/infra/use-secrets';
 
 interface DeleteSecretDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  secret: Secret | null;
+  secret: ProjectSecret | null;
   /** Env to remove the secret from (one per dialog instance). */
   environment?: string;
   project?: string;
@@ -52,7 +52,7 @@ export function DeleteSecretDialog({
   const remove = async () => {
     const env = environment ?? secret.environments?.[0] ?? 'production';
     try {
-      await deleteSecret.mutateAsync({ name: secret.name, environment: env, project });
+      await deleteSecret.mutateAsync({ name: secret.name, environment: env, project, app: secret.app });
     } catch (err) {
       // Dizer que o segredo CONTINUA lá é a parte que importa: sem isso, quem viu a falha não
       // sabe se precisa tentar de novo ou se acabou de excluir duas vezes.

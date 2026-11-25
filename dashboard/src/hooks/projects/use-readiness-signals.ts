@@ -1,8 +1,11 @@
 import { useMemo } from 'react';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
+import { useProjectConnected } from '@/hooks/projects/use-project-connection';
+import { useSecrets } from '@/hooks/infra/use-secrets';
+import { useDomains } from '@/hooks/infra/use-domains';
 import { SIGNALS, type SignalName } from '@/hooks/projects/signals';
-import { RULES, readMeasurements } from '@/hooks/projects/readiness-rules';
+import { RULES, readCustomDomain, readMeasurements } from '@/hooks/projects/readiness-rules';
 import type { ReadinessStatus } from '@/hooks/projects/status-icons';
 
 /**
@@ -41,6 +44,9 @@ export interface UseReadinessSignalsResult {
   score: number | null;
   /** True while ANY composed hook is still loading (EC-6). */
   loading: boolean;
+  /** Signals with a measured status. The score covers only these. */
+  measuredSignals: number;
+  totalSignals: number;
 }
 
 /**
@@ -57,18 +63,32 @@ export function useReadinessSignals(
 ): UseReadinessSignalsResult {
   const projects = useProjects();
   const status = useProjectStatus(projectName);
+  const connection = useProjectConnected(projectName);
+  const secrets = useSecrets({ project: projectName ?? '' });
+  const domains = useDomains();
 
   return useMemo(() => {
-    const loading = projects.loading || status.loading;
+    const loading =
+      projects.loading || status.loading || connection.isLoading || secrets.loading || domains.isLoading;
 
     if (loading) {
-      return { signals: emptySignals(), score: null, loading: true };
+      return {
+        signals: emptySignals(),
+        score: null,
+        loading: true,
+        measuredSignals: 0,
+        totalSignals: SIGNALS.length,
+      };
     }
 
     const measurements = readMeasurements({
       project: projects.projects?.find((p) => p.name === projectName),
       statusError: status.error,
       status: status.status,
+      repositoryConnected: connection.isError ? null : (connection.data?.connected ?? null),
+      secretCount: secrets.measured && !secrets.error ? secrets.secrets.length : null,
+      customDomain:
+        domains.isError || !projectName ? null : readCustomDomain(projectName, domains.data),
     });
 
     // Each signal is a pure rule in `readiness-rules.ts` (B-182/B-225). This block reads the hooks
@@ -77,13 +97,30 @@ export function useReadinessSignals(
       SIGNALS.map((def) => [def.name, buildSignal(def.name, RULES[def.name](measurements))]),
     ) as Record<SignalName, ReadinessSignal>;
 
-    return { signals, score: computeScore(signals), loading: false };
+    const measuredSignals = Object.values(signals).filter((s) => s.status !== 'unknown').length;
+    return {
+      signals,
+      score: computeScore(signals),
+      loading: false,
+      measuredSignals,
+      totalSignals: SIGNALS.length,
+    };
   }, [
     projects.loading,
     projects.projects,
     status.loading,
     status.error,
     status.status,
+    connection.isLoading,
+    connection.isError,
+    connection.data,
+    secrets.loading,
+    secrets.error,
+    secrets.measured,
+    secrets.secrets,
+    domains.isLoading,
+    domains.isError,
+    domains.data,
     projectName,
   ]);
 }

@@ -89,6 +89,29 @@ describe('DeleteSecretDialog — J-22 T3.4', () => {
   });
 });
 
+describe('DeleteSecretDialog — app-scoped secrets', () => {
+  it('deletes the secret of the row app', async () => {
+    render(
+      <Wrapper>
+        <DeleteSecretDialog
+          open
+          onOpenChange={vi.fn()}
+          secret={{ name: 'PROBE_SECRET', environments: ['production'], app: 'app' }}
+          environment="production"
+          project="loop-app"
+        />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/Type.*to confirm/), { target: { value: 'PROBE_SECRET' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+
+    await waitFor(() => expect(mockedEngineFetch).toHaveBeenCalled());
+    expect(mockedEngineFetch.mock.calls[0][0]).toBe(
+      '/api/v1/secrets/PROBE_SECRET?environment=production&project=loop-app&app=app',
+    );
+  });
+});
+
 describe('B-195 — o que a migração para ConfirmDialog trouxe', () => {
   it('uma exclusão que FALHA mantém o diálogo aberto e diz que o segredo continua lá', async () => {
     // A cópia anterior tinha um `catch` próprio que exibia a mensagem; o que ela NÃO tinha era a

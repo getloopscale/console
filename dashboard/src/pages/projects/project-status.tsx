@@ -5,7 +5,7 @@ import { Button, EmptyState, PageShell } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjectStatus } from '@/hooks/use-project-status';
-import { useKpiMetric } from '@/hooks/projects/use-kpi-metric';
+import { useKpiReading } from '@/hooks/projects/use-kpi-metric';
 import type { SignalName } from '@/hooks/projects/use-status-stream';
 import { KPIStripStatus } from '@/pages/projects/components/kpi-strip-status';
 import { SignalGrid } from '@/pages/projects/components/signal-grid';
@@ -97,10 +97,13 @@ export function ProjectStatusPage() {
   // (0..1) → % (×100); p95 histogram_quantile (seconds) → ms (×1000); error_rate
   // is already a % (theo#170 fix → ratio ×100) so ×1; rps passes through. These
   // render "—" honestly until a Prometheus backend is reachable.
-  const uptime24hKpi = useKpiMetric(name, 'uptime_24h', 100);
-  const p95LatencyKpi = useKpiMetric(name, 'p95_latency', 1000);
-  const errorRateKpi = useKpiMetric(name, 'error_rate', 1);
-  const rpsKpi = useKpiMetric(name, 'rps', 1);
+  const uptime24hKpi = useKpiReading(name, 'uptime_24h', 100);
+  const p95LatencyKpi = useKpiReading(name, 'p95_latency', 1000);
+  const errorRateKpi = useKpiReading(name, 'error_rate', 1);
+  const rpsKpi = useKpiReading(name, 'rps', 1);
+  // Ready replicas from the metrics signal, until the status response carries replicas_ready
+  // (getloopscale/loopzero#116). The status value wins when present.
+  const replicasReadyKpi = useKpiReading(name, 'replicas_ready', 1);
 
   const handleDrillDown = (signal: SignalName) => {
     setDrillDownSignal(signal);
@@ -185,13 +188,22 @@ export function ProjectStatusPage() {
   // Derive KPI values from status snapshot. When T1.3 SSE wires up, these come
   // from useStatusStream signals[]. For now: scaling fields + null for KPIs
   // that need Prometheus (uptime, p95, error_rate, rps) — UI renders "—" honest.
-  const replicas = status.scaling?.replicas ?? null;
+  // Ready replicas, not the configured count: `scaling.replicas` is what was asked for (#553).
+  const replicas =
+    typeof status.replicas_ready === 'number' ? status.replicas_ready : replicasReadyKpi.value;
   // J-18 — wired to the metrics_proxy (derived above, before the early returns
   // per rules of hooks). Null until Prometheus is reachable → UI renders "—".
-  const uptime24h = uptime24hKpi;
-  const p95LatencyMs = p95LatencyKpi;
-  const errorRate = errorRateKpi;
-  const rps = rpsKpi;
+  const uptime24h = uptime24hKpi.value;
+  const p95LatencyMs = p95LatencyKpi.value;
+  const errorRate = errorRateKpi.value;
+  const rps = rpsKpi.value;
+  const collecting = {
+    replicas: replicas === null && replicasReadyKpi.collecting,
+    uptime24h: uptime24hKpi.collecting,
+    p95LatencyMs: p95LatencyKpi.collecting,
+    errorRate: errorRateKpi.collecting,
+    rps: rpsKpi.collecting,
+  };
 
   // Red Team theo-cloud#124 — health-truth fix.
   // Pre-fix: `Healthy` was emitted from active_release.status === 'ACTIVE'
@@ -204,7 +216,7 @@ export function ProjectStatusPage() {
   // signal is absent (no replicas_ready, no scaling.replicas, no Prometheus
   // KPI yet wired), emit `Unknown` — the platform must not assert health it
   // cannot prove. Mirrors the empty-state pattern in ProjectHealthCard.
-  const replicasReady = status.replicas_ready ?? replicas;
+  const replicasReady = replicas;
   const hasServingSignal =
     (replicasReady !== null && replicasReady !== undefined && replicasReady > 0) ||
     uptime24h !== null ||
@@ -267,6 +279,7 @@ export function ProjectStatusPage() {
             p95LatencyMs={p95LatencyMs}
             errorRate={errorRate}
             rps={rps}
+            collecting={collecting}
           />
         </section>
 

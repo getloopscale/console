@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { SignalName } from '@/hooks/projects/use-status-stream';
+import { formatLatencyMs, formatRps } from '@/pages/projects/components/metric-format';
 
 /**
  * SignalGrid — Plan J-18 T3.2.
@@ -76,8 +77,7 @@ function fmtPercent(v: unknown): string {
 }
 
 function fmtMs(v: unknown): string {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
-  return `${v}ms`;
+  return formatLatencyMs(v) ?? '—';
 }
 
 function fmtIsoRelative(v: unknown): string {
@@ -142,7 +142,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     signal: 'rps',
     label: 'RPS',
     icon: TrendingUp,
-    format: (v) => fmtNumber(v),
+    format: (v) => formatRps(v) ?? '—',
     tone: (v) => (typeof v === 'number' && Number.isFinite(v) ? 'success' : 'muted'),
   },
   {

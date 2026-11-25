@@ -95,3 +95,45 @@ describe('useSecrets — J-22 T2.1 + 2026-06-10 LIVE shape fixes', () => {
     expect(apiKey?.environments.sort()).toEqual(['preview', 'production']);
   });
 });
+
+describe('useSecrets — a failed read is not an empty list', () => {
+  it('reports an error and no measurement when one environment cannot be read', async () => {
+    // The transport resolves null on a non-2xx unless asked to throw. Skipping that null read the
+    // project as having no secrets, which Readiness would score as a fail (#549).
+    mockedEngineFetch.mockImplementation(async (path: string, _init?: unknown, cfg?: { throwOnError?: boolean }) => {
+      if (path.startsWith('/api/v1/environments')) return PROJECT_ENVIRONMENTS;
+      if (path.includes('env=preview')) {
+        if (cfg?.throwOnError) throw new Error('API request failed with status 503');
+        return null;
+      }
+      return { secrets: [{ name: 'GREETING', environment: 'production', app: 'app' }] };
+    });
+    const { result } = renderHook(() => useSecrets({ project: 'teste' }), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.error).toBe(true));
+    expect(result.current.measured).toBe(false);
+  });
+
+  it('is a measurement when every environment answered', async () => {
+    const { result } = renderHook(() => useSecrets({ project: 'teste' }), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.measured).toBe(true));
+    expect(result.current.error).toBe(false);
+  });
+});
+
+describe('useSecrets — app-scoped rows', () => {
+  it('keeps the app of each row and does not merge the same name across apps', async () => {
+    answer((env) =>
+      env === 'production'
+        ? {
+            secrets: [
+              { name: 'PROBE_SECRET', environment: 'production', app: 'app' },
+              { name: 'PROBE_SECRET', environment: 'production', app: '' },
+            ],
+          }
+        : { secrets: [] },
+    );
+    const { result } = renderHook(() => useSecrets({ project: 'teste' }), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.secrets).toHaveLength(2));
+    expect(result.current.secrets.map((s) => s.app ?? null).sort()).toEqual(['app', null]);
+  });
+});

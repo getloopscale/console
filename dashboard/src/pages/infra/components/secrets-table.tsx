@@ -1,11 +1,11 @@
 import { Badge, Button, Table } from '@usetheo/ui';
 import { RotateCw, Trash2 } from 'lucide-react';
-import type { Secret } from '@/lib/api/types';
+import type { ProjectSecret } from '@/hooks/infra/use-secrets';
 
 interface SecretsTableProps {
-  secrets: Secret[];
-  onRotate: (secret: Secret) => void;
-  onDelete: (secret: Secret) => void;
+  secrets: ProjectSecret[];
+  onRotate: (secret: ProjectSecret) => void;
+  onDelete: (secret: ProjectSecret) => void;
 }
 
 /**
@@ -26,6 +26,7 @@ export function SecretsTable({ secrets, onRotate, onDelete }: SecretsTableProps)
       <Table.Header>
         <Table.Row>
           <Table.HeaderCell>Name</Table.HeaderCell>
+          <Table.HeaderCell>App</Table.HeaderCell>
           <Table.HeaderCell>Value</Table.HeaderCell>
           <Table.HeaderCell className="hidden md:table-cell">Envs</Table.HeaderCell>
           <Table.HeaderCell align="right">
@@ -35,9 +36,15 @@ export function SecretsTable({ secrets, onRotate, onDelete }: SecretsTableProps)
       </Table.Header>
       <Table.Body>
         {secrets.map((s) => (
-          <Table.Row key={`${s.name}-${(s.environments ?? []).join(',')}`}>
+          <Table.Row key={`${s.app ?? ''}-${s.name}-${(s.environments ?? []).join(',')}`}>
             <Table.Cell>
               <span className="font-mono text-body-sm font-medium text-foreground">{s.name}</span>
+            </Table.Cell>
+            <Table.Cell>
+              {/* The API's app "" scopes a secret to the whole project. */}
+              <span className="font-mono text-body-sm text-muted-foreground">
+                {s.app ?? 'All apps'}
+              </span>
             </Table.Cell>
             <Table.Cell>
               <span
