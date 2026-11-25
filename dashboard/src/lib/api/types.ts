@@ -551,13 +551,13 @@ export interface ProjectStatusDetail {
   // is the deterministic 8-name list consumers use for /metrics queries.
   metrics_range_url?: string;
   prom_query_keys?: string[];
-  // Scaling info from build app spec — present when last build had scaling
-  // declared. Used by J-18 KPIStripStatus to render the Replicas card.
   scaling?: {
-    replicas: number;
+    replicas: number; // of the active release: saved by POST /scale, or declared by the build
     min: number;
     max: number;
     scaled_to_zero: boolean;
+    target_cpu?: number; // percent; both targets are absent for a fixed scale
+    target_memory?: number;
   };
   // Resolved canonical plan tier for the project's tenant — `starter` /
   // `pro` / `team` / `enterprise` (mirrors pkg/domain.PlanTier). Engine

@@ -1,4 +1,5 @@
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { describeScaleChange, type ScaleShape } from '@/pages/projects/scale-shape';
 
 export interface ScaleConfirmDialogProps {
   open: boolean;
@@ -8,12 +9,12 @@ export interface ScaleConfirmDialogProps {
   /** Environment that will receive the scale mutation. */
   environment: string;
   /**
-   * Current replicas (before save), as the API reported them. `null` when it reported none: the
-   * dialog then names only the target and never claims a direction (#552).
+   * The scale before the save, as the API reported it. `null` when it reported none: the dialog
+   * then names only the target and never claims a direction (#552).
    */
-  currentReplicas: number | null;
-  /** Proposed replicas — for the impact paragraph. */
-  proposedReplicas: number;
+  current: ScaleShape | null;
+  /** The scale being applied: a fixed count, or an autoscaling range (#567). */
+  proposed: ScaleShape;
   /** Server-side monthly cost estimate for the new state. */
   estimatedMonthlyUSD: number;
   /** Signed delta vs current state (positive = increase). */
@@ -45,30 +46,20 @@ export interface ScaleConfirmDialogProps {
  * impact paragraph reads "No change in replicas" (parent guard
  * suppresses for true no-ops).
  */
-function directionOf(replicaDelta: number): string {
-  if (replicaDelta > 0) return 'increase';
-  if (replicaDelta < 0) return 'decrease';
-  return 'no change';
-}
-
 export function ScaleConfirmDialog({
   open,
   onOpenChange,
   projectName,
   environment,
-  currentReplicas,
-  proposedReplicas,
+  current,
+  proposed,
   estimatedMonthlyUSD,
   deltaUSD,
   onConfirm,
   busy = false,
 }: ScaleConfirmDialogProps) {
   const phrase = `scale ${projectName}`;
-  const replicaWord = proposedReplicas === 1 ? 'replica' : 'replicas';
-  const change =
-    currentReplicas === null
-      ? `to ${proposedReplicas} ${replicaWord}.`
-      : `${currentReplicas} → ${proposedReplicas} replicas (${directionOf(proposedReplicas - currentReplicas)}).`;
+  const change = describeScaleChange(current, proposed);
   const costSign = deltaUSD > 0 ? '+' : deltaUSD < 0 ? '–' : '';
   return (
     <ConfirmDialog
@@ -82,7 +73,7 @@ export function ScaleConfirmDialog({
           </p>
           <p>
             Estimated cost: <strong>${estimatedMonthlyUSD.toFixed(2)}/mo</strong>
-            {currentReplicas !== null && Math.abs(deltaUSD) > 0.001 && (
+            {current !== null && Math.abs(deltaUSD) > 0.001 && (
               <>
                 {' '}({costSign}${Math.abs(deltaUSD).toFixed(2)}/mo vs current)
               </>

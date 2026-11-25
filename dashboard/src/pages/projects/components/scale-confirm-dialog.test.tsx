@@ -10,8 +10,8 @@ describe('ScaleConfirmDialog', () => {
         onOpenChange={vi.fn()}
         projectName="my-api"
         environment="production"
-        currentReplicas={2}
-        proposedReplicas={5}
+        current={{ kind: 'fixed', replicas: 2 }}
+        proposed={{ kind: 'fixed', replicas: 5 }}
         estimatedMonthlyUSD={182.5}
         deltaUSD={109.5}
         onConfirm={vi.fn()}
@@ -33,8 +33,8 @@ describe('ScaleConfirmDialog', () => {
         onOpenChange={vi.fn()}
         projectName="my-api"
         environment="production"
-        currentReplicas={5}
-        proposedReplicas={2}
+        current={{ kind: 'fixed', replicas: 5 }}
+        proposed={{ kind: 'fixed', replicas: 2 }}
         estimatedMonthlyUSD={73}
         deltaUSD={-109.5}
         onConfirm={vi.fn()}
@@ -54,8 +54,8 @@ describe('ScaleConfirmDialog', () => {
         onOpenChange={vi.fn()}
         projectName="checkout-api"
         environment="production"
-        currentReplicas={3}
-        proposedReplicas={3}
+        current={{ kind: 'fixed', replicas: 3 }}
+        proposed={{ kind: 'fixed', replicas: 3 }}
         estimatedMonthlyUSD={109.5}
         deltaUSD={0}
         onConfirm={vi.fn()}
@@ -79,8 +79,8 @@ describe('ScaleConfirmDialog', () => {
         onOpenChange={vi.fn()}
         projectName="my-api"
         environment="production"
-        currentReplicas={2}
-        proposedReplicas={2}
+        current={{ kind: 'fixed', replicas: 2 }}
+        proposed={{ kind: 'fixed', replicas: 2 }}
         estimatedMonthlyUSD={73}
         deltaUSD={0}
         onConfirm={vi.fn()}
@@ -99,8 +99,8 @@ describe('ScaleConfirmDialog', () => {
         onOpenChange={vi.fn()}
         projectName="loop-app"
         environment="production"
-        currentReplicas={null}
-        proposedReplicas={1}
+        current={null}
+        proposed={{ kind: 'fixed', replicas: 1 }}
         estimatedMonthlyUSD={36.5}
         deltaUSD={0}
         onConfirm={vi.fn()}
@@ -108,5 +108,23 @@ describe('ScaleConfirmDialog', () => {
     );
     expect(screen.getByText(/to 1 replica\b/i)).toBeInTheDocument();
     expect(container.ownerDocument.body.textContent).not.toMatch(/no change|→/);
+  });
+
+  it('names both sides when a fixed count becomes an autoscaling range', () => {
+    // Staging: 3 fixed replicas to a range of 1 to 3 read "3 → 3 replicas (no change)" (#567).
+    render(
+      <ScaleConfirmDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        projectName="loop-app"
+        environment="production"
+        current={{ kind: 'fixed', replicas: 3 }}
+        proposed={{ kind: 'auto', min: 1, max: 3 }}
+        estimatedMonthlyUSD={109.5}
+        deltaUSD={0}
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/from 3 replicas to autoscaling, 1 to 3 replicas/i)).toBeInTheDocument();
   });
 });

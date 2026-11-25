@@ -32,3 +32,17 @@ describe('ScaleSlider', () => {
     expect(onChange).toHaveBeenCalledWith(4);
   });
 });
+
+describe('ScaleSlider, two on one page', () => {
+  it('gives each slider its own name and id', () => {
+    // Auto mode rendered two sliders labelled "Replicas" with one DOM id (#568).
+    render(
+      <>
+        <ScaleSlider value={1} planTier="pro" onChange={vi.fn()} label="Minimum replicas" id="scale-min" />
+        <ScaleSlider value={3} planTier="pro" onChange={vi.fn()} label="Maximum replicas" id="scale-max" />
+      </>,
+    );
+    expect((screen.getByLabelText(/minimum replicas/i) as HTMLInputElement).value).toBe('1');
+    expect((screen.getByLabelText(/maximum replicas/i) as HTMLInputElement).value).toBe('3');
+  });
+});

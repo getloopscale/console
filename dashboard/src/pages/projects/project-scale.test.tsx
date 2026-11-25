@@ -130,7 +130,7 @@ describe('ProjectScalePage — real current replicas (M15 T1)', () => {
 
   it('seeds the current replica count from status.scaling.replicas (not a hardcoded 2)', () => {
     mockUseProjectStatus.mockReturnValue({
-      status: status({ plan_tier: 'pro', scaling: { replicas: 10, min: 1, max: 20, scaled_to_zero: false } }),
+      status: status({ plan_tier: 'pro', scaling: { replicas: 10, min: 10, max: 10, scaled_to_zero: false } }),
     });
     renderAt('/projects/demo/scale');
     // The Cost card's "Current" row must reflect the real 10, never the fake 2.
@@ -158,7 +158,86 @@ describe('ProjectScalePage — real current replicas (M15 T1)', () => {
     renderAt('/projects/demo/scale');
     fireEvent.click(screen.getByRole('button', { name: /apply scale/i }));
     expect(mockDialogProps).toHaveBeenLastCalledWith(
-      expect.objectContaining({ open: true, currentReplicas: null }),
+      expect.objectContaining({ open: true, current: null }),
     );
   });
 });
+
+describe('ProjectScalePage, a saved autoscaling range', () => {
+  const autoscaled = () =>
+    status({
+      plan_tier: 'pro',
+      active_release: { id: 'r1', build_id: 'build-1', status: 'ACTIVE', created_at: '' },
+      scaling: { replicas: 1, min: 1, max: 3, scaled_to_zero: false },
+    });
+
+  it('opens in Auto mode with the saved bounds', () => {
+    // Staging: after saving 1 to 3 and reloading, the page said "Manual", 1 replica (#567).
+    mockUseProjectStatus.mockReturnValue({ status: autoscaled() });
+    renderAt('/projects/demo/scale');
+    expect(screen.getByRole('radio', { name: /auto/i })).toBeChecked();
+    expect((screen.getByLabelText(/minimum replicas/i) as HTMLInputElement).value).toBe('1');
+    expect((screen.getByLabelText(/maximum replicas/i) as HTMLInputElement).value).toBe('3');
+    expect(screen.getByTestId('configured-replicas')).toHaveTextContent('autoscaling, 1 to 3 replicas');
+  });
+
+  it('opens with the saved CPU and memory targets', () => {
+    mockUseProjectStatus.mockReturnValue({
+      status: status({
+        plan_tier: 'pro',
+        scaling: { replicas: 1, min: 1, max: 3, scaled_to_zero: false, target_cpu: 65, target_memory: 55 },
+      }),
+    });
+    renderAt('/projects/demo/scale');
+    expect((screen.getByLabelText(/cpu target/i) as HTMLInputElement).value).toBe('65');
+    expect((screen.getByLabelText(/memory target/i) as HTMLInputElement).value).toBe('55');
+  });
+
+  it('tells the confirmation both sides of a change of mode', () => {
+    mockUseProjectStatus.mockReturnValue({
+      status: status({ plan_tier: 'pro', scaling: { replicas: 3, min: 3, max: 3, scaled_to_zero: false } }),
+    });
+    renderAt('/projects/demo/scale');
+    fireEvent.click(screen.getByRole('radio', { name: /auto/i }));
+    fireEvent.click(screen.getByRole('button', { name: /apply scale/i }));
+    expect(mockDialogProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        current: { kind: 'fixed', replicas: 3 },
+        proposed: { kind: 'auto', min: 1, max: 3 },
+      }),
+    );
+  });
+
+  it('keeps the minimum at or below the maximum', () => {
+    mockUseProjectStatus.mockReturnValue({ status: autoscaled() });
+    renderAt('/projects/demo/scale');
+    fireEvent.change(screen.getByLabelText(/minimum replicas/i), { target: { value: '5' } });
+    expect((screen.getByLabelText(/maximum replicas/i) as HTMLInputElement).value).toBe('5');
+    fireEvent.change(screen.getByLabelText(/maximum replicas/i), { target: { value: '2' } });
+    expect((screen.getByLabelText(/minimum replicas/i) as HTMLInputElement).value).toBe('2');
+  });
+});
+
+describe('ProjectScalePage, while the status loads', () => {
+  it('claims nothing about the plan or the deploys', () => {
+    // The page showed "starter plan ceiling: 2" and "Deploy the project once" on a pro tenant
+    // with a live release, until the status arrived (#569).
+    mockUseProjectStatus.mockReturnValue({ status: undefined, loading: true });
+    mockUseDeployment.mockReturnValue({ build: undefined, loading: false, error: false });
+    renderAt('/projects/demo/scale');
+    expect(screen.getByText(/loading the scale settings/i)).toBeInTheDocument();
+    expect(screen.queryAllByText(/plan ceiling/i)).toEqual([]);
+    expect(screen.queryAllByText(/deploy the project once/i)).toEqual([]);
+  });
+
+  it('waits for the build before saying no app can be scaled', () => {
+    mockUseProjectStatus.mockReturnValue({
+      status: status({ plan_tier: 'pro', active_release: { id: 'r1', build_id: 'build-1', status: 'ACTIVE', created_at: '' } }),
+    });
+    mockUseDeployment.mockReturnValue({ build: undefined, loading: true, error: false });
+    renderAt('/projects/demo/scale');
+    expect(screen.queryAllByText(/deploy the project once/i)).toEqual([]);
+    expect(screen.getByRole('button', { name: /apply scale/i })).toBeDisabled();
+  });
+});
+
