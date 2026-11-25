@@ -68,6 +68,8 @@ describe('SecretsPage — J-22 T4.2 URL state', () => {
     expect(select.value).toBe('production');
     expect(mockedEngineFetch).toHaveBeenCalledWith(
       '/api/v1/secrets?project=teste&env=production',
+      {},
+      { throwOnError: true },
     );
   });
 

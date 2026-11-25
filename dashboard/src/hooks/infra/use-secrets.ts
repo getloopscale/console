@@ -37,6 +37,8 @@ export function useSecrets(opts: { project: string; env?: string }): {
   loading: boolean;
   error: boolean;
   refetch: () => void;
+  /** True only when every environment's list answered, so `secrets` is a measurement. */
+  measured: boolean;
 } {
   const { project, env } = opts;
   const queryClient = useQueryClient();
@@ -52,6 +54,8 @@ export function useSecrets(opts: { project: string; env?: string }): {
         const params = new URLSearchParams({ project, env: e });
         const r = await engineFetch<RawSecretListResponse>(
           `/api/v1/secrets?${params.toString()}`,
+          {},
+          { throwOnError: true },
         );
         if (r && Array.isArray(r.secrets)) rows.push(...r.secrets);
       }
@@ -77,6 +81,7 @@ export function useSecrets(opts: { project: string; env?: string }): {
     secrets: query.data ?? [],
     loading: query.isLoading || (!env && projectEnvs.loading),
     error: query.isError || (query.isFetched && query.data === null),
+    measured: query.isSuccess && !projectEnvs.error,
     refetch: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.secrets.all });
     },

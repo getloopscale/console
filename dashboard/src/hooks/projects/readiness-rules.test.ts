@@ -1,14 +1,16 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { RULES, readMeasurements, type Measurements } from './readiness-rules';
+import { RULES, readCustomDomain, readMeasurements, type Measurements } from './readiness-rules';
 
 const measurements = (over: Partial<Measurements> = {}): Measurements => ({
   projectUnavailable: false,
   statusUnavailable: false,
-  lastDeploy: null,
   readyReplicas: 0,
   activeAlerts: 0,
   errorRate5xx1h: 0,
+  repositoryConnected: null,
+  secretCount: null,
+  customDomain: null,
   ...over,
 });
 
@@ -75,21 +77,70 @@ describe('alerts_configured: zero is ambiguous, so it is not a fail', () => {
 });
 
 describe('what cannot be measured stays unknown, never fail', () => {
-  it.each(['secrets_rotated', 'custom_domain'] as const)('%s', (name) => {
-    expect(RULES[name](measurements())).toBe('unknown');
-  });
-
   it('cache_hit_rate is unknown until the API reports a hit rate, builds or not', () => {
     expect(RULES.cache_hit_rate(measurements())).toBe('unknown');
-    expect(RULES.cache_hit_rate(measurements({ lastDeploy: '2026-11-25' }))).toBe('unknown');
+  });
+});
+
+describe('auto_deploy reads the repository connection, not the last deploy', () => {
+  it('fails when GET /projects/{name}/connect says no repository, even after a CLI deploy', () => {
+    // Staging: a CLI deploy set last_deploy and the old proxy passed with no repository connected.
+    expect(RULES.auto_deploy(measurements({ repositoryConnected: false }))).toBe('fail');
   });
 
-  it('auto_deploy without the project row is unknown, not fail', () => {
-    // The cross-tenant probe answers 401 and the project does not resolve. `fail` there would say
-    // the project's auto-deploy is broken when what happened was a permission refusal.
-    expect(RULES.auto_deploy(measurements({ projectUnavailable: true }))).toBe('unknown');
-    expect(RULES.auto_deploy(measurements({ lastDeploy: null }))).toBe('fail');
-    expect(RULES.auto_deploy(measurements({ lastDeploy: '2026-08-11' }))).toBe('pass');
+  it('passes when a repository is connected', () => {
+    expect(RULES.auto_deploy(measurements({ repositoryConnected: true }))).toBe('pass');
+  });
+
+  it('is unknown when the connection could not be read', () => {
+    expect(RULES.auto_deploy(measurements({ repositoryConnected: null }))).toBe('unknown');
+  });
+
+  it('is unknown without the project row, not fail', () => {
+    // The cross-tenant probe answers 401 and the project does not resolve.
+    expect(
+      RULES.auto_deploy(measurements({ projectUnavailable: true, repositoryConnected: false })),
+    ).toBe('unknown');
+  });
+});
+
+describe('secrets_rotated counts the secrets GET /secrets lists', () => {
+  it('passes with at least one secret and fails with none', () => {
+    expect(RULES.secrets_rotated(measurements({ secretCount: 1 }))).toBe('pass');
+    expect(RULES.secrets_rotated(measurements({ secretCount: 0 }))).toBe('fail');
+  });
+
+  it('is unknown when the list could not be read', () => {
+    expect(RULES.secrets_rotated(measurements({ secretCount: null }))).toBe('unknown');
+  });
+});
+
+describe('custom_domain reads the project domains from GET /domains', () => {
+  it('passes with a verified domain and fails with none or only unverified ones', () => {
+    expect(RULES.custom_domain(measurements({ customDomain: 'verified' }))).toBe('pass');
+    expect(RULES.custom_domain(measurements({ customDomain: 'unverified' }))).toBe('fail');
+    expect(RULES.custom_domain(measurements({ customDomain: 'none' }))).toBe('fail');
+  });
+
+  it('is unknown when the list could not be read', () => {
+    expect(RULES.custom_domain(measurements({ customDomain: null }))).toBe('unknown');
+  });
+});
+
+describe('readCustomDomain', () => {
+  const row = (project: string, status: string) => ({ project, status });
+
+  it('only counts the domains of this project', () => {
+    expect(readCustomDomain('loop-app', { domains: [row('other', 'verified')], total: 1 })).toBe('none');
+    expect(readCustomDomain('loop-app', { domains: [row('loop-app', 'active')], total: 1 })).toBe('verified');
+    expect(
+      readCustomDomain('loop-app', { domains: [row('loop-app', 'pending_verification')], total: 1 }),
+    ).toBe('unverified');
+  });
+
+  it('is not measured when the request failed or the list was cut short', () => {
+    expect(readCustomDomain('loop-app', undefined)).toBeNull();
+    expect(readCustomDomain('loop-app', { domains: [row('other', 'verified')], total: 500 })).toBeNull();
   });
 });
 

@@ -34,7 +34,7 @@ export function ProjectReadinessPage() {
 
   const { projects, loading: projectsLoading } = useProjects();
   const projectExists = projects.some((p) => p.name === name);
-  const { signals, score, loading: signalsLoading } = useReadinessSignals(
+  const { signals, score, loading: signalsLoading, measuredSignals, totalSignals } = useReadinessSignals(
     projectExists ? name : undefined,
   );
 
@@ -62,7 +62,12 @@ export function ProjectReadinessPage() {
       loading={projectsLoading || signalsLoading}
     >
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_2fr]">
-        <ReadinessScoreCard score={score} projectName={name} />
+        <ReadinessScoreCard
+          score={score}
+          projectName={name}
+          measuredSignals={measuredSignals}
+          totalSignals={totalSignals}
+        />
         <ReadinessChecklist signals={signals} projectName={name} />
       </div>
       <div className="mt-6">

@@ -5,14 +5,52 @@ import type { ReactNode } from 'react';
 
 vi.mock('@/hooks/projects/use-projects', () => ({ useProjects: vi.fn() }));
 vi.mock('@/hooks/use-project-status', () => ({ useProjectStatus: vi.fn() }));
+vi.mock('@/hooks/projects/use-project-connection', () => ({ useProjectConnected: vi.fn() }));
+vi.mock('@/hooks/infra/use-secrets', () => ({ useSecrets: vi.fn() }));
+vi.mock('@/hooks/infra/use-domains', () => ({ useDomains: vi.fn() }));
 
 import { useReadinessSignals, __test_computeScore } from './use-readiness-signals';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
+import { useProjectConnected } from '@/hooks/projects/use-project-connection';
+import { useSecrets } from '@/hooks/infra/use-secrets';
+import { useDomains } from '@/hooks/infra/use-domains';
 import { SIGNALS, TOTAL_WEIGHT } from '@/hooks/projects/signals';
 
 const mockedUseProjects = vi.mocked(useProjects);
 const mockedUseProjectStatus = vi.mocked(useProjectStatus);
+const mockedUseProjectConnected = vi.mocked(useProjectConnected);
+const mockedUseSecrets = vi.mocked(useSecrets);
+const mockedUseDomains = vi.mocked(useDomains);
+
+/** The three list endpoints, each answering or failing. Defaults: all three failed. */
+function mockListEndpoints({
+  connected = null,
+  secrets = null,
+  domains = null,
+}: {
+  connected?: boolean | null;
+  secrets?: string[] | null;
+  domains?: Array<{ project: string; status: string }> | null;
+} = {}) {
+  mockedUseProjectConnected.mockReturnValue({
+    data: connected === null ? undefined : { connected },
+    isLoading: false,
+    isError: connected === null,
+  } as any);
+  mockedUseSecrets.mockReturnValue({
+    secrets: (secrets ?? []).map((name) => ({ name, environments: ['production'] })),
+    loading: false,
+    error: secrets === null,
+    measured: secrets !== null,
+    refetch: vi.fn(),
+  } as any);
+  mockedUseDomains.mockReturnValue({
+    data: domains === null ? undefined : { domains, total: domains.length },
+    isLoading: false,
+    isError: domains === null,
+  } as any);
+}
 
 function wrapper() {
   const client = new QueryClient({
@@ -49,6 +87,7 @@ function mockAllSettled({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockListEndpoints();
 });
 
 describe('useReadinessSignals (J-21 v1.1)', () => {
@@ -66,9 +105,31 @@ describe('useReadinessSignals (J-21 v1.1)', () => {
   it('test_use_readiness_signals_unknown_excluded_from_score (EC-2)', () => {
     mockAllSettled();
     const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
-    // auto_deploy, two_plus and logs pass; hpa, cache, secrets, domain and alerts are unknown and
-    // excluded from both sides. Score = 100.
+    // two_plus and logs pass; the rest are unknown and excluded from both sides. Score = 100, over
+    // two of the eight signals.
     expect(result.current.score).toBe(100);
+    expect(result.current.measuredSignals).toBe(2);
+    expect(result.current.totalSignals).toBe(8);
+  });
+
+  it('measures auto-deploy, secrets and custom domain from their endpoints', () => {
+    // Staging loop-app: deployed by the CLI, no repository, one secret, no domain.
+    mockAllSettled();
+    mockListEndpoints({ connected: false, secrets: ['GREETING'], domains: [] });
+    const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
+    expect(result.current.signals.auto_deploy.status).toBe('fail');
+    expect(result.current.signals.secrets_rotated.status).toBe('pass');
+    expect(result.current.signals.custom_domain.status).toBe('fail');
+    expect(result.current.measuredSignals).toBe(5);
+  });
+
+  it('a list endpoint that failed leaves its signal unknown', () => {
+    mockAllSettled();
+    mockListEndpoints();
+    const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
+    expect(result.current.signals.auto_deploy.status).toBe('unknown');
+    expect(result.current.signals.secrets_rotated.status).toBe('unknown');
+    expect(result.current.signals.custom_domain.status).toBe('unknown');
   });
 
   it('marks signals unknown when the status response omits the fields they read', () => {
