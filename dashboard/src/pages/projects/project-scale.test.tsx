@@ -181,6 +181,18 @@ describe('ProjectScalePage, a saved autoscaling range', () => {
     expect(screen.getByTestId('configured-replicas')).toHaveTextContent('autoscaling, 1 to 3 replicas');
   });
 
+  it('opens with the saved CPU and memory targets', () => {
+    mockUseProjectStatus.mockReturnValue({
+      status: status({
+        plan_tier: 'pro',
+        scaling: { replicas: 1, min: 1, max: 3, scaled_to_zero: false, target_cpu: 65, target_memory: 55 },
+      }),
+    });
+    renderAt('/projects/demo/scale');
+    expect((screen.getByLabelText(/cpu target/i) as HTMLInputElement).value).toBe('65');
+    expect((screen.getByLabelText(/memory target/i) as HTMLInputElement).value).toBe('55');
+  });
+
   it('tells the confirmation both sides of a change of mode', () => {
     mockUseProjectStatus.mockReturnValue({
       status: status({ plan_tier: 'pro', scaling: { replicas: 3, min: 3, max: 3, scaled_to_zero: false } }),

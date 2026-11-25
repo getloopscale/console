@@ -126,6 +126,11 @@ export function ProjectScalePage() {
       return;
     }
     setMode('auto');
+    // The saved targets, when the API reports them; the defaults otherwise.
+    setHpaTargets((defaults) => ({
+      cpu: status?.scaling?.target_cpu ?? defaults.cpu,
+      memory: status?.scaling?.target_memory ?? defaults.memory,
+    }));
     setKedaEnabled(saved.min === 0);
     setHpaMin(Math.max(saved.min, 1));
     setHpaMax(saved.max);
