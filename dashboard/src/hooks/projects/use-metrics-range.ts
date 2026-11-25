@@ -8,7 +8,7 @@
  *
  * Returns:
  *   - { status: 'ok', data: [...] } when histogram populated
- *   - { status: 'collecting', collectingHint: 'Coletando dados...', data: [] }
+ *   - { status: 'collecting', collectingHint: 'Collecting data...', data: [] }
  *     when project < 24h old (EC-8 absorption — UI renders honest collecting
  *     state, NOT empty chart)
  *   - { status: 'prometheus_unreachable' } when backend returns 504 (EC-5
@@ -59,7 +59,7 @@ export interface UseMetricsRangeResult {
  *
  * Returns honest status field reflecting backend state — consumer (T3.3
  * SignalDetailSheet) renders different UI for each: histogram for `ok`,
- * "Coletando dados..." for `collecting`, "—" for `prometheus_unreachable`.
+ * "Collecting data..." for `collecting`, "—" for `prometheus_unreachable`.
  */
 /**
  * B-176 — o parâmetro `env` foi REMOVIDO, e não apenas tirado da chave de cache.

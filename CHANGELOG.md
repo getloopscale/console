@@ -10,6 +10,7 @@
 - Every CLI command the dashboard suggests uses the `loopscale` binary: sign-in, device-flow errors, onboarding, empty states, domains and settings. They said `theo`, which fails as typed. The onboarding step reads "Install the LoopScale CLI".
 
 ### Fixed
+- The signal detail sheet says "Collecting data..." while a signal has no data and the API sends no hint. It said "Coletando dados..." (#557).
 - The onboarding panel's Install CLI step shows `npm install -g @getloopscale/cli`, the package the CLI is published as. It showed `@usetheo/cli` (#556).
 - The Status screen rounds p95 latency to whole milliseconds and shows RPS with two decimals below 10. It showed "94.99999999999999ms" and "0" for 0.2 requests per second. Replicas show the ready count, from the status response or, until it carries one, from the `replicas_ready` metric; it showed the configured count or nothing. A signal the API is still collecting reads "Collecting…" (#553).
 - The Scale confirmation names only the target ("to 1 replica") when the API reported no current count. It used the slider's starting value as the current count and said "1 → 1 replicas (no change)" while 2 replicas were running (#552).

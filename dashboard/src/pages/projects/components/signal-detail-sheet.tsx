@@ -13,7 +13,7 @@ import { safeNavigator } from '@/lib/navigation';
  * Right-side drill-down sheet rendered when a user clicks a SignalPill in
  * SignalGrid. Shows:
  *   1. Signal label + range selector (current: 7d only; future: 24h/7d/30d toggle)
- *   2. 7d data table OR honest "Coletando dados..." when EC-8 collecting state
+ *   2. 7d data table OR honest "Collecting data..." when EC-8 collecting state
  *   3. "Open in Grafana" deep-link (T2.3 buildGrafanaDeepLink — disabled
  *      when grafanaBaseURL not configured per EC-13)
  *
@@ -107,7 +107,7 @@ export function SignalDetailSheet({
               aria-live="polite"
               className="rounded-md border border-border bg-muted/30 p-4 text-body-sm text-muted-foreground"
             >
-              {collectingHint ?? 'Coletando dados...'}
+              {collectingHint ?? 'Collecting data...'}
             </div>
           )}
 
