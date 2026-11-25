@@ -28,6 +28,21 @@ export interface RedeployDialogProps {
   sourceBuild: Build;
 }
 
+/**
+ * The reason a redeploy was refused. The API answers with a problem document
+ * whose `detail` says why (a build that is not finished, a scale the plan does
+ * not allow); the error's own message only carries the status code.
+ */
+function describeRedeployError(error: unknown): string {
+  const body = (error as { body?: unknown } | null)?.body;
+  if (typeof body === 'object' && body !== null) {
+    const { detail, message } = body as { detail?: unknown; message?: unknown };
+    if (typeof detail === 'string' && detail !== '') return detail;
+    if (typeof message === 'string' && message !== '') return message;
+  }
+  return error instanceof Error ? error.message : 'Redeploy failed. Try again in a moment.';
+}
+
 export function RedeployDialog({
   open,
   onOpenChange,
@@ -52,11 +67,7 @@ export function RedeployDialog({
     }
   };
 
-  const errorMessage = redeploy.error
-    ? redeploy.error instanceof Error
-      ? redeploy.error.message
-      : 'Redeploy failed. Try again in a moment.'
-    : null;
+  const errorMessage = redeploy.error ? describeRedeployError(redeploy.error) : null;
 
   return (
     // Sem `size`: o default `md` é `max-w-lg`, a MESMA largura que este arquivo

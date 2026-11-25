@@ -12,7 +12,8 @@
 - Every CLI command the dashboard suggests uses the `loopscale` binary: sign-in, device-flow errors, onboarding, empty states, domains and settings. They said `theo`, which fails as typed. The onboarding step reads "Install the LoopScale CLI".
 
 ### Fixed
-- Scale: a saved autoscaling range opens in Auto mode with its bounds, "Configured" names the range, and the confirmation names both sides of a change of mode. It used to open as a fixed count and say "3 → 3 replicas (no change)" (#567).
+-- The Redeploy dialog shows the reason the API gives when it refuses a redeploy. It showed only "API request failed with status 422" (#571).
+ Scale: a saved autoscaling range opens in Auto mode with its bounds, "Configured" names the range, and the confirmation names both sides of a change of mode. It used to open as a fixed count and say "3 → 3 replicas (no change)" (#567).
 - Scale: the two sliders of Auto mode are "Minimum replicas" and "Maximum replicas", each with its own id, and the minimum cannot pass the maximum (#568).
 - Scale: the page shows a loading state until the project status arrives. It used to show the starter ceiling and "Deploy the project once" for a moment on any project (#569).
 - Readiness: "Autoscaling configured" reads the scale the API reports, passing for a range or scale to zero and failing for a fixed count. It used to say "Not measurable right now" for every project.
