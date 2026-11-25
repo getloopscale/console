@@ -11,7 +11,7 @@ import { AddSecretSheet } from '@/pages/infra/components/add-secret-sheet';
 import { RotateSecretDialog } from '@/pages/infra/components/rotate-secret-dialog';
 import { DeleteSecretDialog } from '@/pages/infra/components/delete-secret-dialog';
 import { BulkUploadSheet } from '@/pages/infra/components/bulk-upload-sheet';
-import type { Secret } from '@/lib/api/types';
+import type { ProjectSecret } from '@/hooks/infra/use-secrets';
 import { DEFAULT_PERMANENT_ENV } from '@/hooks/infra/domain';
 import { estadoDaLista } from '@/lib/list-state';
 
@@ -59,8 +59,8 @@ export function SecretsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [rotateTarget, setRotateTarget] = useState<Secret | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Secret | null>(null);
+  const [rotateTarget, setRotateTarget] = useState<ProjectSecret | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectSecret | null>(null);
 
   const defaultEnvs = envFilter ? [envFilter] : [DEFAULT_PERMANENT_ENV];
 

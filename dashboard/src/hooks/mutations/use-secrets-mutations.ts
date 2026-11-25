@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
-import type { Secret } from '@/lib/api/types';
 
 /**
  * J-22 T2.2 — Secret mutations (Vercel-canonical Add / Rotate / Delete / Bulk).
@@ -85,26 +84,56 @@ export function useCreateSecret() {
 export interface RotateSecretInput {
   name: string;
   newValue: string;
-  /** EC-13 — server rejects 409 STALE_VERSION when expected_version doesn't match. */
-  expectedVersion: number;
   environment: string;
+  /** The secret's app; absent for a project-wide secret. */
+  app?: string;
   project?: string;
 }
 
-/** PUT /api/v1/secrets/{name} — rotate value with optimistic concurrency. */
+/**
+ * Rotate a secret's value in one environment.
+ *
+ * The API has no PUT /api/v1/secrets/{name}; both writes below are upserts. An app-scoped secret
+ * goes through POST /secrets, which requires `app` and reads the project from the query. A
+ * project-wide secret (app "") can only be written by POST /secrets/bulk, since POST /secrets
+ * rejects an empty app. Both reject on a non-2xx answer, and the bulk one also on a failed item.
+ */
 export function useRotateSecret() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: RotateSecretInput) =>
-      engineFetch<Secret>(`/api/v1/secrets/${encodeURIComponent(input.name)}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          value: input.newValue,
-          environment: input.environment,
-          project: input.project,
-          expected_version: input.expectedVersion,
-        }),
-      }),
+    mutationFn: async (input: RotateSecretInput) => {
+      if (input.app) {
+        const params = new URLSearchParams();
+        if (input.project) params.set('project', input.project);
+        return engineFetch(
+          `/api/v1/secrets?${params.toString()}`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              name: input.name,
+              value: input.newValue,
+              environment: input.environment,
+              app: input.app,
+            }),
+          },
+          { throwOnError: true },
+        );
+      }
+      const result = await engineFetch<BulkUploadResult>(
+        '/api/v1/secrets/bulk',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            project: input.project,
+            secrets: [{ name: input.name, value: input.newValue, envs: [input.environment] }],
+          }),
+        },
+        { throwOnError: true },
+      );
+      const failures = failedItems(result);
+      if (failures.length > 0) throw new SecretsNotSavedError(failures);
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.secrets.all });
     },
@@ -114,19 +143,26 @@ export function useRotateSecret() {
 export interface DeleteSecretInput {
   name: string;
   environment: string;
+  /** The secret's app; the API matches it exactly, so an app-scoped secret needs it. */
+  app?: string;
   project?: string;
 }
 
-/** DELETE /api/v1/secrets/{name}?env=&project= — remove from one env. */
+/**
+ * DELETE /api/v1/secrets/{name}?environment=&project=&app= — remove from one env. Rejects on a
+ * non-2xx answer, so a 404 keeps the dialog open instead of reading as done.
+ */
 export function useDeleteSecret() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: DeleteSecretInput) => {
       const params = new URLSearchParams({ environment: input.environment });
       if (input.project) params.set('project', input.project);
+      if (input.app) params.set('app', input.app);
       return engineFetch(
         `/api/v1/secrets/${encodeURIComponent(input.name)}?${params.toString()}`,
         { method: 'DELETE' },
+        { throwOnError: true },
       );
     },
     onSuccess: () => {

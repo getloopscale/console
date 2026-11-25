@@ -119,3 +119,21 @@ describe('useSecrets — a failed read is not an empty list', () => {
     expect(result.current.error).toBe(false);
   });
 });
+
+describe('useSecrets — app-scoped rows', () => {
+  it('keeps the app of each row and does not merge the same name across apps', async () => {
+    answer((env) =>
+      env === 'production'
+        ? {
+            secrets: [
+              { name: 'PROBE_SECRET', environment: 'production', app: 'app' },
+              { name: 'PROBE_SECRET', environment: 'production', app: '' },
+            ],
+          }
+        : { secrets: [] },
+    );
+    const { result } = renderHook(() => useSecrets({ project: 'teste' }), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.secrets).toHaveLength(2));
+    expect(result.current.secrets.map((s) => s.app ?? null).sort()).toEqual(['app', null]);
+  });
+});

@@ -43,4 +43,19 @@ describe('SecretsTable — J-22 T3.1', () => {
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onDelete.mock.calls[0][0].name).toBe('API_KEY');
   });
+
+  it('shows which app a secret belongs to', () => {
+    render(
+      <SecretsTable
+        secrets={[
+          { name: 'PROBE_SECRET', environments: ['production'], app: 'app' },
+          { name: 'PROBE_SECRET', environments: ['production'] },
+        ]}
+        onRotate={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('app')).toBeInTheDocument();
+    expect(screen.getByText('All apps')).toBeInTheDocument();
+  });
 });

@@ -87,27 +87,68 @@ describe('useCreateSecret — a secret the API did not save is an error', () => 
   });
 });
 
-describe('useRotateSecret — J-22 T2.2 (EC-13 expected_version)', () => {
-  it('test_puts_to_named_secret_with_expected_version', async () => {
+describe('useRotateSecret — writes through the endpoints the API serves', () => {
+  // The API has no PUT /api/v1/secrets/{name}. POST /secrets upserts an app-scoped secret and
+  // requires `app`; POST /secrets/bulk upserts a project-wide one (app "").
+  it('rotates an app-scoped secret with POST /secrets, sending its app', async () => {
     const { result } = renderHook(() => useRotateSecret(), { wrapper: wrapper() });
     await act(async () => {
-      result.current.mutate({
+      await result.current.mutateAsync({
+        name: 'PROBE_SECRET',
+        newValue: 'new-secret',
+        environment: 'production',
+        app: 'app',
+        project: 'loop-app',
+      });
+    });
+    const [url, init, cfg] = mockedEngineFetch.mock.calls[0];
+    expect(url).toBe('/api/v1/secrets?project=loop-app');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      name: 'PROBE_SECRET',
+      value: 'new-secret',
+      environment: 'production',
+      app: 'app',
+    });
+    expect(cfg).toEqual({ throwOnError: true });
+  });
+
+  it('rotates a project-wide secret with POST /secrets/bulk', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      results: [{ name: 'API_KEY', status: 'created', sync_status: 'pending' }],
+    });
+    const { result } = renderHook(() => useRotateSecret(), { wrapper: wrapper() });
+    await act(async () => {
+      await result.current.mutateAsync({
         name: 'API_KEY',
         newValue: 'new-secret',
-        expectedVersion: 3,
         environment: 'production',
         project: 'teste',
       });
     });
-    await waitFor(() => expect(mockedEngineFetch).toHaveBeenCalled());
-    const [url, init] = mockedEngineFetch.mock.calls[0];
-    expect(url).toBe('/api/v1/secrets/API_KEY');
-    expect(init?.method).toBe('PUT');
-    const body = JSON.parse(init?.body as string);
-    expect(body.value).toBe('new-secret');
-    expect(body.expected_version).toBe(3);
-    expect(body.environment).toBe('production');
-    expect(body.project).toBe('teste');
+    const [url, init, cfg] = mockedEngineFetch.mock.calls[0];
+    expect(url).toBe('/api/v1/secrets/bulk');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      project: 'teste',
+      secrets: [{ name: 'API_KEY', value: 'new-secret', envs: ['production'] }],
+    });
+    expect(cfg).toEqual({ throwOnError: true });
+  });
+
+  it('rejects when the bulk answer reports the secret failed', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      results: [{ name: 'API_KEY', status: 'failed', error: 'backend unavailable', sync_status: 'failed' }],
+    });
+    const { result } = renderHook(() => useRotateSecret(), { wrapper: wrapper() });
+    let caught: unknown;
+    await act(async () => {
+      try {
+        await result.current.mutateAsync({ name: 'API_KEY', newValue: 'x', environment: 'production' });
+      } catch (err) {
+        caught = err;
+      }
+    });
+    expect((caught as Error).message).toBe('API_KEY: backend unavailable');
   });
 });
 
@@ -121,6 +162,29 @@ describe('useDeleteSecret — J-22 T2.2', () => {
     const [url, init] = mockedEngineFetch.mock.calls[0];
     expect(url).toBe('/api/v1/secrets/DEBUG_FLAG?environment=staging&project=teste');
     expect(init?.method).toBe('DELETE');
+  });
+
+  it('sends the app of an app-scoped secret, which the API matches exactly', async () => {
+    // Staging: without `app` the API answered 404 SECRET_NOT_FOUND for PROBE_SECRET (#550).
+    const { result } = renderHook(() => useDeleteSecret(), { wrapper: wrapper() });
+    await act(async () => {
+      await result.current.mutateAsync({
+        name: 'PROBE_SECRET',
+        environment: 'production',
+        project: 'loop-app',
+        app: 'app',
+      });
+    });
+    const [url] = mockedEngineFetch.mock.calls[0];
+    expect(url).toBe('/api/v1/secrets/PROBE_SECRET?environment=production&project=loop-app&app=app');
+  });
+
+  it('asks the transport to reject a non-2xx answer instead of resolving null', async () => {
+    const { result } = renderHook(() => useDeleteSecret(), { wrapper: wrapper() });
+    await act(async () => {
+      await result.current.mutateAsync({ name: 'DEBUG_FLAG', environment: 'staging' });
+    });
+    expect(mockedEngineFetch.mock.calls[0][2]).toEqual({ throwOnError: true });
   });
 });
 

@@ -65,7 +65,7 @@ describe('RotateSecretDialog — J-22 T3.3', () => {
     expect(screen.getByRole('button', { name: /^Rotate$/i })).toBeDisabled();
   });
 
-  it('test_rotate_carries_expected_version_ec13', async () => {
+  it('rotates the secret in the environment and app of its row', async () => {
     const onOpenChange = vi.fn();
     const onRotated = vi.fn();
     render(
@@ -73,7 +73,7 @@ describe('RotateSecretDialog — J-22 T3.3', () => {
         <RotateSecretDialog
           open
           onOpenChange={onOpenChange}
-          secret={SECRET}
+          secret={{ name: 'DATABASE_URL', environments: ['production'], app: 'api' }}
           project="teste"
           onRotated={onRotated}
         />
@@ -87,15 +87,34 @@ describe('RotateSecretDialog — J-22 T3.3', () => {
 
     await waitFor(() => expect(mockedEngineFetch).toHaveBeenCalled());
     const [url, init] = mockedEngineFetch.mock.calls[0];
-    expect(url).toBe('/api/v1/secrets/DATABASE_URL');
-    expect(init?.method).toBe('PUT');
-    const body = JSON.parse(init?.body as string);
-    expect(body.value).toBe('rotated-x');
-    expect(body.expected_version).toBe(3); // ← EC-13 invariant
-    expect(body.environment).toBe('production');
-    expect(body.project).toBe('teste');
+    expect(url).toBe('/api/v1/secrets?project=teste');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      name: 'DATABASE_URL',
+      value: 'rotated-x',
+      environment: 'production',
+      app: 'api',
+    });
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(onRotated).toHaveBeenCalled();
+  });
+
+  it('keeps the dialog open with the API message when the rotation fails', async () => {
+    mockedEngineFetch.mockRejectedValue(new Error('API request failed with status 404'));
+    const onOpenChange = vi.fn();
+    render(
+      <Wrapper>
+        <RotateSecretDialog open onOpenChange={onOpenChange} secret={SECRET} project="teste" />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/Type.*to confirm/), {
+      target: { value: 'DATABASE_URL' },
+    });
+    fireEvent.change(screen.getByLabelText(/New value/), { target: { value: 'rotated-x' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Rotate$/i }));
+
+    expect(await screen.findByText(/status 404/)).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });

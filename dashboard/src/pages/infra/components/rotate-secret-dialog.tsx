@@ -8,12 +8,12 @@ import {
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useRotateSecret } from '@/hooks/mutations/use-secrets-mutations';
-import type { Secret } from '@/lib/api/types';
+import type { ProjectSecret } from '@/hooks/infra/use-secrets';
 
 interface RotateSecretDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  secret: Secret | null;
+  secret: ProjectSecret | null;
   /** Optional project param forwarded to the backend. */
   project?: string;
   onRotated?: () => void;
@@ -27,10 +27,8 @@ interface RotateSecretDialogProps {
  * Paste is allowed; case-mismatch keeps Rotate disabled (a pasted
  * `database_url` against current `DATABASE_URL` does not unlock).
  *
- * EC-13 (optimistic concurrency): the mutation carries `expected_version`
- * read from secret.version. Server returns 409 STALE_VERSION when the
- * row has advanced since the dialog opened; the UI surfaces the message
- * and the user re-fetches before retrying.
+ * The rotation writes the row's environment and app. The API has no version check on secret
+ * writes, so the last write wins. A failure keeps the dialog open with the API's message.
  */
 export function RotateSecretDialog({
   open,
@@ -58,17 +56,13 @@ export function RotateSecretDialog({
     if (!canRotate || secret === null) return;
     setError(null);
     try {
-      // EC-13: read the current version from the secret prop; backend
-      // checks expected_version on the server side and rejects 409
-      // STALE_VERSION when the row has advanced.
       const env =
         (secret.environments && secret.environments[0]) ?? 'production';
-      const expectedVersion = (secret as { version?: number }).version ?? 1;
       await rotateSecret.mutateAsync({
         name: secret.name,
         newValue,
-        expectedVersion,
         environment: env,
+        app: secret.app,
         project,
       });
       reset();
