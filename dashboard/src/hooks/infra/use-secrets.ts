@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Secret } from '@/lib/api/types';
 import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
+import { useEnvironments } from '@/hooks/use-environments';
 
 /**
  * Raw shape returned by GET /api/v1/secrets — backend emits one row per
@@ -19,14 +20,15 @@ interface RawSecretListResponse {
   secrets: RawSecretRow[];
 }
 
-const DEFAULT_ENV_FANOUT = ['production', 'staging'];
-
 /**
  * use-secrets — TanStack Query.
  *
  * J-22 T2.1 + 2026-06-10 LIVE fixes:
  *   - Backend requires `project` + `env` to return non-empty results;
- *     queries fan out across known envs when the user picks "all".
+ *     with no filter, queries fan out over the project's environments as
+ *     GET /api/v1/environments lists them (production and preview on a
+ *     default project). A fixed list asked for envs the project does not
+ *     have and skipped the ones it does.
  *   - Backend emits one row per (key × env); we group by `name` so the
  *     UI shows multi-env badges on a single row.
  */
@@ -38,10 +40,11 @@ export function useSecrets(opts: { project: string; env?: string }): {
 } {
   const { project, env } = opts;
   const queryClient = useQueryClient();
-  const envsToFetch = env ? [env] : DEFAULT_ENV_FANOUT;
+  const projectEnvs = useEnvironments(project);
+  const envsToFetch = env ? [env] : projectEnvs.envs;
   const query = useQuery({
-    queryKey: [...queryKeys.secrets.list(), { project, env: env ?? 'all' }],
-    enabled: project.length > 0,
+    queryKey: [...queryKeys.secrets.list(), { project, env: env ?? 'all', envs: envsToFetch }],
+    enabled: project.length > 0 && envsToFetch.length > 0,
     // silent-null-ok: ESTE hook mapeia `null` resolvido para o campo `error` que ele devolve (`isError || (isFetched && data === null)`), entao a falha nao se perde AQUI. B-094: isso NAO garante que a tela leia esse `error` — medi e varias nao liam, e o onboarding chegava a afirmar 'faca login' a quem estava logado. Quem consome este hook e responsavel por ler `error`; o marcador cobre so a metade de cima. #274
     queryFn: async () => {
       const rows: RawSecretRow[] = [];
@@ -72,7 +75,7 @@ export function useSecrets(opts: { project: string; env?: string }): {
   });
   return {
     secrets: query.data ?? [],
-    loading: query.isLoading,
+    loading: query.isLoading || (!env && projectEnvs.loading),
     error: query.isError || (query.isFetched && query.data === null),
     refetch: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.secrets.all });
