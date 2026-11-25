@@ -71,9 +71,11 @@ export function useCloudApi<T>(path: string, options: UseApiOptions = {}): UseAp
   };
 }
 
-export function useEngineApi<T>(path: string): UseApiResult<T> {
+/** `refetchInterval` (ms) keeps a list fresh when what it shows changes without the page acting. */
+export function useEngineApi<T>(path: string, options: { refetchInterval?: number } = {}): UseApiResult<T> {
   const query = useQuery({
     queryKey: ['engine', path] as const,
+    refetchInterval: options.refetchInterval,
     // B-171 — ver `useCloudApi` acima: o erro vem do canal de erro, nao do valor.
     queryFn: () => engineFetch<T>(path, {}, { throwOnError: true }),
   });

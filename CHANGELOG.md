@@ -12,7 +12,8 @@
 - Every CLI command the dashboard suggests uses the `loopscale` binary: sign-in, device-flow errors, onboarding, empty states, domains and settings. They said `theo`, which fails as typed. The onboarding step reads "Install the LoopScale CLI".
 
 ### Fixed
--- The Secrets screen lists the environments of the open project, each once, and Add secret and Bulk upload can scope a secret to any of them. The filter repeated names that another project shared, and the sheets offered only preview and production (#572).
+-- The Environments list refreshes every 15 seconds, so the deploy a promote starts shows up on the target row without a reload.
+- The Secrets screen lists the environments of the open project, each once, and Add secret and Bulk upload can scope a secret to any of them. The filter repeated names that another project shared, and the sheets offered only preview and production (#572).
 - The Redeploy dialog shows the reason the API gives when it refuses a redeploy. It showed only "API request failed with status 422" (#571).
  Scale: a saved autoscaling range opens in Auto mode with its bounds, "Configured" names the range, and the confirmation names both sides of a change of mode. It used to open as a fixed count and say "3 → 3 replicas (no change)" (#567).
 - Scale: the two sliders of Auto mode are "Minimum replicas" and "Maximum replicas", each with its own id, and the minimum cannot pass the maximum (#568).

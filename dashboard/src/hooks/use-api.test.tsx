@@ -109,6 +109,12 @@ describe('useCloudApi', () => {
 });
 
 describe('useEngineApi', () => {
+  it('reads again on its own when asked to poll', async () => {
+    mockedEngineFetch.mockResolvedValue({ ok: true });
+    renderHook(() => useEngineApi('/api/v1/environments', { refetchInterval: 20 }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(mockedEngineFetch.mock.calls.length).toBeGreaterThanOrEqual(3));
+  });
+
   it('a successful empty response is not reported as an error', async () => {
     // B-237 — este caso afirmava só `error === false` depois de `loading === false`. `error`
     // começa em `false`, então um hook que NUNCA buscasse nada — ou que nunca sinalizasse erro
