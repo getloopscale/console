@@ -19,7 +19,13 @@ const mockUseKpiMetric = vi.fn(
 vi.mock('@/hooks/projects/use-kpi-metric', () => ({
   useKpiMetric: (n: string, e: string | undefined, signal: string, mult?: number) =>
     mockUseKpiMetric(n, e, signal, mult),
+  // Same mock behind the reading the page uses: `collecting` only when a test sets it.
+  useKpiReading: (n: string, signal: string, mult?: number) => ({
+    value: mockUseKpiMetric(n, signal, signal, mult),
+    collecting: mockCollecting.has(signal),
+  }),
 }));
+const mockCollecting = new Set<string>();
 // useRequireAuth is no-op in tests.
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => undefined,
@@ -32,6 +38,7 @@ import { ProjectStatusPage } from './project-status';
 beforeEach(() => {
   mockUseKpiMetric.mockReset();
   mockUseKpiMetric.mockReturnValue(null);
+  mockCollecting.clear();
 });
 
 function renderAt(path: string) {
@@ -226,5 +233,44 @@ describe('ProjectStatusPage — Red Team theo-cloud#124 closure (health-truth)',
     // `synced ≠ serving`. Pod may be 502 (CrashLoop / ImagePull / network).
     expect(screen.queryByRole('button', { name: /Status: Healthy/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Status: Unknown/i })).toBeInTheDocument();
+  });
+});
+
+describe('ProjectStatusPage — replicas and collecting signals', () => {
+  const activeStatus = (extra: Partial<ProjectStatusDetail>) =>
+    makeStatus({
+      environment: 'production',
+      active_release: { id: 'rel-1', build_id: 'bld-1', status: 'ACTIVE', created_at: '2026-11-25T10:00:00Z' },
+      ...extra,
+    });
+
+  it('reads ready replicas from the metrics signal when the status does not carry them', () => {
+    // Staging: the status had no replicas_ready while signal=replicas_ready answered 2 (#553).
+    mockUseKpiMetric.mockImplementation((_n, signal) => (signal === 'replicas_ready' ? 2 : null));
+    mockUseProjectStatus.mockReturnValue({ status: activeStatus({}), loading: false, error: null });
+    renderAt('/projects/acme/status');
+    expect(screen.getByLabelText('Project KPI strip')).toHaveTextContent(/Replicas2/);
+  });
+
+  it('prefers replicas_ready from the status response', () => {
+    mockUseKpiMetric.mockImplementation((_n, signal) => (signal === 'replicas_ready' ? 1 : null));
+    mockUseProjectStatus.mockReturnValue({
+      status: activeStatus({ replicas_ready: 3 }),
+      loading: false,
+      error: null,
+    });
+    renderAt('/projects/acme/status');
+    expect(screen.getByLabelText('Project KPI strip')).toHaveTextContent(/Replicas3/);
+  });
+
+  it('says uptime is being collected when the API answers collecting', () => {
+    mockCollecting.add('uptime_24h');
+    mockUseProjectStatus.mockReturnValue({
+      status: activeStatus({ replicas_ready: 2 }),
+      loading: false,
+      error: null,
+    });
+    renderAt('/projects/acme/status');
+    expect(screen.getByLabelText('Project KPI strip')).toHaveTextContent(/Uptime 24hCollecting…/);
   });
 });

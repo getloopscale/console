@@ -140,3 +140,23 @@ describe('KPIStripStatus — T3.1 J-18', () => {
     expect(emDashes.length).toBe(3); // p95, errorRate, rps
   });
 });
+
+describe('KPIStripStatus — how real values read', () => {
+  it('rounds latency to whole milliseconds', () => {
+    // Staging: the API's 0.095 s became "94.99999999999999ms" (#553).
+    render(<KPIStripStatus p95LatencyMs={94.99999999999999} />);
+    expect(screen.getByText('95ms')).toBeInTheDocument();
+  });
+
+  it('shows RPS with two decimals below 10 and whole numbers above', () => {
+    const { rerender } = render(<KPIStripStatus rps={0.2} />);
+    expect(screen.getByText('0.20')).toBeInTheDocument();
+    rerender(<KPIStripStatus rps={42.4} />);
+    expect(screen.getByText('42')).toBeInTheDocument();
+  });
+
+  it('says a signal is being collected instead of a dash', () => {
+    render(<KPIStripStatus uptime24h={null} collecting={{ uptime24h: true }} />);
+    expect(screen.getByText('Collecting…')).toBeInTheDocument();
+  });
+});

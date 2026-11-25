@@ -3,7 +3,7 @@ import { renderHook } from '@testing-library/react';
 
 vi.mock('./use-metrics-range', () => ({ useMetricsRange: vi.fn() }));
 
-import { useKpiMetric } from './use-kpi-metric';
+import { useKpiMetric, useKpiReading } from './use-kpi-metric';
 import { useMetricsRange } from './use-metrics-range';
 
 const mocked = vi.mocked(useMetricsRange);
@@ -52,5 +52,24 @@ describe('useKpiMetric', () => {
     withData([{ t: 1, v: NaN }]);
     const { result } = renderHook(() => useKpiMetric('p', 'rps'));
     expect(result.current).toBeNull();
+  });
+});
+
+describe('useKpiReading', () => {
+  it('reports collecting when the API says the series is being collected', () => {
+    mocked.mockReturnValue({
+      data: [],
+      status: 'collecting',
+      loading: false,
+      error: false,
+    } as unknown as ReturnType<typeof useMetricsRange>);
+    const { result } = renderHook(() => useKpiReading('p', 'uptime_24h', 100));
+    expect(result.current).toEqual({ value: null, collecting: true });
+  });
+
+  it('reads the latest value and is not collecting when data arrived', () => {
+    withData([{ t: 1, v: 2 }]);
+    const { result } = renderHook(() => useKpiReading('p', 'replicas_ready'));
+    expect(result.current).toEqual({ value: 2, collecting: false });
   });
 });

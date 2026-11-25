@@ -20,9 +20,28 @@ export function useKpiMetric(
   signal: string,
   multiplier = 1,
 ): number | null {
-  const { data } = useMetricsRange(projectName, { signal, range: '1h' });
-  if (!data || data.length === 0) return null;
+  return useKpiReading(projectName, signal, multiplier).value;
+}
+
+/** The current value of a signal, and whether the API says its series is still being collected. */
+export interface KpiReading {
+  value: number | null;
+  collecting: boolean;
+}
+
+/**
+ * Like `useKpiMetric`, plus the `collecting` status the metrics endpoint answers while a series has
+ * no points yet, so the screen can say so instead of showing a bare dash.
+ */
+export function useKpiReading(
+  projectName: string | undefined,
+  signal: string,
+  multiplier = 1,
+): KpiReading {
+  const { data, status } = useMetricsRange(projectName, { signal, range: '1h' });
+  const collecting = status === 'collecting';
+  if (!data || data.length === 0) return { value: null, collecting };
   const last = data[data.length - 1];
-  if (typeof last?.v !== 'number' || Number.isNaN(last.v)) return null;
-  return last.v * multiplier;
+  if (typeof last?.v !== 'number' || Number.isNaN(last.v)) return { value: null, collecting };
+  return { value: last.v * multiplier, collecting: false };
 }
