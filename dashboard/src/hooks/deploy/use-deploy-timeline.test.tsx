@@ -240,4 +240,52 @@ describe('B-181 — o buffer diz o que MUDOU, nunca o que É', () => {
     expect(build?.status).toBe('completed');
     expect(build?.endedAt).toBe('2026-08-11T10:00:00Z');
   });
+
+  // The stream of a deploy that ended has nothing more to send. The server closes it, and a
+  // client that keeps asking reopens it every few seconds for as long as the page is open.
+  it('closes the stream once the deploy is live and does not open another', async () => {
+    const { result } = renderHook(() => useDeployTimeline('dep-ended'));
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    const es = MockEventSource.instances[0];
+
+    act(() => {
+      es.emit('deploy_timeline.live.completed', { deploy_id: 'dep-ended', phase: 'live', status: 'completed' }, '9');
+    });
+
+    await waitFor(() => expect(es.closed).toBe(true));
+    expect(result.current.overall).toBe('live');
+    expect(result.current.phases[4].status).toBe('completed');
+    expect(MockEventSource.instances).toHaveLength(1);
+  });
+
+  it('closes the stream once a phase failed and keeps the reason', async () => {
+    const { result } = renderHook(() => useDeployTimeline('dep-failed'));
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    const es = MockEventSource.instances[0];
+
+    act(() => {
+      es.emit(
+        'deploy_timeline.deploy.failed',
+        { deploy_id: 'dep-failed', phase: 'deploy', status: 'failed', degraded_reason: 'Sync timeout' },
+        '7',
+      );
+    });
+
+    await waitFor(() => expect(es.closed).toBe(true));
+    expect(result.current.overall).toBe('failed');
+    expect(result.current.phases[3].status).toBe('failed');
+  });
+
+  it('keeps the stream open while the deploy runs', async () => {
+    renderHook(() => useDeployTimeline('dep-running'));
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    const es = MockEventSource.instances[0];
+
+    act(() => {
+      es.emit('deploy_timeline.build.in_progress', { deploy_id: 'dep-running', phase: 'build', status: 'in_progress' }, '1');
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(es.closed).toBe(false);
+  });
 });

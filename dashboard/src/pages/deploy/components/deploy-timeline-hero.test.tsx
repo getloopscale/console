@@ -119,6 +119,22 @@ describe('DeployTimelineHero', () => {
       const hero = screen.getByTestId('deploy-timeline-hero');
       expect(hero.getAttribute('data-overall')).toBe('live');
     });
+    // A deploy that ended has no live updates to wait for: the connection
+    // indicator, which reads "Reconnecting…" once the stream closes, is gone.
+    expect(screen.getByTestId('deploy-timeline-hero').getAttribute('data-stream')).toBe('ended');
+  });
+
+  it('shows the connection indicator while the deploy runs', async () => {
+    render(<DeployTimelineHero deployId="dep-running" />);
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(1));
+    const es = MockEventSource.instances.find((i) => i.url.includes('/deploys/')) ?? MockEventSource.instances[0];
+    act(() => {
+      es.emit('deploy_timeline.build.in_progress', { deploy_id: 'dep-running', phase: 'build', status: 'in_progress' }, '1');
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('deploy-timeline-hero').getAttribute('data-stream')).toBe('connected'),
+    );
+    expect(screen.getByLabelText('Live updates connected')).toBeInTheDocument();
   });
 
   it('does not say a failed build is rolling out when it has no timeline events', () => {

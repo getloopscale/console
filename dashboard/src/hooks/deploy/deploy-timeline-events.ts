@@ -64,6 +64,14 @@ export interface DeployTimelineAggregatorDegradedPayload {
   timestamp: string;
 }
 
+/**
+ * True for the event that ends a deploy's timeline: the live phase completed,
+ * or any phase failed or was canceled. Nothing follows it.
+ */
+export function isFinalTimelineEvent(type: string): boolean {
+  return type === 'deploy_timeline.live.completed' || /^deploy_timeline\.[a-z]+\.(failed|canceled)$/.test(type);
+}
+
 export const TIMELINE_EVENT_TYPES: string[] = (() => {
   const out: string[] = [];
   for (const phase of PHASE_ORDER) {

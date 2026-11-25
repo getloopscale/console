@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
 import {
-  TIMELINE_EVENT_TYPES,
+  TIMELINE_EVENT_TYPES, isFinalTimelineEvent,
   type Phase,
   type PhaseStatus,
 } from '@/hooks/deploy/deploy-timeline-events';
@@ -123,6 +123,7 @@ export function useDeployTimeline(
     eventTypes: TIMELINE_EVENT_TYPES,
     initialLastEventID: options.initialLastEventID ?? null,
     paused: options.paused,
+    isFinal: (event) => isFinalTimelineEvent(event.type),
     // Canonical 5 phases × 6 statuses + degraded events + cushion.
     maxEvents: 60,
   });
