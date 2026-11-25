@@ -48,11 +48,13 @@ export function DeploymentDetailLayout() {
   const { name = '', id = '' } = useParams<{ name: string; id: string }>();
   useSetPageTitle(`${name} · Deployment ${id.slice(0, 7)}`);
   const { build, loading, error } = useDeployment(id);
-  // Project-level live state — drives the "Serving" badge in the hero.
-  // Persists across tabs + refreshes; gives the user explicit
-  // confirmation that the canonical chain finished + the right
-  // commit is actually serving traffic.
-  const { status: projectStatus } = useProjectStatus(name);
+  // The release the build's own environment serves, for the badge that ends
+  // the phase strip. Read per environment: without one the API answers for
+  // production, and a build of another environment named that release (#565).
+  const { status: projectStatus } = useProjectStatus(name, {
+    env: build?.environment,
+    enabled: Boolean(build),
+  });
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [redeployOpen, setRedeployOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);

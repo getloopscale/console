@@ -12,6 +12,7 @@
 - Every CLI command the dashboard suggests uses the `loopscale` binary: sign-in, device-flow errors, onboarding, empty states, domains and settings. They said `theo`, which fails as typed. The onboarding step reads "Install the LoopScale CLI".
 
 ### Fixed
+- Deployments: the page of a build shows the release its own environment serves. For a build of another environment it named the production release and its URL as what was being served (#565).
 - Deployments: the phase strip of a deploy that ended closes its stream and shows no connection indicator. The console reopened the stream every few seconds for as long as the page was open, and the strip said "Reconnecting…" about a deploy that had nothing more to send (#562).
 - Deployments: a rollback is followed to its end. The API answers the request with 202 and finishes in the background, and the console reported success on that 202. It now keeps the progress toast, reads the project status until the target release is active, and says so; when the rollback fails it says which release stays active, and after 16 minutes without an answer it says the outcome is unknown (#559).
 - The signal detail sheet says "Collecting data..." while a signal has no data and the API sends no hint. It said "Coletando dados..." (#557).
