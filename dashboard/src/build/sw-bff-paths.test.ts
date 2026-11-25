@@ -14,6 +14,14 @@ describe('SW BFF navigation denylist — the service worker must NOT shadow BFF 
     expect(isBffNavigationPath('/v1/rag-connect/dropbox/authorize')).toBe(true);
   });
 
+  it('denies the GitHub App install and callback, which redirect the browser to and from GitHub', () => {
+    // "Install GitHub App" opens /v1/integrations/github/install in a tab; the BFF answers
+    // 302 to github.com. Shadowed, the tab shows the SPA's "Page not found".
+    expect(denied('/v1/integrations/github/install')).toBe(true);
+    expect(denied('/v1/integrations/github/callback')).toBe(true);
+    expect(BFF_NAVIGATION_REGEXP.test('https://app.example.test/v1/integrations/github/install?return_to=%2F')).toBe(true);
+  });
+
   it('still denies the Hydra/Kratos auth-broker navigations (theo-cloud#112 regression)', () => {
     for (const p of [
       '/auth/login',

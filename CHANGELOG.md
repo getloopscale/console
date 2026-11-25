@@ -9,6 +9,7 @@
 - The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com`. CLI commands still read `theo`, since the CLI binary keeps that name (#521).
 
 ### Fixed
+- "Install GitHub App" reaches GitHub. The service worker answered `/v1/integrations/github/install` with the dashboard's "Page not found" (#536).
 - The link in the sign-up verification email verifies the address. The page read the code only from the URL, and Kratos keeps it in the flow (#534).
 - The dashboard's Profile page opens again. It crashed with "This page crashed: Rendered more hooks than during the previous render" as soon as the session loaded, so the account card and the Delete Account action were unreachable (#527).
 - A skill with no published version no longer says that a CLI command "below" will publish one. The CLI has no command for that, and the page now says so (#527).
