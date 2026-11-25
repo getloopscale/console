@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { PRIMARY_CANONICO } from '@/lib/theme/theo-theme';
+import { PRIMARY_CANONICO } from '@/lib/theme/loopscale-theme';
 
 /**
  * B-034 — o token `--primary` tem UM dono, e as duas fontes concordam.
@@ -39,7 +39,7 @@ import { PRIMARY_CANONICO } from '@/lib/theme/theo-theme';
  * cascade de `@import`), e esse teste e o passo seguinte, registrado em B-034.
  */
 // B-007 — o valor deixou de ser lido do `main.tsx` porque saiu de lá: a config
-// do tema virou `lib/theme/theo-theme.ts`, importada pelo app E pela árvore de
+// do tema virou `lib/theme/loopscale-theme.ts`, importada pelo app E pela árvore de
 // teste. Antes disso as duas divergiam, e a suíte inteira renderizava em modo
 // claro com um roxo que o app nunca mostra.
 //
@@ -51,7 +51,7 @@ const ROOT = resolve(__dirname, '..');
 
 describe('token --primary (B-034)', () => {
   it('o dono do tema declara o valor medido em runtime', () => {
-    const tema = readFileSync(resolve(ROOT, 'src/lib/theme/theo-theme.ts'), 'utf8');
+    const tema = readFileSync(resolve(ROOT, 'src/lib/theme/loopscale-theme.ts'), 'utf8');
     expect(tema).toContain(PRIMARY_MEDIDO);
   });
 

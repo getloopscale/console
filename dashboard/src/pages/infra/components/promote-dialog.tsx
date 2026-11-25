@@ -127,7 +127,7 @@ export function PromoteDialog({
       const res = await promote.mutateAsync({ from: fromEnv, to: toEnv });
       if (!res) {
         // Backend returned non-OK; engineFetch swallowed details. The 402
-        // interceptor (lib/api.ts T1.4) emits theo:plan-limit event globally
+        // interceptor (lib/api.ts T1.4) emits loopscale:plan-limit event globally
         // if it was a plan limit. For 409/404, present product-language copy.
         setError(
           `Promote failed. The current release in ${fromEnv} remains active. ` +

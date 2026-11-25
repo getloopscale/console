@@ -1,6 +1,6 @@
 /**
  * Hermetic tests for formatPromoteError — mirror of the Rollback
- * formatter tests (rollback-dialog-format.test.ts). Surfaces TheoError
+ * formatter tests (rollback-dialog-format.test.ts). Surfaces LoopScaleError
  * bodies into actionable copy without exposing internal terms
  * (Cross-Project Rule 9). Locks the canonical error-to-copy mapping
  * so a backend code rename does not silently regress UI messaging.

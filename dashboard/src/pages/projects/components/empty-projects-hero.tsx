@@ -25,9 +25,9 @@ interface Template {
 // button on all 3 cards would emit the IDENTICAL string `theo project create
 // my-app`, defeating the purpose of presenting 3 distinct starter options.
 const TEMPLATES: Template[] = [
-  { name: 'Next.js', description: 'React framework with SSR', cliCommand: 'theo project create my-nextjs-app' },
-  { name: 'Express', description: 'Node.js API server', cliCommand: 'theo project create my-express-api' },
-  { name: 'Go', description: 'Lightweight HTTP service', cliCommand: 'theo project create my-go-service' },
+  { name: 'Next.js', description: 'React framework with SSR', cliCommand: 'loopscale project create my-nextjs-app' },
+  { name: 'Express', description: 'Node.js API server', cliCommand: 'loopscale project create my-express-api' },
+  { name: 'Go', description: 'Lightweight HTTP service', cliCommand: 'loopscale project create my-go-service' },
 ];
 
 interface EmptyProjectsHeroProps {
@@ -72,7 +72,7 @@ export function EmptyProjectsHero({ onCreateFromDashboard }: EmptyProjectsHeroPr
           <p className="text-label uppercase text-muted-foreground">Or from your own repo</p>
           <CodeBlock
             caption=""
-            code="theo project create my-app"
+            code="loopscale project create my-app"
             terminal
             copyable
           />

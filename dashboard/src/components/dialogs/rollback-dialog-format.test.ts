@@ -1,7 +1,7 @@
 // @vitest-environment node
 /**
  * Hermetic unit tests for the rollback-error formatter — surfaces the
- * canonical TheoError body into actionable user-facing copy without
+ * canonical LoopScaleError body into actionable user-facing copy without
  * exposing internal terms (CR-9). Closes the LIVE-caught 2026-06-18
  * UX bug where the user saw "Couldn't trigger rollback" with NO clue
  * about why (sync timeout, no previous release, etc.).

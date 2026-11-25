@@ -29,7 +29,7 @@
  * um timestamp não pode deixar de deslogar esta aba.
  */
 
-/** A única mensagem que o canal `theo-auth` transporta. Não carrega segredo — ver `api.ts`. */
+/** A única mensagem que o canal `loopscale-auth` transporta. Não carrega segredo — ver `api.ts`. */
 export interface AuthMessage {
   readonly type: 'logged-out';
 }

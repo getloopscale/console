@@ -212,31 +212,31 @@ describe('cloudFetch — 402 PLAN_LIMIT side-effect survives throwOnError (F-tes
   const mock402 = () =>
     stubNetwork({ data: () => new Response(JSON.stringify({ code: 'PLAN_LIMIT_EXCEEDED', message: 'upgrade' }), { status: 402 }) });
 
-  it('emits theo:plan-limit AND throws ApiError(402) under throwOnError', async () => {
+  it('emits loopscale:plan-limit AND throws ApiError(402) under throwOnError', async () => {
     mock402();
     const events: CustomEvent[] = [];
     const handler = (e: Event) => events.push(e as CustomEvent);
-    window.addEventListener('theo:plan-limit', handler);
+    window.addEventListener('loopscale:plan-limit', handler);
     try {
       await expect(cloudFetch('/v1/x', { method: 'POST', body: '{}' }, { throwOnError: true }))
         .rejects.toMatchObject({ name: 'ApiError', status: 402 });
       expect(events.length).toBe(1);
       expect((events[0].detail as { code: string }).code).toBe('PLAN_LIMIT_EXCEEDED');
     } finally {
-      window.removeEventListener('theo:plan-limit', handler);
+      window.removeEventListener('loopscale:plan-limit', handler);
     }
   });
 
-  it('emits theo:plan-limit AND returns null under the default contract', async () => {
+  it('emits loopscale:plan-limit AND returns null under the default contract', async () => {
     mock402();
     const events: CustomEvent[] = [];
     const handler = (e: Event) => events.push(e as CustomEvent);
-    window.addEventListener('theo:plan-limit', handler);
+    window.addEventListener('loopscale:plan-limit', handler);
     try {
       expect(await cloudFetch('/v1/x', { method: 'POST', body: '{}' })).toBeNull();
       expect(events.length).toBe(1);
     } finally {
-      window.removeEventListener('theo:plan-limit', handler);
+      window.removeEventListener('loopscale:plan-limit', handler);
     }
   });
 });
@@ -334,11 +334,11 @@ describe('cross-tab coordination (B-234, find_sec_004)', () => {
     const dispose = api.installAuthChannel();
     const expirados: string[] = [];
     const ouvinte = () => expirados.push('expired');
-    window.addEventListener('theo:session-expired', ouvinte);
+    window.addEventListener('loopscale:session-expired', ouvinte);
     return {
       api,
       expirados,
-      cleanup: () => { dispose(); window.removeEventListener('theo:session-expired', ouvinte); },
+      cleanup: () => { dispose(); window.removeEventListener('loopscale:session-expired', ouvinte); },
     };
   }
 
@@ -360,7 +360,7 @@ describe('cross-tab coordination (B-234, find_sec_004)', () => {
 
   it('a null broadcast neither throws nor signs this tab out', async () => {
     const { expirados, cleanup } = await freshWithChannel();
-    const canal = new BroadcastChannel('theo-auth');
+    const canal = new BroadcastChannel('loopscale-auth');
     canal.postMessage(null);
     await new Promise((r) => setTimeout(r, 20));
     expect(expirados).toEqual([]);
@@ -370,7 +370,7 @@ describe('cross-tab coordination (B-234, find_sec_004)', () => {
 
   it('a message with an unknown type does not sign this tab out', async () => {
     const { expirados, cleanup } = await freshWithChannel();
-    const canal = new BroadcastChannel('theo-auth');
+    const canal = new BroadcastChannel('loopscale-auth');
     canal.postMessage({ type: 'hello' });
     await new Promise((r) => setTimeout(r, 20));
     expect(expirados).toEqual([]);
@@ -381,7 +381,7 @@ describe('cross-tab coordination (B-234, find_sec_004)', () => {
   it('the message that IS a logout signs this tab out', async () => {
     // The counterpart without which the two cases above would pass with a handler that ignores all.
     const { expirados, cleanup } = await freshWithChannel();
-    const canal = new BroadcastChannel('theo-auth');
+    const canal = new BroadcastChannel('loopscale-auth');
     canal.postMessage({ type: 'logged-out' });
     await new Promise((r) => setTimeout(r, 20));
     expect(expirados).toEqual(['expired']);
@@ -396,7 +396,7 @@ describe('B-218 — the client announces the expiry instead of building DOM', ()
     const fresh = await import('./api');
     const ouvidos: string[] = [];
     const ouvinte = () => ouvidos.push('expired');
-    window.addEventListener('theo:session-expired', ouvinte);
+    window.addEventListener('loopscale:session-expired', ouvinte);
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), { status: 401 }),
     );
@@ -405,6 +405,6 @@ describe('B-218 — the client announces the expiry instead of building DOM', ()
 
     expect(document.body.querySelector('div[style]')).toBeNull();
     expect(ouvidos).toContain('expired');
-    window.removeEventListener('theo:session-expired', ouvinte);
+    window.removeEventListener('loopscale:session-expired', ouvinte);
   });
 });

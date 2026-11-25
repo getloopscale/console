@@ -4,7 +4,7 @@
  * Plan: .claude/knowledge-base/plans/2026-06-06-dashboard-journey-j03-verification-plan.md.
  * Matches the delivered-journey bar (J-04 recovery.spec.ts, J-05 device-*.spec.ts).
  *
- * Uses the dev-mocks per-page runtime override `__THEO_MOCK_LOGGED_OUT` (see
+ * Uses the dev-mocks per-page runtime override `__LOOPSCALE_MOCK_LOGGED_OUT` (see
  * login.spec.ts header + dev-mocks.ts) so the verification page renders its
  * form logged-out instead of redirecting to the mock dashboard.
  *
@@ -20,7 +20,7 @@ import { expect, test } from '@playwright/test';
 test.describe('J-03 Verification — code entry + resend cooldown (DOM-driven)', () => {
   test('Scenario A: input state renders the 6-digit code field + enabled resend button', async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
     });
     await page.goto('/verification?flow=verify-1');
 
@@ -31,7 +31,7 @@ test.describe('J-03 Verification — code entry + resend cooldown (DOM-driven)',
 
   test('Scenario B: a persisted cooldown deadline renders the resend button disabled with a countdown', async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
       // Simulate a resend that happened ~45s ago on a prior page load. The
       // deadline (epoch ms) survives the reload in localStorage — proving the
       // cooldown is not just in-memory component state.

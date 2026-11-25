@@ -2,7 +2,7 @@ import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { TheoUIProvider } from '@theokit/ui';
-import { TEMA_THEO } from '@/lib/theme/theo-theme';
+import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
 import { queryClient } from './lib/http/query-client';
@@ -103,7 +103,7 @@ void readyToRender.then(() =>
   <StrictMode>
     <RouteBoundary routePath="root">
       <QueryClientProvider client={queryClient}>
-        <TheoUIProvider theme={TEMA_THEO}>
+        <TheoUIProvider theme={TEMA_LOOPSCALE}>
           <App />
           {ReactQueryDevtools ? (
             <Suspense fallback={null}>

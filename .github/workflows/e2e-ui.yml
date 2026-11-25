@@ -81,8 +81,8 @@
 #     classificação deste cabeçalho. O Cenário 1 usava `demo`, projeto sem fixture; hoje usa
 #     `acme-ml-pipeline`, o único `connected: false`. Os Cenários 2–4 interceptavam
 #     `/projects/*/connect` pela REDE, e essa rota é servida EM PROCESSO — `page.route` nunca
-#     disparava. Ganharam a alavanca `__THEO_MOCK_CONNECT_SEQUENCE`, no padrão do
-#     `__THEO_MOCK_LOGGED_OUT` que já existia.
+#     disparava. Ganharam a alavanca `__LOOPSCALE_MOCK_CONNECT_SEQUENCE`, no padrão do
+#     `__LOOPSCALE_MOCK_LOGGED_OUT` que já existia.
 #
 #     E ao rodarem pela primeira vez acharam um DEFEITO REAL: o dublê exigia `repo_url` e
 #     devolvia 400 sem ele, enquanto a tela envia `repo`. Conectar repositório falhava SEMPRE em
@@ -91,7 +91,7 @@
 #     juntos, que é o argumento inteiro a favor de nunca deixar caso pulado.
 #   • `recovery` — a premissa "visitante sem sessão" nunca era estabelecida. O produto está certo:
 #     com sessão ativa, `/recovery` mostra de propósito "You're already signed in" (fecho de Red
-#     Team, `theo-cloud#54`). A alavanca `__THEO_MOCK_LOGGED_OUT` já existia e é a mesma do
+#     Team, `theo-cloud#54`). A alavanca `__LOOPSCALE_MOCK_LOGGED_OUT` já existia e é a mesma do
 #     `login.spec.ts`. Um terceiro caso falhava por outro motivo, também medido: sob mocks o
 #     `ui.action` é o sentinela `#mock-submit-recovery`, que o `fetch` resolve contra o documento
 #     atual — o POST sai para a própria URL da página, não para `/self-service/recovery`.

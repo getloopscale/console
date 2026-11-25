@@ -15,8 +15,8 @@
  * (src/lib/dev-mocks.ts) intercepts EVERY /self-service/* request at the JS layer,
  * so Playwright page.route() can never reach the Kratos flow endpoints. Auth-page
  * e2e therefore drives the mock layer via two dev-only per-page runtime flags set
- * before app load: `__THEO_MOCK_LOGGED_OUT` (render logged-out, not redirect to /)
- * and `__THEO_MOCK_FLOW_ERROR` (inject a ui.messages error into the mocked login
+ * before app load: `__LOOPSCALE_MOCK_LOGGED_OUT` (render logged-out, not redirect to /)
+ * and `__LOOPSCALE_MOCK_FLOW_ERROR` (inject a ui.messages error into the mocked login
  * flow). Both are dead-code-eliminated in production (gated by mocksEnabled()).
  */
 
@@ -29,9 +29,9 @@ import { expect, test } from '@playwright/test';
  */
 async function setupLoginPage(page: import('@playwright/test').Page, opts: { error?: string } = {}) {
   await page.addInitScript((error: string | null) => {
-    (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+    (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
     if (error) {
-      (window as unknown as { __THEO_MOCK_FLOW_ERROR?: string }).__THEO_MOCK_FLOW_ERROR = error;
+      (window as unknown as { __LOOPSCALE_MOCK_FLOW_ERROR?: string }).__LOOPSCALE_MOCK_FLOW_ERROR = error;
     }
   }, opts.error ?? null);
 }

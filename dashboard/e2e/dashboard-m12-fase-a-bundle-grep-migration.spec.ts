@@ -47,7 +47,7 @@ test.describe('M12 Fase A — bundle-grep migration to real-DOM assertions', () 
   test('#55 /registration -> /register alias navigation', async ({ page }) => {
     // Set logged-out mock so the auth guard doesn't intercept.
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
     });
     await page.goto('/registration');
     // React Router replace navigation lands on /register.
@@ -58,7 +58,7 @@ test.describe('M12 Fase A — bundle-grep migration to real-DOM assertions', () 
   // "A form field element should have an id or name attribute").
   test('#51 login form inputs carry id + name', async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
     });
     await page.goto('/login');
     const email = page.locator('input#login-email[name="email"]');
@@ -102,8 +102,8 @@ test.describe('M12 Fase A — bundle-grep migration to real-DOM assertions', () 
   // #75 — /register duplicate email surfaces canonical product copy.
   test('#75 register duplicate account product copy', async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
-      (window as unknown as { __THEO_MOCK_FLOW_ERROR?: string }).__THEO_MOCK_FLOW_ERROR = 'duplicate_email';
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_FLOW_ERROR?: string }).__LOOPSCALE_MOCK_FLOW_ERROR = 'duplicate_email';
     });
     await page.goto('/register');
     // Fill + submit form; assert canonical copy.
@@ -122,7 +122,7 @@ test.describe('M12 Fase A — bundle-grep migration to real-DOM assertions', () 
   // #74 — register preserves Name+Email on error (sessionStorage rehydrate).
   test('#74 register preserves name+email via sessionStorage', async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
       // Pre-seed sessionStorage to simulate rehydrate path.
       sessionStorage.setItem(
         'theo-register-form-restore',
@@ -312,7 +312,7 @@ test.describe('M12 Fase A — visual baseline (screenshot regression)', () => {
 
   test('login page visual baseline', async ({ page }) => {
     await page.addInitScript(() => {
-      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+      (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
     });
     await page.goto('/login');
     await expect(page.getByRole('button', { name: /continue with github/i })).toBeVisible();

@@ -7,7 +7,7 @@
 // Pattern per handler:
 //   1. Receives Request + extracted params.
 //   2. Returns Response with status code + JSON body matching the Go API shape.
-//   3. Errors use the canonical TheoError envelope `{ code, message }`.
+//   3. Errors use the canonical LoopScaleError envelope `{ code, message }`.
 //   4. In-memory state mutates per-session (delete reflected in subsequent GET).
 //
 // Call `registerAllMockHandlers()` once at boot from main.tsx via installMocks.
@@ -189,7 +189,7 @@ function registerProjectHandlers() {
 
   // GitHub repo connection
   //
-  // ALAVANCA DE SEQUÊNCIA — `window.__THEO_MOCK_CONNECT_SEQUENCE` (issue #378).
+  // ALAVANCA DE SEQUÊNCIA — `window.__LOOPSCALE_MOCK_CONNECT_SEQUENCE` (issue #378).
   //
   // Esta rota é servida EM PROCESSO pelo dublê, não pela rede. Consequência que custou caro:
   // um `page.route('**/projects/*/connect')` no Playwright **nunca dispara** aqui, e os
@@ -198,13 +198,13 @@ function registerProjectHandlers() {
   // arquivo é `mode: 'serial'` e o primeiro cenário falhava por outro motivo, eles ficaram
   // PULADOS — nunca executados — e ninguém percebeu.
   //
-  // A alavanca segue o padrão que já existia para sessão (`__THEO_MOCK_LOGGED_OUT`): o teste
+  // A alavanca segue o padrão que já existia para sessão (`__LOOPSCALE_MOCK_LOGGED_OUT`): o teste
   // planta a sequência com `addInitScript`, e cada GET consome a próxima. Esgotada, a última
   // se repete — para que o polling continue estável no estado final em vez de voltar ao
   // começo, que seria um comportamento que servidor nenhum tem.
   registerRoute('GET', '/api/v1/projects/{name}/connect', async (_req, { name }) => {
-    const seq = (window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: ProjectConnection[] })
-      .__THEO_MOCK_CONNECT_SEQUENCE;
+    const seq = (window as unknown as { __LOOPSCALE_MOCK_CONNECT_SEQUENCE?: ProjectConnection[] })
+      .__LOOPSCALE_MOCK_CONNECT_SEQUENCE;
     if (Array.isArray(seq) && seq.length > 0) {
       const i = Math.min(connectSequenceCursor, seq.length - 1);
       connectSequenceCursor += 1;
@@ -222,7 +222,7 @@ function registerProjectHandlers() {
   //
   // `repo_url` era o nome ANTERIOR, declarado legado no próprio tipo. Saiu com o resto (#377).
   //
-  // O corpo recebido fica em `window.__THEO_MOCK_LAST_CONNECT_POST` para o e2e poder afirmar a
+  // O corpo recebido fica em `window.__LOOPSCALE_MOCK_LAST_CONNECT_POST` para o e2e poder afirmar a
   // FORMA do pedido: esta rota é servida em processo, então `page.route` não a intercepta e não
   // há outro jeito de inspecionar o que a tela enviou.
   registerRoute('POST', '/api/v1/projects/{name}/connect', async (req, { name }) => {
@@ -232,7 +232,7 @@ function registerProjectHandlers() {
       branch?: string;
       auto_deploy?: boolean;
     };
-    (window as unknown as { __THEO_MOCK_LAST_CONNECT_POST?: unknown }).__THEO_MOCK_LAST_CONNECT_POST =
+    (window as unknown as { __LOOPSCALE_MOCK_LAST_CONNECT_POST?: unknown }).__LOOPSCALE_MOCK_LAST_CONNECT_POST =
       body;
     if (!body.repo) return err('INVALID_INPUT', 'repo required', 400);
     return Response.json({

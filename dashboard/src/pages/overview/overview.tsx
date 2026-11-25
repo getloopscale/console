@@ -126,7 +126,7 @@ export function OverviewPage() {
                     <>
                       Run{' '}
                       <code className="bg-muted px-2 py-0.5 rounded font-mono">
-                        theo project create my-app
+                        loopscale project create my-app
                       </code>{' '}
                       in your terminal to connect a repo and ship.
                     </>

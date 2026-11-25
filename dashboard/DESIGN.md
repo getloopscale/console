@@ -100,7 +100,7 @@ There is nothing to consolidate: `@usetheo/ui` exports 116 symbols and **none**
 match `Theme*`, `Usage*` or `violet*`. What the split does cost is bundle weight,
 measured and tracked in `theo-cloud#474`.
 
-The theme configuration has a **single owner**: `src/lib/theme/theo-theme.ts`,
+The theme configuration has a **single owner**: `src/lib/theme/loopscale-theme.ts`,
 imported by both `main.tsx` and the test tree. Before it existed the two
 diverged, and the whole suite rendered in light mode with a `--primary` the app
 never shows (B-007).
@@ -135,7 +135,7 @@ Any new recurring need becomes an upstream contribution (per ADR D3 of remediati
 
 | Token category | Source |
 |---|---|
-| Color | Violet Forge theme via `src/lib/theme/theo-theme.ts` (the provider applies on the element, which beats any stylesheet); `src/index.css` holds the pre-hydration fallback, aligned to the same value |
+| Color | Violet Forge theme via `src/lib/theme/loopscale-theme.ts` (the provider applies on the element, which beats any stylesheet); `src/index.css` holds the pre-hydration fallback, aligned to the same value |
 | Typography | Geist Sans + Geist Mono (via `fonts-cdn.css`) |
 | Spacing | Tailwind v4 default scale |
 | Radius | `rounded-{sm,md,lg,xl}` |

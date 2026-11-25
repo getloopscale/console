@@ -52,12 +52,12 @@ interface BackendLogsResponse {
  * Lines without the marker still render via the legacy fallback —
  * useful for debug mode (raw container output).
  */
-const THEO_MARKER_RE =
+const BUILD_LOG_MARKER_RE =
   /^::theo:: phase=(?<phase>\w+) step=(?<step>[\w-]+) level=(?<level>\w+) msg=(?<msg>.+?)\s*$/;
 
 function toLogLine(e: BackendLogEntry): LogLine {
   const content = e.content ?? '';
-  const marker = THEO_MARKER_RE.exec(content);
+  const marker = BUILD_LOG_MARKER_RE.exec(content);
   if (marker?.groups) {
     const msg = unquote(marker.groups.msg);
     return {

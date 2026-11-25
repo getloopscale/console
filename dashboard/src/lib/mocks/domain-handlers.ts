@@ -9,7 +9,7 @@ import type { Domain, DomainListResponse } from '@/lib/api/types';
  *
  * `handlers.ts` está na dívida registrada de `max-lines` com teto anotado, e a catraca de
  * `loc-budget-ratchet.test.ts` não tem folga: o número só desce. Acrescentar a alavanca
- * `__THEO_MOCK_NO_DOMAINS` — quatro linhas — a reprovou, o que é exatamente o que ela existe
+ * `__LOOPSCALE_MOCK_NO_DOMAINS` — quatro linhas — a reprovou, o que é exatamente o que ela existe
  * para fazer.
  *
  * A alternativa era encurtar o comentário até caber, trocando a explicação por duas linhas
@@ -34,9 +34,9 @@ function err(code: string, message: string, status: number): Response {
 
 export function registerDomainHandlers() {
   registerRoute('GET', '/api/v1/domains', async () => {
-    // `__THEO_MOCK_NO_DOMAINS` (B-107) — alavanca de estado, quarta do idioma de
-    // `__THEO_MOCK_LOGGED_OUT`. Motivo em `e2e/a11y.spec.ts` § `#81`.
-    const ds = (window as unknown as { __THEO_MOCK_NO_DOMAINS?: boolean }).__THEO_MOCK_NO_DOMAINS ? [] : estado.domains;
+    // `__LOOPSCALE_MOCK_NO_DOMAINS` (B-107) — alavanca de estado, quarta do idioma de
+    // `__LOOPSCALE_MOCK_LOGGED_OUT`. Motivo em `e2e/a11y.spec.ts` § `#81`.
+    const ds = (window as unknown as { __LOOPSCALE_MOCK_NO_DOMAINS?: boolean }).__LOOPSCALE_MOCK_NO_DOMAINS ? [] : estado.domains;
     return Response.json({ domains: ds, total: ds.length } satisfies DomainListResponse);
   });
 

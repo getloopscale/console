@@ -19,7 +19,7 @@ describe('PlanLimitUpgradeModal', () => {
 
     act(() => {
       window.dispatchEvent(
-        new CustomEvent('theo:plan-limit', {
+        new CustomEvent('loopscale:plan-limit', {
           detail: {
             code: 'PLAN_LIMIT_EXCEEDED',
             message: 'You hit the env cap',
@@ -39,7 +39,7 @@ describe('PlanLimitUpgradeModal', () => {
     render(withRouter(<PlanLimitUpgradeModal />));
 
     act(() => {
-      window.dispatchEvent(new CustomEvent('theo:plan-limit', { detail: null }));
+      window.dispatchEvent(new CustomEvent('loopscale:plan-limit', { detail: null }));
     });
 
     await waitFor(() => {
@@ -54,7 +54,7 @@ describe('PlanLimitUpgradeModal', () => {
     render(withRouter(<PlanLimitUpgradeModal />));
 
     act(() => {
-      window.dispatchEvent(new CustomEvent('theo:plan-limit', { detail: null }));
+      window.dispatchEvent(new CustomEvent('loopscale:plan-limit', { detail: null }));
     });
 
     await waitFor(() => {
@@ -78,7 +78,7 @@ describe('PlanLimitUpgradeModal — fechamento (T1.1)', () => {
     );
     act(() => {
       window.dispatchEvent(
-        new CustomEvent('theo:plan-limit', { detail: { message: 'Limite atingido' } }),
+        new CustomEvent('loopscale:plan-limit', { detail: { message: 'Limite atingido' } }),
       );
     });
     await screen.findByText('Limite atingido');
@@ -94,13 +94,13 @@ describe('B-236 — an unvalidated 402 body must not reach a render path', () =>
     // user is being told why their action was refused.
     //
     // The emitter now validates (lib/http/event-payloads.ts), so this detail cannot be produced by
-    // api.ts any more. The modal keeps its own guard as defence in depth: `theo:plan-limit` is a
+    // api.ts any more. The modal keeps its own guard as defence in depth: `loopscale:plan-limit` is a
     // window event, and a second emitter added tomorrow would not inherit the first one's care.
     render(withRouter(<PlanLimitUpgradeModal />));
 
     act(() => {
       window.dispatchEvent(
-        new CustomEvent('theo:plan-limit', { detail: { current_plan: 42 } }),
+        new CustomEvent('loopscale:plan-limit', { detail: { current_plan: 42 } }),
       );
     });
 
@@ -113,7 +113,7 @@ describe('B-236 — an unvalidated 402 body must not reach a render path', () =>
 
     act(() => {
       window.dispatchEvent(
-        new CustomEvent('theo:plan-limit', { detail: { current_plan: 'starter' } }),
+        new CustomEvent('loopscale:plan-limit', { detail: { current_plan: 'starter' } }),
       );
     });
 

@@ -36,7 +36,7 @@ interface ChecklistStep {
 const STEPS: ChecklistStep[] = [
   {
     key: 'cli_installed',
-    title: 'Install the Theo CLI',
+    title: 'Install the LoopScale CLI',
     description: 'The CLI is your primary tool. Dashboard is for status + history.',
     cliCommand: 'npm install -g @usetheo/cli',
   },
@@ -44,7 +44,7 @@ const STEPS: ChecklistStep[] = [
     key: 'logged_in',
     title: 'Sign in',
     description: 'Connect the CLI to your LoopScale team.',
-    cliCommand: 'theo login',
+    cliCommand: 'loopscale login',
   },
   {
     key: 'project_initialized',
@@ -53,19 +53,19 @@ const STEPS: ChecklistStep[] = [
     // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `theo init` is NOT a real
     // subcommand in @usetheo/cli@0.3.1. Replaced with the canonical
     // `theo project create my-app` per the CLI's actual surface.
-    cliCommand: 'theo project create my-app',
+    cliCommand: 'loopscale project create my-app',
   },
   {
     key: 'deploy_succeeded',
     title: 'Deploy your first project',
     description: 'Goes from your laptop to a live URL in about 4 minutes.',
-    cliCommand: 'theo deploy',
+    cliCommand: 'loopscale deploy',
   },
   {
     key: 'domain_added',
     title: 'Add a custom domain',
     description: 'Point your own domain at the deploy. TLS handled automatically.',
-    cliCommand: 'theo domain add app.example.com',
+    cliCommand: 'loopscale domain add app.example.com',
     optional: true,
   },
 ];

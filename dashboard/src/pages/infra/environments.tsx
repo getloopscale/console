@@ -96,7 +96,7 @@ function statusLabel(s?: string): string {
  *   - "View Previews →" cross-link (NEW T2.5 — strict CRD separation ADR D5)
  *
  * The page does NOT need to wire PlanLimitUpgradeModal — that's mounted
- * top-level in app.tsx and listens for `theo:plan-limit` window events
+ * top-level in app.tsx and listens for `loopscale:plan-limit` window events
  * from the 402 interceptor in lib/api.ts.
  */
 export function EnvironmentsPage() {

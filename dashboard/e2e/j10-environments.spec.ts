@@ -21,7 +21,7 @@
  *   2. Click "+ New environment" opens CreateEnvironmentSheet
  *   3. PromoteDialog opens via Rocket button, canonical {from,to} body
  *   4. DeleteEnvironmentDialog cascade warning + type-to-confirm
- *   5. PlanLimitUpgradeModal opens on `theo:plan-limit` event
+ *   5. PlanLimitUpgradeModal opens on `loopscale:plan-limit` event
  *
  * Step "deploy and promote → release ACTIVE in target" requires a real
  * deploy pipeline + LIVE infra and stays a sponsor HARD STOP. Everything
@@ -62,7 +62,7 @@ test.describe('J-10 Environments — browser-runtime E2E (mocks)', () => {
     await expect(newBtn).toBeVisible({ timeout: 10_000 });
   });
 
-  test('S3: PlanLimitUpgradeModal opens on theo:plan-limit event', async ({ page }) => {
+  test('S3: PlanLimitUpgradeModal opens on loopscale:plan-limit event', async ({ page }) => {
     await page.goto(ROTA);
     // Espera o app estar MONTADO antes de disparar o evento.
     //
@@ -85,7 +85,7 @@ test.describe('J-10 Environments — browser-runtime E2E (mocks)', () => {
     // PlanLimitUpgradeModal is mounted at app root and listens for it.
     await page.evaluate(() => {
       window.dispatchEvent(
-        new CustomEvent('theo:plan-limit', {
+        new CustomEvent('loopscale:plan-limit', {
           detail: {
             code: 'PLAN_LIMIT_EXCEEDED',
             message: 'You hit the environment cap on Starter',
@@ -110,7 +110,7 @@ test.describe('J-10 Environments — browser-runtime E2E (mocks)', () => {
       timeout: 15_000,
     });
     await page.evaluate(() => {
-      window.dispatchEvent(new CustomEvent('theo:plan-limit', { detail: null }));
+      window.dispatchEvent(new CustomEvent('loopscale:plan-limit', { detail: null }));
     });
     await expect(page.getByText(/plan limit reached/i)).toBeVisible({
       timeout: 5_000,

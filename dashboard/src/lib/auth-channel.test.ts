@@ -5,7 +5,7 @@ vi.mock('./http/config', () => ({ API_URL: 'http://test.local', mocksEnabled: ()
 /**
  * B-042 — o canal de coordenacao entre abas tem ciclo de vida explicito.
  *
- * Antes, `new BroadcastChannel('theo-auth')` rodava no topo de `lib/api.ts`, como
+ * Antes, `new BroadcastChannel('loopscale-auth')` rodava no topo de `lib/api.ts`, como
  * efeito colateral de import. Esse modulo tem 151 importadores, entao qualquer um
  * deles — inclusive um teste que so queria uma funcao pura — abria um canal real
  * e registrava um handler que REDIRECIONA a pagina ao receber 'logged-out'.
@@ -48,17 +48,17 @@ describe('installAuthChannel — ciclo de vida explicito (B-042)', () => {
     expect(aberturas).toEqual([]);
   });
 
-  it('installAuthChannel abre o canal theo-auth', async () => {
+  it('installAuthChannel abre o canal loopscale-auth', async () => {
     const { installAuthChannel } = await import('./http/api');
     installAuthChannel();
-    expect(aberturas).toEqual(['theo-auth']);
+    expect(aberturas).toEqual(['loopscale-auth']);
   });
 
   it('e idempotente — chamar duas vezes nao abre dois canais', async () => {
     const { installAuthChannel } = await import('./http/api');
     installAuthChannel();
     installAuthChannel();
-    expect(aberturas).toEqual(['theo-auth']);
+    expect(aberturas).toEqual(['loopscale-auth']);
   });
 
   it('devolve um dispose que fecha o canal — o teardown que nao existia', async () => {
@@ -73,7 +73,7 @@ describe('installAuthChannel — ciclo de vida explicito (B-042)', () => {
     const { installAuthChannel } = await import('./http/api');
     installAuthChannel()();
     installAuthChannel();
-    expect(aberturas).toEqual(['theo-auth', 'theo-auth']);
+    expect(aberturas).toEqual(['loopscale-auth', 'loopscale-auth']);
   });
 
   it('ambiente sem BroadcastChannel degrada sem lancar', async () => {

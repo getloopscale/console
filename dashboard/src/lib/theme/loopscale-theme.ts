@@ -45,14 +45,14 @@ import { violetForge } from '@theokit/ui';
 
 /**
  * O `--primary` do produto. Fixado aqui porque é um valor de CONTRASTE, não de
- * gosto: `lib/theme/theo-theme.test.tsx` compara o computado contra ele, e
+ * gosto: `lib/theme/loopscale-theme.test.tsx` compara o computado contra ele, e
  * `index.primary-token.test.ts` compara o fallback de CSS contra o mesmo.
  */
 export const PRIMARY_CANONICO = 'oklch(0.57 0.13 302)';
 
 // Sem `as const`: ele tornaria `themes` readonly, e o `ThemeProvider` pede um
 // `Theme[]` mutável. Congelar aqui só produziria um cast na hora de usar.
-export const TEMA_THEO = {
+export const TEMA_LOOPSCALE = {
   themes: [
     {
       ...violetForge,

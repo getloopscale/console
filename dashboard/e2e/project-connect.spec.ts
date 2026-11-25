@@ -117,8 +117,8 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
     // que a máquina de estados espera para avançar. Esgotada, a última se repete.
     await page.addInitScript(() => {
       (
-        window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: unknown[] }
-      ).__THEO_MOCK_CONNECT_SEQUENCE = [
+        window as unknown as { __LOOPSCALE_MOCK_CONNECT_SEQUENCE?: unknown[] }
+      ).__LOOPSCALE_MOCK_CONNECT_SEQUENCE = [
         { connected: false },
         { connected: false },
         { connected: false, installation_id: 777 },
@@ -152,8 +152,8 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
     // `/connect` é servida em processo e `page.route` não a alcança (issue #378).
     await page.addInitScript(() => {
       (
-        window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: unknown[] }
-      ).__THEO_MOCK_CONNECT_SEQUENCE = [{ connected: false, installation_id: 555 }];
+        window as unknown as { __LOOPSCALE_MOCK_CONNECT_SEQUENCE?: unknown[] }
+      ).__LOOPSCALE_MOCK_CONNECT_SEQUENCE = [{ connected: false, installation_id: 555 }];
     });
     // A listagem de repositórios NÃO está no mapa do dublê, então ela sai pela rede de verdade
     // e o `page.route` funciona. Os dois mecanismos convivem, e a diferença não é arbitrária:
@@ -194,12 +194,12 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
     page,
   }) => {
     // Estado inicial pela alavanca; o CORPO DO POST é lido de
-    // `window.__THEO_MOCK_LAST_CONNECT_POST`, que o dublê registra. Não há alternativa:
+    // `window.__LOOPSCALE_MOCK_LAST_CONNECT_POST`, que o dublê registra. Não há alternativa:
     // `/connect` é servida em processo, então `page.route` não vê o pedido (issue #378).
     await page.addInitScript(() => {
       (
-        window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: unknown[] }
-      ).__THEO_MOCK_CONNECT_SEQUENCE = [{ connected: false, installation_id: 42 }];
+        window as unknown as { __LOOPSCALE_MOCK_CONNECT_SEQUENCE?: unknown[] }
+      ).__LOOPSCALE_MOCK_CONNECT_SEQUENCE = [{ connected: false, installation_id: 42 }];
     });
     await page.route(
       '**/engine/api/v1/integrations/github/installations/*/repositories',
@@ -224,8 +224,8 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
     const lerPost = () =>
       page.evaluate(
         () =>
-          (window as unknown as { __THEO_MOCK_LAST_CONNECT_POST?: Record<string, unknown> })
-            .__THEO_MOCK_LAST_CONNECT_POST ?? null,
+          (window as unknown as { __LOOPSCALE_MOCK_LAST_CONNECT_POST?: Record<string, unknown> })
+            .__LOOPSCALE_MOCK_LAST_CONNECT_POST ?? null,
       );
     await expect.poll(lerPost, { timeout: 5_000 }).not.toBeNull();
     const postBody = await lerPost();

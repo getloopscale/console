@@ -93,7 +93,7 @@ function DnsRecordsRow({ domain, columnCount }: { domain: Domain; columnCount: n
           </div>
           <CodeBlock
             caption="Or run via CLI:"
-            code={`theo domain verify ${domain.domain}`}
+            code={`loopscale domain verify ${domain.domain}`}
             terminal
             copyable
             className="mt-3"
@@ -245,7 +245,7 @@ export function DomainsPage() {
                   title: searchQuery ? 'No matching domains' : 'No custom domains yet',
                   description: searchQuery
                     ? 'Try a different search term.'
-                    : 'Run theo domain add <domain> to attach a custom domain.',
+                    : 'Run loopscale domain add <domain> to attach a custom domain.',
                 },
               },
               'domains',

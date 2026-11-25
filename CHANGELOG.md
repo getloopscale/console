@@ -6,7 +6,8 @@
 ### Changed
 - The images are published as `ghcr.io/getloopscale/loopzero-cloud` and `ghcr.io/getloopscale/loopzero-dashboard`, the names the LoopZero engine pulls. Nothing new is published under `theo-cloud` or `theo-dashboard` (#520).
 - The control plane reads its own settings under the `LOOPZERO_` prefix, the names the LoopZero Helm chart sets: `LOOPZERO_ENV`, `LOOPZERO_SERVICE_AUTH_SECRET`, `LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY`, `LOOPZERO_TRACING_ENABLED`, `LOOPZERO_EXPORT_DIR`, `LOOPZERO_PROMETHEUS_URL`, `LOOPZERO_COST_AGGREGATOR_INTERVAL` and `LOOPZERO_RAG_OAUTH_<PROVIDER>_*`. The `THEO_` names are no longer read, so an install that still sets them must rename them (#523).
-- The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com`. CLI commands still read `theo`, since the CLI binary keeps that name (#521).
+- The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com` (#521).
+- Every CLI command the dashboard suggests uses the `loopscale` binary: sign-in, device-flow errors, onboarding, empty states, domains and settings. They said `theo`, which fails as typed. The onboarding step reads "Install the LoopScale CLI".
 
 ### Fixed
 - A returning user can sign in with a password and approve `loopscale login --device-flow` again. The service worker precached the build-time `/__config.js`, which has no auth host, and served it instead of the one the container writes, so login failed with "Network error" and Authorize with "unexpected redirect target". The file is left out of the precache and read from the network first (#547).

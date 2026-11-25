@@ -4,7 +4,7 @@
 // In development, the file in public/__config.js has empty defaults (same-origin).
 // This module reads from window.__THEO_CONFIG__ (set by the script tag in index.html).
 
-interface TheoConfig {
+interface RuntimeConfig {
   API_URL: string;
   AUTH_URL: string;
   ACCOUNTS_URL: string;
@@ -14,11 +14,11 @@ interface TheoConfig {
 
 declare global {
   interface Window {
-    __THEO_CONFIG__?: TheoConfig;
+    __THEO_CONFIG__?: RuntimeConfig;
   }
 }
 
-function getConfig(): TheoConfig {
+function getConfig(): RuntimeConfig {
   return window.__THEO_CONFIG__ ?? {
     API_URL: "",
     AUTH_URL: "",

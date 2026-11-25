@@ -82,7 +82,7 @@ let authChannel: BroadcastChannel | null = null;
 export function installAuthChannel(): () => void {
   if (authChannel) return () => {};
   try {
-    const ch = new BroadcastChannel('theo-auth');
+    const ch = new BroadcastChannel('loopscale-auth');
     ch.onmessage = (event: MessageEvent<unknown>) => {
       // B-234 — the payload comes from another running tab; only the exact logout shape acts.
       if (!isLoggedOutMessage(event.data)) return;
@@ -309,7 +309,7 @@ async function fetchWithSession<T>(path: string, options: RequestInit, throwOnEr
  * Plan J-10 v1.1 T1.4 — 402 interceptor.
  *
  * When the backend rejects with HTTP 402 (`PLAN_LIMIT_EXCEEDED` or related),
- * emit a global window event `theo:plan-limit` so a top-level
+ * emit a global window event `loopscale:plan-limit` so a top-level
  * <PlanLimitUpgradeModal> can listen + open the upgrade flow without each
  * call site re-implementing the logic. Idempotent: the event carries the
  * typed error payload so the modal can show "Upgrade to Pro for more
@@ -329,11 +329,11 @@ async function maybeEmitPaymentRequired(resp: Response): Promise<void> {
     // B-236 — o corpo seguia sem exame ate `String.replace` no modal, onde um `current_plan`
     // numerico lancava dentro de um handler do React. A fronteira e aqui.
     window.dispatchEvent(
-      new CustomEvent('theo:plan-limit', { detail: readPlanLimitDetail(body) }),
+      new CustomEvent('loopscale:plan-limit', { detail: readPlanLimitDetail(body) }),
     );
   } catch {
     // Body not JSON — still emit the event so modal opens with generic copy.
-    window.dispatchEvent(new CustomEvent('theo:plan-limit', { detail: null }));
+    window.dispatchEvent(new CustomEvent('loopscale:plan-limit', { detail: null }));
   }
 }
 // build trigger 1775591972

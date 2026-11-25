@@ -41,15 +41,15 @@ describe('ProjectsPage', () => {
     // Hero shows hero title + 3 template cards.
     // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32 (closes "theo init" inexistente):
     // per-template names — Next.js → my-nextjs-app, Express → my-express-api, Go → my-go-service.
-    // Plain "Or from your own repo" block uses `theo project create my-app`.
+    // Plain "Or from your own repo" block uses `loopscale project create my-app`.
     expect(screen.getByText('Deploy your first project')).toBeInTheDocument();
-    // Multiple "theo project create …" matches expected — assert at least one
-    expect(screen.getAllByText(/theo project create/i).length).toBeGreaterThan(0);
+    // Multiple "loopscale project create …" matches expected — assert at least one
+    expect(screen.getAllByText(/loopscale project create/i).length).toBeGreaterThan(0);
     // EC-5 absorption: per-template names lock the UX signal — the 3 starter
     // cards must emit DISTINCT cliCommand strings (NOT identical `my-app`).
-    expect(screen.getByText('theo project create my-nextjs-app')).toBeInTheDocument();
-    expect(screen.getByText('theo project create my-express-api')).toBeInTheDocument();
-    expect(screen.getByText('theo project create my-go-service')).toBeInTheDocument();
+    expect(screen.getByText('loopscale project create my-nextjs-app')).toBeInTheDocument();
+    expect(screen.getByText('loopscale project create my-express-api')).toBeInTheDocument();
+    expect(screen.getByText('loopscale project create my-go-service')).toBeInTheDocument();
     // Defense: legacy misleading `theo init` strings MUST be gone.
     expect(screen.queryByText(/theo init/i)).not.toBeInTheDocument();
     expect(

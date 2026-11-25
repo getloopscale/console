@@ -32,8 +32,8 @@ export function SessionExpiredNotice() {
 
   useEffect(() => {
     const onExpire = () => { setVisivel(true); };
-    window.addEventListener('theo:session-expired', onExpire);
-    return () => { window.removeEventListener('theo:session-expired', onExpire); };
+    window.addEventListener('loopscale:session-expired', onExpire);
+    return () => { window.removeEventListener('loopscale:session-expired', onExpire); };
   }, []);
 
   useEffect(() => {
@@ -46,8 +46,8 @@ export function SessionExpiredNotice() {
     // recusa que `safeNavigator.goTo` relatou no ato só aparecia 1,5 s depois. A informação
     // fluía para trás: a camada que SABE ficava calada e a que NÃO PODE saber adivinhava.
     const onReject = () => { setRedirecionouFalhou(true); };
-    window.addEventListener('theo:session-redirect-refused', onReject);
-    return () => { window.removeEventListener('theo:session-redirect-refused', onReject); };
+    window.addEventListener('loopscale:session-redirect-refused', onReject);
+    return () => { window.removeEventListener('loopscale:session-redirect-refused', onReject); };
   }, []);
 
   if (!visivel) return null;
