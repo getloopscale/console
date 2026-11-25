@@ -104,7 +104,8 @@ export function EnvironmentsPage() {
   const { setPageTitle } = usePageMeta();
   // B-167 — `error` já vinha de `useEngineApi` e não era desestruturado, então uma leitura que
   // falhou produzia zero ambientes e a tela afirmava "No environments yet".
-  const { data, loading, error: readError } = useEngineApi<EnvsResponse>('/api/v1/environments');
+  // Polled: a promote answers 202 and the target's deploy shows up seconds later.
+  const { data, loading, error: readError } = useEngineApi<EnvsResponse>('/api/v1/environments', { refetchInterval: 15_000 });
   const [searchQuery, setSearchQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   // O alvo da exclusão carrega o projeto no TIPO: só linhas já recortadas pelo projeto da rota

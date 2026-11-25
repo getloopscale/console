@@ -97,6 +97,27 @@ describe('RedeployDialog', () => {
 // de primitivo. Ver o mesmo bloco em `confirm-dialog.test.tsx`: os três
 // compartilhados não tinham teste de fechar, e é o que mais muda ao trocar
 // `ui/dialog` por `AppModal`.
+describe('RedeployDialog: a refused redeploy', () => {
+  it('shows the reason the API gives, not only the status code', async () => {
+    mockedEngineFetch.mockRejectedValue(
+      Object.assign(new Error('API request failed with status 422'), {
+        status: 422,
+        body: { code: 'SCALING_AMBIGUOUS', detail: "App 'app': replicas and autoscaling are mutually exclusive" },
+      }),
+    );
+    renderDialog();
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /redeploy abcdef1/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/replicas and autoscaling are mutually exclusive/)).toBeInTheDocument();
+    });
+    expect(screen.queryAllByText(/API request failed with status/)).toEqual([]);
+  });
+});
+
 describe('RedeployDialog — fechamento (T1.1)', () => {
   it('ESC pede o fechamento', async () => {
     const onOpenChange = vi.fn();

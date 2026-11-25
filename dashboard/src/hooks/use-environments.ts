@@ -49,8 +49,8 @@ interface UseEnvironmentsResult {
  * to feed into dropdowns and filter chips.
  *
  * Contract:
- *   - When `projectName` is omitted: returns ALL permanent envs of
- *     the tenant (cross-project).
+ *   - When `projectName` is omitted: returns the permanent env names of
+ *     the tenant across projects, each once.
  *   - When `projectName` is provided: filters to environments whose
  *     `project` field matches OR whose `project` field is empty/absent
  *     (legacy production entries — back-compat ADR D2).
@@ -75,34 +75,19 @@ export function useEnvironments(projectName?: string): UseEnvironmentsResult {
     return { envs: [], loading: query.isLoading, error: false };
   }
 
-  // Prefer `permanent[]` when the backend emits it (canonical post-2026-06-07);
-  // else derive distinct names from `environments[]`.
-  let candidates: string[] = [];
-  if (Array.isArray(data.permanent) && data.permanent.length > 0) {
-    candidates = data.permanent.slice();
-  } else if (Array.isArray(data.environments)) {
-    if (projectName) {
-      // Filter to entries scoped to this project OR legacy entries with
-      // empty `project` (ADR D2 back-compat).
-      const seen = new Set<string>();
-      for (const row of data.environments) {
-        if (!row.project || row.project === projectName) {
-          if (!seen.has(row.name)) {
-            seen.add(row.name);
-            candidates.push(row.name);
-          }
-        }
-      }
-    } else {
-      const seen = new Set<string>();
-      for (const row of data.environments) {
-        if (!seen.has(row.name)) {
-          seen.add(row.name);
-          candidates.push(row.name);
-        }
-      }
-    }
+  // `permanent[]` is tenant wide, one name per (project, environment), so it
+  // repeats a name that two projects share and cannot answer for one project.
+  // The rows carry the project: with a project asked for, they are the source.
+  const rows = Array.isArray(data.environments) ? data.environments : [];
+  const permanent = Array.isArray(data.permanent) ? data.permanent : [];
+  let names: string[];
+  if (projectName && rows.length > 0) {
+    // Rows of this project, plus legacy rows with no project (ADR D2).
+    names = rows.filter((row) => !row.project || row.project === projectName).map((row) => row.name);
+  } else {
+    names = permanent.length > 0 ? permanent : rows.map((row) => row.name);
   }
+  let candidates = [...new Set(names)];
 
   // EC-5 final safety: if filtering left the list empty (e.g., a fresh
   // project with no scoped envs yet), still surface the canonical

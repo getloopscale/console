@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/http/api', () => ({ engineFetch: vi.fn() }));
@@ -109,6 +110,24 @@ describe('SecretsPage — Plan 2026-06-11 T1.4 (closes J-22↔J-10)', () => {
     // The hardcoded legacy 'staging' MUST NOT appear when the tenant only
     // owns 'staging-eu-1' — that was the very J-22↔J-10 break.
     expect(opts).not.toContain('staging');
+  });
+
+  it('offers every environment of the project in the Add secret sheet', async () => {
+    mockedEngineFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/v1/environments')) {
+        return {
+          environments: [
+            { name: 'production', project: 'teste' },
+            { name: 'preview', project: 'teste' },
+            { name: 'qa-env', project: 'teste' },
+          ],
+        } as unknown;
+      }
+      return { secrets: [{ name: 'DATABASE_URL', environment: 'production' }] } as unknown;
+    });
+    renderAt('/projects/teste/secrets');
+    await userEvent.click(await screen.findByRole('button', { name: /add secret/i }));
+    expect(await screen.findByLabelText('Scope to qa-env')).toBeInTheDocument();
   });
 
   it('test_fallback_on_hook_error_renders_default_env_and_warning_ec5', async () => {

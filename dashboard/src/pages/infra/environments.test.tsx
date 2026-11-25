@@ -11,7 +11,7 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const mockUseEngineApi = vi.fn();
 vi.mock('@/hooks/use-api', () => ({
-  useEngineApi: () => mockUseEngineApi(),
+  useEngineApi: (...args: unknown[]) => mockUseEngineApi(...args),
   useCloudApi: () => mockUseEngineApi(),
 }));
 
@@ -39,6 +39,14 @@ describe('EnvironmentsPage', () => {
     );
   }
 
+
+  // A promote answers 202 and the release turns ACTIVE seconds later: a list
+  // read once would show the target environment without its deploy for good.
+  it('keeps the list fresh by polling', () => {
+    mockUseEngineApi.mockReturnValue({ data: { environments: [] }, loading: false, error: false });
+    renderAt('/projects/web/environments');
+    expect(mockUseEngineApi).toHaveBeenCalledWith('/api/v1/environments', { refetchInterval: 15_000 });
+  });
 
   it('test_environments_renders_table_with_headers', () => {
     mockUseEngineApi.mockReturnValue({

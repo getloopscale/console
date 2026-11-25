@@ -57,6 +57,32 @@ describe('useEnvironments — Plan 2026-06-11 T1.4 (closes J-22↔J-10)', () => 
     expect(result.current.envs).toContain('preview-pr-42');
   });
 
+  // The API's `permanent` is tenant wide: one name per (project, environment).
+  const twoProjects = {
+    environments: [
+      { name: 'production', project: 'loop-app' },
+      { name: 'preview', project: 'loop-app' },
+      { name: 'production', project: 'secretprobe' },
+      { name: 'canary', project: 'secretprobe' },
+      { name: 'qa-env', project: 'loop-app' },
+    ],
+    permanent: ['production', 'preview', 'production', 'canary', 'qa-env'],
+  };
+
+  it('lists only the environments of the project asked for, each once', async () => {
+    mockedEngineFetch.mockResolvedValue(twoProjects);
+    const { result } = renderHook(() => useEnvironments('loop-app'), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.envs).toEqual(['production', 'preview', 'qa-env']);
+  });
+
+  it('lists each name once when no project is asked for', async () => {
+    mockedEngineFetch.mockResolvedValue(twoProjects);
+    const { result } = renderHook(() => useEnvironments(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.envs).toEqual(['production', 'preview', 'canary', 'qa-env']);
+  });
+
   it('test_filters_by_project_when_provided_keeping_legacy_empty_project_entries', async () => {
     // M2 v1.2: per-(project, env) tuple. Legacy entries with empty
     // `project` field MUST still surface (ADR D2 back-compat).
