@@ -1,24 +1,20 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { REGRAS, lerMedidas, type Medidas } from './readiness-rules';
+import { RULES, readMeasurements, type Measurements } from './readiness-rules';
 
-const medidas = (over: Partial<Medidas> = {}): Medidas => ({
-  projetoIndisponivel: false,
-  statusIndisponivel: false,
-  deploysIndisponiveis: false,
+const measurements = (over: Partial<Measurements> = {}): Measurements => ({
+  projectUnavailable: false,
+  statusUnavailable: false,
   lastDeploy: null,
-  replicasDesejadas: 0,
-  replicasProntas: 0,
-  alertasAtivos: 0,
-  pct5xx1h: 0,
-  totalBuilds: 0,
+  readyReplicas: 0,
+  activeAlerts: 0,
+  errorRate5xx1h: 0,
   ...over,
 });
 
-describe('logs_healthy — as três faixas de 5xx', () => {
-  // Estas faixas nunca tiveram teste próprio: exercitá-las exigia montar o hook e mockar três
-  // hooks compostos, então na prática só a faixa `pass` (o default 0) era coberta. É o ganho
-  // concreto de tirar as regras de dentro do useMemo.
+describe('logs_healthy: the three 5xx bands', () => {
+  // These bands had no test of their own: exercising them meant mounting the hook and mocking the
+  // composed hooks, so only the `pass` band was covered in practice.
   it.each([
     [0, 'pass'],
     [0.009, 'pass'],
@@ -26,75 +22,104 @@ describe('logs_healthy — as três faixas de 5xx', () => {
     [0.049, 'warn'],
     [0.05, 'fail'],
     [1, 'fail'],
-  ])('5xx de %s%% => %s', (pct, esperado) => {
-    expect(REGRAS.logs_healthy(medidas({ pct5xx1h: pct as number }))).toBe(esperado);
+  ])('5xx of %s%% => %s', (pct, expected) => {
+    expect(RULES.logs_healthy(measurements({ errorRate5xx1h: pct as number }))).toBe(expected);
   });
 
-  it('status indisponível vence a faixa — não culpa o projeto por uma falha nossa', () => {
-    expect(REGRAS.logs_healthy(medidas({ statusIndisponivel: true, pct5xx1h: 1 }))).toBe('unknown');
-  });
-});
-
-describe('as réplicas — desejadas e prontas medem coisas diferentes', () => {
-  it('desejar duas configura HPA; ter uma pronta ainda não são duas servindo', () => {
-    const m = medidas({ replicasDesejadas: 2, replicasProntas: 1 });
-    expect(REGRAS.hpa_configured(m)).toBe('pass');
-    expect(REGRAS.two_plus_replicas(m)).toBe('fail');
+  it('an unavailable status wins over the band, so the project is not blamed for our failure', () => {
+    expect(RULES.logs_healthy(measurements({ statusUnavailable: true, errorRate5xx1h: 1 }))).toBe('unknown');
   });
 
-  it('a fronteira de two_plus_replicas é 2, não 3', () => {
-    expect(REGRAS.two_plus_replicas(medidas({ replicasProntas: 2 }))).toBe('pass');
-  });
-
-  it('uma réplica desejada não é postura de escala', () => {
-    expect(REGRAS.hpa_configured(medidas({ replicasDesejadas: 1 }))).toBe('fail');
+  it('is unknown, not healthy, when the status carries no 5xx rate', () => {
+    expect(RULES.logs_healthy(measurements({ errorRate5xx1h: null }))).toBe('unknown');
   });
 });
 
-describe('alerts_configured — zero é ambíguo, e por isso não é fail', () => {
-  it('alertas disparando provam que existem alertas', () => {
-    expect(REGRAS.alerts_configured(medidas({ alertasAtivos: 1 }))).toBe('warn');
+describe('two_plus_replicas counts replicas actually serving', () => {
+  it('one ready replica is not two serving', () => {
+    expect(RULES.two_plus_replicas(measurements({ readyReplicas: 1 }))).toBe('fail');
   });
 
-  it('zero alertas ativos permanece unknown', () => {
-    // Nenhum alerta configurado e tudo saudável produzem o mesmo zero. `fail` acusaria metade dos
-    // projetos saudáveis de estarem desconfigurados.
-    expect(REGRAS.alerts_configured(medidas({ alertasAtivos: 0 }))).toBe('unknown');
-  });
-});
-
-describe('o que não dá para medir fica unknown, nunca fail', () => {
-  it.each(['secrets_rotated', 'custom_domain'] as const)('%s', (nome) => {
-    expect(REGRAS[nome](medidas())).toBe('unknown');
+  it('the boundary is 2, not 3', () => {
+    expect(RULES.two_plus_replicas(measurements({ readyReplicas: 2 }))).toBe('pass');
   });
 
-  it('cache_hit_rate sem nenhum build é unknown, e não pass', () => {
-    expect(REGRAS.cache_hit_rate(medidas({ totalBuilds: 0 }))).toBe('unknown');
-    expect(REGRAS.cache_hit_rate(medidas({ totalBuilds: 1 }))).toBe('pass');
-  });
-
-  it('auto_deploy sem a linha do projeto é unknown, e não fail', () => {
-    // A sonda cross-tenant devolve 401 e o projeto não resolve. Marcar `fail` aí diria que o
-    // auto-deploy do projeto está quebrado quando o que houve foi uma recusa de permissão.
-    expect(REGRAS.auto_deploy(medidas({ projetoIndisponivel: true }))).toBe('unknown');
-    expect(REGRAS.auto_deploy(medidas({ lastDeploy: null }))).toBe('fail');
-    expect(REGRAS.auto_deploy(medidas({ lastDeploy: '2026-08-11' }))).toBe('pass');
+  it('is unknown, not failed, when the status carries no ready count', () => {
+    expect(RULES.two_plus_replicas(measurements({ readyReplicas: null }))).toBe('unknown');
   });
 });
 
-describe('lerMedidas', () => {
-  it('um corpo de status ausente é indisponibilidade, mesmo sem erro', () => {
-    // As duas causas — o hook falhou, ou respondeu sem corpo — levam à mesma leitura: não medimos.
-    expect(lerMedidas({ projeto: {}, statusError: null, status: null, deploysError: null, builds: [] })
-      .statusIndisponivel).toBe(true);
-    expect(lerMedidas({ projeto: {}, statusError: new Error('x'), status: { replicas_ready: 3 }, deploysError: null, builds: [] })
-      .statusIndisponivel).toBe(true);
+describe('hpa_configured reads an HPA, and the API reports none', () => {
+  it('is unknown whatever the replica counts are', () => {
+    // More than one desired replica used to count as "an HPA exists". Two fixed replicas are not
+    // autoscaling, and the status response has no HPA field to read instead.
+    expect(RULES.hpa_configured(measurements({ readyReplicas: 5 }))).toBe('unknown');
+    expect(RULES.hpa_configured(measurements({ readyReplicas: 1 }))).toBe('unknown');
+  });
+});
+
+describe('alerts_configured: zero is ambiguous, so it is not a fail', () => {
+  it('alerts firing prove alerts exist', () => {
+    expect(RULES.alerts_configured(measurements({ activeAlerts: 1 }))).toBe('warn');
   });
 
-  it('campos ausentes viram zero, e o zero é uma medida — não um desconhecido', () => {
-    const m = lerMedidas({ projeto: {}, statusError: null, status: {}, deploysError: null, builds: undefined });
-    expect(m.replicasProntas).toBe(0);
-    expect(m.totalBuilds).toBe(0);
-    expect(m.statusIndisponivel).toBe(false);
+  it('zero active alerts stays unknown', () => {
+    // No alert configured and everything healthy produce the same zero. `fail` would accuse half
+    // the healthy projects of being misconfigured.
+    expect(RULES.alerts_configured(measurements({ activeAlerts: 0 }))).toBe('unknown');
+  });
+
+  it('a missing alert count stays unknown', () => {
+    expect(RULES.alerts_configured(measurements({ activeAlerts: null }))).toBe('unknown');
+  });
+});
+
+describe('what cannot be measured stays unknown, never fail', () => {
+  it.each(['secrets_rotated', 'custom_domain'] as const)('%s', (name) => {
+    expect(RULES[name](measurements())).toBe('unknown');
+  });
+
+  it('cache_hit_rate is unknown until the API reports a hit rate, builds or not', () => {
+    expect(RULES.cache_hit_rate(measurements())).toBe('unknown');
+    expect(RULES.cache_hit_rate(measurements({ lastDeploy: '2026-11-25' }))).toBe('unknown');
+  });
+
+  it('auto_deploy without the project row is unknown, not fail', () => {
+    // The cross-tenant probe answers 401 and the project does not resolve. `fail` there would say
+    // the project's auto-deploy is broken when what happened was a permission refusal.
+    expect(RULES.auto_deploy(measurements({ projectUnavailable: true }))).toBe('unknown');
+    expect(RULES.auto_deploy(measurements({ lastDeploy: null }))).toBe('fail');
+    expect(RULES.auto_deploy(measurements({ lastDeploy: '2026-08-11' }))).toBe('pass');
+  });
+});
+
+describe('readMeasurements', () => {
+  it('a missing status body is unavailability, even without an error', () => {
+    // Both causes, the hook failed or answered with no body, lead to the same reading: not measured.
+    expect(readMeasurements({ project: {}, statusError: null, status: null }).statusUnavailable).toBe(true);
+    expect(
+      readMeasurements({ project: {}, statusError: new Error('x'), status: { replicas_ready: 3 } })
+        .statusUnavailable,
+    ).toBe(true);
+  });
+
+  it('reads a field the status does not carry as not measured, never as zero', () => {
+    // The staging status for a project serving 2 ready replicas carried no replica or 5xx field.
+    const m = readMeasurements({ project: {}, statusError: null, status: {} });
+    expect(m.statusUnavailable).toBe(false);
+    expect(m.readyReplicas).toBeNull();
+    expect(m.activeAlerts).toBeNull();
+    expect(m.errorRate5xx1h).toBeNull();
+  });
+
+  it('keeps a reported zero as a measurement', () => {
+    const m = readMeasurements({
+      project: {},
+      statusError: null,
+      status: { replicas_ready: 0, alerts_active: 0, traffic_5xx_pct_1h: 0 },
+    });
+    expect(m.readyReplicas).toBe(0);
+    expect(m.activeAlerts).toBe(0);
+    expect(m.errorRate5xx1h).toBe(0);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Globe2, Loader2 } from 'lucide-react';
+import { Ban, Check, Globe2, Loader2 } from 'lucide-react';
 
 /**
  * LiveReleaseBadge — dev-friendly "what is live RIGHT NOW" confirmation.
@@ -22,11 +22,17 @@ import { Check, Globe2, Loader2 } from 'lucide-react';
  * the ACTIVE release (resolved from useProjectStatus), so the user
  * sees the FRESHEST live state regardless of which historical build
  * they navigated into. That matches the Vercel deploy-detail flow.
+ *
+ * A build that failed or was cancelled never rolls out. For it the badge
+ * says so and names the release that is still serving, instead of the
+ * "Rolling out…" spinner, which would contradict the failure above it.
  */
 
 export interface LiveReleaseBadgeProps {
   /** True when the canonical timeline reached live/completed. */
   isLive: boolean;
+  /** True when the build on this page failed or was cancelled, so it will never go live. */
+  notDeployed?: boolean;
   /** Short hash (7 chars) of the active release commit. */
   commitShort?: string | null;
   /** ISO timestamp of when the release became active. */
@@ -40,6 +46,7 @@ export interface LiveReleaseBadgeProps {
 
 export function LiveReleaseBadge({
   isLive,
+  notDeployed = false,
   commitShort,
   activeSince,
   liveUrl,
@@ -55,11 +62,22 @@ export function LiveReleaseBadge({
 
   if (!isLive && !commitShort) return null;
 
-  const Icon = isLive ? Check : Loader2;
-  const tone = isLive
-    ? 'bg-emerald-50/70 ring-emerald-500/30 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'
-    : 'bg-blue-50/70 ring-blue-500/30 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100';
-  const label = isLive ? 'Serving' : 'Rolling out…';
+  const state = isLive ? 'serving' : notDeployed ? 'not-deployed' : 'rolling-out';
+  const Icon = state === 'serving' ? Check : state === 'not-deployed' ? Ban : Loader2;
+  const tone =
+    state === 'serving'
+      ? 'bg-emerald-50/70 ring-emerald-500/30 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'
+      : state === 'not-deployed'
+        ? 'bg-muted/60 ring-border text-foreground'
+        : 'bg-blue-50/70 ring-blue-500/30 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100';
+  const label =
+    state === 'serving'
+      ? 'Serving'
+      : state === 'not-deployed'
+        ? commitShort
+          ? 'This build did not deploy. Still serving'
+          : 'This build did not deploy'
+        : 'Rolling out…';
   const sinceLabel = activeSince ? relativeTime(activeSince, now) : null;
 
   return (
@@ -72,12 +90,12 @@ export function LiveReleaseBadge({
         .filter(Boolean)
         .join(' ')}
       data-testid="live-release-badge"
-      data-state={isLive ? 'serving' : 'rolling-out'}
+      data-state={state}
     >
       <span className="inline-flex items-center gap-1.5 font-medium">
         <Icon
           size={14}
-          className={!isLive ? 'motion-safe:animate-spin' : ''}
+          className={state === 'rolling-out' ? 'motion-safe:animate-spin' : ''}
           aria-hidden="true"
         />
         <span>{label}</span>

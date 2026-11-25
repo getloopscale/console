@@ -48,6 +48,8 @@ export interface DeployTimelineHeroProps {
   initialLastEventID?: string | null;
   /** Freeze updates while a parent modal is open, etc. */
   paused?: boolean;
+  /** The build record's status: a failed build may have no timeline events at all. */
+  buildStatus?: string;
   /**
    * Optional live-release evidence rendered in the hero footer.
    * Sourced from /projects/{name}/status active_release — represents
@@ -68,6 +70,7 @@ export function DeployTimelineHero({
   deployId,
   initialLastEventID,
   paused,
+  buildStatus,
   liveRelease,
   className,
 }: DeployTimelineHeroProps) {
@@ -129,6 +132,7 @@ export function DeployTimelineHero({
       {liveRelease && (liveRelease.commitShort || liveRelease.activeSince) ? (
         <LiveReleaseBadge
           isLive={overall === 'live'}
+          notDeployed={isNotDeployed(overall, buildStatus)}
           commitShort={liveRelease.commitShort}
           activeSince={liveRelease.activeSince}
           liveUrl={liveRelease.url}
@@ -143,9 +147,7 @@ export function DeployTimelineHero({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* PhaseCell                                                                  */
-/* -------------------------------------------------------------------------- */
+/* PhaseCell ---------------------------------------------------------------- */
 
 interface PhaseCellProps {
   cell: PhaseState;
@@ -302,9 +304,7 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* StepRow — single step inside an expanded PhaseCell                         */
-/* -------------------------------------------------------------------------- */
+/* StepRow — single step inside an expanded PhaseCell ---------------------- */
 
 function StepRow({ step }: { step: PhaseStep }) {
   const isRunning = step.status === 'running';
@@ -379,9 +379,7 @@ function StepRow({ step }: { step: PhaseStep }) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* StepDuration — live ticking for running steps; frozen otherwise            */
-/* -------------------------------------------------------------------------- */
+/* StepDuration — live ticking for running steps; frozen otherwise --------- */
 
 function StepDuration({ step }: { step: PhaseStep }) {
   const [now, setNow] = useState(() => Date.now());
@@ -407,9 +405,7 @@ function humanizeStepName(name: string): string {
   return stripped.charAt(0).toUpperCase() + stripped.slice(1);
 }
 
-/* -------------------------------------------------------------------------- */
-/* PhaseDuration — live tick only on in_progress; frozen otherwise            */
-/* -------------------------------------------------------------------------- */
+/* PhaseDuration — live tick only on in_progress; frozen otherwise --------- */
 
 function PhaseDuration({ cell }: { cell: PhaseState }) {
   const [now, setNow] = useState(() => Date.now());
@@ -440,9 +436,7 @@ function PhaseDuration({ cell }: { cell: PhaseState }) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* OverallStatusPill                                                          */
-/* -------------------------------------------------------------------------- */
+/* OverallStatusPill -------------------------------------------------------- */
 
 function OverallStatusPill({ overall }: { overall: OverallStatus }) {
   const label = overallLabel(overall);
@@ -484,9 +478,13 @@ function ConnectionDot({ connected }: { connected: boolean }) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                    */
-/* -------------------------------------------------------------------------- */
+/* Helpers ------------------------------------------------------------------ */
+
+/** A failed or cancelled build never rolls out, whatever the stream has (not) said. */
+function isNotDeployed(overall: OverallStatus, buildStatus?: string): boolean {
+  const s = buildStatus?.toLowerCase();
+  return overall === 'failed' || overall === 'canceled' || s === 'failed' || s === 'cancelled' || s === 'canceled';
+}
 
 function iconFor(status: PhaseState['status']) {
   switch (status) {

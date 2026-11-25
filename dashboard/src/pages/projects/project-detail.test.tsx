@@ -225,6 +225,13 @@ describe('ProjectDetailPage', () => {
   // J-08 Project Detail Overview — the product's center page needs a primary
   // "Deploy" action (Vercel-parity). It reuses RedeployDialog with the active
   // release build as source (clone last-good commit + env, submit fresh build).
+  it('suggests terminal commands with the published loopscale binary', () => {
+    render(<ProjectDetailPage />);
+    expect(document.body.textContent).toContain('loopscale status my-project');
+    expect(document.body.textContent).toContain('loopscale logs my-project');
+    expect(document.body.textContent).not.toMatch(/theo (status|logs) my-project/);
+  });
+
   describe('J-08 Deploy primary CTA', () => {
     const buildFixture = {
       build_id: 'b-active',
@@ -319,6 +326,19 @@ describe('B-243 — "no deployments" is a claim about the project, not about a f
     expect(screen.getByText(/no deployments yet/i)).toBeInTheDocument();
   });
 
+  it('tells a project with no deployments to deploy with the loopscale binary', () => {
+    (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      builds: [],
+      loading: false,
+      error: false,
+    });
+
+    render(<ProjectDetailPage />);
+
+    expect(document.body.textContent).toContain('loopscale deploy');
+    expect(document.body.textContent).not.toContain('theo deploy');
+  });
+
   it('does NOT say there are no deployments when the read FAILED', () => {
     // `useDeployments` returns `{ builds, total, loading, error, refetch }`
     // (hooks/projects/use-deployments.ts). The page destructured `builds` alone, so a failed
@@ -346,7 +366,7 @@ describe('B-243 — "no deployments" is a claim about the project, not about a f
     // The sibling of the defect this item fixed in scope-switcher, left standing here: an
     // empty `builds` array means the same thing while LOADING as it does after a successful
     // empty read, so every load of a project that HAS deployments flashed
-    // "No deployments yet — trigger a deploy with `theo deploy`" before the list arrived.
+    // "No deployments yet — trigger a deploy with `loopscale deploy`" before the list arrived.
     (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       builds: [],
       loading: true,

@@ -5,17 +5,14 @@ import type { ReactNode } from 'react';
 
 vi.mock('@/hooks/projects/use-projects', () => ({ useProjects: vi.fn() }));
 vi.mock('@/hooks/use-project-status', () => ({ useProjectStatus: vi.fn() }));
-vi.mock('@/hooks/projects/use-deployments', () => ({ useDeployments: vi.fn() }));
 
 import { useReadinessSignals, __test_computeScore } from './use-readiness-signals';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
-import { useDeployments } from '@/hooks/projects/use-deployments';
 import { SIGNALS, TOTAL_WEIGHT } from '@/hooks/projects/signals';
 
 const mockedUseProjects = vi.mocked(useProjects);
 const mockedUseProjectStatus = vi.mocked(useProjectStatus);
-const mockedUseDeployments = vi.mocked(useDeployments);
 
 function wrapper() {
   const client = new QueryClient({
@@ -28,7 +25,6 @@ function wrapper() {
 
 function mockAllSettled({
   statusErr = false,
-  deploymentsErr = false,
   project = { name: 'my-api', last_deploy: '2026-06-15T00:00:00Z' },
   status = {
     project: 'my-api',
@@ -38,27 +34,16 @@ function mockAllSettled({
     traffic_5xx_pct_1h: 0.001,
     alerts_active: 0,
   },
-  builds = [{ id: 'b1' }],
 }: {
   statusErr?: boolean;
-  deploymentsErr?: boolean;
   project?: any;
   status?: any;
-  builds?: any[];
 } = {}) {
   mockedUseProjects.mockReturnValue({ projects: [project], total: 1, loading: false } as any);
   mockedUseProjectStatus.mockReturnValue({
     status: statusErr ? null : status,
     loading: false,
     error: statusErr,
-  } as any);
-  mockedUseDeployments.mockReturnValue({
-    builds: deploymentsErr ? [] : builds,
-    total: deploymentsErr ? 0 : builds.length,
-    loading: false,
-    error: deploymentsErr,
-    refetch: vi.fn(),
-    fetching: false,
   } as any);
 }
 
@@ -81,18 +66,34 @@ describe('useReadinessSignals (J-21 v1.1)', () => {
   it('test_use_readiness_signals_unknown_excluded_from_score (EC-2)', () => {
     mockAllSettled();
     const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
-    // auto_deploy=pass (20), hpa=pass (20), two_plus=pass (15), logs=pass (5), cache=pass (5)
-    // = 65/65 known pass; secrets/domain/alerts unknown (excluded).
-    // Score = 65/65 * 100 = 100, ceil(100) = 100.
+    // auto_deploy, two_plus and logs pass; hpa, cache, secrets, domain and alerts are unknown and
+    // excluded from both sides. Score = 100.
     expect(result.current.score).toBe(100);
+  });
+
+  it('marks signals unknown when the status response omits the fields they read', () => {
+    // GET /projects/hello/status on staging: no replica counts, no 5xx rate, while the Rollout
+    // served 2 ready replicas. Missing fields used to read as 0: "2+ replicas" failed and
+    // "logs healthy" passed with no measurement.
+    mockAllSettled({ status: { project: 'my-api', environment: 'production' } });
+    const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
+    expect(result.current.signals.two_plus_replicas.status).toBe('unknown');
+    expect(result.current.signals.logs_healthy.status).toBe('unknown');
+    expect(result.current.signals.hpa_configured.status).toBe('unknown');
+    expect(result.current.signals.cache_hit_rate.status).toBe('unknown');
+  });
+
+  it('does not read several desired replicas as an HPA', () => {
+    mockAllSettled({
+      status: { project: 'my-api', environment: 'production', replicas_desired: 5, replicas_ready: 5 },
+    });
+    const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
+    expect(result.current.signals.hpa_configured.status).toBe('unknown');
   });
 
   it('test_use_readiness_signals_no_flicker_until_all_settled (EC-6)', () => {
     mockedUseProjects.mockReturnValue({ projects: [], total: 0, loading: true } as any);
     mockedUseProjectStatus.mockReturnValue({ status: null, loading: false, error: false } as any);
-    mockedUseDeployments.mockReturnValue({
-      builds: [], total: 0, loading: false, error: false, refetch: vi.fn(), fetching: false,
-    } as any);
     const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
     expect(result.current.loading).toBe(true);
     expect(result.current.score).toBeNull();

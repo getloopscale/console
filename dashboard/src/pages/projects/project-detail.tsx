@@ -362,7 +362,7 @@ export function ProjectDetailPage() {
                    message. The connect surface stays one click away via
                    the Repository tab; do not assume the user needs to
                    connect again on a project that may already be ACTIVE. */
-                description="Trigger a deploy with `theo deploy` from your project directory, or push to the connected branch to ship automatically. Open the Repository tab to link a Git repo."
+                description="Trigger a deploy with `loopscale deploy` from your project directory, or push to the connected branch to ship automatically. Open the Repository tab to link a Git repo."
                 action={
                   <Button asChild variant="primary" size="sm">
                     <Link to={`/projects/${encodeURIComponent(project.name)}/connect`}>
@@ -450,7 +450,7 @@ export function ProjectDetailPage() {
             <Card.Description>Use the CLI for full control of this project.</Card.Description>
           </Card.Header>
           <Card.Body>
-            <CodeBlock code={`theo status ${project.name}\ntheo logs ${project.name}`} terminal copyable />
+            <CodeBlock code={`loopscale status ${project.name}\nloopscale logs ${project.name}`} terminal copyable />
           </Card.Body>
         </Card>
 

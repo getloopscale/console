@@ -121,6 +121,19 @@ describe('DeployTimelineHero', () => {
     });
   });
 
+  it('does not say a failed build is rolling out when it has no timeline events', () => {
+    render(
+      <DeployTimelineHero
+        deployId="dep-failed"
+        buildStatus="failed"
+        liveRelease={{ commitShort: '15fec64', activeSince: '2026-11-25T10:00:00Z' }}
+      />,
+    );
+    const badge = screen.getByTestId('live-release-badge');
+    expect(badge.getAttribute('data-state')).toBe('not-deployed');
+    expect(badge.textContent).not.toContain('Rolling out');
+  });
+
   it('renders an alert role when aggregator degrades', async () => {
     render(<DeployTimelineHero deployId="dep-4" />);
     await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(1));

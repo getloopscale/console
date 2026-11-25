@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button, Card, PageShell } from '@usetheo/ui';
@@ -8,16 +8,26 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { useScale } from '@/hooks/projects/use-scale';
 import { useScaleCost } from '@/hooks/projects/use-scale-cost';
 import { useProjectStatus } from '@/hooks/use-project-status';
+import { useDeployment } from '@/hooks/deploy/use-deployment';
 import { ScaleSlider } from '@/pages/projects/components/scale-slider';
 import { HPAToggle, type HPAMode } from '@/pages/projects/components/hpa-toggle';
 import { KEDAToggle } from '@/pages/projects/components/keda-toggle';
 import { ScaleConfirmDialog } from '@/pages/projects/components/scale-confirm-dialog';
 
-// Until the project status endpoint surfaces the current scaling config,
-// derive the initial state from a conservative default. The first
-// successful save will rehydrate from the ScaleResponse body (server
-// authoritative).
-const DEFAULT_CURRENT_REPLICAS = 2;
+// Slider starting point when the API reports no configured replica count.
+// It only seeds the control; it is never displayed as the project's count.
+const DEFAULT_PROPOSED_REPLICAS = 2;
+
+/**
+ * The apps the Scale page can target: the server apps of the build, or every
+ * app when the build declares no server type. A project's apps live in its
+ * build records (GET /builds/{id} lists them), not in the status response.
+ */
+function scalableApps(apps: ReadonlyArray<{ name: string; type?: string }> | undefined): string[] {
+  const all = apps ?? [];
+  const servers = all.filter((a) => a.type === 'server');
+  return (servers.length > 0 ? servers : all).map((a) => a.name);
+}
 
 /**
  * ProjectScalePage — J-20 Scale plan v1.1 T4.1.
@@ -44,6 +54,12 @@ const DEFAULT_CURRENT_REPLICAS = 2;
  * scale response after the first save. Until the page bootstraps from
  * a status endpoint, the initial render assumes Starter + cluster KEDA
  * installed = false (conservative fail-closed default).
+ *
+ * The request names the app to scale, read from the build of the active
+ * release (or the last build): the only server app, or the one picked when
+ * there are several. "Running" shows `replicas_ready` from the status
+ * response and "Configured" the stored count; neither shows a number the
+ * API did not report.
  */
 export function ProjectScalePage() {
   useRequireAuth();
@@ -52,7 +68,7 @@ export function ProjectScalePage() {
 
   // Local edit state
   const [mode, setMode] = useState<HPAMode>('manual');
-  const [replicas, setReplicas] = useState(DEFAULT_CURRENT_REPLICAS);
+  const [replicas, setReplicas] = useState(DEFAULT_PROPOSED_REPLICAS);
   const [hpaMin, setHpaMin] = useState(1);
   const [hpaMax, setHpaMax] = useState(3);
   const [hpaTargets, setHpaTargets] = useState({ cpu: 80, memory: 80 });
@@ -78,26 +94,33 @@ export function ProjectScalePage() {
     // does not get clobbered by a stale status poll.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status?.plan_tier]);
-  const [currentReplicas, setCurrentReplicas] = useState(
-    DEFAULT_CURRENT_REPLICAS,
-  );
+  // The stored replica count, from status until a save, then from what the
+  // API accepted. `null` while the API has reported none.
+  const [configuredReplicas, setConfiguredReplicas] = useState<number | null>(null);
+  const runningReplicas =
+    typeof status?.replicas_ready === 'number' ? status.replicas_ready : null;
+
+  const appsBuildId = status?.active_release?.build_id ?? status?.last_build?.id;
+  const { build: appsBuild } = useDeployment(appsBuildId);
+  const apps = useMemo(() => scalableApps(appsBuild?.apps), [appsBuild?.apps]);
+  const [pickedApp, setPickedApp] = useState<string | null>(null);
+  const app = pickedApp !== null && apps.includes(pickedApp) ? pickedApp : (apps[0] ?? null);
   const [serverMonthlyCostUSD, setServerMonthlyCostUSD] = useState<number | null>(
     null,
   );
 
-  // M15 T1: seed the current + proposed replicas from the REAL deployed state once
-  // status loads. `status.scaling.replicas` is the app-spec replica count; fall back
-  // to `replicas_desired` (live desired), then to the default ONLY when the project
-  // has no release yet. Seeded exactly once so a status poll never clobbers the
-  // user's slider edits; the post-save mutation echo (setCurrentReplicas below) still
-  // wins afterwards. Fixes the fabricated hardcoded "Current: 2 replicas".
+  // M15 T1: seed the configured + proposed replicas from the status once it
+  // loads. `status.scaling.replicas` is the app-spec replica count; fall back
+  // to `replicas_desired`. Seeded exactly once so a status poll never clobbers
+  // the user's slider edits; the post-save echo (setConfiguredReplicas below)
+  // still wins afterwards.
   const seededReplicasRef = useRef(false);
   useEffect(() => {
     if (seededReplicasRef.current) return;
     const real = status?.scaling?.replicas ?? status?.replicas_desired;
     if (typeof real === 'number') {
       seededReplicasRef.current = true;
-      setCurrentReplicas(real);
+      setConfiguredReplicas(real);
       setReplicas(real);
     }
   }, [status?.scaling?.replicas, status?.replicas_desired]);
@@ -105,21 +128,24 @@ export function ProjectScalePage() {
   const scale = useScale(name);
 
   const proposedReplicas = mode === 'manual' ? replicas : hpaMax;
+  // With no configured count reported, the cost delta has no baseline.
+  const baselineReplicas = configuredReplicas ?? proposedReplicas;
   const cost = useScaleCost({
     replicas: proposedReplicas,
-    currentReplicas,
+    currentReplicas: baselineReplicas,
   });
 
   const onConfirm = async () => {
+    if (app === null) return;
     const payload =
       mode === 'manual'
         ? {
-            app: 'api', // canonical default; future iteration: picker when monorepo > 1 server
+            app,
             environment: 'production',
             replicas,
           }
         : {
-            app: 'api',
+            app,
             environment: 'production',
             min: kedaEnabled ? 0 : hpaMin,
             max: hpaMax,
@@ -131,7 +157,8 @@ export function ProjectScalePage() {
     // Rehydrate from server-authoritative response per ADR D1 EC-2.
     setResolvedPlanTier(res.plan_tier);
     setServerMonthlyCostUSD(res.monthly_cost_usd);
-    setCurrentReplicas(
+    // The API stored this count. Whether it runs is for `replicas_ready` to say.
+    setConfiguredReplicas(
       mode === 'manual' ? replicas : kedaEnabled ? 0 : hpaMin,
     );
   };
@@ -167,6 +194,27 @@ export function ProjectScalePage() {
           </Card.Header>
           <Card.Body>
             <div className="space-y-6">
+              {apps.length > 1 && (
+                <div className="space-y-1">
+                  <label htmlFor="scale-app" className="text-body-sm font-medium">
+                    App
+                  </label>
+                  <select
+                    id="scale-app"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-body-sm"
+                    value={app ?? ''}
+                    onChange={(e) => setPickedApp(e.target.value)}
+                    disabled={scale.isPending}
+                  >
+                    {apps.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <HPAToggle
                 mode={mode}
                 targets={hpaTargets}
@@ -214,11 +262,17 @@ export function ProjectScalePage() {
                 <Alert intent="destructive" description={errorMessage} />
               )}
 
+              {app === null && (
+                <p className="text-body-sm text-muted-foreground">
+                  Deploy the project once so the console knows which app to scale.
+                </p>
+              )}
+
               <div className="flex justify-end">
                 <Button
                   type="button"
                   onClick={() => setConfirmOpen(true)}
-                  disabled={scale.isPending}
+                  disabled={scale.isPending || app === null}
                 >
                   {scale.isPending && (
                     <Loader2
@@ -244,9 +298,15 @@ export function ProjectScalePage() {
           <Card.Body>
             <dl className="space-y-3 text-body-sm">
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">Current</dt>
-                <dd className="font-mono text-foreground">
-                  {currentReplicas} replicas
+                <dt className="text-muted-foreground">Running</dt>
+                <dd className="font-mono text-foreground" data-testid="running-replicas">
+                  {runningReplicas === null ? 'Not reported' : `${runningReplicas} replicas`}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Configured</dt>
+                <dd className="font-mono text-foreground" data-testid="configured-replicas">
+                  {configuredReplicas === null ? 'Not reported' : `${configuredReplicas} replicas`}
                 </dd>
               </div>
               <div className="flex justify-between">
@@ -297,7 +357,7 @@ export function ProjectScalePage() {
         onOpenChange={setConfirmOpen}
         projectName={name}
         environment="production"
-        currentReplicas={currentReplicas}
+        currentReplicas={baselineReplicas}
         proposedReplicas={proposedReplicas}
         estimatedMonthlyUSD={cost.estimatedMonthlyUSD}
         deltaUSD={cost.deltaUSD}

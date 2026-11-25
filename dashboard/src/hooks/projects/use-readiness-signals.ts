@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { useDeployments } from '@/hooks/projects/use-deployments';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { SIGNALS, type SignalName } from '@/hooks/projects/signals';
-import { REGRAS, lerMedidas } from '@/hooks/projects/readiness-rules';
+import { RULES, readMeasurements } from '@/hooks/projects/readiness-rules';
 import type { ReadinessStatus } from '@/hooks/projects/status-icons';
 
 /**
@@ -50,7 +49,7 @@ export interface UseReadinessSignalsResult {
  * Hook composition + tristate computation + score rollup. Per EC-5, a
  * composed hook's failure does NOT collapse its derived signals into
  * `fail` — they become `unknown` so the user does NOT see a red row when
- * the real cause is Theo's measurement layer being degraded (canonical
+ * the real cause is LoopScale's measurement layer being degraded (canonical
  * J-18 v0.15.0 "empty omitempty" lesson family).
  */
 export function useReadinessSignals(
@@ -58,31 +57,24 @@ export function useReadinessSignals(
 ): UseReadinessSignalsResult {
   const projects = useProjects();
   const status = useProjectStatus(projectName);
-  const deployments = useDeployments(projectName);
 
   return useMemo(() => {
-    const loading =
-      projects.loading ||
-      status.loading ||
-      deployments.loading;
+    const loading = projects.loading || status.loading;
 
     if (loading) {
       return { signals: emptySignals(), score: null, loading: true };
     }
 
-    const medidas = lerMedidas({
-      projeto: projects.projects?.find((p) => p.name === projectName),
+    const measurements = readMeasurements({
+      project: projects.projects?.find((p) => p.name === projectName),
       statusError: status.error,
       status: status.status,
-      deploysError: deployments.error,
-      builds: deployments.builds,
     });
 
-    // Cada sinal é uma regra pura em `readiness-rules.ts` (B-182/B-225). Este bloco só lê os hooks
-    // uma vez, monta as medidas e aplica a tabela — a decisão de cada sinal deixou de estar
-    // empilhada aqui.
+    // Each signal is a pure rule in `readiness-rules.ts` (B-182/B-225). This block reads the hooks
+    // once, builds the measurements and applies the table.
     const signals = Object.fromEntries(
-      SIGNALS.map((def) => [def.name, buildSignal(def.name, REGRAS[def.name](medidas))]),
+      SIGNALS.map((def) => [def.name, buildSignal(def.name, RULES[def.name](measurements))]),
     ) as Record<SignalName, ReadinessSignal>;
 
     return { signals, score: computeScore(signals), loading: false };
@@ -92,9 +84,6 @@ export function useReadinessSignals(
     status.loading,
     status.error,
     status.status,
-    deployments.loading,
-    deployments.error,
-    deployments.builds,
     projectName,
   ]);
 }

@@ -649,8 +649,8 @@ export function DeploymentsPage() {
       {/* Pagination footer. Only renders when there's at least one row —
           empty states are handled by PageShell's `empty` prop above.
           Two pieces of information FAANG users want to see together:
-            1. "Showing N of M" — explicit scale of the underlying data
-               so the user knows *whether* there is more (and how much).
+            1. "Showing N of M" — N is the rows the filters leave on
+               screen, M the server total (is there more, and how much).
             2. "Load more" — incremental fetch. Hidden when the page
                already shows every build, OR when the active status
                filter has narrowed the result smaller than the page
@@ -660,7 +660,7 @@ export function DeploymentsPage() {
       {builds.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-body-sm text-muted-foreground">
           <span className="tabular-nums">
-            Showing {builds.length} of {total} deployments
+            Showing {filtered.length} of {total} deployments
           </span>
           {builds.length < total && (
             <Button

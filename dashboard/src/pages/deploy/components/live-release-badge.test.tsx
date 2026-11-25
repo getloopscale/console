@@ -31,6 +31,16 @@ describe('LiveReleaseBadge', () => {
     expect(badge.textContent).toContain('Rolling out');
   });
 
+  it('says a build that did not deploy is not rolling out, and names the release still serving', () => {
+    render(<LiveReleaseBadge isLive={false} notDeployed commitShort="15fec64" />);
+    const badge = screen.getByTestId('live-release-badge');
+    expect(badge.getAttribute('data-state')).toBe('not-deployed');
+    expect(badge.textContent).not.toContain('Rolling out');
+    expect(badge.textContent).toContain('This build did not deploy');
+    expect(badge.textContent).toContain('Still serving');
+    expect(badge.textContent).toContain('15fec64');
+  });
+
   it('renders commit as link when repoUrl provided', () => {
     render(
       <LiveReleaseBadge

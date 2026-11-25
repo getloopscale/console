@@ -60,6 +60,33 @@ describe('useCreateSecret — J-22 T2.2', () => {
   });
 });
 
+describe('useCreateSecret — a secret the API did not save is an error', () => {
+  it('rejects with the per-item error when the API reports the secret failed', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      results: [{ name: 'GREETING', status: 'failed', error: 'backend unavailable', sync_status: 'failed' }],
+    });
+    const { result } = renderHook(() => useCreateSecret(), { wrapper: wrapper() });
+    let caught: unknown;
+    await act(async () => {
+      try {
+        await result.current.mutateAsync({ name: 'GREETING', value: 'hi', environments: ['production'], project: 'hello' });
+      } catch (err) {
+        caught = err;
+      }
+    });
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe('GREETING: backend unavailable');
+  });
+
+  it('asks the transport to reject a non-2xx answer instead of resolving null', async () => {
+    const { result } = renderHook(() => useCreateSecret(), { wrapper: wrapper() });
+    await act(async () => {
+      await result.current.mutateAsync({ name: 'GREETING', value: 'hi', environments: ['production'] });
+    });
+    expect(mockedEngineFetch.mock.calls[0][2]).toEqual({ throwOnError: true });
+  });
+});
+
 describe('useRotateSecret — J-22 T2.2 (EC-13 expected_version)', () => {
   it('test_puts_to_named_secret_with_expected_version', async () => {
     const { result } = renderHook(() => useRotateSecret(), { wrapper: wrapper() });

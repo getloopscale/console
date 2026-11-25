@@ -141,6 +141,7 @@ export function DeploymentDetailLayout() {
             persistent at-a-glance state. Vercel-style information hierarchy. */}
         <DeployTimelineHero
           deployId={build.build_id}
+          buildStatus={build.status}
           liveRelease={{
             commitShort: projectStatus?.active_release?.git_commit?.slice(0, 7) ?? null,
             activeSince: projectStatus?.active_release?.created_at ?? null,
