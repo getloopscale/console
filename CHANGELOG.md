@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Deployments: each rollback has a row of its own in the list, where it happened among the builds, with its status, the build it aimed at, who asked, when, and how long it took. The status and environment filters apply to rollbacks too, and the footer counts them. A rollback opens on a page of its own that shows the release the environment left and the one it aimed at, the Deploy and Live phases, and the reason when it failed or was interrupted. The page of a build links to the rollbacks that left it or aimed at it. The console reads `GET /api/v1/projects/{name}/rollbacks` (getloopscale/loopzero#128).
 - `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
 
 ### Changed

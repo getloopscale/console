@@ -1,6 +1,6 @@
 import { registerRoute } from './server';
 import { makeProjectStatus } from './fixtures';
-import type { ProjectStatusDetail, RollbackResponse } from '@/lib/api/types';
+import type { ProjectStatusDetail, RollbackRecord, RollbackResponse } from '@/lib/api/types';
 
 /**
  * Mock of the rollback and of the project status that reports how it ended.
@@ -11,10 +11,13 @@ import type { ProjectStatusDetail, RollbackResponse } from '@/lib/api/types';
  * rollback on the next status read.
  */
 const reactivatedReleases = new Map<string, string>();
+/** The rollbacks each project accepted, newest first, as the API records them. */
+const recordedRollbacks = new Map<string, RollbackRecord[]>();
 
 /** Forgets the accepted rollbacks. Called by `resetMockDB()`. */
 export function resetRollbackMocks(): void {
   reactivatedReleases.clear();
+  recordedRollbacks.clear();
 }
 
 function err(code: string, message: string, status: number): Response {
@@ -36,6 +39,10 @@ export function registerRollbackHandlers() {
     return Response.json(status);
   });
 
+  registerRoute('GET', '/api/v1/projects/{name}/rollbacks', async (_req, { name }) =>
+    Response.json({ rollbacks: recordedRollbacks.get(name) ?? [] }),
+  );
+
   registerRoute('POST', '/api/v1/projects/{name}/rollback', async (req, { name }) => {
     const body = (await req.json()) as { build_id?: string; environment?: string };
     if (!body.build_id) return err('INVALID_INPUT', 'build_id required', 400);
@@ -46,6 +53,18 @@ export function registerRollbackHandlers() {
       environment: body.environment ?? 'production',
       url: '',
     };
+    const record: RollbackRecord = {
+      id: `rb-${(recordedRollbacks.get(name)?.length ?? 0) + 1}`,
+      environment: accepted.environment,
+      status: 'succeeded',
+      from: { release_id: accepted.rolled_back_release, build_id: 'current' },
+      to: { release_id: accepted.reactivated_release, build_id: body.build_id },
+      created_by: 'mock-user',
+      created_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
+    };
+    accepted.rollback_id = record.id;
+    recordedRollbacks.set(name, [record, ...(recordedRollbacks.get(name) ?? [])]);
     reactivatedReleases.set(name, accepted.reactivated_release);
     return Response.json(accepted, { status: 202 });
   });

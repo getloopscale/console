@@ -263,6 +263,10 @@ export const DeploymentsPage = lazy(() =>
   import('@/pages/deploy/deployments').then((m) => ({ default: m.DeploymentsPage })),
 );
 // Plan J-17 T5.1: layout + 4 tabs replace the 4 sibling routes below.
+export const RollbackDetailPage = lazy(() =>
+  import('@/pages/deploy/rollback-detail').then((m) => ({ default: m.RollbackDetailPage })),
+);
+
 export const DeploymentDetailLayout = lazy(() =>
   import('@/pages/deploy/deployment-detail-layout').then((m) => ({ default: m.DeploymentDetailLayout })),
 );
