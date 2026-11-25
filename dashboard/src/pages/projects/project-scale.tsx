@@ -13,6 +13,7 @@ import { ScaleSlider } from '@/pages/projects/components/scale-slider';
 import { HPAToggle, type HPAMode } from '@/pages/projects/components/hpa-toggle';
 import { KEDAToggle } from '@/pages/projects/components/keda-toggle';
 import { ScaleConfirmDialog } from '@/pages/projects/components/scale-confirm-dialog';
+import { describeScaleShape, shapeOfStatus, type ScaleShape } from '@/pages/projects/scale-shape';
 
 // Slider starting point when the API reports no configured replica count.
 // It only seeds the control; it is never displayed as the project's count.
@@ -83,7 +84,7 @@ export function ProjectScalePage() {
   // Mutation response still wins post-save (server-authoritative per
   // ADR D1 EC-2). Falls back to 'starter' when status hasn't loaded yet
   // OR engine omits plan_tier (older deployments).
-  const { status } = useProjectStatus(name);
+  const { status, loading: statusLoading } = useProjectStatus(name);
   const [resolvedPlanTier, setResolvedPlanTier] = useState('starter');
   useEffect(() => {
     if (status?.plan_tier && status.plan_tier !== resolvedPlanTier) {
@@ -94,14 +95,14 @@ export function ProjectScalePage() {
     // does not get clobbered by a stale status poll.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status?.plan_tier]);
-  // The stored replica count, from status until a save, then from what the
-  // API accepted. `null` while the API has reported none.
-  const [configuredReplicas, setConfiguredReplicas] = useState<number | null>(null);
+  // The stored scale, from status until a save, then from what the API
+  // accepted. `null` while the API has reported none.
+  const [configured, setConfigured] = useState<ScaleShape | null>(null);
   const runningReplicas =
     typeof status?.replicas_ready === 'number' ? status.replicas_ready : null;
 
   const appsBuildId = status?.active_release?.build_id ?? status?.last_build?.id;
-  const { build: appsBuild } = useDeployment(appsBuildId);
+  const { build: appsBuild, loading: appsLoading } = useDeployment(appsBuildId);
   const apps = useMemo(() => scalableApps(appsBuild?.apps), [appsBuild?.apps]);
   const [pickedApp, setPickedApp] = useState<string | null>(null);
   const app = pickedApp !== null && apps.includes(pickedApp) ? pickedApp : (apps[0] ?? null);
@@ -109,27 +110,47 @@ export function ProjectScalePage() {
     null,
   );
 
-  // M15 T1: seed the configured + proposed replicas from the status once it
-  // loads. `status.scaling.replicas` is the app-spec replica count; fall back
-  // to `replicas_desired`. Seeded exactly once so a status poll never clobbers
-  // the user's slider edits; the post-save echo (setConfiguredReplicas below)
-  // still wins afterwards.
-  const seededReplicasRef = useRef(false);
+  // Seed the configured scale and the controls from the status once it loads:
+  // a fixed count, or the mode and bounds of a saved autoscaling range (#567).
+  // Seeded exactly once so a status poll never clobbers the user's edits; the
+  // post-save echo (setConfigured below) still wins afterwards.
+  const seededRef = useRef(false);
   useEffect(() => {
-    if (seededReplicasRef.current) return;
-    const real = status?.scaling?.replicas ?? status?.replicas_desired;
-    if (typeof real === 'number') {
-      seededReplicasRef.current = true;
-      setConfiguredReplicas(real);
-      setReplicas(real);
+    if (seededRef.current) return;
+    const saved = shapeOfStatus(status);
+    if (saved === null) return;
+    seededRef.current = true;
+    setConfigured(saved);
+    if (saved.kind === 'fixed') {
+      setReplicas(saved.replicas);
+      return;
     }
-  }, [status?.scaling?.replicas, status?.replicas_desired]);
+    setMode('auto');
+    setKedaEnabled(saved.min === 0);
+    setHpaMin(Math.max(saved.min, 1));
+    setHpaMax(saved.max);
+  }, [status]);
 
   const scale = useScale(name);
 
-  const proposedReplicas = mode === 'manual' ? replicas : hpaMax;
-  // With no configured count reported, the cost delta has no baseline.
-  const baselineReplicas = configuredReplicas ?? proposedReplicas;
+  const proposed: ScaleShape =
+    mode === 'manual'
+      ? { kind: 'fixed', replicas }
+      : { kind: 'auto', min: kedaEnabled ? 0 : hpaMin, max: hpaMax };
+  // An autoscaled app is billed for up to its maximum.
+  const billedReplicas = (shape: ScaleShape) => (shape.kind === 'fixed' ? shape.replicas : shape.max);
+  const proposedReplicas = billedReplicas(proposed);
+  // With no configured scale reported, the cost delta has no baseline.
+  const baselineReplicas = configured === null ? proposedReplicas : billedReplicas(configured);
+  // The minimum never passes the maximum: moving one drags the other (#568).
+  const onMinChange = (min: number) => {
+    setHpaMin(min);
+    if (min > hpaMax) setHpaMax(min);
+  };
+  const onMaxChange = (max: number) => {
+    setHpaMax(max);
+    if (max < hpaMin) setHpaMin(max);
+  };
   const cost = useScaleCost({
     replicas: proposedReplicas,
     currentReplicas: baselineReplicas,
@@ -157,10 +178,8 @@ export function ProjectScalePage() {
     // Rehydrate from server-authoritative response per ADR D1 EC-2.
     setResolvedPlanTier(res.plan_tier);
     setServerMonthlyCostUSD(res.monthly_cost_usd);
-    // The API stored this count. Whether it runs is for `replicas_ready` to say.
-    setConfiguredReplicas(
-      mode === 'manual' ? replicas : kedaEnabled ? 0 : hpaMin,
-    );
+    // The API stored this scale. Whether it runs is for `replicas_ready` to say.
+    setConfigured(proposed);
   };
 
   const errorMessage =
@@ -193,6 +212,13 @@ export function ProjectScalePage() {
             </Card.Description>
           </Card.Header>
           <Card.Body>
+            {statusLoading && !status ? (
+              // Before the status arrives the plan, the saved scale and the apps
+              // are unknown; controls drawn from defaults would state them (#569).
+              <p className="text-body-sm text-muted-foreground" role="status">
+                Loading the scale settings…
+              </p>
+            ) : (
             <div className="space-y-6">
               {apps.length > 1 && (
                 <div className="space-y-1">
@@ -237,14 +263,18 @@ export function ProjectScalePage() {
                   <ScaleSlider
                     value={hpaMin}
                     planTier={resolvedPlanTier}
-                    onChange={setHpaMin}
-                    disabled={scale.isPending}
+                    onChange={onMinChange}
+                    disabled={scale.isPending || kedaEnabled}
+                    label="Minimum replicas"
+                    id="scale-slider-min"
                   />
                   <ScaleSlider
                     value={hpaMax}
                     planTier={resolvedPlanTier}
-                    onChange={setHpaMax}
+                    onChange={onMaxChange}
                     disabled={scale.isPending}
+                    label="Maximum replicas"
+                    id="scale-slider-max"
                   />
                 </div>
               )}
@@ -262,7 +292,7 @@ export function ProjectScalePage() {
                 <Alert intent="destructive" description={errorMessage} />
               )}
 
-              {app === null && (
+              {app === null && !appsLoading && (
                 <p className="text-body-sm text-muted-foreground">
                   Deploy the project once so the console knows which app to scale.
                 </p>
@@ -284,6 +314,7 @@ export function ProjectScalePage() {
                 </Button>
               </div>
             </div>
+            )}
           </Card.Body>
         </Card>
 
@@ -306,13 +337,17 @@ export function ProjectScalePage() {
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Configured</dt>
                 <dd className="font-mono text-foreground" data-testid="configured-replicas">
-                  {configuredReplicas === null ? 'Not reported' : `${configuredReplicas} replicas`}
+                  {configured === null
+                    ? 'Not reported'
+                    : configured.kind === 'fixed'
+                      ? `${configured.replicas} replicas`
+                      : describeScaleShape(configured)}
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">After change</dt>
                 <dd className="font-mono text-foreground">
-                  {proposedReplicas} replicas
+                  {proposed.kind === 'fixed' ? `${proposed.replicas} replicas` : describeScaleShape(proposed)}
                 </dd>
               </div>
               <div className="flex justify-between border-t border-border/60 pt-3">
@@ -357,8 +392,8 @@ export function ProjectScalePage() {
         onOpenChange={setConfirmOpen}
         projectName={name}
         environment="production"
-        currentReplicas={configuredReplicas}
-        proposedReplicas={proposedReplicas}
+        current={configured}
+        proposed={proposed}
         estimatedMonthlyUSD={cost.estimatedMonthlyUSD}
         deltaUSD={cost.deltaUSD}
         onConfirm={onConfirm}

@@ -28,6 +28,10 @@ export interface ScaleSliderProps {
   onChange: (replicas: number) => void;
   /** Disable while a mutation is in flight. */
   disabled?: boolean;
+  /** What the count is. A page with two sliders names each one (#568). */
+  label?: string;
+  /** DOM id of the input; two sliders on a page need two ids. */
+  id?: string;
 }
 
 /**
@@ -46,21 +50,23 @@ export function ScaleSlider({
   planTier,
   onChange,
   disabled = false,
+  label = 'Replicas',
+  id = 'scale-slider-replicas',
 }: ScaleSliderProps) {
   const max = REPLICAS_CAP_BY_PLAN[planTier.toLowerCase()] ?? REPLICAS_CAP_BY_PLAN.starter;
   const safeValue = Math.min(Math.max(value, REPLICAS_MIN), max);
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <Label htmlFor="scale-slider-replicas">
-          Replicas: <span className="font-mono font-semibold">{safeValue}</span>
+        <Label htmlFor={id}>
+          {label}: <span className="font-mono font-semibold">{safeValue}</span>
         </Label>
         <span className="text-xs text-muted-foreground">
           {planTier} plan ceiling: {max}
         </span>
       </div>
       <input
-        id="scale-slider-replicas"
+        id={id}
         type="range"
         min={REPLICAS_MIN}
         max={max}
