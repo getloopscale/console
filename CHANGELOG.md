@@ -10,6 +10,7 @@
 - Every CLI command the dashboard suggests uses the `loopscale` binary: sign-in, device-flow errors, onboarding, empty states, domains and settings. They said `theo`, which fails as typed. The onboarding step reads "Install the LoopScale CLI".
 
 ### Fixed
+- The Scale confirmation names only the target ("to 1 replica") when the API reported no current count. It used the slider's starting value as the current count and said "1 → 1 replicas (no change)" while 2 replicas were running (#552).
 - New environment shows the plan limit message and a link to upgrade when the API answers 402. It said "Couldn't create environment. Try again in a moment.", which cannot succeed on that plan (#551).
 - Delete and Rotate work on a secret scoped to an app. Delete sends the row's `app`, which the API matches exactly, and Rotate writes through `POST /secrets` (app-scoped) or `POST /secrets/bulk` (project-wide), since the API has no `PUT /secrets/{name}`. A failed delete or rotate keeps the dialog open with the API's message; both used to close as if they had worked. The Secrets table shows each secret's app (#550).
 - Readiness measures auto-deploy from the repository connection, secrets from the project's secret list and the custom domain from the domain list. Auto-deploy passed for a project deployed by the CLI with no repository. While some signals cannot be measured, the score card shows how many were measured instead of a score, so one passing signal no longer reads "100 / 100, Production ready" (#549).

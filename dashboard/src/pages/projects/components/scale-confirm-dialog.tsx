@@ -7,8 +7,11 @@ export interface ScaleConfirmDialogProps {
   projectName: string;
   /** Environment that will receive the scale mutation. */
   environment: string;
-  /** Current replicas (before save) — for the impact paragraph. */
-  currentReplicas: number;
+  /**
+   * Current replicas (before save), as the API reported them. `null` when it reported none: the
+   * dialog then names only the target and never claims a direction (#552).
+   */
+  currentReplicas: number | null;
   /** Proposed replicas — for the impact paragraph. */
   proposedReplicas: number;
   /** Server-side monthly cost estimate for the new state. */
@@ -42,6 +45,12 @@ export interface ScaleConfirmDialogProps {
  * impact paragraph reads "No change in replicas" (parent guard
  * suppresses for true no-ops).
  */
+function directionOf(replicaDelta: number): string {
+  if (replicaDelta > 0) return 'increase';
+  if (replicaDelta < 0) return 'decrease';
+  return 'no change';
+}
+
 export function ScaleConfirmDialog({
   open,
   onOpenChange,
@@ -55,9 +64,11 @@ export function ScaleConfirmDialog({
   busy = false,
 }: ScaleConfirmDialogProps) {
   const phrase = `scale ${projectName}`;
-  const replicaDelta = proposedReplicas - currentReplicas;
-  const directionWord =
-    replicaDelta > 0 ? 'increase' : replicaDelta < 0 ? 'decrease' : 'no change';
+  const replicaWord = proposedReplicas === 1 ? 'replica' : 'replicas';
+  const change =
+    currentReplicas === null
+      ? `to ${proposedReplicas} ${replicaWord}.`
+      : `${currentReplicas} → ${proposedReplicas} replicas (${directionOf(proposedReplicas - currentReplicas)}).`;
   const costSign = deltaUSD > 0 ? '+' : deltaUSD < 0 ? '–' : '';
   return (
     <ConfirmDialog
@@ -67,12 +78,11 @@ export function ScaleConfirmDialog({
       description={
         <div className="space-y-2 text-sm">
           <p>
-            Apply scale to <strong>{environment}</strong>:{' '}
-            {currentReplicas} → {proposedReplicas} replicas ({directionWord}).
+            Apply scale to <strong>{environment}</strong>: {change}
           </p>
           <p>
             Estimated cost: <strong>${estimatedMonthlyUSD.toFixed(2)}/mo</strong>
-            {Math.abs(deltaUSD) > 0.001 && (
+            {currentReplicas !== null && Math.abs(deltaUSD) > 0.001 && (
               <>
                 {' '}({costSign}${Math.abs(deltaUSD).toFixed(2)}/mo vs current)
               </>
