@@ -34,6 +34,11 @@ export interface Measurements {
   readonly statusUnavailable: boolean;
   /** `null` when the status response does not carry `replicas_ready`. */
   readonly readyReplicas: number | null;
+  /**
+   * Whether the API reports an autoscaling range (or scale to zero) for the environment. `false`
+   * for a fixed count, `null` when the status response reports no scale at all.
+   */
+  readonly autoscaled: boolean | null;
   /** `null` when the status response does not carry `alerts_active`. */
   readonly activeAlerts: number | null;
   /** `null` when the status response does not carry `traffic_5xx_pct_1h`. */
@@ -66,6 +71,22 @@ export function readCustomDomain(
   return response.total > response.domains.length ? null : 'none';
 }
 
+/** The scale block of the status response, as far as the autoscaling rule reads it. */
+interface ReportedScale {
+  scaling?: { replicas?: number; min: number; max: number; scaled_to_zero: boolean };
+  replicas_desired?: number;
+}
+
+/**
+ * Whether the reported scale is a range an autoscaler moves within. Equal bounds, or a desired
+ * count with no scaling block, are a fixed count. Nothing reported is `null`.
+ */
+function readAutoscaled(status: ReportedScale | null | undefined): boolean | null {
+  const scaling = status?.scaling;
+  if (scaling) return scaling.scaled_to_zero || scaling.min < scaling.max;
+  return typeof status?.replicas_desired === 'number' ? false : null;
+}
+
 /** A status field the response did not carry (or carried as something other than a number). */
 function measured(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -81,11 +102,11 @@ function measured(value: unknown): number | null {
 export function readMeasurements(input: {
   project: object | undefined;
   statusError: unknown;
-  status: {
+  status: (ReportedScale & {
     replicas_ready?: number;
     alerts_active?: number;
     traffic_5xx_pct_1h?: number;
-  } | null | undefined;
+  }) | null | undefined;
   repositoryConnected?: boolean | null;
   secretCount?: number | null;
   customDomain?: CustomDomainState | null;
@@ -94,6 +115,7 @@ export function readMeasurements(input: {
     projectUnavailable: !input.project,
     statusUnavailable: Boolean(input.statusError) || !input.status,
     readyReplicas: measured(input.status?.replicas_ready),
+    autoscaled: readAutoscaled(input.status),
     activeAlerts: measured(input.status?.alerts_active),
     errorRate5xx1h: measured(input.status?.traffic_5xx_pct_1h),
     repositoryConnected: input.repositoryConnected ?? null,
@@ -112,10 +134,12 @@ export const RULES: Readonly<Record<SignalName, Rule>> = {
     return m.repositoryConnected ? 'pass' : 'fail';
   },
 
-  // The status response has no field that says whether an HPA exists. The desired replica count
-  // is not one: two fixed replicas are not autoscaling, and an HPA can sit at one replica. Until
-  // the API reports the HPA itself, the signal is `unknown`.
-  hpa_configured: () => 'unknown',
+  // An autoscaler exists when the API reports a range, or scale to zero. A replica count is not
+  // evidence: two fixed replicas are not autoscaling, and an HPA can sit at one replica.
+  hpa_configured: (m) => {
+    if (m.statusUnavailable || m.autoscaled === null) return 'unknown';
+    return m.autoscaled ? 'pass' : 'fail';
+  },
 
   // Two or more replicas ACTUALLY serving; desiring them is not enough.
   two_plus_replicas: (m) => {

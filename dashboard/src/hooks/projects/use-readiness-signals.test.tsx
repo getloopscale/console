@@ -105,10 +105,10 @@ describe('useReadinessSignals (J-21 v1.1)', () => {
   it('test_use_readiness_signals_unknown_excluded_from_score (EC-2)', () => {
     mockAllSettled();
     const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
-    // two_plus and logs pass; the rest are unknown and excluded from both sides. Score = 100, over
-    // two of the eight signals.
-    expect(result.current.score).toBe(100);
-    expect(result.current.measuredSignals).toBe(2);
+    // two_plus and logs pass and autoscaling fails (5 fixed replicas); the rest are unknown and
+    // excluded from both sides.
+    expect(result.current.signals.hpa_configured.status).toBe('fail');
+    expect(result.current.measuredSignals).toBe(3);
     expect(result.current.totalSignals).toBe(8);
   });
 
@@ -120,7 +120,7 @@ describe('useReadinessSignals (J-21 v1.1)', () => {
     expect(result.current.signals.auto_deploy.status).toBe('fail');
     expect(result.current.signals.secrets_rotated.status).toBe('pass');
     expect(result.current.signals.custom_domain.status).toBe('fail');
-    expect(result.current.measuredSignals).toBe(5);
+    expect(result.current.measuredSignals).toBe(6);
   });
 
   it('a list endpoint that failed leaves its signal unknown', () => {
@@ -149,7 +149,20 @@ describe('useReadinessSignals (J-21 v1.1)', () => {
       status: { project: 'my-api', environment: 'production', replicas_desired: 5, replicas_ready: 5 },
     });
     const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
-    expect(result.current.signals.hpa_configured.status).toBe('unknown');
+    expect(result.current.signals.hpa_configured.status).toBe('fail');
+  });
+
+  it('reads an autoscaling range from the status as an HPA', () => {
+    mockAllSettled({
+      status: {
+        project: 'my-api',
+        environment: 'production',
+        replicas_ready: 1,
+        scaling: { replicas: 1, min: 1, max: 3, scaled_to_zero: false },
+      },
+    });
+    const { result } = renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
+    expect(result.current.signals.hpa_configured.status).toBe('pass');
   });
 
   it('test_use_readiness_signals_no_flicker_until_all_settled (EC-6)', () => {

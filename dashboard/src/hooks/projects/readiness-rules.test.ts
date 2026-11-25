@@ -6,6 +6,7 @@ const measurements = (over: Partial<Measurements> = {}): Measurements => ({
   projectUnavailable: false,
   statusUnavailable: false,
   readyReplicas: 0,
+  autoscaled: null,
   activeAlerts: 0,
   errorRate5xx1h: 0,
   repositoryConnected: null,
@@ -51,12 +52,39 @@ describe('two_plus_replicas counts replicas actually serving', () => {
   });
 });
 
-describe('hpa_configured reads an HPA, and the API reports none', () => {
-  it('is unknown whatever the replica counts are', () => {
+describe('hpa_configured reads the scale the API reports', () => {
+  it('does not read replica counts as autoscaling', () => {
     // More than one desired replica used to count as "an HPA exists". Two fixed replicas are not
-    // autoscaling, and the status response has no HPA field to read instead.
+    // autoscaling.
     expect(RULES.hpa_configured(measurements({ readyReplicas: 5 }))).toBe('unknown');
-    expect(RULES.hpa_configured(measurements({ readyReplicas: 1 }))).toBe('unknown');
+    expect(RULES.hpa_configured(measurements({ readyReplicas: 5, autoscaled: false }))).toBe('fail');
+  });
+
+  it('passes for a range and for scale to zero', () => {
+    expect(RULES.hpa_configured(measurements({ autoscaled: true }))).toBe('pass');
+  });
+
+  it('is unknown when the status could not be read', () => {
+    expect(RULES.hpa_configured(measurements({ autoscaled: true, statusUnavailable: true }))).toBe('unknown');
+  });
+});
+
+describe('readMeasurements, autoscaling', () => {
+  const read = (status: Parameters<typeof readMeasurements>[0]['status']) =>
+    readMeasurements({ project: {}, statusError: null, status }).autoscaled;
+
+  it('reads a range and scale to zero as autoscaled', () => {
+    expect(read({ scaling: { replicas: 1, min: 1, max: 3, scaled_to_zero: false } })).toBe(true);
+    expect(read({ scaling: { replicas: 0, min: 0, max: 2, scaled_to_zero: true } })).toBe(true);
+  });
+
+  it('reads a fixed count as not autoscaled', () => {
+    expect(read({ scaling: { replicas: 3, min: 3, max: 3, scaled_to_zero: false } })).toBe(false);
+    expect(read({ replicas_desired: 2 })).toBe(false);
+  });
+
+  it('reads nothing from a status that reports no scale', () => {
+    expect(read({})).toBeNull();
   });
 });
 
