@@ -24,7 +24,6 @@ import type {
   Project,
   ProjectConnection,
   ProjectListResponse,
-  ProjectStatusDetail,
   Secret,
   SecretListResponse,
   TeamListResponse,
@@ -38,7 +37,6 @@ import {
   environmentsFixture,
   makeProject,
   makeProjectConnection,
-  makeProjectStatus,
   projectsFixture,
   secretsFixture,
   teamMembersFixture,
@@ -53,6 +51,7 @@ import { registerOverviewHandlers } from './overview-handlers';
 import { registerSkillsDistributionHandlers, registerSkillsHandlers } from './skills-handlers';
 import { registerPromptlyHandlers } from './promptly-handlers';
 import { registerDomainHandlers, resetDomainMocks } from './domain-handlers';
+import { registerRollbackHandlers, resetRollbackMocks } from './rollback-handlers';
 import { registerPreviewHandlers, resetPreviewMocks } from './preview-handlers';
 
 // ============================================================================
@@ -146,10 +145,7 @@ function registerProjectHandlers() {
   );
 
   // Project-scoped operations
-  registerRoute('GET', '/api/v1/projects/{name}/status', async (_req, { name }) => {
-    const status: ProjectStatusDetail = makeProjectStatus(name);
-    return Response.json(status);
-  });
+  registerRollbackHandlers();
 
   registerRoute('GET', '/api/v1/projects/{name}/builds', async (_req, { name }) => {
     const builds = db.builds.filter((b) => b.project_id === name);
@@ -160,12 +156,6 @@ function registerProjectHandlers() {
   registerRoute('POST', '/api/v1/projects/{name}/scale', async (req, { name }) => {
     const body = (await req.json()) as { replicas?: number; min?: number; max?: number };
     return Response.json({ project: name, applied: body });
-  });
-
-  registerRoute('POST', '/api/v1/projects/{name}/rollback', async (req) => {
-    const body = (await req.json()) as { build_id?: string };
-    if (!body.build_id) return err('INVALID_INPUT', 'build_id required', 400);
-    return Response.json({ release_id: `rel-${Date.now()}`, status: 'queued' });
   });
 
   registerRoute('POST', '/api/v1/projects/{name}/promote', async (req) => {
@@ -622,6 +612,7 @@ export function resetMockDB(): void {
   db.members = [...teamMembersFixture];
   db.environments = [...environmentsFixture];
   resetDomainMocks();
+  resetRollbackMocks();
   resetPreviewMocks();
   installed = false;
 }

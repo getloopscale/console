@@ -526,13 +526,14 @@ export interface ProjectStatusDetail {
     duration_seconds?: number;
     error?: string;
   };
+  // null when the environment has no ACTIVE release, as during a rollback.
   active_release?: {
     id: string;
     build_id: string;
     status: string;
     git_commit?: string;
     created_at: string;
-  };
+  } | null;
   sync_status?: string;
   url?: string;
   // Red Team theo-cloud#70/#62/#98 closure: when the queried env has no
@@ -609,10 +610,7 @@ export interface RollbackInput {
   build_id: string;
 }
 
-export interface RollbackResponse {
-  release_id: string;
-  status: BuildStatus;
-}
+export type { RollbackResponse } from './rollback-types';
 
 export interface PromoteInput {
   from_environment: string;
