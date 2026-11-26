@@ -6,6 +6,7 @@ import {
   buildStepToPhaseStep,
 } from './use-deploy-timeline';
 import { useDeploymentStream } from './use-deployment-stream';
+import { normalizeBuildStatus } from '@/lib/api/types';
 import { phaseGroupToCanonicalPhase } from '@/hooks/deploy/phase-group-mapping';
 
 /**
@@ -23,13 +24,22 @@ import { phaseGroupToCanonicalPhase } from '@/hooks/deploy/phase-group-mapping';
  * and the memo fuses them. Last-Event-ID resume is per-channel; deploy
  * timeline events use the new endpoint, step events keep the J-17 one.
  */
+export interface UseDeployTimelineWithStepsOptions extends UseDeployTimelineOptions {
+  /**
+   * The build record's status. Once it is final the step stream replays once and is
+   * not reopened.
+   */
+  buildStatus?: string;
+}
+
 export function useDeployTimelineWithSteps(
   deployID: string | null | undefined,
-  options: UseDeployTimelineOptions = {},
+  options: UseDeployTimelineWithStepsOptions = {},
 ): UseDeployTimelineResult {
   const timeline = useDeployTimeline(deployID, options);
   const stepStream = useDeploymentStream(deployID, {
     initialLastEventID: options.initialLastEventID ?? null,
+    ended: ['succeeded', 'failed', 'cancelled'].includes(normalizeBuildStatus(options.buildStatus)),
   });
 
   return useMemo(() => {
