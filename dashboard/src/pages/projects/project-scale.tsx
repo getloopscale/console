@@ -114,6 +114,8 @@ export function ProjectScalePage() {
   // a fixed count, or the mode and bounds of a saved autoscaling range (#567).
   // Seeded exactly once so a status poll never clobbers the user's edits; the
   // post-save echo (setConfigured below) still wins afterwards.
+  // Until the status arrives, the controls hold the form's defaults, not the project's scale.
+  const settingsLoading = statusLoading && !status;
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current) return;
@@ -217,7 +219,7 @@ export function ProjectScalePage() {
             </Card.Description>
           </Card.Header>
           <Card.Body>
-            {statusLoading && !status ? (
+            {settingsLoading ? (
               // Before the status arrives the plan, the saved scale and the apps
               // are unknown; controls drawn from defaults would state them (#569).
               <p className="text-body-sm text-muted-foreground" role="status">
@@ -351,14 +353,14 @@ export function ProjectScalePage() {
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">After change</dt>
-                <dd className="font-mono text-foreground">
-                  {proposed.kind === 'fixed' ? `${proposed.replicas} replicas` : describeScaleShape(proposed)}
+                <dd className="font-mono text-foreground" data-testid="after-change">
+                  {settingsLoading ? 'Not reported' : proposed.kind === 'fixed' ? `${proposed.replicas} replicas` : describeScaleShape(proposed)}
                 </dd>
               </div>
               <div className="flex justify-between border-t border-border/60 pt-3">
                 <dt className="text-muted-foreground">Estimated</dt>
-                <dd className="font-mono text-foreground">
-                  ${cost.estimatedMonthlyUSD.toFixed(2)}/mo
+                <dd className="font-mono text-foreground" data-testid="estimated-cost">
+                  {settingsLoading ? 'Not reported' : `$${cost.estimatedMonthlyUSD.toFixed(2)}/mo`}
                 </dd>
               </div>
               <div className="flex justify-between">
