@@ -14,7 +14,7 @@ export function VerificationBanner() {
     <Alert
       intent="warning"
       title="Verify your email"
-      description="Check your inbox for a verification code. You can browse, but you can't deploy until you verify."
+      description="Check your inbox for a verification code, or ask for a new one."
       action={
         <Button variant="secondary" size="sm" asChild>
           <a href={getVerificationURL()}>Verify now</a>
