@@ -255,7 +255,7 @@ export default [
       'src/pages/auth/recovery.tsx', // 692 LOC
       'src/pages/deploy/deployments.tsx', // 516 LOC
       'src/pages/projects/project-connect.tsx', // 547 LOC
-      'src/pages/deploy/components/deploy-timeline-hero.tsx', // 654 LOC
+      'src/pages/deploy/components/deploy-timeline-hero.tsx', // 652 LOC
       'src/pages/memory/graph.tsx', // 652 LOC
       'src/pages/lens/evaluators.tsx', // 521 LOC
       // 555 no inicio do ciclo; baixei para 545 cedo demais, antes de a revisao achar o nono
