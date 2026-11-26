@@ -93,7 +93,7 @@ The dashboard uses **two** npm packages, with disjoint surfaces (measured
 
 | Package | Version installed | Owns | Reach |
 |---|---|---|---|
-| `@getloopscale/ui` | `0.38.0` | components | 206 files import it |
+| `@getloopscale/ui` | `0.37.1` | components | 206 files import it |
 | `@getloopscale/loopzero-ui` | `0.1.0` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 7 files |
 
 There is nothing to consolidate: `@getloopscale/ui` exports 116 symbols and **none**
@@ -839,7 +839,7 @@ one, because they go looking.
 
 - **Architecture, current:** `docs/architecture.md`.
 - **ADRs:** `docs/adr/`.
-- **Composite library:** `@getloopscale/ui@0.38.0` — required canonical components. Theme + usage widgets come from `@getloopscale/loopzero-ui@0.1.0`; the split is recorded in `docs/adr/0003`.
+- **Composite library:** `@getloopscale/ui@0.37.1` — required canonical components. Theme + usage widgets come from `@getloopscale/loopzero-ui@0.1.0`; the split is recorded in `docs/adr/0003`.
 - **Voice rules:** root `CLAUDE.md` § Voice and Tone (technical-direct for dashboard; aspirational reserved for PITCH.md).
 
 ---
