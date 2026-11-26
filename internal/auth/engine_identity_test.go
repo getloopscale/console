@@ -10,7 +10,7 @@ import (
 	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
-// The engine reads X-LoopZero-User-ID, X-LoopZero-Tenant and X-LoopZero-Email
+// The engine reads X-LoopRuntime-User-ID, X-LoopRuntime-Tenant and X-LoopRuntime-Email
 // (getloopscale/loop-runtime api/internal/middleware/auth/auth.go). A proxy that
 // writes any other name sends an anonymous call, and the engine answers 401 on
 // every /engine route (getloopscale/console#522).
@@ -19,9 +19,9 @@ func TestSetEngineIdentityWritesTheHeadersTheEngineReads(t *testing.T) {
 	auth.SetEngineIdentity(h, &auth.UserContext{Subject: "user-1", TenantID: "tenant-1", Email: "a@example.com", Role: "owner"})
 
 	want := map[string]string{
-		"X-LoopZero-User-ID": "user-1",
-		"X-LoopZero-Tenant":  "tenant-1",
-		"X-LoopZero-Email":   "a@example.com",
+		"X-LoopRuntime-User-ID": "user-1",
+		"X-LoopRuntime-Tenant":  "tenant-1",
+		"X-LoopRuntime-Email":   "a@example.com",
 	}
 	for name, value := range want {
 		if got := h.Get(name); got != value {

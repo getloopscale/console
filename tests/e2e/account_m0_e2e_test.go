@@ -9,7 +9,7 @@
 // schema (migrations 000034-000039 applied). Reuses the package harness
 // (seedUser/seedTenant/seedAPIKey/env). Build-tagged `e2e`; run with -race:
 //
-//	E2E_PG_CLOUD_DSN=postgres://loopzero:loopzero@localhost:15432/m0test?sslmode=disable \
+//	E2E_PG_CLOUD_DSN=postgres://loopruntime:loopruntime@localhost:15432/m0test?sslmode=disable \
 //	  go test -tags=e2e -race ./tests/e2e/ -run AccountM0 -v
 package e2e
 
@@ -54,7 +54,7 @@ func quietProvisioner(db *sql.DB) *auth.TenantProvisioner {
 func cleanupOwner(t *testing.T, db *sql.DB, ownerID string) {
 	t.Helper()
 	stmts := []string{
-		`DELETE FROM loopzero_api_keys WHERE subject = $1`,
+		`DELETE FROM loopruntime_api_keys WHERE subject = $1`,
 		`DELETE FROM subscriptions WHERE tenant_id IN (SELECT id FROM tenants WHERE owner_id = $1)`,
 		`DELETE FROM tenant_members WHERE user_id = $1`,
 		`DELETE FROM tenants WHERE owner_id = $1`,
@@ -70,7 +70,7 @@ func cleanupOwner(t *testing.T, db *sql.DB, ownerID string) {
 
 // NOTE (M3): the former Scenario 1 — "legacy key (NULL account_id) still
 // resolves, AccountID == ''" — was REMOVED. M3 migration 000044 makes
-// loopzero_api_keys.account_id NOT NULL, so a NULL-account key can no longer exist in
+// loopruntime_api_keys.account_id NOT NULL, so a NULL-account key can no longer exist in
 // the database and this e2e could no longer seed the state it asserted. The
 // defensive NULL-tolerant scan it exercised is schema-independent and stays
 // covered at the unit layer:
@@ -139,7 +139,7 @@ func TestAccountM0_NewKeyInheritsTenantAccount(t *testing.T) {
 	}
 
 	var keyAcc sql.NullString
-	if err := db.QueryRow(`SELECT account_id FROM loopzero_api_keys WHERE subject=$1 AND key_name='m0-key'`, uid).Scan(&keyAcc); err != nil {
+	if err := db.QueryRow(`SELECT account_id FROM loopruntime_api_keys WHERE subject=$1 AND key_name='m0-key'`, uid).Scan(&keyAcc); err != nil {
 		t.Fatalf("query created key: %v", err)
 	}
 	if !keyAcc.Valid || keyAcc.String != tenantAcc {

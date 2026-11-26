@@ -67,7 +67,7 @@ var (
 	errMalformedCredential = errors.New("auth: malformed credential")
 )
 
-// apiKeyRow is a resolved, active loopzero_api_keys row.
+// apiKeyRow is a resolved, active loopruntime_api_keys row.
 type apiKeyRow struct {
 	keyID, subject, tenantID string
 	// accountID is M0's nullable Account link. NULL for legacy keys minted before
@@ -111,7 +111,7 @@ func lookupAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*apiKe
 	// API Key Rotation plan D3: also fetch expires_at so RequireScope can emit
 	// Sunset + Deprecation headers when the key is in its rotation grace window.
 	const q = `SELECT id, subject, tenant_id, account_id, scopes, expires_at
-		FROM loopzero_api_keys
+		FROM loopruntime_api_keys
 		WHERE key_hash = $1
 		  AND revoked_at IS NULL
 		  AND (expires_at IS NULL OR expires_at > NOW())`

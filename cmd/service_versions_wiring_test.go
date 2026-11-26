@@ -117,7 +117,7 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 		SkillsBaseURL:     "http://host.docker.internal:18087",
 		PromptlyBaseURL:   "http://loopprompt:18085",
 		TrustBaseURL:      "http://loopguardrails:18088",
-		EngineAPIURL:      "http://loopzero.theo-system:8080",
+		EngineAPIURL:      "http://loopruntime.theo-system:8080",
 		TraefikMcpBaseURL: "http://host.k3d.internal:18090",
 	})
 
@@ -129,12 +129,12 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 	// A omissao contradizia o invariante declarado logo abaixo (e no comentario de
 	// serviceVersionTargets): um servico ausente esconde que ele existe e nao subiu.
 	//
-	// loopzero e' o engine. Entrou quando passou a falar o contrato da frota
+	// loopruntime e' o engine. Entrou quando passou a falar o contrato da frota
 	// (`GET /v1/version` -> {version, built_at}); antes divergia em path e em nome
 	// de campo, e por isso nao havia como sonda-lo com o mesmo coletor.
 	for _, name := range []string{
 		"loopmem", "looprag", "looptrace", "loopstore", "loopskills",
-		"loopprompt", "loopguardrails", "loopzero", "loopmcp",
+		"loopprompt", "loopguardrails", "loopruntime", "loopmcp",
 	} {
 		if _, ok := got[name]; !ok {
 			t.Fatalf("%s missing from the probed fleet; got %+v", name, got)
@@ -162,7 +162,7 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 		"loopstore":      "http://host.docker.internal:18086",
 		"loopprompt":     "http://loopprompt:18085",
 		"loopguardrails": "http://loopguardrails:18088",
-		"loopzero":       "http://loopzero.theo-system:8080",
+		"loopruntime":    "http://loopruntime.theo-system:8080",
 		"loopmcp":        "http://host.k3d.internal:18090",
 	} {
 		if got[name] != want {

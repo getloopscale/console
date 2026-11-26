@@ -6,7 +6,7 @@
 //
 // Conditions applied (same as API service):
 //   - Export timeout 1s, retry disabled, bounded queue 2048
-//   - Feature flag LOOPZERO_TRACING_ENABLED (default true dev, false prod)
+//   - Feature flag LOOPRUNTIME_TRACING_ENABLED (default true dev, false prod)
 //   - trace-id is separate from correlation-id
 package tracing
 
@@ -40,14 +40,14 @@ const (
 // Init configures the OTel TracerProvider with OTLP gRPC exporter.
 // Returns a shutdown function for graceful shutdown.
 //
-// If LOOPZERO_TRACING_ENABLED is "false", returns a no-op shutdown
+// If LOOPRUNTIME_TRACING_ENABLED is "false", returns a no-op shutdown
 // with zero overhead -- no TracerProvider is registered.
 //
 // If the Collector is unreachable, the service continues normally.
 // Spans are dropped after queue exhaustion (graceful degradation).
 func Init(ctx context.Context, serviceName string) (shutdown func(context.Context) error, err error) {
 	if !isEnabled() {
-		slog.Info("tracing disabled via LOOPZERO_TRACING_ENABLED=false")
+		slog.Info("tracing disabled via LOOPRUNTIME_TRACING_ENABLED=false")
 		return func(context.Context) error { return nil }, nil
 	}
 
@@ -108,10 +108,10 @@ func Init(ctx context.Context, serviceName string) (shutdown func(context.Contex
 	return tp.Shutdown, nil
 }
 
-// isEnabled checks the LOOPZERO_TRACING_ENABLED feature flag.
+// isEnabled checks the LOOPRUNTIME_TRACING_ENABLED feature flag.
 // Default: "true" unless explicitly set to "false".
 func isEnabled() bool {
-	v := os.Getenv("LOOPZERO_TRACING_ENABLED")
+	v := os.Getenv("LOOPRUNTIME_TRACING_ENABLED")
 	if v == "" {
 		return true
 	}
@@ -120,7 +120,7 @@ func isEnabled() bool {
 
 // getEnv returns the deployment environment name for resource attributes.
 func getEnv() string {
-	env := os.Getenv("LOOPZERO_ENV")
+	env := os.Getenv("LOOPRUNTIME_ENV")
 	if env == "" {
 		return "development"
 	}

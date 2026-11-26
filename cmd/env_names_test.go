@@ -17,8 +17,8 @@ import (
 // name with the pre-rename THEO_ prefix.
 var theoEnvName = regexp.MustCompile(`"THEO_[A-Z0-9_]*"`)
 
-// The loopzero Helm chart (getloopscale/loop-runtime charts/loopzero-cloud) sets
-// this binary's own settings under the LOOPZERO_ prefix. A read under the old
+// The loopruntime Helm chart (getloopscale/loop-runtime charts/loopruntime-cloud) sets
+// this binary's own settings under the LOOPRUNTIME_ prefix. A read under the old
 // THEO_ prefix never sees the chart's value and silently falls back to a
 // default: that is how staging ran in dev mode with a random service secret
 // per pod (getloopscale/console#523). Every read in the binary's source must
@@ -49,6 +49,6 @@ func TestBinaryReadsNoTheoPrefixedEnvironmentVariables(t *testing.T) {
 		}
 	}
 	if len(offenders) > 0 {
-		t.Errorf("the binary reads THEO_-prefixed variables the chart never sets; use LOOPZERO_:\n%s", strings.Join(offenders, "\n"))
+		t.Errorf("the binary reads THEO_-prefixed variables the chart never sets; use LOOPRUNTIME_:\n%s", strings.Join(offenders, "\n"))
 	}
 }

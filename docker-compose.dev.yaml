@@ -6,7 +6,7 @@
 #
 # Phase 1 (this section): the real backend + gateway.
 #   pg-cloud   — Postgres 17 loaded with the engine's REAL schema (tenants,
-#                loopzero_api_keys, users, …) from ../theo/api/internal/db/schema.gen.sql
+#                loopruntime_api_keys, users, …) from ../theo/api/internal/db/schema.gen.sql
 #   pg-themory — pgvector for TheMemory
 #   themory    — TheMemory REST server, REAL LLM (OPENAI_API_KEY from theo-memory/.env)
 #   theo-cloud — the gateway (host-built binary)
@@ -241,7 +241,7 @@ services:
       themory:
         condition: service_healthy
     environment:
-      LOOPZERO_ENV: dev
+      LOOPRUNTIME_ENV: dev
       CLOUD_LISTEN_ADDR: ":13002"
       DATABASE_URL: postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable
       THEMORY_BASE_URL: http://themory:8080

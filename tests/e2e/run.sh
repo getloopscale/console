@@ -378,7 +378,7 @@ export E2E_PG_RAG_DSN="postgres://therag:therag@localhost:${E2E_PG_RAG_PORT}/the
 export E2E_LENS_URL="http://localhost:${E2E_LENS_PORT}"
 export E2E_PG_LENS_DSN="postgres://theolens:theolens@localhost:${E2E_PG_LENS_PORT}/theolens?sslmode=disable"
 # pg-cloud is the engine-migrated `theo` DB (M6 — full account-tenancy schema).
-export E2E_PG_CLOUD_DSN="postgres://loopzero:loopzero@localhost:${E2E_PG_CLOUD_PORT}/loopzero?sslmode=disable"
+export E2E_PG_CLOUD_DSN="postgres://loopruntime:loopruntime@localhost:${E2E_PG_CLOUD_PORT}/loopruntime?sslmode=disable"
 export E2E_PG_THEMORY_DSN="postgres://themem:themem@localhost:${E2E_PG_THEMORY_PORT}/themem?sslmode=disable"
 # M6: real Kratos endpoints for the full-chain login flow.
 export E2E_KRATOS_PUBLIC_URL="http://localhost:${E2E_KRATOS_PUBLIC_PORT}"

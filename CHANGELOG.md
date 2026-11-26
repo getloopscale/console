@@ -5,6 +5,12 @@
 - `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
 
 ### Changed
+- The console follows the engine's rename to loop-runtime (getloopscale/loop-runtime#189). It has to be deployed together with an engine of that revision. What changes for an operator:
+  - Images are published as `loopruntime-cloud` and `loopruntime-dashboard`.
+  - Every `LOOPZERO_*` environment variable is `LOOPRUNTIME_*`.
+  - Requests to the engine carry `X-LoopRuntime-*` headers.
+  - The console reads the engine's tables under their new names, such as `loopruntime_api_keys`, and the default database is `loopruntime`.
+  - The status page lists the engine as `loopruntime`.
 - System status: the nine sibling services are listed under their LoopScale names: `loopmem`, `looprag`, `looptrace`, `loopstore`, `loopskills`, `loopprompt`, `loopguardrails`, `loopzero` and `loopmcp`. `GET /v1/dashboard/status/versions` returned the `theo-` names (#595).
 - Secrets: Add secret asks before it replaces a key that already exists in a chosen environment. It names the key and the environments, and the button reads Replace value. It replaced the value with no warning (#586).
 - Deployments: a build whose image was built and whose deploy failed reads "Deploy failed" in the list, in the header of the build page and in the Overview's recent deployments, and the Failed filter finds it. It read "Succeeded". The engine reports the deploy outcome as `deploy_status` (getloopscale/loopzero#135).

@@ -344,7 +344,7 @@ type oauthError struct{ msg string }
 func (e *oauthError) Error() string { return e.msg }
 
 // LoadOAuthConnectorsFromEnv builds the provider config + secrets from the edge environment.
-// Per provider it reads LOOPZERO_RAG_OAUTH_<PROVIDER>_CLIENT_ID / _CLIENT_SECRET / _SCOPES (provider
+// Per provider it reads LOOPRUNTIME_RAG_OAUTH_<PROVIDER>_CLIENT_ID / _CLIENT_SECRET / _SCOPES (provider
 // upper-cased, `-` → `_`). Providers without a configured CLIENT_ID are omitted (the operator gate:
 // the broker only offers a provider once its OAuth app is registered). Returns the (config, secrets).
 func LoadOAuthConnectorsFromEnv(getenv func(string) string) (map[string]OAuthProviderConfig, map[string]string) {
@@ -352,24 +352,24 @@ func LoadOAuthConnectorsFromEnv(getenv func(string) string) (map[string]OAuthPro
 	secrets := map[string]string{}
 	for provider, base := range defaultOAuthProviders() {
 		key := strings.ToUpper(strings.ReplaceAll(provider, "-", "_"))
-		clientID := getenv("LOOPZERO_RAG_OAUTH_" + key + "_CLIENT_ID")
+		clientID := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_CLIENT_ID")
 		if clientID == "" {
 			continue // not registered yet — do not offer this provider
 		}
 		base.ClientID = clientID
-		if sc := getenv("LOOPZERO_RAG_OAUTH_" + key + "_SCOPES"); sc != "" {
+		if sc := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_SCOPES"); sc != "" {
 			base.Scopes = sc
 		}
 		// Optional endpoint overrides — point a provider at a conformant OAuth2 IdP other than the
 		// public default (staging against Ory Hydra, a self-hosted provider, etc.). Absent → default.
-		if au := getenv("LOOPZERO_RAG_OAUTH_" + key + "_AUTHORIZE_URL"); au != "" {
+		if au := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_AUTHORIZE_URL"); au != "" {
 			base.AuthorizeURL = au
 		}
-		if tu := getenv("LOOPZERO_RAG_OAUTH_" + key + "_TOKEN_URL"); tu != "" {
+		if tu := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_TOKEN_URL"); tu != "" {
 			base.TokenURL = tu
 		}
 		cfgs[provider] = base
-		secrets[provider] = getenv("LOOPZERO_RAG_OAUTH_" + key + "_CLIENT_SECRET")
+		secrets[provider] = getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_CLIENT_SECRET")
 	}
 	return cfgs, secrets
 }

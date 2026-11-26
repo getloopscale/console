@@ -43,7 +43,7 @@ type signerStub struct{ attached int }
 
 func (s *signerStub) Attach(r *http.Request) error {
 	s.attached++
-	r.Header.Set("X-LoopZero-Signature", "signed")
+	r.Header.Set("X-LoopRuntime-Signature", "signed")
 	return nil
 }
 
@@ -73,7 +73,7 @@ func TestEngineClaimer_PostsTheCodeAsTheUser(t *testing.T) {
 	if got.header.Get("X-Service-Auth") != "service-secret" {
 		t.Fatal("the service secret was not sent")
 	}
-	if signer.attached != 1 || got.header.Get("X-LoopZero-Signature") != "signed" {
+	if signer.attached != 1 || got.header.Get("X-LoopRuntime-Signature") != "signed" {
 		t.Fatal("the request was not signed")
 	}
 }

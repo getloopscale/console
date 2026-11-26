@@ -10,9 +10,9 @@ import "net/http"
 // contract with the engine: a name the engine does not read is an anonymous
 // call, which it rejects with 401 "Invalid service authentication".
 const (
-	EngineUserIDHeader = "X-LoopZero-User-ID"
-	EngineTenantHeader = "X-LoopZero-Tenant"
-	EngineEmailHeader  = "X-LoopZero-Email"
+	EngineUserIDHeader = "X-LoopRuntime-User-ID"
+	EngineTenantHeader = "X-LoopRuntime-Tenant"
+	EngineEmailHeader  = "X-LoopRuntime-Email"
 )
 
 // SetEngineIdentity writes the caller's identity onto a request bound for the

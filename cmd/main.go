@@ -189,7 +189,7 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 		// Reusa EngineAPIURL, a MESMA URL pela qual este gateway ja' faz proxy do
 		// engine. Uma variavel propria poderia divergir dela e o painel passaria a
 		// reportar sobre um endereco que ninguem mais usa.
-		{Name: "loopzero", BaseURL: cfg.EngineAPIURL},
+		{Name: "loopruntime", BaseURL: cfg.EngineAPIURL},
 		// O gateway MCP. A URL aponta para a RAIZ do processo, nao para a borda
 		// `/mcp` do Traefik: aquele roteador NAO remove o prefixo (deliberado — o
 		// gateway precisa do path completo para rotear MCP), entao uma sonda via
@@ -344,7 +344,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	// Initialize OTel tracing (no-op if LOOPZERO_TRACING_ENABLED=false).
+	// Initialize OTel tracing (no-op if LOOPRUNTIME_TRACING_ENABLED=false).
 	tracingShutdown, err := tracing.Init(context.Background(), "theo-cloud")
 	if err != nil {
 		logger.Warn("tracing init failed (continuing without traces)", "error", err)
@@ -381,7 +381,7 @@ func main() {
 			// Which role we connect as decides how much of every tenant's data
 			// this process can reach — and getting it wrong is invisible at
 			// runtime, because the owner still works. Engine migration 000063
-			// created `loopzero_cloud` for exactly this: the cross-tenant reach the
+			// created `loopruntime_cloud` for exactly this: the cross-tenant reach the
 			// control plane needs, as named policies, without DDL.
 			//
 			// Fail closed: refusing to boot is loud and fixed by repointing
@@ -427,7 +427,7 @@ func main() {
 	//     cookie-based exchange)
 	//   - "theo-engine" — bootstrap + CLI JWTs (RSA-signed by Hydra; minted
 	//     by seed-local-user.sh + theo CLI) which transit /engine/* paths
-	//     into loopzero (which itself validates "theo-engine")
+	//     into loopruntime (which itself validates "theo-engine")
 	//
 	// Single-audience validation (aud="theo-cloud" only) caused 11/12
 	// dogfood --live-only wrappers to fail because the bootstrap JWT
@@ -1012,7 +1012,7 @@ func main() {
 		// a worker-output directory. Both stay nil if Memory itself is
 		// disabled, so the /v1/memory/exports/* and /v1/memory/webhooks/*
 		// blocks below also remain unregistered when off.
-		exportDir := os.Getenv("LOOPZERO_EXPORT_DIR")
+		exportDir := os.Getenv("LOOPRUNTIME_EXPORT_DIR")
 		if exportDir == "" {
 			exportDir = "/tmp/theo-exports"
 		}
@@ -1629,12 +1629,12 @@ func main() {
 	// Dual-control Ed25519 signer (ADR 2026-05-13). The cloud proxy
 	// signs the canonical payload (user, tenant, ts, nonce, method+path)
 	// in addition to sending the shared secret. Phase 1: signer is
-	// optional — if LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY is empty, the
+	// optional — if LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY is empty, the
 	// proxy degrades gracefully to single-control. The engine middleware
 	// counts present-vs-absent and the operator flips to Phase 2 when
 	// the 7-day coverage soak hits 100% (RFC Q3).
 	var serviceSigner *auth.ServiceSigner
-	if ed25519Key := os.Getenv("LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY"); ed25519Key != "" {
+	if ed25519Key := os.Getenv("LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY"); ed25519Key != "" {
 		serviceSigner, err = auth.NewServiceSignerFromBase64(ed25519Key)
 		if err != nil {
 			// Per RFC Q5 fail-closed: a misconfigured key MUST NOT silently
@@ -1646,7 +1646,7 @@ func main() {
 		}
 		logger.Info("service-auth Ed25519 dual-control signer enabled")
 	} else {
-		logger.Warn("service-auth Ed25519 private key not configured — Phase 1 single-control only; set LOOPZERO_SERVICE_AUTH_ED25519_PRIVATE_KEY to enable dual-control")
+		logger.Warn("service-auth Ed25519 private key not configured — Phase 1 single-control only; set LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY to enable dual-control")
 	}
 
 	// LIVE-caught 2026-06-18: 30s timeout was killing legitimate
@@ -1698,13 +1698,13 @@ func main() {
 	// HMAC signature (X-Hub-Signature-256 header) — NOT Bearer JWT. The
 	// requireJWT middleware was wrongly blocking webhook deliveries on
 	// the /engine path. Webhook subtree is exempted from JWT and proxied
-	// raw to loopzero where the canonical signature verification runs
+	// raw to loopruntime where the canonical signature verification runs
 	// (api/cmd/setup_github.go reads GITHUB_WEBHOOK_SECRET). All other
 	// /engine/* paths still require JWT auth.
 	r.HandleFunc("/engine/api/v1/webhooks/*", func(w http.ResponseWriter, r *http.Request) {
 		targetPath := strings.TrimPrefix(r.URL.Path, "/engine")
 		// #nosec G404 — webhook endpoint authenticates via HMAC signature
-		// downstream (loopzero setup_github.go ConstantTimeCompare); cloud
+		// downstream (loopruntime setup_github.go ConstantTimeCompare); cloud
 		// is a pass-through proxy here.
 		proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, engineURL+targetPath, r.Body)
 		if err != nil {
@@ -1715,7 +1715,7 @@ func main() {
 		}
 		proxyReq.URL.RawQuery = r.URL.RawQuery
 		// Preserve canonical webhook headers (signature + delivery + event)
-		// so loopzero can verify HMAC.
+		// so loopruntime can verify HMAC.
 		for _, h := range []string{
 			"Content-Type",
 			"X-Hub-Signature-256",
@@ -1777,7 +1777,7 @@ func main() {
 			if rid := r.Header.Get("X-Request-Id"); rid != "" {
 				proxyReq.Header.Set("X-Request-Id", rid)
 			}
-			// CANONICAL FIX 2026-06-15: forward Idempotency-Key header. loopzero
+			// CANONICAL FIX 2026-06-15: forward Idempotency-Key header. loopruntime
 			// requires Idempotency-Key on mutating routes (POST/PATCH/DELETE per
 			// router.go idempotentMiddlewares — D/Domains/Secrets/Bulk/etc).
 			// Prior proxy implementation only forwarded Content-Type + correlation
@@ -1990,12 +1990,12 @@ func main() {
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus
-	// is configured. Opt-in via LOOPZERO_PROMETHEUS_URL — when unset, the
+	// is configured. Opt-in via LOOPRUNTIME_PROMETHEUS_URL — when unset, the
 	// aggregator stays disabled and cost_counters remain empty (the API
 	// middleware fails-open). Interval defaults to 5 min, overridable
-	// via LOOPZERO_COST_AGGREGATOR_INTERVAL.
+	// via LOOPRUNTIME_COST_AGGREGATOR_INTERVAL.
 	if db != nil {
-		if promURL := strings.TrimSpace(os.Getenv("LOOPZERO_PROMETHEUS_URL")); promURL != "" {
+		if promURL := strings.TrimSpace(os.Getenv("LOOPRUNTIME_PROMETHEUS_URL")); promURL != "" {
 			prom, perr := billing.NewHTTPPromQuerier(promURL, logger)
 			if perr != nil {
 				logger.Error("cost aggregator: prometheus client init failed; aggregator disabled",
@@ -2003,7 +2003,7 @@ func main() {
 					"prometheus_url", promURL)
 			} else {
 				interval := 5 * time.Minute
-				if iv := os.Getenv("LOOPZERO_COST_AGGREGATOR_INTERVAL"); iv != "" {
+				if iv := os.Getenv("LOOPRUNTIME_COST_AGGREGATOR_INTERVAL"); iv != "" {
 					if parsed, perr := time.ParseDuration(iv); perr == nil && parsed > 0 {
 						interval = parsed
 					}
@@ -2015,7 +2015,7 @@ func main() {
 					"interval", interval.String())
 			}
 		} else {
-			logger.Info("cost aggregator disabled (LOOPZERO_PROMETHEUS_URL not set)")
+			logger.Info("cost aggregator disabled (LOOPRUNTIME_PROMETHEUS_URL not set)")
 		}
 	}
 

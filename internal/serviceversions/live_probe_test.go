@@ -35,7 +35,7 @@ import (
 // Aconteceu na primeira execucao real (2026-08-02): rodado de uma estacao apontando
 // para as portas do host remoto, devolveu `unreachable / connection refused` nos OITO
 // alvos. Parar ali teria reportado a plataforma inteira fora do ar — quando o defeito
-// era o ponto de observacao. E' o MESMO defeito do `loopzero`
+// era o ponto de observacao. E' o MESMO defeito do `loopruntime`
 // (usetheodev/theo-workspace#38): alvo correto, ponto de observacao errado.
 //
 // Rode de onde o COLETOR roda — o host que serve o painel — ou por tunel SSH ate' ele.

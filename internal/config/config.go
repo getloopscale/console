@@ -74,7 +74,7 @@ type Config struct {
 	JWTIssuer string
 
 	// Environment is the deployment environment (dev, staging, prod).
-	// Env: LOOPZERO_ENV (default: "dev")
+	// Env: LOOPRUNTIME_ENV (default: "dev")
 	Environment string
 
 	// StripeAPIKey is the Stripe secret key for API calls.
@@ -101,7 +101,7 @@ type Config struct {
 
 	// ServiceAuthSecret is the shared secret for cloud→engine service-to-service calls.
 	// Used by the /engine/* proxy to authenticate with the engine API.
-	// Env: LOOPZERO_SERVICE_AUTH_SECRET (must match the engine's value)
+	// Env: LOOPRUNTIME_SERVICE_AUTH_SECRET (must match the engine's value)
 	ServiceAuthSecret Secret
 
 	// ThemoryBaseURL is the OSS TheMemory REST URL (Plan 1 of dashboard-memory-section).
@@ -314,7 +314,7 @@ func Load() Config {
 		HydraAdminURL:     envOr("HYDRA_ADMIN_URL", "http://ory-hydra-admin.theo-system:4445"),
 		HydraClientID:     envOr("HYDRA_CLIENT_ID", "theo-cli"),
 		EngineAPIURL:      envOr("ENGINE_API_URL", "http://theo-api.theo-system:8080"),
-		Environment:       envOr("LOOPZERO_ENV", "dev"),
+		Environment:       envOr("LOOPRUNTIME_ENV", "dev"),
 	}
 	cfg.JWTIssuer = envOr("JWT_ISSUER", cfg.HydraPublicURL+"/")
 	cfg.ConsentFirstPartyClients = envList("CONSENT_FIRST_PARTY_CLIENTS", []string{cfg.HydraClientID})
@@ -328,7 +328,7 @@ func Load() Config {
 	// non-deterministically (different replicas reject each other's tokens).
 	cfg.SessionTokenSecret = Secret(envOr("SESSION_TOKEN_SECRET", devSecretFor(cfg.Environment)))
 	cfg.SessionTokenSecretPrevious = Secret(envOr("SESSION_TOKEN_SECRET_PREVIOUS", ""))
-	cfg.ServiceAuthSecret = Secret(envOr("LOOPZERO_SERVICE_AUTH_SECRET", devSecretFor(cfg.Environment)))
+	cfg.ServiceAuthSecret = Secret(envOr("LOOPRUNTIME_SERVICE_AUTH_SECRET", devSecretFor(cfg.Environment)))
 	// J-09 T1.1 — GitHub App install handshake.
 	cfg.GitHubAppSlug = envOr("GITHUB_APP_SLUG", "theo-platform")
 	cfg.GitHubAppClientID = envOr("GITHUB_APP_CLIENT_ID", "")
@@ -415,7 +415,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("STRIPE_WEBHOOK_SECRET is required in production")
 		}
 		if len(c.ServiceAuthSecret.Value()) < 32 {
-			return fmt.Errorf("LOOPZERO_SERVICE_AUTH_SECRET must be set (>=32 chars) in production — a per-pod random secret breaks multi-replica auth")
+			return fmt.Errorf("LOOPRUNTIME_SERVICE_AUTH_SECRET must be set (>=32 chars) in production — a per-pod random secret breaks multi-replica auth")
 		}
 		if c.KratosAdminURL == "" {
 			return fmt.Errorf("KRATOS_ADMIN_URL is required in production")

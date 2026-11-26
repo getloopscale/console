@@ -71,9 +71,9 @@ func linhaDeChave() *sqlmock.Rows {
 func TestResolveAPIKey_RegistraUso(t *testing.T) {
 	zerarDedup(t)
 	db, mock := newAuthMock(t)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(linhaDeChave())
+	mock.ExpectQuery("FROM loopruntime_api_keys").WillReturnRows(linhaDeChave())
 	// O defeito: este UPDATE nunca era emitido no caminho da borda.
-	mock.ExpectExec("UPDATE loopzero_api_keys").
+	mock.ExpectExec("UPDATE loopruntime_api_keys").
 		WithArgs("k-borda", janelaDeRegistroDeUso.Seconds()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -91,7 +91,7 @@ func TestResolveAPIKey_OUpdateCarregaOAcelerador(t *testing.T) {
 	// em memória, que aceleraria por réplica e ainda escreveria N vezes com N réplicas.
 	zerarDedup(t)
 	db, mock := newAuthMock(t)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(linhaDeChave())
+	mock.ExpectQuery("FROM loopruntime_api_keys").WillReturnRows(linhaDeChave())
 	mock.ExpectExec("last_used_at IS NULL OR last_used_at <").
 		WithArgs("k-borda", janelaDeRegistroDeUso.Seconds()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -109,8 +109,8 @@ func TestResolveAPIKey_FalhaNaEscritaNaoDerrubaAAutenticacao(t *testing.T) {
 	// que autentica todo o tráfego de data-plane.
 	zerarDedup(t)
 	db, mock := newAuthMock(t)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(linhaDeChave())
-	mock.ExpectExec("UPDATE loopzero_api_keys").
+	mock.ExpectQuery("FROM loopruntime_api_keys").WillReturnRows(linhaDeChave())
+	mock.ExpectExec("UPDATE loopruntime_api_keys").
 		WillReturnError(errors.New("banco fora do ar"))
 
 	uc, scopes, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
@@ -129,8 +129,8 @@ func TestResolveAPIKey_AEscritaNaoBloqueiaOCaminhoDeResposta(t *testing.T) {
 	// mock, seguiam verdes. Tornar a escrita síncrona não quebrava teste nenhum.
 	zerarDedup(t)
 	db, mock := newAuthMock(t)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(linhaDeChave())
-	mock.ExpectExec("UPDATE loopzero_api_keys").
+	mock.ExpectQuery("FROM loopruntime_api_keys").WillReturnRows(linhaDeChave())
+	mock.ExpectExec("UPDATE loopruntime_api_keys").
 		WithArgs("k-borda", sqlmock.AnyArg()).
 		WillDelayFor(400 * time.Millisecond). // se a escrita fosse síncrona, a auth pagaria isto
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -211,8 +211,8 @@ func TestResolveAPIKey_ConcorrenteNaoCorrompe(t *testing.T) {
 	db, mock := newAuthMock(t)
 	const n = 8
 	for i := 0; i < n; i++ {
-		mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(linhaDeChave())
-		mock.ExpectExec("UPDATE loopzero_api_keys").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery("FROM loopruntime_api_keys").WillReturnRows(linhaDeChave())
+		mock.ExpectExec("UPDATE loopruntime_api_keys").WillReturnResult(sqlmock.NewResult(0, 1))
 	}
 	mock.MatchExpectationsInOrder(false)
 

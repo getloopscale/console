@@ -59,7 +59,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: 7a3419121bbdccf68abd21467ac6ebd8270984dc
+      THEO_ENGINE_REF: bcc0bd66fffa199540259d2ec26cedde73e92765
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
       #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
@@ -97,14 +97,14 @@ jobs:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
       # Fails fast, with the offending name and file, when the console names a table or role
-      # that the checked-out loopzero migrations do not create (#518). Cheaper to read than a
-      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPZERO_MIGRATIONS=1.
-      - name: Check console schema names against the loopzero migrations
+      # that the checked-out loopruntime migrations do not create (#518). Cheaper to read than a
+      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPRUNTIME_MIGRATIONS=1.
+      - name: Check console schema names against the loopruntime migrations
         working-directory: theo-cloud/theo-cloud
         env:
-          LOOPZERO_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
-          REQUIRE_LOOPZERO_MIGRATIONS: "1"
-        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopzeroMigrations' -count=1 -v
+          LOOPRUNTIME_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
+          REQUIRE_LOOPRUNTIME_MIGRATIONS: "1"
+        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopruntimeMigrations' -count=1 -v
 
       # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
       # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
@@ -148,7 +148,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: 7a3419121bbdccf68abd21467ac6ebd8270984dc
+      THEO_ENGINE_REF: bcc0bd66fffa199540259d2ec26cedde73e92765
       THEORAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
       - name: Checkout theo-cloud
@@ -190,14 +190,14 @@ jobs:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
       # Fails fast, with the offending name and file, when the console names a table or role
-      # that the checked-out loopzero migrations do not create (#518). Cheaper to read than a
-      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPZERO_MIGRATIONS=1.
-      - name: Check console schema names against the loopzero migrations
+      # that the checked-out loopruntime migrations do not create (#518). Cheaper to read than a
+      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPRUNTIME_MIGRATIONS=1.
+      - name: Check console schema names against the loopruntime migrations
         working-directory: theo-cloud/theo-cloud
         env:
-          LOOPZERO_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
-          REQUIRE_LOOPZERO_MIGRATIONS: "1"
-        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopzeroMigrations' -count=1 -v
+          LOOPRUNTIME_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
+          REQUIRE_LOOPRUNTIME_MIGRATIONS: "1"
+        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopruntimeMigrations' -count=1 -v
 
       # This job builds THREE images from source (themory + theo-rag + theo-lens)
       # on a PERSISTENT self-hosted runner, so images/layers/volumes accumulate

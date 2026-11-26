@@ -29,7 +29,7 @@ const LABEL_BY_CLASS: Record<ErrorClass, string> = {
   COSIGN_FAILED: 'Image signing failed',
   REGISTRY_AUTH: 'Registry authentication failed',
   DOCKERFILE_LINT: 'Dockerfile lint failed',
-  LOOPZERO_YAML_INVALID: 'Deploy descriptor invalid',
+  LOOPRUNTIME_YAML_INVALID: 'Deploy descriptor invalid',
   CANCELLED_BY_USER: 'Cancelled',
   WORKFLOW_DELETED: 'Build interrupted',
   UNKNOWN: 'Build failed',

@@ -30,7 +30,7 @@ sources:
 
 ## GO-TO CTO mandate: Dashboard Memory Section expansion (locked 2026-06-06)
 
-> **Read this BEFORE any commit touching `cloud/dashboard/src/pages/memory/`, `cloud/dashboard/src/pages/api-keys.tsx`, `cloud/internal/routes/memory_*.go`, `cloud/internal/routes/api_keys.go`, `cloud/internal/auth/scope.go`, or migrations creating `loopzero_api_keys` / `webhooks` / `memory_exports` tables.**
+> **Read this BEFORE any commit touching `cloud/dashboard/src/pages/memory/`, `cloud/dashboard/src/pages/api-keys.tsx`, `cloud/internal/routes/memory_*.go`, `cloud/internal/routes/api_keys.go`, `cloud/internal/auth/scope.go`, or migrations creating `loopruntime_api_keys` / `webhooks` / `memory_exports` tables.**
 
 **Authorization:** project-owner mandate via `/grill-me` session 2026-06-06 (8 strategic + 2 housekeeping decisions resolved sequentially). The mandate authorizes a 5-plan sequential journey adding a unified Memory section to TheoCloud Dashboard, integrating the OSS `@usetheo/memory` REST server as a managed-runtime consumer through a Go proxy.
 

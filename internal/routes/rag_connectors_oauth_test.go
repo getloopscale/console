@@ -263,11 +263,11 @@ func TestRagConnectorsOAuth_ListProviders_Unauthed_401(t *testing.T) {
 // the well-known defaults stand.
 func TestLoadOAuthConnectorsFromEnv_URLOverride(t *testing.T) {
 	env := map[string]string{
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID":     "cid",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_SECRET": "sec",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_AUTHORIZE_URL": "https://hydra.internal/oauth2/auth",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_TOKEN_URL":     "https://hydra.internal/oauth2/token",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_SCOPES":        "offline_access",
+		"LOOPRUNTIME_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID":     "cid",
+		"LOOPRUNTIME_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_SECRET": "sec",
+		"LOOPRUNTIME_RAG_OAUTH_GOOGLE_DRIVE_AUTHORIZE_URL": "https://hydra.internal/oauth2/auth",
+		"LOOPRUNTIME_RAG_OAUTH_GOOGLE_DRIVE_TOKEN_URL":     "https://hydra.internal/oauth2/token",
+		"LOOPRUNTIME_RAG_OAUTH_GOOGLE_DRIVE_SCOPES":        "offline_access",
 	}
 	cfgs, secrets := LoadOAuthConnectorsFromEnv(func(k string) string { return env[k] })
 	c, ok := cfgs["google-drive"]
@@ -284,7 +284,7 @@ func TestLoadOAuthConnectorsFromEnv_URLOverride(t *testing.T) {
 
 // Without the URL-override envs, the well-known defaults are preserved.
 func TestLoadOAuthConnectorsFromEnv_DefaultsWhenNoOverride(t *testing.T) {
-	env := map[string]string{"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID": "cid"}
+	env := map[string]string{"LOOPRUNTIME_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID": "cid"}
 	cfgs, _ := LoadOAuthConnectorsFromEnv(func(k string) string { return env[k] })
 	c := cfgs["google-drive"]
 	if c.AuthorizeURL != "https://accounts.google.com/o/oauth2/v2/auth" || c.TokenURL != "https://oauth2.googleapis.com/token" {

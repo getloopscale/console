@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/usetheoai/theo-cloud/internal/auth"
 )
@@ -60,25 +60,25 @@ func TestRotateKey_HappyPathDefaultGrace(t *testing.T) {
 
 	mock.ExpectBegin()
 	// SELECT FOR UPDATE returns the old key's name + scopes + expires_at.
-	mock.ExpectQuery("SELECT key_name, scopes, revoked_at, expires_at FROM loopzero_api_keys").
+	mock.ExpectQuery("SELECT key_name, scopes, revoked_at, expires_at FROM loopruntime_api_keys").
 		WithArgs("apk-0d11111111aaaaaa", "user-A", "tenant-A").
 		WillReturnRows(sqlmock.NewRows([]string{"key_name", "scopes", "revoked_at", "expires_at"}).
 			AddRow("prod-agent", []byte(`["memory:read","memory:write"]`), nil, nil))
 	// INSERT new row.
-	mock.ExpectExec("INSERT INTO loopzero_api_keys").
+	mock.ExpectExec("INSERT INTO loopruntime_api_keys").
 		WithArgs(
 			sqlmock.AnyArg(), // new id apk-{16hex}
 			"user-A", "tenant-A",
-			sqlmock.AnyArg(), // new name = old + " (rotated YYYY-MM-DD)"
-			sqlmock.AnyArg(), // key_hash
-			sqlmock.AnyArg(), // key_prefix
-			sqlmock.AnyArg(), // scopes
-			sqlmock.AnyArg(), // expires_at (nil)
+			sqlmock.AnyArg(),       // new name = old + " (rotated YYYY-MM-DD)"
+			sqlmock.AnyArg(),       // key_hash
+			sqlmock.AnyArg(),       // key_prefix
+			sqlmock.AnyArg(),       // scopes
+			sqlmock.AnyArg(),       // expires_at (nil)
 			"apk-0d11111111aaaaaa", // rotated_from
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	// UPDATE old row's expires_at.
-	mock.ExpectExec("UPDATE loopzero_api_keys SET expires_at").
+	mock.ExpectExec("UPDATE loopruntime_api_keys SET expires_at").
 		WithArgs(sqlmock.AnyArg(), "apk-0d11111111aaaaaa").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -115,11 +115,11 @@ func TestRotateKey_AcceptsValidGraceWindowHours(t *testing.T) {
 				WithArgs("apk-0d11111111aaaaaa", "u", "t").
 				WillReturnRows(sqlmock.NewRows([]string{"key_name", "scopes", "revoked_at", "expires_at"}).
 					AddRow("k", []byte(`["memory:read"]`), nil, nil))
-			mock.ExpectExec("INSERT INTO loopzero_api_keys").WithArgs(
+			mock.ExpectExec("INSERT INTO loopruntime_api_keys").WithArgs(
 				sqlmock.AnyArg(), "u", "t", sqlmock.AnyArg(), sqlmock.AnyArg(),
 				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "apk-0d11111111aaaaaa",
 			).WillReturnResult(sqlmock.NewResult(1, 1))
-			mock.ExpectExec("UPDATE loopzero_api_keys SET expires_at").
+			mock.ExpectExec("UPDATE loopruntime_api_keys SET expires_at").
 				WithArgs(sqlmock.AnyArg(), "apk-0d11111111aaaaaa").
 				WillReturnResult(sqlmock.NewResult(0, 1))
 			mock.ExpectCommit()
