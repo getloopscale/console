@@ -52,6 +52,7 @@ const KNOWN_ROUTES: ReadonlySet<string> = new Set([
   '/projects/:name/logs', // J-19 v0.14.0 ✅
   '/projects/:name/status', // J-18 v0.15.0 ✅
   '/projects/:name/connect', // J-09 ✅
+  '/domains',
 ]);
 
 /**
@@ -97,8 +98,8 @@ export const SIGNALS: ReadonlyArray<SignalDefinition> = [
     description:
       'A custom domain makes your service production-ready. The auto-generated subdomain works for previews but not for customers.',
     weight: 10,
-    // J-11 not yet shipped — renders "Coming soon" tooltip per EC-7.
-    fixPath: '/projects/:name/domains',
+    // Domains belong to the workspace, so the page has no project in its path.
+    fixPath: '/domains',
   },
   {
     name: 'alerts_configured',
