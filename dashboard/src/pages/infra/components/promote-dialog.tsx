@@ -75,6 +75,15 @@ export function PromoteDialog({
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const promote = usePromoteEnvironment(projectName);
 
+  // The page keeps this dialog mounted: each opening starts from the row that was
+  // clicked, with the target chosen again.
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    if (initialFrom) setFromEnv(initialFrom);
+    setToEnv('');
+  }, [open, initialFrom]);
+
   // When environments array changes (e.g. after create-on-the-fly), auto-select
   // the most recently added one as target if user was mid-flow.
   useEffect(() => {
@@ -98,10 +107,12 @@ export function PromoteDialog({
     }
   }, [environments, fromEnv]);
 
-  // Reset error on prop changes / re-open.
+  // An environment deleted while the dialog was mounted is no longer a choice.
   useEffect(() => {
-    if (open) setError(null);
-  }, [open]);
+    const exists = (name: string) => environments.some((e) => e.name === name);
+    if (toEnv && !exists(toEnv)) setToEnv('');
+    if (fromEnv && !exists(fromEnv)) setFromEnv('');
+  }, [environments, fromEnv, toEnv]);
 
   const handleTargetChange = (value: string) => {
     if (value === CREATE_NEW) {
