@@ -230,6 +230,16 @@ describe('ProjectScalePage, while the status loads', () => {
     expect(screen.queryAllByText(/deploy the project once/i)).toEqual([]);
   });
 
+  it('previews no change and no cost before the saved scale is known', () => {
+    // The preview read "After change 2 replicas" and "$73.00/mo", the form's defaults, for a
+    // project saved as autoscaling 1 to 3.
+    mockUseProjectStatus.mockReturnValue({ status: undefined, loading: true });
+    mockUseDeployment.mockReturnValue({ build: undefined, loading: false, error: false });
+    renderAt('/projects/demo/scale');
+    expect(screen.getByTestId('after-change').textContent).toBe('Not reported');
+    expect(screen.getByTestId('estimated-cost').textContent).toBe('Not reported');
+  });
+
   it('waits for the build before saying no app can be scaled', () => {
     mockUseProjectStatus.mockReturnValue({
       status: status({ plan_tier: 'pro', active_release: { id: 'r1', build_id: 'build-1', status: 'ACTIVE', created_at: '' } }),
