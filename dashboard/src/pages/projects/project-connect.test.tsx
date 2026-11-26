@@ -295,11 +295,11 @@ describe('ProjectConnectPage errors', () => {
 
   it('shows the reason the API gives when it refuses the connect', async () => {
     const reason =
-      'loopzero.yaml not found on branch "main". Add it at the repository root, declaring the apps to deploy under `apps:`, and commit it.';
+      'loopscale.yaml not found on branch "main". Add it at the repository root, declaring the apps to deploy under `apps:`, and commit it.';
     mockEngine({
       installations: [ACME],
       connect: () => {
-        throw new ApiError(400, { code: 'MISSING_LOOPZERO_YAML', message: reason });
+        throw new ApiError(400, { code: 'MISSING_DEPLOY_DESCRIPTOR', message: reason });
       },
     });
     renderConnect();

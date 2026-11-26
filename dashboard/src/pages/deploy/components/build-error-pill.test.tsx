@@ -20,6 +20,23 @@ describe('BuildErrorPill', () => {
     expect(screen.getByText(/out of memory/i)).toBeInTheDocument();
   });
 
+  it('labels the class the API sends for a descriptor it cannot read', () => {
+    // The API sends LOOPZERO_YAML_INVALID; the pill knew only THEO_YAML_INVALID and fell back
+    // to "Build failed" (getloopscale/loopzero#89).
+    render(
+      <MemoryRouter>
+        <BuildErrorPill
+          errorClass="LOOPZERO_YAML_INVALID"
+          errorMessage=""
+          suggestion=""
+          projectName="teste"
+          buildId="b-1"
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Deploy descriptor invalid')).toBeInTheDocument();
+  });
+
   it('test_renders_suggestion_text', () => {
     render(
       <MemoryRouter>

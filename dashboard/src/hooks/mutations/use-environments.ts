@@ -64,7 +64,7 @@ export function useCreateEnvironment() {
   const queryClient = useQueryClient();
   return useMutation({
     // Rejects on a non-2xx answer so the caller can tell a plan limit (402) from a failure.
-    mutationFn: (input: { name: string; project: string; protected?: boolean }) =>
+    mutationFn: (input: { name: string; project: string }) =>
       engineFetch<Environment>(
         '/api/v1/environments',
         { method: 'POST', body: JSON.stringify(input) },
