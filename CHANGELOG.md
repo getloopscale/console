@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- The Promote release dialog opens with the environment of the row that was clicked as its source, and no longer offers a target that was deleted. It kept the source and target of an earlier opening (#579).
 - The page of a finished build reads the build's step stream once. Its header kept reopening the stream, with backoff, for as long as the page stayed open (#563).
 - While the Scale screen loads, the cost preview reads "Not reported" for the change and the estimate. It showed the form's defaults, "2 replicas" and a price, before the saved scale arrived (#569).
 - The Timeline of a build that ended reads its event stream once. It reopened the stream for as long as the page stayed open, 7 requests in the first 10 seconds (#563).

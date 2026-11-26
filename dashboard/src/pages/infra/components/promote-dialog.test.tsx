@@ -274,4 +274,29 @@ describe('PromoteDialog — EC-4 cross-project toggle', () => {
       screen.queryByText(/promoting across projects rewrites/i),
     ).not.toBeInTheDocument();
   });
+  // The page keeps the dialog mounted and reopens it for another row (#579).
+  it('opens with the environment whose row was clicked as the source', async () => {
+    const props = { onOpenChange: () => undefined, projectName: 'teste', environments: ENVS };
+    const { rerender } = render(withClient(<PromoteDialog open={false} {...props} />));
+
+    rerender(withClient(<PromoteDialog open {...props} initialFrom="qa" />));
+
+    const fromSelect = (await screen.findByLabelText(/From/i)) as HTMLSelectElement;
+    await waitFor(() => expect(fromSelect.value).toBe('qa'));
+    expect((screen.getByLabelText(/To/i) as HTMLSelectElement).value).not.toBe('qa');
+  });
+
+  it('drops a target that is no longer in the list', async () => {
+    const props = { open: true, onOpenChange: () => undefined, projectName: 'teste', initialFrom: 'production' };
+    const { rerender } = render(
+      withClient(<PromoteDialog {...props} environments={[...ENVS, { name: 'temp', status: 'active' }]} />),
+    );
+    const toSelect = (await screen.findByLabelText(/To/i)) as HTMLSelectElement;
+    await waitFor(() => expect(toSelect.value).toBe('temp'));
+
+    rerender(withClient(<PromoteDialog {...props} environments={ENVS} />));
+
+    await waitFor(() => expect((screen.getByLabelText(/To/i) as HTMLSelectElement).value).toBe('qa'));
+    expect(screen.getByRole('button', { name: 'Promote production → qa' })).toBeTruthy();
+  });
 });
