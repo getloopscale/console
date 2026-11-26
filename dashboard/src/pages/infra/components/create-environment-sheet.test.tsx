@@ -118,10 +118,14 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
       expect.objectContaining({ method: 'POST' }),
       { throwOnError: true },
     );
-    // Assert the body is the canonical M2 shape {name, project, protected}.
+    // The body is exactly what the API reads. No `protected`: the API has no such field (#573).
     const [, init] = mockEngineFetch.mock.calls[0]!;
     const body = JSON.parse((init as { body: string }).body);
-    expect(body).toMatchObject({ name: 'staging', project: 'web' });
+    expect(body).toEqual({ name: 'staging', project: 'web' });
+    expect(Array.from(document.querySelectorAll('label')).map((l) => l.textContent?.trim())).toEqual([
+      'Project',
+      'Name',
+    ]);
   });
 
   it('shows the plan limit message and an upgrade link when the API answers 402', async () => {

@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Lock, Plus, Rocket, Trash2 } from 'lucide-react';
+import { Box, Plus, Rocket, Trash2 } from 'lucide-react';
 import { Button, Card, PageShell, StatusDot, Table } from '@usetheo/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { estadoDaLista } from '@/lib/list-state';
@@ -20,7 +20,6 @@ interface Environment {
   // (issue #377), então nada sem projeto chega ao render.
   project?: string;
   projects?: number;
-  protected?: boolean;
   domain?: string;
   // KPI fields (v1.1 — page-level SSE multiplex will populate when wired)
   replicas?: number | null;
@@ -232,9 +231,6 @@ export function EnvironmentsPage() {
                 <Table.HeaderCell className="hidden md:table-cell">
                   Status
                 </Table.HeaderCell>
-                <Table.HeaderCell className="hidden md:table-cell">
-                  Protected
-                </Table.HeaderCell>
                 <Table.HeaderCell align="right">
                   <span className="sr-only">Actions</span>
                 </Table.HeaderCell>
@@ -261,7 +257,7 @@ export function EnvironmentsPage() {
                       aria-label={`Project group: ${key}`}
                       role="rowheader"
                     >
-                      <Table.Cell colSpan={5} className="bg-muted/30">
+                      <Table.Cell colSpan={4} className="bg-muted/30">
                         <span className="text-label uppercase tracking-wide text-muted-foreground">
                           <span className="font-semibold text-foreground">
                             project / <span className="font-mono">{key}</span>
@@ -291,16 +287,6 @@ export function EnvironmentsPage() {
                             label={statusLabel(env.status)}
                           />
                         </Table.Cell>
-                        <Table.Cell className="hidden md:table-cell">
-                          {env.protected ? (
-                            <span className="inline-flex items-center gap-1 text-warning text-label">
-                              <Lock className="size-3" aria-hidden="true" />
-                              Protected
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-label">—</span>
-                          )}
-                        </Table.Cell>
                         <Table.Cell align="right">
                           <div className="inline-flex items-center gap-1">
                             {(env.status ?? '').toLowerCase() === 'active' && (
@@ -316,19 +302,14 @@ export function EnvironmentsPage() {
                                 <Rocket className="size-4 text-primary" aria-hidden="true" />
                               </Button>
                             )}
-                            {!env.protected && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setDeleteTarget(env)}
-                                aria-label={`Delete ${env.name}`}
-                              >
-                                <Trash2
-                                  className="size-4 text-destructive"
-                                  aria-hidden="true"
-                                />
-                              </Button>
-                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setDeleteTarget(env)}
+                              aria-label={`Delete ${env.name}`}
+                            >
+                              <Trash2 className="size-4 text-destructive" aria-hidden="true" />
+                            </Button>
                           </div>
                         </Table.Cell>
                       </Table.Row>

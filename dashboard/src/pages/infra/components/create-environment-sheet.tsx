@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { Button, Checkbox, Input, Label, Select } from '@usetheo/ui';
+import { Button, Input, Label, Select } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useCreateEnvironment } from '@/hooks/mutations/use-environments';
@@ -67,7 +67,6 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
   const projectLocked = !!defaultProject;
   const [name, setName] = useState('');
   const [project, setProject] = useState('');
-  const [isProtected, setIsProtected] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [planLimit, setPlanLimit] = useState<PlanLimitRefusal | null>(null);
@@ -116,7 +115,7 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
       // identico; o que faltava era o onSuccess que invalida as DUAS arvores de
       // chave (queryKeys.environments e o legado ['engine', ...] que as paginas
       // ainda leem). Sem ele, criar um environment nao atualizava a tabela.
-      const res = await createEnvironment.mutateAsync({ name, project, protected: isProtected });
+      const res = await createEnvironment.mutateAsync({ name, project });
       if (res === null) {
         setError("Couldn't create environment. Try again in a moment.");
         return;
@@ -124,7 +123,6 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
       onCreated?.(res);
       setName('');
       setProject(defaultProject ?? (singleProject ? projects[0]!.name : ''));
-      setIsProtected(false);
       onOpenChange(false);
     } catch (e) {
       const refusal = readPlanLimitRefusal(e);
@@ -269,19 +267,6 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
               />
             </div>
 
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="env-protected"
-                checked={isProtected}
-                onCheckedChange={(c) => setIsProtected(c === true)}
-              />
-              <div>
-                <Label htmlFor="env-protected">Protected</Label>
-                <p className="text-label text-muted-foreground">
-                  Requires explicit promote/rollback confirmation. Use for production-like envs.
-                </p>
-              </div>
-            </div>
 
         {error && <Alert intent="destructive" description={error} />}
         {planLimit && (

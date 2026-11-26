@@ -60,12 +60,17 @@ describe('EnvironmentsPage', () => {
       isSuccess: true,
     });
     renderAt('/projects/web/environments');
-    // J-10 v1.1 + M2 v1.2 surface: Name, Health, Status, Protected (no
-    // Domain column — that was removed before J-10 v1.1 shipped).
+    // Columns: Name, Health, Status. The API has no `protected` field, so the screen
+    // shows no Protected column even when a payload carries one (#573).
     expect(screen.getByText('Name')).toBeInTheDocument();
     expect(screen.getByText('Health')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
-    expect(screen.getAllByText('Protected').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
+      'Name',
+      'Health',
+      'Status',
+      'Actions',
+    ]);
     expect(screen.getByText('prod')).toBeInTheDocument();
   });
 
@@ -106,13 +111,12 @@ describe('EnvironmentsPage', () => {
     expect(screen.getByText('Pending Verification')).toBeInTheDocument();
   });
 
-  // J-10 v1.1 surface: protected envs render Lock + "Protected" label
-  // (the v1.0 Domain column was removed). This replaces the legacy
-  // test_environments_timestamp_relative_format placeholder.
-  it('test_environments_protected_env_renders_lock_indicator', () => {
+  // Every environment can be deleted from its row: the API protects none of them (#573).
+  it('test_environments_every_env_renders_delete_button', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
+          { project: 'web', name: 'staging', status: 'live', projects: 1 },
           { project: 'web', name: 'prod', status: 'live', projects: 5, protected: true },
         ],
       },
@@ -121,26 +125,8 @@ describe('EnvironmentsPage', () => {
       isSuccess: true,
     });
     renderAt('/projects/web/environments');
-    // "Protected" appears as table header AND as cell indicator.
-    expect(screen.getAllByText('Protected').length).toBeGreaterThanOrEqual(2);
-  });
-
-  // Replaces the v1.0 copy-button test. Delete button is hidden for
-  // protected envs (J-10 source line 263-275); unprotected envs render
-  // it with aria-label `Delete <name>`.
-  it('test_environments_unprotected_env_renders_delete_button', () => {
-    mockUseEngineApi.mockReturnValue({
-      data: {
-        environments: [
-          { project: 'web', name: 'staging', status: 'live', projects: 1, protected: false },
-        ],
-      },
-      loading: false,
-      error: false,
-      isSuccess: true,
-    });
-    renderAt('/projects/web/environments');
     expect(screen.getByLabelText('Delete staging')).toBeInTheDocument();
+    expect(screen.getByLabelText('Delete prod')).toBeInTheDocument();
   });
 
   // ===========================================================================
