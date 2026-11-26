@@ -99,7 +99,7 @@ describe('usePromote / useRollback (B-013)', () => {
   });
 
   // The API accepts a rollback with 202 and finishes it in the background
-  // (getloopscale/loopzero#118). The first call is the POST; every later one is
+  // (getloopscale/loop-runtime#118). The first call is the POST; every later one is
   // the status read the hook polls.
   const accepted = {
     status: 'in_progress',

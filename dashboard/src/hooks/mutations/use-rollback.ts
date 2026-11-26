@@ -19,7 +19,7 @@ export interface UseRollbackOptions {
  * be tested without a modal and every caller gets the same cache refresh.
  *
  * The API answers the POST with 202 and finishes the rollback in the background
- * (getloopscale/loopzero#118). The mutation therefore stays pending after the
+ * (getloopscale/loop-runtime#118). The mutation therefore stays pending after the
  * 202 and resolves with how the rollback ended, read from the project status
  * (see `rollback-outcome.ts`). A rollback that failed in the background RESOLVES
  * with `state: 'failed'`; the mutation rejects only when the API refused the

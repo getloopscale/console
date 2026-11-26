@@ -72,14 +72,14 @@ jobs:
       - name: Checkout theo (engine — migrations)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: getloopscale/loopzero
+          repository: getloopscale/loop-runtime
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
           # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
           # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
           # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
           ref: ${{ env.THEO_ENGINE_REF }}
           # GITHUB_TOKEN is scoped to THIS repo; cross-repo private checkout needs a
-          # PAT with read access to getloopscale/loopzero (+ theo-memory, theo-contracts).
+          # PAT with read access to getloopscale/loop-runtime (+ theo-memory, theo-contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
@@ -158,7 +158,7 @@ jobs:
       - name: Checkout theo (engine — migrations)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: getloopscale/loopzero
+          repository: getloopscale/loop-runtime
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
           # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
           # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria

@@ -65,7 +65,7 @@ jobs:
       - name: Checkout theo (engine — migrations do :develop de hoje)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          repository: getloopscale/loopzero
+          repository: getloopscale/loop-runtime
           ref: develop
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           set -a; . .github/e2e-images.env; set +a
           drift=0
-          live_engine=$(gh api repos/getloopscale/loopzero/commits/develop --jq .sha 2>/dev/null || echo unreachable)
+          live_engine=$(gh api repos/getloopscale/loop-runtime/commits/develop --jq .sha 2>/dev/null || echo unreachable)
           if [ "$THEO_ENGINE_REF" != "$live_engine" ]; then
             echo "::warning::engine: o pin esta atras do develop (pin=$THEO_ENGINE_REF live=$live_engine)"
             drift=1

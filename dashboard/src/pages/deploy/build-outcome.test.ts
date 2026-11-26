@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildNeverDeployed, buildOutcome, deployFailed } from './build-outcome';
 
 // A build whose image was built and whose rollout failed was shown as "Succeeded": the screen
-// had only the build status to read (getloopscale/loopzero#135).
+// had only the build status to read (getloopscale/loop-runtime#135).
 describe('buildOutcome', () => {
   it('reads a built image whose deploy failed as failed', () => {
     expect(buildOutcome({ status: 'SUCCEEDED' as never, deploy_status: 'failed' })).toBe('failed');

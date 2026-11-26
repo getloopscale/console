@@ -17,7 +17,7 @@ import (
 // name with the pre-rename THEO_ prefix.
 var theoEnvName = regexp.MustCompile(`"THEO_[A-Z0-9_]*"`)
 
-// The loopzero Helm chart (getloopscale/loopzero charts/loopzero-cloud) sets
+// The loopzero Helm chart (getloopscale/loop-runtime charts/loopzero-cloud) sets
 // this binary's own settings under the LOOPZERO_ prefix. A read under the old
 // THEO_ prefix never sees the chart's value and silently falls back to a
 // default: that is how staging ran in dev mode with a random service secret

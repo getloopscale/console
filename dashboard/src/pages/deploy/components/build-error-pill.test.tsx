@@ -22,7 +22,7 @@ describe('BuildErrorPill', () => {
 
   it('labels the class the API sends for a descriptor it cannot read', () => {
     // The API sends LOOPZERO_YAML_INVALID; the pill knew only THEO_YAML_INVALID and fell back
-    // to "Build failed" (getloopscale/loopzero#89).
+    // to "Build failed" (getloopscale/loop-runtime#89).
     render(
       <MemoryRouter>
         <BuildErrorPill

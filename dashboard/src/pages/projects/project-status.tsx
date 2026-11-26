@@ -102,7 +102,7 @@ export function ProjectStatusPage() {
   const errorRateKpi = useKpiReading(name, 'error_rate', 1);
   const rpsKpi = useKpiReading(name, 'rps', 1);
   // Ready replicas from the metrics signal, until the status response carries replicas_ready
-  // (getloopscale/loopzero#116). The status value wins when present.
+  // (getloopscale/loop-runtime#116). The status value wins when present.
   const replicasReadyKpi = useKpiReading(name, 'replicas_ready', 1);
 
   const handleDrillDown = (signal: SignalName) => {

@@ -1,7 +1,7 @@
 package ci
 
 // The console and the engine share one Postgres database, and the engine owns its schema:
-// the e2e mounts `getloopscale/loopzero` `api/internal/db/migrations` and applies them as is.
+// the e2e mounts `getloopscale/loop-runtime` `api/internal/db/migrations` and applies them as is.
 // No compiler relates a table name in a Go string here to a CREATE TABLE over there, so a
 // rename on one side (the 2026-11-20 rewrite turned `theo_api_keys` into `loopzero_api_keys`
 // and the role `theo_cloud` into `loopzero_cloud`) leaves the console querying a relation
@@ -21,7 +21,7 @@ const (
 	ciWorkflowPath    = "../../.github/workflows/ci.yml"
 	driftWorkflowPath = "../../.github/workflows/e2e-drift.yml"
 	e2eImagesEnvPath  = "../../.github/e2e-images.env"
-	engineRepository  = "getloopscale/loopzero"
+	engineRepository  = "getloopscale/loop-runtime"
 	repoRoot          = "../.."
 	// Sibling layout the e2e jobs check out: theo-cloud/theo-cloud (this repo) next to
 	// theo-cloud/theo (the engine). From internal/ci that is three levels up.
