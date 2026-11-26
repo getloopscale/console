@@ -7,7 +7,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Badge, Button, StatusDot, type StatusKind } from '@usetheo/ui';
-import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
+import { type Build, type BuildStatus } from '@/lib/api/types';
+import { buildOutcome, buildOutcomeLabel } from '@/pages/deploy/build-outcome';
 import { useMutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 
 /**
@@ -98,7 +99,7 @@ export function BuildHeader({
   const sha = build.commit_sha.slice(0, 7);
   // Backend returns CAPS statuses; normalize once so every comparison
   // and lookup below works uniformly.
-  const ns = normalizeBuildStatus(build.status);
+  const ns = buildOutcome(build);
   const inFlight = isInFlight(ns);
   // Mutation-in-flight subscription. When the caller passes
   // projectName, we read the shared store and check whether a
@@ -148,7 +149,7 @@ export function BuildHeader({
         <span className="tabular-nums text-muted-foreground">
           {formatDuration(build.duration_seconds)}
         </span>
-        <StatusDot status={STATUS_MAP[ns]} label={STATUS_LABEL[ns]} />
+        <StatusDot status={STATUS_MAP[ns]} label={buildOutcomeLabel(build, STATUS_LABEL)} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

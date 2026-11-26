@@ -250,7 +250,7 @@ export default [
       // `src/lib/loc-budget-ratchet.test.ts` faz o numero ser teto: ele so desce,
       // e tem de bater com o disco exatamente (sem folga onde crescer). Ao
       // decompor, baixe o numero — o progresso passa a ser medido.
-      'src/lib/api/types.ts', // 859 LOC
+      'src/lib/api/types.ts', // 858 LOC
       'src/lib/mocks/handlers.ts', // 618 LOC
       'src/pages/auth/recovery.tsx', // 692 LOC
       'src/pages/deploy/deployments.tsx', // 516 LOC

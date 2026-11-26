@@ -4,7 +4,8 @@ import { Badge, Button, StatusDot, Table, type StatusKind } from '@usetheo/ui';
 import { formatDate, humanizeAuthor } from '@/lib/formatting/format';
 import type { MutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 import { DeploymentRowVisitIcon } from '@/pages/deploy/components/deployment-row-visit-icon';
-import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
+import { type Build, type BuildStatus } from '@/lib/api/types';
+import { buildOutcome, buildOutcomeLabel } from '@/pages/deploy/build-outcome';
 
 const STATUS_MAP: Record<BuildStatus, StatusKind> = {
   succeeded: 'live',
@@ -101,11 +102,11 @@ export function DeploymentRow({
       </Table.Cell>
       <Table.Cell>
         {(() => {
-          const ns = normalizeBuildStatus(b.status);
+          const ns = buildOutcome(b);
           return (
             <StatusDot
               status={STATUS_MAP[ns]}
-              label={STATUS_LABEL[ns]}
+              label={buildOutcomeLabel(b, STATUS_LABEL)}
             />
           );
         })()}
