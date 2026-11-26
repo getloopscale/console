@@ -63,10 +63,10 @@ func TestCollect_hung_target_yields_timeout_without_version(t *testing.T) {
 	c := NewCollector(Options{
 		Client: &http.Client{},
 		Targets: []Target{
-			{Name: "theo-rag", BaseURL: fast.URL},
-			{Name: "theo-lens", BaseURL: hung.URL},
-			{Name: "theo-memory", BaseURL: fast.URL},
-			{Name: "theo-storage", BaseURL: ""},
+			{Name: "looprag", BaseURL: fast.URL},
+			{Name: "looptrace", BaseURL: hung.URL},
+			{Name: "loopmem", BaseURL: fast.URL},
+			{Name: "loopstore", BaseURL: ""},
 		},
 		PerService: 200 * time.Millisecond,
 		Global:     3 * time.Second,
@@ -80,10 +80,10 @@ func TestCollect_hung_target_yields_timeout_without_version(t *testing.T) {
 		t.Fatalf("Collect took %v — one hung target blocked the others (head-of-line blocking)", elapsed)
 	}
 	want := map[string]State{
-		"theo-rag":     StateOK,
-		"theo-lens":    StateTimeout,
-		"theo-memory":  StateOK,
-		"theo-storage": StateNotDeployed,
+		"looprag":   StateOK,
+		"looptrace": StateTimeout,
+		"loopmem":   StateOK,
+		"loopstore": StateNotDeployed,
 	}
 	got := statesByName(rep)
 	for name, w := range want {
@@ -110,8 +110,8 @@ func TestCollect_preserves_results_that_already_arrived(t *testing.T) {
 	c := NewCollector(Options{
 		Client: &http.Client{},
 		Targets: []Target{
-			{Name: "theo-lens", BaseURL: hung.URL},
-			{Name: "theo-rag", BaseURL: quick.URL},
+			{Name: "looptrace", BaseURL: hung.URL},
+			{Name: "looprag", BaseURL: quick.URL},
 		},
 		PerService: 150 * time.Millisecond,
 		Global:     2 * time.Second,
@@ -120,11 +120,11 @@ func TestCollect_preserves_results_that_already_arrived(t *testing.T) {
 	rep := c.Collect(context.Background())
 
 	got := statesByName(rep)
-	if got["theo-rag"] != StateOK {
-		t.Fatalf("theo-rag = %q, want ok — the hung sibling erased a result that had already arrived", got["theo-rag"])
+	if got["looprag"] != StateOK {
+		t.Fatalf("looprag = %q, want ok — the hung sibling erased a result that had already arrived", got["looprag"])
 	}
-	if got["theo-lens"] != StateTimeout {
-		t.Fatalf("theo-lens = %q, want timeout", got["theo-lens"])
+	if got["looptrace"] != StateTimeout {
+		t.Fatalf("looptrace = %q, want timeout", got["looptrace"])
 	}
 }
 
@@ -187,7 +187,7 @@ func TestCollect_report_carries_collected_at_distinct_from_built_at(t *testing.T
 	srv := versionServer(t, `{"version":"0.35.0","built_at":"2026-07-01T00:00:00Z"}`)
 	c := NewCollector(Options{
 		Client:     &http.Client{},
-		Targets:    []Target{{Name: "theo-rag", BaseURL: srv.URL}},
+		Targets:    []Target{{Name: "looprag", BaseURL: srv.URL}},
 		PerService: time.Second,
 		Global:     2 * time.Second,
 	})
@@ -221,8 +221,8 @@ func TestCollect_calls_onResult_once_per_target(t *testing.T) {
 	c := NewCollector(Options{
 		Client: &http.Client{},
 		Targets: []Target{
-			{Name: "theo-rag", BaseURL: srv.URL},
-			{Name: "theo-storage", BaseURL: ""},
+			{Name: "looprag", BaseURL: srv.URL},
+			{Name: "loopstore", BaseURL: ""},
 		},
 		PerService: time.Second,
 		Global:     2 * time.Second,
@@ -242,11 +242,11 @@ func TestCollect_calls_onResult_once_per_target(t *testing.T) {
 	for pair := range seen {
 		results[pair[0]] = pair[1]
 	}
-	if results["theo-rag"] != string(StateOK) {
-		t.Fatalf("theo-rag reported %q, want ok", results["theo-rag"])
+	if results["looprag"] != string(StateOK) {
+		t.Fatalf("looprag reported %q, want ok", results["looprag"])
 	}
-	if results["theo-storage"] != string(StateNotDeployed) {
-		t.Fatalf("theo-storage reported %q, want not_deployed", results["theo-storage"])
+	if results["loopstore"] != string(StateNotDeployed) {
+		t.Fatalf("loopstore reported %q, want not_deployed", results["loopstore"])
 	}
 }
 
@@ -265,8 +265,8 @@ func TestCollect_panicking_probe_does_not_take_down_the_process(t *testing.T) {
 	c := NewCollector(Options{
 		Client: &http.Client{Transport: panickingRoundTripper{}},
 		Targets: []Target{
-			{Name: "theo-rag", BaseURL: "http://example.invalid"},
-			{Name: "theo-lens", BaseURL: "http://example.invalid"},
+			{Name: "looprag", BaseURL: "http://example.invalid"},
+			{Name: "looptrace", BaseURL: "http://example.invalid"},
 		},
 		PerService: time.Second,
 		Global:     2 * time.Second,
@@ -294,8 +294,8 @@ func TestCollect_parent_cancel_returns_early(t *testing.T) {
 	c := NewCollector(Options{
 		Client: &http.Client{},
 		Targets: []Target{
-			{Name: "theo-rag", BaseURL: hung.URL},
-			{Name: "theo-lens", BaseURL: hung.URL},
+			{Name: "looprag", BaseURL: hung.URL},
+			{Name: "looptrace", BaseURL: hung.URL},
 		},
 		PerService: 10 * time.Second,
 		Global:     10 * time.Second,
@@ -351,9 +351,9 @@ func TestCollect_global_budget_releases_the_join(t *testing.T) {
 	c := NewCollector(Options{
 		Client: &http.Client{Transport: stubbornTransport{d: 2 * time.Second}},
 		Targets: []Target{
-			{Name: "theo-rag", BaseURL: "http://stubborn.invalid"},
-			{Name: "theo-lens", BaseURL: "http://stubborn.invalid"},
-			{Name: "theo-memory", BaseURL: "http://stubborn.invalid"},
+			{Name: "looprag", BaseURL: "http://stubborn.invalid"},
+			{Name: "looptrace", BaseURL: "http://stubborn.invalid"},
+			{Name: "loopmem", BaseURL: "http://stubborn.invalid"},
 		},
 		PerService: 5 * time.Second,
 		Global:     300 * time.Millisecond,
@@ -391,10 +391,10 @@ func TestCollect_all_targets_hung_returns_within_the_global_budget(t *testing.T)
 	c := NewCollector(Options{
 		Client: &http.Client{},
 		Targets: []Target{
-			{Name: "theo-rag", BaseURL: hung.URL},
-			{Name: "theo-lens", BaseURL: hung.URL},
-			{Name: "theo-memory", BaseURL: hung.URL},
-			{Name: "theo-storage", BaseURL: hung.URL},
+			{Name: "looprag", BaseURL: hung.URL},
+			{Name: "looptrace", BaseURL: hung.URL},
+			{Name: "loopmem", BaseURL: hung.URL},
+			{Name: "loopstore", BaseURL: hung.URL},
 		},
 		PerService: 3 * time.Second,
 		Global:     400 * time.Millisecond,
@@ -438,11 +438,11 @@ func TestCollect_settled_results_survive_an_expired_budget(t *testing.T) {
 	c := NewCollector(Options{
 		Client: &http.Client{Transport: nil}, // default transport for the fast target
 		Targets: []Target{
-			{Name: "theo-rag", BaseURL: fast.URL},
-			{Name: "theo-storage", BaseURL: ""}, // resolves instantly to not_deployed
+			{Name: "looprag", BaseURL: fast.URL},
+			{Name: "loopstore", BaseURL: ""}, // resolves instantly to not_deployed
 			// Hang past the budget so the join is forced to break on the deadline.
-			{Name: "theo-memory", BaseURL: hung.URL},
-			{Name: "theo-lens", BaseURL: hung.URL},
+			{Name: "loopmem", BaseURL: hung.URL},
+			{Name: "looptrace", BaseURL: hung.URL},
 		},
 		PerService: 5 * time.Second,
 		Global:     400 * time.Millisecond,
@@ -451,10 +451,10 @@ func TestCollect_settled_results_survive_an_expired_budget(t *testing.T) {
 	rep := c.Collect(context.Background())
 
 	got := statesByName(rep)
-	if got["theo-rag"] != StateOK {
-		t.Fatalf("theo-rag = %q, want ok — a probe that settled before the budget expired must keep its result", got["theo-rag"])
+	if got["looprag"] != StateOK {
+		t.Fatalf("looprag = %q, want ok — a probe that settled before the budget expired must keep its result", got["looprag"])
 	}
-	if got["theo-storage"] != StateNotDeployed {
-		t.Fatalf("theo-storage = %q, want not_deployed", got["theo-storage"])
+	if got["loopstore"] != StateNotDeployed {
+		t.Fatalf("loopstore = %q, want not_deployed", got["loopstore"])
 	}
 }

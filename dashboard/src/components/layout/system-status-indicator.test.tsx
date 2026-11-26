@@ -33,8 +33,8 @@ beforeEach(() => {
 describe('SystemStatusIndicator', () => {
   it('never shows a stale version in the footer and reports Degraded', async () => {
     stubVersions([
-      { name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' },
-      { name: 'theo-lens', state: 'unreachable', checked_at: at, reason: 'connection refused' },
+      { name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' },
+      { name: 'looptrace', state: 'unreachable', checked_at: at, reason: 'connection refused' },
     ]);
 
     render(<SystemStatusIndicator />);
@@ -53,8 +53,8 @@ describe('SystemStatusIndicator', () => {
 
   it('shows Operational when every probed service is ok and one is merely not_deployed', async () => {
     stubVersions([
-      { name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' },
-      { name: 'theo-storage', state: 'not_deployed', checked_at: at },
+      { name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' },
+      { name: 'loopstore', state: 'not_deployed', checked_at: at },
     ]);
 
     render(<SystemStatusIndicator />);
@@ -66,8 +66,8 @@ describe('SystemStatusIndicator', () => {
   // health to claim, so the dot must not be green.
   it('never shows Operational when every service is not_deployed', async () => {
     stubVersions([
-      { name: 'theo-rag', state: 'not_deployed', checked_at: at },
-      { name: 'theo-storage', state: 'not_deployed', checked_at: at },
+      { name: 'looprag', state: 'not_deployed', checked_at: at },
+      { name: 'loopstore', state: 'not_deployed', checked_at: at },
     ]);
 
     render(<SystemStatusIndicator />);
@@ -126,7 +126,7 @@ describe('SystemStatusIndicator', () => {
   // non-2xx resolves null, so the query SUCCEEDS and the retry guard in
   // lib/query-client.ts is inert for it. Opting in makes a failure an actual failure.
   it('opts into the throwing contract so a 5xx is an error, not a successful null', async () => {
-    stubVersions([{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' }]);
+    stubVersions([{ name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' }]);
 
     render(<SystemStatusIndicator />);
     await screen.findByText(/operational/i);
@@ -153,7 +153,7 @@ describe('SystemStatusIndicator', () => {
   });
 
   it('exposes a computed aria-label instead of the hardcoded sentence', async () => {
-    stubVersions([{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' }]);
+    stubVersions([{ name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' }]);
 
     render(<SystemStatusIndicator />);
 
@@ -169,7 +169,7 @@ describe('SystemStatusIndicator', () => {
   // DOM while the `link` role is already overridden — and the indicator stops being
   // announced as something a keyboard/AT user can open.
   it('links to /status so clicking opens the page', async () => {
-    stubVersions([{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' }]);
+    stubVersions([{ name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' }]);
     render(<SystemStatusIndicator />);
 
     const link = await screen.findByRole('link', { name: /system status/i });
@@ -177,7 +177,7 @@ describe('SystemStatusIndicator', () => {
   });
 
   it('keeps the live status region inside the link, so it is both a link and a status', async () => {
-    stubVersions([{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' }]);
+    stubVersions([{ name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' }]);
     render(<SystemStatusIndicator />);
 
     const link = await screen.findByRole('link', { name: /system status/i });

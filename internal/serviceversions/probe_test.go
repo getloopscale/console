@@ -35,7 +35,7 @@ func versionServer(t *testing.T, body string) *httptest.Server {
 func TestProbe_happy_path_returns_ok_with_version(t *testing.T) {
 	srv := versionServer(t, `{"version":"0.35.0","built_at":"2026-07-01T00:00:00Z"}`)
 
-	got := probe(context.Background(), srv.Client(), Target{Name: "theo-rag", BaseURL: srv.URL}, time.Second, time.Now)
+	got := probe(context.Background(), srv.Client(), Target{Name: "looprag", BaseURL: srv.URL}, time.Second, time.Now)
 
 	if got.State() != StateOK {
 		t.Fatalf("State() = %q, want ok", got.State())
@@ -57,7 +57,7 @@ func TestProbe_trailing_slash_base_url_still_resolves(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got := probe(context.Background(), srv.Client(), Target{Name: "theo-lens", BaseURL: srv.URL + "/"}, time.Second, time.Now)
+	got := probe(context.Background(), srv.Client(), Target{Name: "looptrace", BaseURL: srv.URL + "/"}, time.Second, time.Now)
 
 	if got.State() != StateOK {
 		t.Fatalf("State() = %q, want ok", got.State())
@@ -74,7 +74,7 @@ func TestProbe_empty_base_url_is_not_deployed_without_any_request(t *testing.T) 
 	}))
 	defer srv.Close()
 
-	got := probe(context.Background(), srv.Client(), Target{Name: "theo-storage", BaseURL: ""}, time.Second, time.Now)
+	got := probe(context.Background(), srv.Client(), Target{Name: "loopstore", BaseURL: ""}, time.Second, time.Now)
 
 	if got.State() != StateNotDeployed {
 		t.Fatalf("State() = %q, want not_deployed", got.State())
@@ -85,7 +85,7 @@ func TestProbe_empty_base_url_is_not_deployed_without_any_request(t *testing.T) 
 }
 
 func TestProbe_refused_connection_is_unreachable(t *testing.T) {
-	got := probe(context.Background(), http.DefaultClient, Target{Name: "theo-rag", BaseURL: "http://127.0.0.1:1"}, time.Second, time.Now)
+	got := probe(context.Background(), http.DefaultClient, Target{Name: "looprag", BaseURL: "http://127.0.0.1:1"}, time.Second, time.Now)
 
 	if got.State() != StateUnreachable {
 		t.Fatalf("State() = %q, want unreachable", got.State())
@@ -100,7 +100,7 @@ func TestProbe_hung_server_is_timeout_within_budget(t *testing.T) {
 	srv := hungServer(t)
 
 	start := time.Now()
-	got := probe(context.Background(), srv.Client(), Target{Name: "theo-rag", BaseURL: srv.URL}, 100*time.Millisecond, time.Now)
+	got := probe(context.Background(), srv.Client(), Target{Name: "looprag", BaseURL: srv.URL}, 100*time.Millisecond, time.Now)
 	elapsed := time.Since(start)
 
 	if got.State() != StateTimeout {
@@ -121,7 +121,7 @@ func TestProbe_non_200_is_unreachable_with_http_reason(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got := probe(context.Background(), srv.Client(), Target{Name: "theo-memory", BaseURL: srv.URL}, time.Second, time.Now)
+	got := probe(context.Background(), srv.Client(), Target{Name: "loopmem", BaseURL: srv.URL}, time.Second, time.Now)
 
 	if got.State() != StateUnreachable {
 		t.Fatalf("State() = %q, want unreachable", got.State())
@@ -135,7 +135,7 @@ func TestProbe_non_200_is_unreachable_with_http_reason(t *testing.T) {
 func TestProbe_malformed_body_is_unreachable(t *testing.T) {
 	srv := versionServer(t, `this is not json`)
 
-	got := probe(context.Background(), srv.Client(), Target{Name: "theo-lens", BaseURL: srv.URL}, time.Second, time.Now)
+	got := probe(context.Background(), srv.Client(), Target{Name: "looptrace", BaseURL: srv.URL}, time.Second, time.Now)
 
 	if got.State() != StateUnreachable {
 		t.Fatalf("State() = %q, want unreachable", got.State())
@@ -159,8 +159,8 @@ func TestProbe_reason_never_leaks_base_url(t *testing.T) {
 		name   string
 		target Target
 	}{
-		{"refused", Target{Name: "theo-rag", BaseURL: host}},
-		{"dns", Target{Name: "theo-rag", BaseURL: "http://no-such-host.invalid"}},
+		{"refused", Target{Name: "looprag", BaseURL: host}},
+		{"dns", Target{Name: "looprag", BaseURL: "http://no-such-host.invalid"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := probe(context.Background(), http.DefaultClient, tc.target, 2*time.Second, time.Now)
@@ -187,7 +187,7 @@ func TestProbe_client_cancellation_is_timeout_not_unreachable(t *testing.T) {
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
 
 	start := time.Now()
-	got := probe(ctx, srv.Client(), Target{Name: "theo-lens", BaseURL: srv.URL}, 5*time.Second, time.Now)
+	got := probe(ctx, srv.Client(), Target{Name: "looptrace", BaseURL: srv.URL}, 5*time.Second, time.Now)
 
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
 		t.Fatalf("took %v after parent cancel — the derived context did not propagate", elapsed)

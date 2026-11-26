@@ -5,6 +5,7 @@
 - `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
 
 ### Changed
+- System status: the nine sibling services are listed under their LoopScale names: `loopmem`, `looprag`, `looptrace`, `loopstore`, `loopskills`, `loopprompt`, `loopguardrails`, `loopzero` and `loopmcp`. `GET /v1/dashboard/status/versions` returned the `theo-` names (#595).
 - Secrets: Add secret asks before it replaces a key that already exists in a chosen environment. It names the key and the environments, and the button reads Replace value. It replaced the value with no warning (#586).
 - Deployments: a build whose image was built and whose deploy failed reads "Deploy failed" in the list, in the header of the build page and in the Overview's recent deployments, and the Failed filter finds it. It read "Succeeded". The engine reports the deploy outcome as `deploy_status` (getloopscale/loopzero#135).
 - SBOM: Download fetches the file through the engine API, with the session, and saves it as `<build>-<app>.cdx.json`. It opened a presigned storage URL, which on staging no browser reaches. The engine now reports `download_path` in place of `download_url` (getloopscale/loopzero#104).
