@@ -290,3 +290,22 @@ describe('BuildTimelineLive', () => {
     expect(screen.queryByLabelText(/clone phase/i)).not.toBeInTheDocument();
   });
 });
+
+describe('BuildTimelineLive and a build that ended', () => {
+  beforeEach(() => {
+    mockedStream.mockReset();
+    mockedStream.mockReturnValue(streamResult());
+  });
+
+  it.each(['succeeded', 'failed', 'cancelled'] as const)('tells the stream a %s build has ended', (status) => {
+    renderTimeline('b-1', 'teste', status);
+
+    expect(mockedStream).toHaveBeenCalledWith('b-1', expect.objectContaining({ ended: true }));
+  });
+
+  it.each(['queued', 'running', 'cancelling', undefined] as const)('keeps the stream of a %s build open', (status) => {
+    renderTimeline('b-1', 'teste', status);
+
+    expect(mockedStream).toHaveBeenCalledWith('b-1', expect.objectContaining({ ended: false }));
+  });
+});

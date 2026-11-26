@@ -67,6 +67,8 @@ export interface UseDeploymentStreamResult {
 
 export interface UseDeploymentStreamOptions {
   initialLastEventID?: string | null;
+  /** The build has ended: read the replay once and do not reopen the stream. */
+  ended?: boolean;
 }
 
 export function useDeploymentStream(
@@ -84,6 +86,7 @@ export function useDeploymentStream(
   const stream = useSSEStream(path, {
     eventTypes: STEP_EVENT_TYPES,
     initialLastEventID: options.initialLastEventID ?? null,
+    sourceEnded: options.ended ?? false,
     maxEvents: 200, // 14 canonical steps * 3 events each + cushion
   });
 

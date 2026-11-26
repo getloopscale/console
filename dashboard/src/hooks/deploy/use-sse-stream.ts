@@ -63,6 +63,13 @@ export interface UseSSEStreamOptions<T = unknown> {
    * that keeps asking reopens the stream for as long as the page is open.
    */
   isFinal?: (event: SSEStreamEvent<T>) => boolean;
+  /**
+   * True when what the stream reports on has ended, a finished build for
+   * example. The server then replays the events and closes the response, and
+   * that close is the end: the stream is not reopened. For a stream with no
+   * event that always comes last, where `isFinal` cannot tell (#563).
+   */
+  sourceEnded?: boolean;
   /** Side-effect callback on each event. Buffer state still updates. */
   onEvent?: (event: SSEStreamEvent<T>) => void;
   /**
@@ -116,6 +123,8 @@ export function useSSEStream<T = unknown>(
   onEventRef.current = onEvent;
   const isFinalRef = useRef(options.isFinal);
   isFinalRef.current = options.isFinal;
+  const sourceEndedRef = useRef(options.sourceEnded ?? false);
+  sourceEndedRef.current = options.sourceEnded ?? false;
   const bufferRef = useRef<SSEStreamEvent<T>[]>([]);
   const droppedRef = useRef(0);
   const lastIDRef = useRef<string | null>(initialLastEventID);
@@ -257,6 +266,15 @@ export function useSSEStream<T = unknown>(
         // trata mesmo assim: um predicado que depende de um invariante de outro módulo é um
         // predicado que quebra quando aquele módulo muda.
         if (!shouldReopen(reason)) return;
+
+        // The source ended and the server finished the replay: nothing more will come.
+        // A network or HTTP error still reopens, because it may have cut the replay short.
+        if (reason.kind === 'server-closed' && sourceEndedRef.current) {
+          cancelled = true;
+          es?.close();
+          setConnected(false);
+          return;
+        }
 
         setError(true);
         setConnected(false);

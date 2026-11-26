@@ -39,6 +39,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The sentence the API sent with a refusal the user can act on (a 4xx), or null.
+ * A 5xx or a network failure says nothing the user can fix, so the caller keeps
+ * its retry message for those.
+ */
+export function refusalReason(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.status < 400 || err.status >= 500) return null;
+  const message = (err.body as { message?: unknown } | null | undefined)?.message;
+  return typeof message === 'string' && message !== '' ? message : null;
+}
+
 /** Opt-in behavior flags for `cloudFetch`/`engineFetch`. */
 export interface CloudFetchConfig {
   /**

@@ -18,7 +18,7 @@ import {
   githubErrorMessage,
   INSTALLATION_NEEDS_AUTHORIZATION,
 } from '@/hooks/projects/github-connect-errors';
-import { ApiError } from '@/lib/http/api';
+import { ApiError, refusalReason } from '@/lib/http/api';
 import { safeNavigator } from '@/lib/navigation';
 import type { InstallationRepository } from '@/lib/api/types';
 
@@ -152,7 +152,7 @@ export function ProjectConnectPage() {
       if (err instanceof ApiError && err.status === 403) {
         setNeedsAuthorization(true);
       } else {
-        setConnectError("Couldn't connect repository. Try again in a moment.");
+        setConnectError(refusalReason(err) ?? "Couldn't connect repository. Try again in a moment.");
       }
     } finally {
       setBusy(false);

@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom';
 import { Card } from '@usetheo/ui';
 import { useDeployment } from '@/hooks/deploy/use-deployment';
 import { BuildTimelineLive } from '@/pages/deploy/components/build-timeline-live';
+import { normalizeBuildStatus } from '@/lib/api/types';
 
 /**
  * TimelineTab — Plan J-17 T5.3.
@@ -24,7 +25,11 @@ export function TimelineTab() {
         <Card.Description>Live pipeline step-by-step progress (SSE).</Card.Description>
       </Card.Header>
       <Card.Body>
-        <BuildTimelineLive buildId={build.build_id} projectName={name} />
+        <BuildTimelineLive
+          buildId={build.build_id}
+          projectName={name}
+          restBuildStatus={normalizeBuildStatus(build.status)}
+        />
       </Card.Body>
     </Card>
   );
