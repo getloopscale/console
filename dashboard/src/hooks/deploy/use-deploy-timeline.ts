@@ -10,6 +10,7 @@ import {
   aplicarEvento,
   estadoInicial,
   faseCorrente,
+  settleWithDeployStatus,
   type TimelineState,
 } from '@/hooks/deploy/deploy-timeline-reducer';
 
@@ -107,6 +108,8 @@ export interface UseDeployTimelineOptions {
   initialLastEventID?: string | null;
   /** Freeze updates without closing the connection. */
   paused?: boolean;
+  /** The build record's `deploy_status`. A final one settles a timeline that stopped short. */
+  deployStatus?: string;
 }
 
 export function useDeployTimeline(
@@ -149,7 +152,7 @@ export function useDeployTimeline(
     // componente.
     const estado = stream.events.reduce(aplicarEvento, acumulado.current);
     acumulado.current = estado;
-    const phases = estado.phases as PhaseState[];
+    const phases = settleWithDeployStatus(estado.phases, options.deployStatus) as PhaseState[];
 
     return {
       phases,
@@ -159,7 +162,7 @@ export function useDeployTimeline(
       connected: stream.connected,
       lastEventID: stream.lastEventID,
     };
-  }, [stream.events, stream.connected, stream.lastEventID]);
+  }, [stream.events, stream.connected, stream.lastEventID, options.deployStatus]);
 }
 
 function deriveOverall(

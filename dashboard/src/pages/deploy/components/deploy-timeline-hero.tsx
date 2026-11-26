@@ -49,6 +49,8 @@ export interface DeployTimelineHeroProps {
   paused?: boolean;
   /** The build record's status: a failed build may have no timeline events at all. */
   buildStatus?: string;
+  /** The build record's `deploy_status`: how the rollout of this build ended, when it has. */
+  deployStatus?: string;
   /**
    * Optional live-release evidence rendered in the hero footer.
    * Sourced from /projects/{name}/status active_release — represents
@@ -70,6 +72,7 @@ export function DeployTimelineHero({
   initialLastEventID,
   paused,
   buildStatus,
+  deployStatus,
   liveRelease,
   className,
 }: DeployTimelineHeroProps) {
@@ -78,7 +81,7 @@ export function DeployTimelineHero({
     aggregatorDegradedReason,
     overall,
     connected,
-  } = useDeployTimelineWithSteps(deployId, { initialLastEventID, paused, buildStatus });
+  } = useDeployTimelineWithSteps(deployId, { initialLastEventID, paused, buildStatus, deployStatus });
 
   const streamState = streamStateOf(overall, connected);
 

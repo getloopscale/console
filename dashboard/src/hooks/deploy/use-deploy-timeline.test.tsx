@@ -175,6 +175,26 @@ describe('useDeployTimeline', () => {
   });
 });
 
+describe('a timeline that stopped short', () => {
+  it('reads live once the build record says the deploy was superseded', async () => {
+    const { result, rerender } = renderHook(
+      ({ deployStatus }: { deployStatus?: string }) => useDeployTimeline('build-1', { deployStatus }),
+      { initialProps: {} as { deployStatus?: string } },
+    );
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    act(() => {
+      MockEventSource.instances[0].emit('deploy_timeline.deploy.completed', { timestamp: 't1' }, '1');
+      MockEventSource.instances[0].emit('deploy_timeline.live.in_progress', { timestamp: 't2' }, '2');
+    });
+    await waitFor(() => expect(result.current.overall).toBe('running'));
+
+    rerender({ deployStatus: 'superseded' });
+
+    expect(result.current.overall).toBe('live');
+    expect(result.current.phases.every((p) => p.status === 'completed')).toBe(true);
+  });
+});
+
 describe('B-174 — a defesa contra chegada fora de ordem passa a existir', () => {
   it('uma fase anterior a uma CONCLUÍDA não fica pendente para sempre', async () => {
     // O laço que dizia fazer isto tinha corpo VAZIO: `foundActive` era escrito e lido só dentro de
