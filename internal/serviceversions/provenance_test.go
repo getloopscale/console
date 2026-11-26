@@ -12,7 +12,7 @@ import (
 //
 //   gateway MCP   {"version":"develop-6d0db8d","built_at":"2026-08-02T12:50:35.598Z"}
 //                 tem PROVENIENCIA, nao tem a forma completa (sem name/git_sha/node)
-//   theo-rag      {"name":"@usetheo/rag-api","version":"dev","git_sha":"unknown",
+//   looprag      {"name":"@usetheo/rag-api","version":"dev","git_sha":"unknown",
 //                  "built_at":"unknown","node":"v22.12.0"}
 //                 tem a FORMA completa, nao tem proveniencia nenhuma
 //
@@ -38,7 +38,7 @@ func TestOK_absent_version_is_malformed_payload(t *testing.T) {
 func TestOK_provenance_sentinels_are_no_provenance(t *testing.T) {
 	for _, sentinel := range []string{"unknown", "dev"} {
 		t.Run(sentinel, func(t *testing.T) {
-			got := OK("theo-rag", sentinel, "unknown", time.Now())
+			got := OK("looprag", sentinel, "unknown", time.Now())
 
 			// `unreachable` seria falso: o servico esta no ar e respondeu bem formado.
 			// Trocar uma mentira por outra mais visivel nao e correcao.
@@ -53,7 +53,7 @@ func TestOK_provenance_sentinels_are_no_provenance(t *testing.T) {
 // name/git_sha/node e ainda assim sabe sua revisao. Campo ausente que o probe nao
 // consome NAO pode derrubar o veredito.
 func TestOK_partial_shape_with_real_provenance_is_ok(t *testing.T) {
-	got := OK("theo-traefik-mcp", "develop-6d0db8d", "2026-08-02T12:50:35.598Z", time.Now())
+	got := OK("loopmcp", "develop-6d0db8d", "2026-08-02T12:50:35.598Z", time.Now())
 
 	if got.State() != StateOK {
 		t.Fatalf("State() = %q, want ok — proveniencia real; forma parcial e irrelevante", got.State())
@@ -89,7 +89,7 @@ func TestNoState_becomes_ok_from_absent_data(t *testing.T) {
 // versao. Um `no_provenance` que vazasse `version` reintroduziria exatamente a mentira
 // que o estado existe para evitar.
 func TestNoProvenance_never_marshals_a_version(t *testing.T) {
-	b, err := json.Marshal(OK("theo-rag", "dev", "unknown", time.Now()))
+	b, err := json.Marshal(OK("looprag", "dev", "unknown", time.Now()))
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

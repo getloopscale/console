@@ -547,9 +547,9 @@ function registerSystemHandlers() {
           version: 'v0.85.0',
           built_at: '2026-08-05T18:00:00Z',
         },
-        { name: 'theo-storage', state: 'not_deployed', checked_at: '2026-08-07T12:00:00Z' },
+        { name: 'loopstore', state: 'not_deployed', checked_at: '2026-08-07T12:00:00Z' },
         {
-          name: 'theo-lens',
+          name: 'looptrace',
           state: 'unreachable',
           checked_at: '2026-08-07T12:00:00Z',
           reason: 'dial tcp: connection refused (mock)',

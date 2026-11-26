@@ -50,7 +50,7 @@ const (
 	// cujo unico conteudo e "nao sei minha versao" afirma uma medicao que nao houve —
 	// e o painel existe para mostrar versao.
 	//
-	// Medido: o theo-rag responde `{"version":"dev","git_sha":"unknown",...}` — forma
+	// Medido: o looprag responde `{"version":"dev","git_sha":"unknown",...}` — forma
 	// completa, proveniencia nenhuma. O gateway MCP responde `{"version":
 	// "develop-6d0db8d",...}` — forma parcial, proveniencia real. Colapsar os dois
 	// casos e o que produzia o rotulo mentiroso; a causa de um esta na camada de
@@ -59,7 +59,7 @@ const (
 )
 
 // unknownSentinel is the literal the targets emit when they do not know their
-// own build metadata (theo-lens, theo-memory). It is normalized away at this
+// own build metadata (looptrace, loopmem). It is normalized away at this
 // boundary so it never enters our contract (ADR D8).
 const unknownSentinel = "unknown"
 
@@ -129,7 +129,7 @@ func Unreachable(name, reason string, at time.Time) ServiceStatus {
 // devSentinel is the OTHER literal the contract declares — the fallback a target
 // emits for `version` when it does not know it (docs/service-version-endpoint.md).
 // `unknownSentinel` covers git_sha/built_at; this one covers version, and missing it
-// is what let theo-rag report `ok` while saying it had no version.
+// is what let looprag report `ok` while saying it had no version.
 const devSentinel = "dev"
 
 // isProvenanceSentinel answers whether the target declared, in the contract's own

@@ -20,7 +20,7 @@ import (
 // mesmo `probe` que o handler usa, nao um caminho paralelo que divergiria — contra
 // alvos passados por env, e imprime o veredito que o painel exibiria.
 //
-//	THEO_LIVE_PROBE_TARGETS='theo-traefik-mcp=http://localhost:18090,theo-rag=http://localhost:18082' \
+//	THEO_LIVE_PROBE_TARGETS='loopmcp=http://localhost:18090,looprag=http://localhost:18082' \
 //	  go test ./internal/serviceversions/ -run TestLiveProbe -v
 //
 // Sem a variavel ele e SKIP, entao CI e maquina de desenvolvimento nao dependem de
@@ -35,7 +35,7 @@ import (
 // Aconteceu na primeira execucao real (2026-08-02): rodado de uma estacao apontando
 // para as portas do host remoto, devolveu `unreachable / connection refused` nos OITO
 // alvos. Parar ali teria reportado a plataforma inteira fora do ar — quando o defeito
-// era o ponto de observacao. E' o MESMO defeito do `theo-api`
+// era o ponto de observacao. E' o MESMO defeito do `loopzero`
 // (usetheodev/theo-workspace#38): alvo correto, ponto de observacao errado.
 //
 // Rode de onde o COLETOR roda — o host que serve o painel — ou por tunel SSH ate' ele.

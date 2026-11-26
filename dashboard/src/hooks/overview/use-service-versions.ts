@@ -57,7 +57,7 @@ export type AggregateState = 'operational' | 'degraded' | 'unknown';
  *    and not from the compiler
  *  - otherwise                                     → `operational`
  *
- * A lone `not_deployed` does NOT drag the dot to amber (ADR D7: `theo-storage` is
+ * A lone `not_deployed` does NOT drag the dot to amber (ADR D7: `loopstore` is
  * permanently absent in dev, and a permanent amber is a new constant lie), but it
  * no longer holds the green up on its own either (ADR D9).
  */

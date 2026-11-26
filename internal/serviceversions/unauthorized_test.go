@@ -37,7 +37,7 @@ func probeStatus(t *testing.T, code int, body string) ServiceStatus {
 	defer srv.Close()
 
 	at := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-	return probe(context.Background(), srv.Client(), Target{Name: "theo-api", BaseURL: srv.URL},
+	return probe(context.Background(), srv.Client(), Target{Name: "loopzero", BaseURL: srv.URL},
 		2*time.Second, func() time.Time { return at })
 }
 

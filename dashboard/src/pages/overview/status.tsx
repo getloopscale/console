@@ -152,7 +152,7 @@ function stateCell(s: ServiceStatus) {
     // O token do contrato continua `not_deployed`, mas o rotulo diz o que foi MEDIDO.
     // O coletor nao observa deploy algum: ele observa que a base URL do alvo esta
     // vazia (internal/serviceversions/probe.go). "not deployed" afirmava mais do que
-    // a medicao sustenta, e o custo foi real — o theo-traefik-mcp apareceu assim
+    // a medicao sustenta, e o custo foi real — o loopmcp apareceu assim
     // enquanto roteava MCP normalmente, e quem leu a tela foi depurar deploy em vez
     // de topologia. Mesmo tratamento que o #345 deu ao `unauthorized` logo abaixo:
     // o estado permanece, a frase para de exagerar.

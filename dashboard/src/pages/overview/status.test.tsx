@@ -42,12 +42,12 @@ describe('StatusPage', () => {
   it('renders the version for a service in ok state', async () => {
     stubVersions({
       collected_at: at,
-      services: [{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' }],
+      services: [{ name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' }],
     });
 
     render(<StatusPage />);
 
-    const row = await screen.findByTestId('service-row-theo-rag');
+    const row = await screen.findByTestId('service-row-looprag');
     expect(row).toHaveTextContent(/0\.35\.0/);
     expect(row).toHaveTextContent(/ok/i);
   });
@@ -56,14 +56,14 @@ describe('StatusPage', () => {
     stubVersions({
       collected_at: at,
       services: [
-        { name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' },
-        { name: 'theo-lens', state: 'unreachable', checked_at: at, reason: 'connection refused' },
+        { name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' },
+        { name: 'looptrace', state: 'unreachable', checked_at: at, reason: 'connection refused' },
       ],
     });
 
     render(<StatusPage />);
 
-    const lensRow = await screen.findByTestId('service-row-theo-lens');
+    const lensRow = await screen.findByTestId('service-row-looptrace');
     expect(lensRow).toHaveTextContent(/unreachable/i);
     expect(lensRow).toHaveTextContent(/connection refused/i);
     expect(lensRow).not.toHaveTextContent(/0\.35\.0/);
@@ -74,14 +74,14 @@ describe('StatusPage', () => {
     stubVersions({
       collected_at: at,
       services: [
-        { name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' },
-        { name: 'theo-lens', state: 'timeout', checked_at: at, reason: 'deadline exceeded' },
+        { name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' },
+        { name: 'looptrace', state: 'timeout', checked_at: at, reason: 'deadline exceeded' },
       ],
     });
 
     render(<StatusPage />);
 
-    const lensRow = await screen.findByTestId('service-row-theo-lens');
+    const lensRow = await screen.findByTestId('service-row-looptrace');
     expect(lensRow).toHaveTextContent(/timeout/i);
     expect(lensRow).not.toHaveTextContent(/\bv\d+\.\d+\.\d+/);
   });
@@ -89,12 +89,12 @@ describe('StatusPage', () => {
   it('renders not_deployed as a known-absent service, not as an error', async () => {
     stubVersions({
       collected_at: at,
-      services: [{ name: 'theo-storage', state: 'not_deployed', checked_at: at }],
+      services: [{ name: 'loopstore', state: 'not_deployed', checked_at: at }],
     });
 
     render(<StatusPage />);
 
-    const row = await screen.findByTestId('service-row-theo-storage');
+    const row = await screen.findByTestId('service-row-loopstore');
     expect(row).toHaveTextContent(/not configured/i);
     expect(row).not.toHaveTextContent(/unreachable|error|failed/i);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -103,13 +103,13 @@ describe('StatusPage', () => {
   it('shows the collection time separately from built_at', async () => {
     stubVersions({
       collected_at: at,
-      services: [{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0', built_at: '2026-07-01T00:00:00Z' }],
+      services: [{ name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0', built_at: '2026-07-01T00:00:00Z' }],
     });
 
     render(<StatusPage />);
 
     expect(await screen.findByTestId('collected-at')).toBeInTheDocument();
-    const row = screen.getByTestId('service-row-theo-rag');
+    const row = screen.getByTestId('service-row-looprag');
     expect(row).toHaveTextContent(/2026-07-01/); // built_at
     expect(screen.getByTestId('collected-at')).toHaveTextContent(/2026-07-28/); // collection — distinct
   });
@@ -147,16 +147,16 @@ describe('StatusPage', () => {
     stubVersions({
       collected_at: at,
       services: [
-        { name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' },
-        { name: 'theo-lens', state: 'quarantined', checked_at: at },
+        { name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' },
+        { name: 'looptrace', state: 'quarantined', checked_at: at },
       ],
     });
 
     render(<StatusPage />);
 
     // the healthy service stays visible — this is what the blank screen destroyed
-    expect(await screen.findByTestId('service-row-theo-rag')).toHaveTextContent(/0\.35\.0/);
-    const alien = screen.getByTestId('service-row-theo-lens');
+    expect(await screen.findByTestId('service-row-looprag')).toHaveTextContent(/0\.35\.0/);
+    const alien = screen.getByTestId('service-row-looptrace');
     expect(alien).toHaveTextContent(/quarantined/i);
     expect(alien).not.toHaveTextContent(/0\.35\.0/);
   });
@@ -164,13 +164,13 @@ describe('StatusPage', () => {
   it('renders a malformed timestamp verbatim instead of crashing the page', async () => {
     stubVersions({
       collected_at: 'not-a-date',
-      services: [{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' }],
+      services: [{ name: 'looprag', state: 'ok', checked_at: at, version: '0.35.0' }],
     });
 
     render(<StatusPage />);
 
     expect(await screen.findByTestId('collected-at')).toHaveTextContent(/not-a-date/);
-    expect(screen.getByTestId('service-row-theo-rag')).toHaveTextContent(/0\.35\.0/);
+    expect(screen.getByTestId('service-row-looprag')).toHaveTextContent(/0\.35\.0/);
   });
 });
 
@@ -203,8 +203,8 @@ describe('layout em colunas', () => {
     stubVersions({
       collected_at: '2026-07-28T10:00:00Z',
       services: [
-        { name: 'theo-rag', state: 'ok', version: '0.35.0', built_at: '2026-07-28T09:00:00Z' },
-        { name: 'theo-storage', state: 'not_deployed' },
+        { name: 'looprag', state: 'ok', version: '0.35.0', built_at: '2026-07-28T09:00:00Z' },
+        { name: 'loopstore', state: 'not_deployed' },
       ],
     });
     render(<StatusPage />);
@@ -217,13 +217,13 @@ describe('layout em colunas', () => {
   it('cada serviço é uma linha, e a versão fica na coluna de versão', async () => {
     stubVersions({
       collected_at: '2026-07-28T10:00:00Z',
-      services: [{ name: 'theo-rag', state: 'ok', version: '0.35.0', built_at: null }],
+      services: [{ name: 'looprag', state: 'ok', version: '0.35.0', built_at: null }],
     });
     render(<StatusPage />);
 
-    const row = await screen.findByTestId('service-row-theo-rag');
+    const row = await screen.findByTestId('service-row-looprag');
     const cells = within(row).getAllByRole('cell').map((c) => c.textContent?.trim());
-    expect(cells[0]).toBe('theo-rag');
+    expect(cells[0]).toBe('looprag');
     expect(cells[2]).toContain('0.35.0');
   });
 
@@ -232,11 +232,11 @@ describe('layout em colunas', () => {
     // tipo, então a célula não pode inventar texto. Vazio é a leitura honesta.
     stubVersions({
       collected_at: '2026-07-28T10:00:00Z',
-      services: [{ name: 'theo-storage', state: 'not_deployed' }],
+      services: [{ name: 'loopstore', state: 'not_deployed' }],
     });
     render(<StatusPage />);
 
-    const row = await screen.findByTestId('service-row-theo-storage');
+    const row = await screen.findByTestId('service-row-loopstore');
     const cells = within(row).getAllByRole('cell').map((c) => c.textContent?.trim());
     expect(cells[2]).toBe('');
     expect(cells[3]).toBe('');
@@ -254,8 +254,8 @@ describe('M22 — theo-cloud on its own panel', () => {
       collected_at: at,
       services: [
         { name: 'theo-cloud', state: 'ok', checked_at: at, version: '0.71.0', built_at: at },
-        { name: 'theo-memory', state: 'ok', checked_at: at, version: '1.2.3' },
-        { name: 'theo-rag', state: 'unreachable', checked_at: at, reason: 'connection_refused' },
+        { name: 'loopmem', state: 'ok', checked_at: at, version: '1.2.3' },
+        { name: 'looprag', state: 'unreachable', checked_at: at, reason: 'connection_refused' },
       ],
     });
 

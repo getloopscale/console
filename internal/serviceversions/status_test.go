@@ -24,7 +24,7 @@ func marshalToMap(t *testing.T, s ServiceStatus) map[string]any {
 }
 
 func TestUnreachable_JSON_omits_version(t *testing.T) {
-	m := marshalToMap(t, Unreachable("theo-rag", "connection refused", at))
+	m := marshalToMap(t, Unreachable("looprag", "connection refused", at))
 
 	if _, present := m["version"]; present {
 		t.Fatalf("unreachable payload leaked a version key: %v", m)
@@ -32,8 +32,8 @@ func TestUnreachable_JSON_omits_version(t *testing.T) {
 	if m["state"] != string(StateUnreachable) {
 		t.Fatalf("state = %v, want unreachable", m["state"])
 	}
-	if m["name"] != "theo-rag" {
-		t.Fatalf("name = %v, want theo-rag", m["name"])
+	if m["name"] != "looprag" {
+		t.Fatalf("name = %v, want looprag", m["name"])
 	}
 	if m["checked_at"] != "2026-07-28T10:00:00Z" {
 		t.Fatalf("checked_at = %v, want RFC3339 collection instant", m["checked_at"])
@@ -44,7 +44,7 @@ func TestUnreachable_JSON_omits_version(t *testing.T) {
 }
 
 func TestTimeout_JSON_omits_version_and_built_at(t *testing.T) {
-	m := marshalToMap(t, Timeout("theo-lens", at))
+	m := marshalToMap(t, Timeout("looptrace", at))
 
 	if _, present := m["version"]; present {
 		t.Fatalf("timeout payload leaked a version key: %v", m)
@@ -61,10 +61,10 @@ func TestTimeout_JSON_omits_version_and_built_at(t *testing.T) {
 }
 
 func TestNotDeployed_JSON_has_only_name_state_checked_at(t *testing.T) {
-	m := marshalToMap(t, NotDeployed("theo-storage", at))
+	m := marshalToMap(t, NotDeployed("loopstore", at))
 
 	want := map[string]any{
-		"name":       "theo-storage",
+		"name":       "loopstore",
 		"state":      string(StateNotDeployed),
 		"checked_at": "2026-07-28T10:00:00Z",
 	}
@@ -74,7 +74,7 @@ func TestNotDeployed_JSON_has_only_name_state_checked_at(t *testing.T) {
 }
 
 func TestOK_JSON_carries_version_and_built_at(t *testing.T) {
-	m := marshalToMap(t, OK("theo-memory", "0.35.0", "2026-07-01T00:00:00Z", at))
+	m := marshalToMap(t, OK("loopmem", "0.35.0", "2026-07-01T00:00:00Z", at))
 
 	if m["state"] != string(StateOK) {
 		t.Fatalf("state = %v, want ok", m["state"])
@@ -91,7 +91,7 @@ func TestOK_JSON_carries_version_and_built_at(t *testing.T) {
 }
 
 func TestOK_with_unknown_built_at_omits_built_at(t *testing.T) {
-	m := marshalToMap(t, OK("theo-lens", "0.12.0", "unknown", at))
+	m := marshalToMap(t, OK("looptrace", "0.12.0", "unknown", at))
 
 	if _, present := m["built_at"]; present {
 		t.Fatalf("the target sentinel leaked into our contract: %v", m)
@@ -102,7 +102,7 @@ func TestOK_with_unknown_built_at_omits_built_at(t *testing.T) {
 }
 
 func TestOK_with_empty_version_degrades_to_unreachable(t *testing.T) {
-	s := OK("theo-lens", "", "2026-07-01T00:00:00Z", at)
+	s := OK("looptrace", "", "2026-07-01T00:00:00Z", at)
 
 	if s.State() != StateUnreachable {
 		t.Fatalf("State() = %q, want unreachable (D8: an ok without a version is meaningless)", s.State())
@@ -121,7 +121,7 @@ func TestOK_with_empty_version_degrades_to_unreachable(t *testing.T) {
 // que o alvo nao pode ser alcancado quando ele respondeu 200 com corpo bem formado.
 // Agora e `no_provenance`. A distincao completa dos tres casos vive em provenance_test.go.
 func TestOK_with_unknown_version_does_not_claim_unreachable(t *testing.T) {
-	s := OK("theo-rag", "unknown", "", at)
+	s := OK("looprag", "unknown", "", at)
 
 	if s.State() != StateNoProvenance {
 		t.Fatalf("State() = %q, want no_provenance (D8: o sentinela nao e versao; mas o alvo RESPONDEU)", s.State())

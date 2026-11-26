@@ -55,7 +55,7 @@ import (
 	"github.com/usetheoai/theo-cloud/internal/workspace_webhook_worker"
 )
 
-// buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler + its broker
+// buildRagForwardAuth constructs the looprag Model-B ForwardAuth handler + its broker
 // (M14/M16). Returns (nil, nil, nil) when RAG_BASE_URL is unset (feature off),
 // (nil, nil, error) when the broker cannot be constructed (caller refuses to start —
 // fail-closed at boot), and (handler, broker, nil) when configured. M16 (D2): the broker
@@ -80,10 +80,10 @@ func buildRagForwardAuth(
 	return routes.NewForwardAuthHandler(resolve, ragBroker, authorize, "rag:read", logger), ragBroker, nil
 }
 
-// buildLensForwardAuth constructs the theo-lens Model-B ForwardAuth handler + its broker
+// buildLensForwardAuth constructs the looptrace Model-B ForwardAuth handler + its broker
 // (M38). Returns (nil, nil) when LENS_BASE_URL is unset (feature off), (nil, error) when
 // the broker cannot be constructed (caller refuses to start — fail-closed at boot), and
-// (handler, nil) when configured. Mirrors buildRagForwardAuth; theo-lens has no MCP/dashboard
+// (handler, nil) when configured. Mirrors buildRagForwardAuth; looptrace has no MCP/dashboard
 // surface in M38 (that is M41+), so only the REST ForwardAuth handler is returned.
 func buildLensForwardAuth(
 	cfg config.Config,
@@ -123,7 +123,7 @@ type lensDashMinter interface {
 // dashboard MANAGEMENT BFF. It reads the tenant from the JWT-derived context ONLY (never a
 // request param) and mints a single observability:read+write+delete per-tenant key per request (ADR-1:
 // one resolver). Least privilege is at DASHBOARD-SESSION granularity, not per-verb-per-request:
-// the minted key carries all three scopes, and theo-lens walls each route by the verb it needs
+// the minted key carries all three scopes, and looptrace walls each route by the verb it needs
 // (a GET route requires observability:read, a POST observability:write, a DELETE observability:delete — proven at the edge).
 // Fail-closed: no authenticated tenant → error, so the data client sends no request.
 // Extracted (not inline) so the scope + fail-closed invariants are unit-tested on the SHIPPED path.
@@ -150,7 +150,7 @@ func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) 
 			return "", fmt.Errorf("rag dashboard: no authenticated tenant in context")
 		}
 		// M21: the dashboard session mints read+write+delete so a human can manage RAG
-		// from the UI (mirrors theo-memory's read+write dashboard broker). theo-rag's
+		// from the UI (mirrors loopmem's read+write dashboard broker). looprag's
 		// per-verb scope still gates every verb; workspace_id == tenant_id is preserved.
 		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"rag:read", "rag:write", "rag:delete"})
 	}
@@ -163,24 +163,24 @@ func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) 
 // existe e não subiu, e essa ausência é justamente a notícia que o painel existe
 // para dar.
 //
-// `theo-storage` carregava `""` LITERAL até 2026-07-29, quando de fato não havia
+// `loopstore` carregava `""` LITERAL até 2026-07-29, quando de fato não havia
 // deploy dele. Passou a haver, e o literal fazia o painel reportar `not deployed`
 // sobre um serviço saudável — a mesma classe de mentira que o painel combate, só
 // que na direção oposta. Ler da config é o que faz a resposta seguir o ambiente em
 // vez de uma constante escrita num dia específico.
 func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 	return []serviceversions.Target{
-		{Name: "theo-memory", BaseURL: cfg.ThemoryBaseURL},
-		{Name: "theo-rag", BaseURL: cfg.RagBaseURL},
-		{Name: "theo-lens", BaseURL: cfg.LensBaseURL},
-		{Name: "theo-storage", BaseURL: cfg.StorageBaseURL},
-		{Name: "theo-skills", BaseURL: cfg.SkillsBaseURL},
-		// theo-promptly e theo-trust JA' viviam na config e ficavam FORA desta
+		{Name: "loopmem", BaseURL: cfg.ThemoryBaseURL},
+		{Name: "looprag", BaseURL: cfg.RagBaseURL},
+		{Name: "looptrace", BaseURL: cfg.LensBaseURL},
+		{Name: "loopstore", BaseURL: cfg.StorageBaseURL},
+		{Name: "loopskills", BaseURL: cfg.SkillsBaseURL},
+		// loopprompt e loopguardrails JA' viviam na config e ficavam FORA desta
 		// lista. Era a mesma omissao que o paragrafo acima condena: um servico
 		// ausente do painel nao parece ausente — parece inexistente, e quem conta
 		// as linhas conclui que a frota esta' completa.
-		{Name: "theo-promptly", BaseURL: cfg.PromptlyBaseURL},
-		{Name: "theo-trust", BaseURL: cfg.TrustBaseURL},
+		{Name: "loopprompt", BaseURL: cfg.PromptlyBaseURL},
+		{Name: "loopguardrails", BaseURL: cfg.TrustBaseURL},
 		// O engine. So' pode ser sondado desde que passou a falar o contrato da
 		// frota (`GET /v1/version` -> {version, built_at}): antes servia
 		// `/api/v1/version` com `build_date`, divergindo em path E em campo, e o
@@ -189,14 +189,14 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 		// Reusa EngineAPIURL, a MESMA URL pela qual este gateway ja' faz proxy do
 		// engine. Uma variavel propria poderia divergir dela e o painel passaria a
 		// reportar sobre um endereco que ninguem mais usa.
-		{Name: "theo-api", BaseURL: cfg.EngineAPIURL},
+		{Name: "loopzero", BaseURL: cfg.EngineAPIURL},
 		// O gateway MCP. A URL aponta para a RAIZ do processo, nao para a borda
 		// `/mcp` do Traefik: aquele roteador NAO remove o prefixo (deliberado — o
 		// gateway precisa do path completo para rotear MCP), entao uma sonda via
 		// `/mcp` chegaria como `/mcp/v1/version`, cairia no catch-all do proxy e
 		// devolveria 404 sobre um servico saudavel. Medido: 404 pela borda, 200
 		// pela raiz.
-		{Name: "theo-traefik-mcp", BaseURL: cfg.TraefikMcpBaseURL},
+		{Name: "loopmcp", BaseURL: cfg.TraefikMcpBaseURL},
 	}
 }
 
@@ -210,7 +210,7 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 // loopback, RFC1918 and the 100.64.0.0/10 CGNAT range, which is exactly where
 // these targets live, so every probe would fail and the UI would read the security
 // guard as "the service is down". otelhttp keeps the most diagnostic call in the
-// system visible in theo-lens.
+// system visible in looptrace.
 // fleetRefreshInterval — de quanto em quanto tempo a frota e' re-sondada SEM humano
 // (theo-workspace#37).
 //
@@ -317,11 +317,11 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)
 		r.Post("/documents", h.IngestDocument)
-		// M11 — file upload (PDF/office/CSV/image), streamed to theo-rag's async ingest.
+		// M11 — file upload (PDF/office/CSV/image), streamed to looprag's async ingest.
 		r.Post("/documents/file", h.UploadDocumentFile)
 		r.Delete("/documents/{id}", h.DeleteDocument)
 		r.Post("/answers", h.Ask)
-		// chunk-editor — edit a chunk's text (rag:write); theo-rag re-embeds it server-side.
+		// chunk-editor — edit a chunk's text (rag:write); looprag re-embeds it server-side.
 		r.Patch("/chunks/{id}", h.UpdateChunk)
 		// Open Wiki — create a markdown wiki page (rag:write).
 		r.Post("/wiki/pages", h.CreateWikiPage)
@@ -427,7 +427,7 @@ func main() {
 	//     cookie-based exchange)
 	//   - "theo-engine" — bootstrap + CLI JWTs (RSA-signed by Hydra; minted
 	//     by seed-local-user.sh + theo CLI) which transit /engine/* paths
-	//     into theo-api (which itself validates "theo-engine")
+	//     into loopzero (which itself validates "theo-engine")
 	//
 	// Single-audience validation (aud="theo-cloud" only) caused 11/12
 	// dogfood --live-only wrappers to fail because the bootstrap JWT
@@ -558,7 +558,7 @@ func main() {
 	var memoryHandler *routes.MemoryHandler
 	var memoryWebhooksHandler *routes.MemoryWebhooksHandler
 	var memoryExportsHandler *routes.MemoryExportsHandler
-	// M11 (theo-promptly Model B L2): a 2nd ForwardAuth handler for the
+	// M11 (loopprompt Model B L2): a 2nd ForwardAuth handler for the
 	// /v1/promptly capability. Reuses the generic handler (ADR D5) wired with the
 	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
 	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
@@ -566,7 +566,7 @@ func main() {
 	// M25 — o BFF do catálogo de prompts do dashboard. Nil quando PROMPTLY_BASE_URL está ausente:
 	// sem broker não há cunhagem por inquilino, e sem ela a rota não deve existir.
 	var promptlyDashboardHandler *routes.PromptlyDashboardHandler
-	// theo-promptly#50: o broker sai do escopo do bloco `if` abaixo para poder servir
+	// loopprompt#50: o broker sai do escopo do bloco `if` abaixo para poder servir
 	// TAMBEM o binding MCP montado adiante — exatamente como `ragBroker` ja faz. Um
 	// unico broker para as duas superficies significa UM cache de mint, logo chaves
 	// per-tenant consistentes entre o ForwardAuth do REST e o resolve do gateway; dois
@@ -622,10 +622,10 @@ func main() {
 		promptlyWriteClient := promptly.NewWriteClient(cfg.PromptlyBaseURL, promptlyHTTP).
 			WithKeyResolver(newPromptlyPromotionKeyResolver(promptlyBroker, tenantProvisioner))
 		promptlyDashboardHandler = routes.NewPromptlyDashboardHandler(promptlyDataClient, promptlyWriteClient, logger)
-		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
+		logger.Info("loopprompt Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
 	}
 
-	// M10 (theo-trust Model B L2): a ForwardAuth handler for the /v1/trust
+	// M10 (loopguardrails Model B L2): a ForwardAuth handler for the /v1/trust
 	// capability. Reuses the generic handler wired with the trust broker +
 	// "trust:read"; only registered when TRUST_BASE_URL is set. The broker mints a
 	// per-tenant trust_live_* key (least-privilege intersection of the consumer's
@@ -668,7 +668,7 @@ func main() {
 			"trust:read",
 			logger,
 		)
-		logger.Info("theo-trust Model B broker wired (L2)", "base_url", cfg.TrustBaseURL)
+		logger.Info("loopguardrails Model B broker wired (L2)", "base_url", cfg.TrustBaseURL)
 
 		// M23 — o BFF de LEITURA do dashboard reusa o MESMO broker, mas com um resolver proprio
 		// que cunha somente `trust:read`. O ForwardAuth acima carrega os tres escopos porque
@@ -688,13 +688,13 @@ func main() {
 		logger.Info("dashboard trust guardrails enabled (per-tenant write broker)", "mount", "/v1/dashboard/trust/guardrails")
 	}
 
-	// M22 (theo-skills Model B): a ForwardAuth handler for the /v1/skills
+	// M22 (loopskills Model B): a ForwardAuth handler for the /v1/skills
 	// capability. Reuses the generic handler wired with the skills broker +
 	// "skills:read"; only registered when SKILLS_BASE_URL is set. The broker mints a
 	// per-tenant theoskill_live_* key (least-privilege intersection of the consumer's
 	// skills:* scopes with the data scopes) and fails CLOSED — no master fallback.
 	//
-	// The mint targets theo-skills' PLATFORM route, not its admin one: the admin
+	// The mint targets loopskills' PLATFORM route, not its admin one: the admin
 	// route derives the workspace from the caller's principal and requires the
 	// target to be a member of it, so a broker cannot use it to reach an arbitrary
 	// tenant.
@@ -744,7 +744,7 @@ func main() {
 			"skills:read",
 			logger,
 		)
-		logger.Info("theo-skills Model B broker wired", "base_url", cfg.SkillsBaseURL)
+		logger.Info("loopskills Model B broker wired", "base_url", cfg.SkillsBaseURL)
 
 		// M26 — o caminho de LEITURA do dashboard. Cliente próprio, com um resolver que cunha
 		// somente `skills:read`: a separação entre este cliente e o do ForwardAuth É o mecanismo
@@ -784,7 +784,7 @@ func main() {
 		logger.Info("dashboard skills authoring enabled (per-tenant write broker)", "mount", "DELETE /v1/dashboard/skills/{id}")
 	}
 
-	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
+	// M14 (edge-integration): a 3rd ForwardAuth handler for the looprag
 	// capability. Built via buildRagForwardAuth (testable) — nil when RAG_BASE_URL
 	// is unset (feature off), error → refuse to start (boot-failure).
 	ragForwardAuthHandler, ragBroker, ragErr := buildRagForwardAuth(
@@ -803,10 +803,10 @@ func main() {
 		os.Exit(1)
 	}
 	if ragForwardAuthHandler != nil {
-		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
+		logger.Info("looprag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
 	}
 
-	// M38 (edge-integration): a 4th ForwardAuth handler for the theo-lens
+	// M38 (edge-integration): a 4th ForwardAuth handler for the looptrace
 	// capability. Built via buildLensForwardAuth (testable) — nil when LENS_BASE_URL
 	// is unset (feature off), error → refuse to start (boot-failure).
 	lensForwardAuthHandler, lensBroker, lensErr := buildLensForwardAuth(
@@ -825,7 +825,7 @@ func main() {
 		os.Exit(1)
 	}
 	if lensForwardAuthHandler != nil {
-		logger.Info("theo-lens Model B broker wired (M38)", "base_url", cfg.LensBaseURL)
+		logger.Info("looptrace Model B broker wired (M38)", "base_url", cfg.LensBaseURL)
 	}
 
 	// M41: the read-only /v1/dashboard/lens BFF. Wired only when the lens broker is
@@ -835,7 +835,7 @@ func main() {
 	var lensDashboardHandler *routes.LensDashboardHandler
 	if lensBroker != nil {
 		// 35s (not the usual 10s): this client also proxies the LLM-backed M33 Ask + M55
-		// replay paths, whose downstream chat client caps at 30s (theo-lens CHAT_TIMEOUT_MS).
+		// replay paths, whose downstream chat client caps at 30s (looptrace CHAT_TIMEOUT_MS).
 		// A 10s ceiling raced the LLM call → 502 "context deadline exceeded" on legitimate
 		// asks. Mirrors the themory LLM path (30s). Fast paths (traces list/cost) are
 		// unaffected — the timeout is only a ceiling.
@@ -843,7 +843,7 @@ func main() {
 			WithKeyResolver(newLensDashboardKeyResolver(lensBroker))
 		lensDashboardHandler = routes.NewLensDashboardHandler(lensDataClient, logger)
 		logger.Info("dashboard lens enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/lens")
-		// M15 (theo-promptly) — o uso por revisão de um prompt é telemetria, então mora no lens e
+		// M15 (loopprompt) — o uso por revisão de um prompt é telemetria, então mora no lens e
 		// é lido pelo cliente DELE, com a credencial dele. A ligação acontece aqui e não na
 		// composição do promptly (~200 linhas acima) porque o cliente do lens só existe agora.
 		// Sem esta linha a rota /usage sobe recusando para sempre — e todo teste continua verde,
@@ -966,7 +966,7 @@ func main() {
 		// handler itself is built AFTER this block (M16 D2) so it exists whenever ANY
 		// capability (memory OR rag) is configured. theo-workspace#10 — data scope → MCP
 		// tool names (the gateway allowlist matches scope==tool exactly). Mirrors
-		// theo-memory's REST per-verb scope map (#77): read=recall, write=remember,
+		// loopmem's REST per-verb scope map (#77): read=recall, write=remember,
 		// delete=forget. The downstream minted key keeps the raw data scopes.
 		mcpCaps["memory"] = routes.MCPCapabilityBinding{Minter: themoryBroker, RequiredScope: "memory:read", ScopeTools: map[string][]string{
 			"memory:read":   {"recall", "episodes", "search_memory", "list_memories"},
@@ -1036,7 +1036,7 @@ func main() {
 		logger.Warn("THEMORY_BASE_URL not set — /v1/memory/* endpoints disabled")
 	}
 
-	// M16 (D2/D4): register the theo-rag MCP capability when the rag broker is configured
+	// M16 (D2/D4): register the looprag MCP capability when the rag broker is configured
 	// (RAG_BASE_URL set) — independent of memory. ScopeTools maps rag data scopes → the
 	// @usetheo/rag-mcp tool names, so a rag:read key exposes NO write tool; the delete
 	// bucket is empty today (rag-mcp has no delete tool). The SAME broker serves the REST
@@ -1045,11 +1045,11 @@ func main() {
 		mcpCaps["rag"] = routes.MCPCapabilityBinding{Minter: ragBroker, RequiredScope: "rag:read", ScopeTools: routes.RagScopeTools}
 	}
 
-	// theo-promptly#50 — registra a capability `promptly` no resolve MCP, independente de
+	// loopprompt#50 — registra a capability `promptly` no resolve MCP, independente de
 	// memory e rag. O MESMO broker serve o ForwardAuth do REST e este binding (um cache de
 	// mint, chaves per-tenant consistentes).
 	//
-	// `ScopeTools` espelha o registro POR ESCOPO do proprio servidor MCP (theo-promptly#52):
+	// `ScopeTools` espelha o registro POR ESCOPO do proprio servidor MCP (loopprompt#52):
 	// `create_dataset` e a UNICA tool de escrita, e uma chave `promptly:read` nao a alcanca
 	// por nenhum dos dois caminhos — o gateway filtra `tools/list` pelo balde, e o promptly
 	// nem registra a tool. Se os dois discordassem, a mais frouxa viraria o limite real e
@@ -1159,7 +1159,7 @@ func main() {
 	// /ready — READINESS. Mesma sonda, pergunta diferente: "consigo servir AGORA?". Reprova com
 	// a dependencia fora, para que o trafego seja retirado desta instancia. O /health acima
 	// NUNCA reprova por dependencia: liveness reprovada MATA o processo, e reiniciar nao
-	// conserta um banco fora (LT-038 do theo-trust, LT-040/LT-041 do promptly).
+	// conserta um banco fora (LT-038 do loopguardrails, LT-040/LT-041 do promptly).
 	readinessHandler := routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
 		return map[string][]string{
 			"skills": config.MissingSettings(
@@ -1218,31 +1218,31 @@ func main() {
 		r.Get(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
 	}
-	// M11: the theo-promptly ForwardAuth endpoint the edge's forward-auth-promptly
+	// M11: the loopprompt ForwardAuth endpoint the edge's forward-auth-promptly
 	// middleware calls. Same generic handler, distinct path + promptly broker.
 	if promptlyForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 	}
-	// M38: the theo-lens ForwardAuth endpoint the edge's forward-auth-lens middleware
+	// M38: the looptrace ForwardAuth endpoint the edge's forward-auth-lens middleware
 	// calls. Same generic handler, distinct path + lens broker.
 	if lensForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
 	}
-	// M10: the theo-trust ForwardAuth endpoint the edge's forward-auth-trust
+	// M10: the loopguardrails ForwardAuth endpoint the edge's forward-auth-trust
 	// middleware calls. Same generic handler, distinct path + trust broker.
 	if trustForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
 	}
-	// M22: the theo-skills ForwardAuth endpoint the edge's forward-auth-skills
+	// M22: the loopskills ForwardAuth endpoint the edge's forward-auth-skills
 	// middleware calls. Same generic handler, distinct path + skills broker.
 	if skillsForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardSkillsPath, skillsForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardSkillsPath, skillsForwardAuthHandler.ServeHTTP)
 	}
-	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
+	// M14: the looprag ForwardAuth endpoint the edge's forward-auth-rag middleware
 	// calls. Same generic handler, distinct path + rag broker.
 	if ragForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardRagPath, ragForwardAuthHandler.ServeHTTP)
@@ -1370,7 +1370,7 @@ func main() {
 			// skills-write-surface T3.2 — author (write) + curate (delete) skills.
 			r.With(auth.RequireScope(db, "memory:write")).Post("/skills", memoryHandler.AddSkill)
 			r.With(auth.RequireScope(db, "memory:delete")).Delete("/skills/{skillID}", memoryHandler.ForgetSkill)
-			// theo-memory-dashboard-full-integration T1.2 — the 3 core verbs on
+			// loopmem-dashboard-full-integration T1.2 — the 3 core verbs on
 			// the SDK surface (remember/reflect = write; recall = read).
 			r.With(auth.RequireScope(db, "memory:write")).Post("/remember", memoryHandler.Remember)
 			r.With(auth.RequireScope(db, "memory:read")).Post("/recall", memoryHandler.Recall)
@@ -1410,7 +1410,7 @@ func main() {
 	// no broker/ForwardAuth. The share-redemption route is UNauthenticated (the
 	// token is the capability) and therefore IP-rate-limited.
 	if cfg.StorageEnabled() {
-		// DIP swap: proxy mode forwards to the standalone theo-storage service;
+		// DIP swap: proxy mode forwards to the standalone loopstore service;
 		// in-process mode runs the S3-backed vertical here. Both satisfy the same
 		// routes.StorageService interface, so the routes below are identical.
 		var storageSvc routes.StorageService
@@ -1518,7 +1518,7 @@ func main() {
 		r.Get("/v1/rag-connect/{provider}/callback", ragConnectorsOAuth.Callback)
 	}
 	// M44: the read+write+delete /v1/dashboard/lens management BFF — the per-tenant key is
-	// minted observability:read+write+delete (ADR-1; per-verb least privilege at theo-lens). The route
+	// minted observability:read+write+delete (ADR-1; per-verb least privilege at looptrace). The route
 	// set (ADR-3) has no mutating verb on the trace/session body or /agents. Distinct mount
 	// from /v1/lens/* (the edge surface).
 	if lensDashboardHandler != nil {
@@ -1698,13 +1698,13 @@ func main() {
 	// HMAC signature (X-Hub-Signature-256 header) — NOT Bearer JWT. The
 	// requireJWT middleware was wrongly blocking webhook deliveries on
 	// the /engine path. Webhook subtree is exempted from JWT and proxied
-	// raw to theo-api where the canonical signature verification runs
+	// raw to loopzero where the canonical signature verification runs
 	// (api/cmd/setup_github.go reads GITHUB_WEBHOOK_SECRET). All other
 	// /engine/* paths still require JWT auth.
 	r.HandleFunc("/engine/api/v1/webhooks/*", func(w http.ResponseWriter, r *http.Request) {
 		targetPath := strings.TrimPrefix(r.URL.Path, "/engine")
 		// #nosec G404 — webhook endpoint authenticates via HMAC signature
-		// downstream (theo-api setup_github.go ConstantTimeCompare); cloud
+		// downstream (loopzero setup_github.go ConstantTimeCompare); cloud
 		// is a pass-through proxy here.
 		proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, engineURL+targetPath, r.Body)
 		if err != nil {
@@ -1715,7 +1715,7 @@ func main() {
 		}
 		proxyReq.URL.RawQuery = r.URL.RawQuery
 		// Preserve canonical webhook headers (signature + delivery + event)
-		// so theo-api can verify HMAC.
+		// so loopzero can verify HMAC.
 		for _, h := range []string{
 			"Content-Type",
 			"X-Hub-Signature-256",
@@ -1777,7 +1777,7 @@ func main() {
 			if rid := r.Header.Get("X-Request-Id"); rid != "" {
 				proxyReq.Header.Set("X-Request-Id", rid)
 			}
-			// CANONICAL FIX 2026-06-15: forward Idempotency-Key header. theo-api
+			// CANONICAL FIX 2026-06-15: forward Idempotency-Key header. loopzero
 			// requires Idempotency-Key on mutating routes (POST/PATCH/DELETE per
 			// router.go idempotentMiddlewares — D/Domains/Secrets/Bulk/etc).
 			// Prior proxy implementation only forwarded Content-Type + correlation
@@ -1956,11 +1956,11 @@ func main() {
 			}
 			return w, nil
 		}
-		// M21 (theo-promptly): prompt-scoped rules read the per-PROMPT usage aggregate. Same
+		// M21 (loopprompt): prompt-scoped rules read the per-PROMPT usage aggregate. Same
 		// Model-B credential shape as the two above — a key minted for THIS tenant, scoped to
 		// observability:read, never a JWT and never a platform key.
 		//
-		// A window in SECONDS reaches theo-lens as whole DAYS, and the rounding is UP on purpose:
+		// A window in SECONDS reaches looptrace as whole DAYS, and the rounding is UP on purpose:
 		// truncating a 3600s window to 0 days would ask for an empty window, and every rule would
 		// then be evaluated against nothing — silently, since an empty aggregate is a legitimate
 		// measurement on this path.
@@ -2068,11 +2068,11 @@ func main() {
 // monitorOwnershipVerifier answers "does this guard exist AND belong to this tenant?" on the alert-rule
 // create path. It mints a per-tenant observability:read key, so a guard belonging to another tenant
 // is simply not visible — the check is tenant-scoped by construction rather than by a WHERE clause
-// we could forget. There is no FK on monitor_id (guards live in theo-lens), so this is the only
+// we could forget. There is no FK on monitor_id (guards live in looptrace), so this is the only
 // create-time guarantee that exists.
 //
 // A 404 is DEFINITIVE and rejects the create; anything else is transport and is reported as such, so
-// the caller can accept the rule rather than import theo-lens's availability into our write path.
+// the caller can accept the rule rather than import looptrace's availability into our write path.
 func monitorOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter) routes.MonitorOwnershipVerifier {
 	if broker == nil || lensBaseURL == "" {
 		return nil
