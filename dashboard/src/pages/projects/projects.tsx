@@ -435,10 +435,10 @@ export function ProjectsPage() {
                   className="hidden md:table-cell"
                 >
                   {/* T4.2 finding 2.2: tooltip on Apps column. The
-                      number is total deployable apps from theo.yaml;
+                      number is total deployable apps from loopscale.yaml;
                       operators sometimes wonder if it counts running
                       pods (it doesn't) or env-scoped apps (also no). */}
-                  <span title="Total deployable apps declared in theo.yaml (not per-env runtime instances).">
+                  <span title="Total deployable apps declared in loopscale.yaml (not per-env runtime instances).">
                     Apps
                   </span>
                 </Table.HeaderCell>

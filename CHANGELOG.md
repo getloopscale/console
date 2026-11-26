@@ -11,8 +11,13 @@
 - The dashboard shows the LoopScale name, logo and favicons in page titles, the sign-in and sign-up pages, the sidebar and the help text. Support links point to `support@getloopscale.com` and documentation links to `https://docs.getloopscale.com` (#521).
 - Every CLI command the dashboard suggests uses the `loopscale` binary: sign-in, device-flow errors, onboarding, empty states, domains and settings. They said `theo`, which fails as typed. The onboarding step reads "Install the LoopScale CLI".
 
+### Removed
+- Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
+
 ### Fixed
 
+- Domains: Add Domain opens the form when the list is empty. The form was mounted inside the part of the page the empty state replaces, so the first domain could not be added from the screen (#581).
+- Deployments: a build that fails because its deploy descriptor is invalid is labelled "Deploy descriptor invalid". The dashboard expected the class `THEO_YAML_INVALID`, which the engine never sends, and showed "Build failed" (getloopscale/loopzero#89).
 - The Promote release dialog opens with the environment of the row that was clicked as its source, and no longer offers a target that was deleted. It kept the source and target of an earlier opening (#579).
 - The page of a finished build reads the build's step stream once. Its header kept reopening the stream, with backoff, for as long as the page stayed open (#563).
 - While the Scale screen loads, the cost preview reads "Not reported" for the change and the estimate. It showed the form's defaults, "2 replicas" and a price, before the saved scale arrived (#569).
