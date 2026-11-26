@@ -50,7 +50,7 @@ services:
     # current_database(), so the name itself is not asserted.
     environment:
       POSTGRES_USER: loop_runtime
-      POSTGRES_PASSWORD: loop-runtime
+      POSTGRES_PASSWORD: loop_runtime
       POSTGRES_DB: loop_runtime
     volumes:
       # initdb (superuser): extensions the migrations assume + the separate
@@ -143,17 +143,17 @@ services:
     environment:
       # Requests run as the contained application role: the server refuses a superuser,
       # because RLS (migration 0029) would not apply to it. The owner only migrates, at boot.
-      LOOPSCALEMEM_PG_URI: postgres://loopmem_app:loopmem_app@pg-loopmem:5432/themem
-      LOOPSCALEMEM_MIGRATE_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
+      THEOMEM_PG_URI: postgres://loopmem_app:loopmem_app@pg-loopmem:5432/themem
+      THEOMEM_MIGRATE_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
       PORT: "8080"
       HOST: "0.0.0.0"
       # Master bearer the gateway uses. NEVER reaches the customer.
       THEMEMORY_API_KEY: ${LOOPMEM_MASTER_KEY:-e2e-master-key}
       # M6: bootstrap token run.sh uses to mint the Model-B platform-admin key
       # (the credential broker needs it to mint per-tenant data keys).
-      LOOPMEM_ADMIN_BOOTSTRAP_TOKEN: ${LOOPMEM_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
+      THEMORY_ADMIN_BOOTSTRAP_TOKEN: ${LOOPMEM_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
       # OpenAI embedder (1536) routed at the hermetic mock — no xenova download.
-      LOOPSCALEMEM_EMBEDDER: openai
+      THEOMEM_EMBEDDER: openai
       OPENAI_API_KEY: dummy-key-for-mock
       OPENAI_BASE_URL: http://mock-openai:11434/v1
     ports:

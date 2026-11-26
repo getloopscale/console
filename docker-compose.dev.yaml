@@ -111,9 +111,9 @@ services:
     entrypoint: ["/nodejs/bin/node", "/app/dist/agent-tools/cli.js"]
     command: ["migrate"]
     environment:
-      LOOPSCALEMEM_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
+      THEOMEM_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
       # MUST match the runtime embedder so the vector column dim aligns.
-      LOOPSCALEMEM_EMBEDDER: openai
+      THEOMEM_EMBEDDER: openai
       OPENAI_API_KEY: ${OPENAI_API_KEY:-dummy-key-for-mock}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://mock-openai:11434/v1}
     restart: on-failure:3
@@ -144,14 +144,14 @@ services:
     # here would be a no-op (the MCP path ignores it) — true parity is a
     # loopmem follow-up: add THEMEMORY_SKIP_MIGRATIONS to run-mcp-server.
     environment:
-      LOOPSCALEMEM_PG_URI: postgres://themem:themem@localhost:${DEV_PG_LOOPMEM_PORT:-15432}/themem
+      THEOMEM_PG_URI: postgres://themem:themem@localhost:${DEV_PG_LOOPMEM_PORT:-15432}/themem
       THEMEMORY_API_KEY: ${LOOPMEM_MASTER_KEY:-dev-master-key}
-      LOOPSCALEMEM_EMBEDDER: openai
+      THEOMEM_EMBEDDER: openai
       OPENAI_API_KEY: ${OPENAI_API_KEY:-dummy-key-for-mock}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://localhost:11434/v1}
-      LOOPSCALEMEM_MCP_COMPAT: openmemory
-      LOOPSCALEMEM_MCP_HTTP_PORT: "8765"
-      # default LOOPSCALEMEM_MCP_HTTP_HOST = 127.0.0.1 satisfies the ADR-0015 guard.
+      THEOMEM_MCP_COMPAT: openmemory
+      THEOMEM_MCP_HTTP_PORT: "8765"
+      # default THEOMEM_MCP_HTTP_HOST = 127.0.0.1 satisfies the ADR-0015 guard.
 
   # --- Ory Kratos (identity / login) ---------------------------------------
   kratos-migrate:
@@ -192,7 +192,7 @@ services:
       mock-openai:
         condition: service_healthy
     environment:
-      LOOPSCALEMEM_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
+      THEOMEM_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
       PORT: "8080"
       HOST: "0.0.0.0"
       THEMEMORY_API_KEY: ${LOOPMEM_MASTER_KEY:-dev-master-key}
@@ -207,11 +207,11 @@ services:
       # below MUST match it exactly or the flip is silently ignored.
       THEMEMORY_REQUIRE_CREDENTIAL: "${THEMEMORY_REQUIRE_CREDENTIAL:-false}"
       # Bootstrap token to mint the first platform-admin key (Model B provisioning).
-      LOOPMEM_ADMIN_BOOTSTRAP_TOKEN: ${LOOPMEM_ADMIN_BOOTSTRAP_TOKEN:-dev-bootstrap-token-change-me-min-32-chars}
+      THEMORY_ADMIN_BOOTSTRAP_TOKEN: ${LOOPMEM_ADMIN_BOOTSTRAP_TOKEN:-dev-bootstrap-token-change-me-min-32-chars}
       # Migrations are applied by the one-shot loopmem-migrate init (LT-1); the
       # long-running server skips its own migrate-on-boot (no concurrent DDL).
       THEMEMORY_SKIP_MIGRATIONS: "true"
-      LOOPSCALEMEM_EMBEDDER: openai
+      THEOMEM_EMBEDDER: openai
       # Default: hermetic mock (deterministic, no cost). Override OPENAI_API_KEY +
       # OPENAI_BASE_URL for a real provider (OpenAI / OpenRouter) → real recall.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-dummy-key-for-mock}
