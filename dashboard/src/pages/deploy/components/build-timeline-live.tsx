@@ -4,6 +4,7 @@ import type { BuildStep, PhaseGroup } from '@/hooks/deploy/sse-events';
 import type { BuildStatus } from '@/lib/api/types';
 import { BuildStepTimer } from './build-step-timer';
 import { BuildErrorPill } from './build-error-pill';
+import { SkippedStepNotice } from './skipped-step-notice';
 
 /**
  * BuildTimelineLive — Plan J-17 T3.1.
@@ -48,7 +49,7 @@ function displayLabel(stepName: string): string {
 
 // M7 T2.2: mapeia o vocabulário SSE para o StepStatus da lib; a causa da falha
 // vai na description (convenção da lib — lida pelo SR no mesmo item).
-function toStepperStep(step: BuildStep): StepperStepData {
+function toStepperStep(step: BuildStep, deployed: boolean): StepperStepData {
   // review M7 F-dom-3: SSE é fronteira de wire — vocabulário desconhecido degrada
   // para pending (disciplina da lib), nunca para failed silencioso.
   const status =
@@ -64,9 +65,11 @@ function toStepperStep(step: BuildStep): StepperStepData {
     label: displayLabel(step.step_name),
     status,
     description:
-      step.status === 'failed'
-        ? `failed: ${step.error_class ?? 'unknown'}${step.error_message ? ` — ${step.error_message}` : ''}`
-        : undefined,
+      step.status !== 'failed'
+        ? undefined
+        : deployed
+          ? `did not complete; the build went on without it${step.error_message ? ` (${step.error_message})` : ''}`
+          : `failed: ${step.error_class ?? 'unknown'}${step.error_message ? ` — ${step.error_message}` : ''}`,
     timestamp:
       step.started_at || step.duration_seconds !== undefined ? (
         <BuildStepTimer
@@ -101,6 +104,9 @@ export function BuildTimelineLive({
       restBuildStatus === 'succeeded' || restBuildStatus === 'failed' || restBuildStatus === 'cancelled',
   });
 
+  // The API says the build succeeded: a step that failed did not gate the deploy (the SBOM
+  // step is one), so the page must not call the build failed under a "Succeeded" header.
+  const deployed = restBuildStatus === 'succeeded';
   const grouped = groupByPhase(steps);
   const empty = steps.length === 0;
   // Red Team theo-cloud#122 — when the REST build status is terminal-failure
@@ -129,14 +135,18 @@ export function BuildTimelineLive({
               </h3>
               <Stepper
                 label={`${PHASE_LABEL[phase]} steps`}
-                steps={phaseSteps.map(toStepperStep)}
+                steps={phaseSteps.map((step) => toStepperStep(step, deployed))}
               />
             </section>
           );
         })
       )}
 
-      {error && (
+      {error && deployed && (
+        <SkippedStepNotice stepName={error.step_name} errorMessage={error.error_message} />
+      )}
+
+      {error && !deployed && (
         <BuildErrorPill
           errorClass={error.error_class}
           errorMessage={error.error_message}

@@ -17,6 +17,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- Deployments: the page of a build that was deployed although a step failed no longer reads "BUILD FAILED" under a "Succeeded" header. The SBOM step does not block a deploy, so the page now says "Deployed without an SBOM for web", with the step's message, as a warning (#584).
 
 - Domains: Add Domain opens the form when the list is empty. The form was mounted inside the part of the page the empty state replaces, so the first domain could not be added from the screen (#581).
 - Deployments: a build that fails because its deploy descriptor is invalid is labelled "Deploy descriptor invalid". The dashboard expected the class `THEO_YAML_INVALID`, which the engine never sends, and showed "Build failed" (getloopscale/loopzero#89).
