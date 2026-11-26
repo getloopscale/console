@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ApiError, engineFetch } from '@/lib/http/api';
+import { ApiError, cloudFetchRaw, engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { BuildAttestation, BuildSBOM } from '@/lib/api/types';
 
@@ -48,4 +48,16 @@ export function useBuildAttestation(buildId: string) {
       readArtifact<BuildAttestation>(`/api/v1/builds/${encodeURIComponent(buildId)}/attestation`),
     enabled: buildId !== '',
   });
+}
+
+/**
+ * Fetches one SBOM file through the engine API, with the session. `path` is the `download_path`
+ * the API reports for the app. Resolves null when the session ended (the person is on their way
+ * to sign in) and throws when the API refuses the file.
+ */
+export async function fetchBuildSBOMFile(path: string): Promise<Blob | null> {
+  const response = await cloudFetchRaw(`/engine${path}`);
+  if (!response) return null;
+  if (!response.ok) throw new Error(`SBOM download failed with status ${response.status}`);
+  return response.blob();
 }

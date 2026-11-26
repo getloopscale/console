@@ -1,19 +1,20 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, FileText, Loader2 } from 'lucide-react';
 import { Badge, Button, Card, EmptyState } from '@usetheo/ui';
-import { useBuildSBOM } from '@/hooks/deploy/use-build-artifacts';
+import { fetchBuildSBOMFile, useBuildSBOM } from '@/hooks/deploy/use-build-artifacts';
+import { triggerBlobDownload } from '@/lib/export/download';
 import { formatDate } from '@/lib/formatting/format';
 
 /**
  * SBOMTab — Plan J-17 T5.5.
  *
- * LIVE bug 2026-06-06: backend returns SBOM METADATA per app (format,
- * component count, generated_at, presigned MinIO download_url) — NOT
- * the inline CycloneDX JSON. The full SBOM lives at download_url for
- * users to grab via curl/sbom tools (grype, syft, dependency-track).
+ * The API returns SBOM metadata per app (format, component count, generated_at) and
+ * `download_path`, the path of the engine API that serves the CycloneDX file. The file is not
+ * inline, and no storage address reaches the browser (getloopscale/loopzero#104).
  *
- * UI shows: one card per app with format + component count + generated
- * time + a "Download" button that opens the presigned URL.
+ * UI shows: one card per app with format + component count + generated time + a "Download"
+ * button that fetches the file with the session and saves it.
  */
 export function SBOMTab() {
   const { id = '' } = useParams<{ name: string; id: string }>();
@@ -84,13 +85,8 @@ export function SBOMTab() {
                   )}
                 </Card.Description>
               </div>
-              {app.download_url && (
-                <Button asChild size="sm">
-                  <a href={app.download_url} target="_blank" rel="noopener noreferrer">
-                    <Download className="size-4" aria-hidden="true" />
-                    Download
-                  </a>
-                </Button>
+              {app.download_path && (
+                <SBOMDownload path={app.download_path} filename={`${id}-${app.app_name}.cdx.json`} />
               )}
             </div>
           </Card.Header>
@@ -113,6 +109,40 @@ export function SBOMTab() {
           </Card.Body>
         </Card>
       ))}
+    </div>
+  );
+}
+
+/** Fetches one SBOM file through the engine API and hands it to the browser as a download. */
+function SBOMDownload({ path, filename }: { path: string; filename: string }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const download = async () => {
+    setBusy(true);
+    setFailed(false);
+    try {
+      // null: the session ended and the person is on their way to sign in.
+      const file = await fetchBuildSBOMFile(path);
+      if (file) triggerBlobDownload(filename, file);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button size="sm" onClick={download} disabled={busy}>
+        <Download className="size-4" aria-hidden="true" />
+        Download
+      </Button>
+      {failed && (
+        <p role="alert" className="text-label text-destructive">
+          Could not download the SBOM. Try again in a moment.
+        </p>
+      )}
     </div>
   );
 }
