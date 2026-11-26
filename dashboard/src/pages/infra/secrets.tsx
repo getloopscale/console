@@ -38,6 +38,8 @@ export function SecretsPage() {
   const envFilter = searchParams.get('env') ?? undefined;
   useSetPageTitle(`${name} · Secrets`);
   const { secrets, loading, error: readError } = useSecrets({ project: name, env: envFilter });
+  // Add secret may scope to any environment, whatever the filter shows.
+  const { secrets: secretsInEveryEnv } = useSecrets({ project: name });
 
   // T1.4: env filter options derived from useEnvironments(name) instead
   // of a hardcoded literal. Closes the J-22↔J-10 silent break.
@@ -155,6 +157,7 @@ export function SecretsPage() {
       defaultEnvs={defaultEnvs}
       project={name}
       availableEnvs={projectEnvs}
+      existingSecrets={secretsInEveryEnv}
     />
 
     <BulkUploadSheet
