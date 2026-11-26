@@ -61,13 +61,28 @@ describe('ReadinessChecklist', () => {
     expect(links[0]).toHaveAttribute('href', '/projects/my-api/scale');
   });
 
-  it('test_checklist_fix_link_unimplemented_route_renders_coming_soon (EC-7)', () => {
-    const signals = buildSignals({
-      custom_domain: { status: 'fail' }, // fixPath: /projects/:name/domains (NOT in KNOWN_ROUTES)
-    });
+  it('says Coming soon for a signal whose page does not exist yet', () => {
+    const signals = buildSignals(
+      Object.fromEntries(SIGNALS.map((s) => [s.name, { status: 'unknown' }])),
+    );
+    signals.alerts_configured = { ...signals.alerts_configured, status: 'fail' };
     renderWith(signals);
-    // At least one "Coming soon" span renders for unimplemented J-11 route.
-    expect(screen.getAllByText(/Coming soon/i).length).toBeGreaterThan(0);
+
+    expect(screen.getAllByText(/Coming soon/i)).toHaveLength(1);
+    expect(screen.queryAllByRole('link', { name: /Fix it/i })).toHaveLength(0);
+  });
+
+  it('sends a missing custom domain to the Domains page', () => {
+    const signals = buildSignals(
+      Object.fromEntries(SIGNALS.map((s) => [s.name, { status: 'unknown' }])),
+    );
+    signals.custom_domain = { ...signals.custom_domain, status: 'fail' };
+    renderWith(signals);
+
+    const links = screen.getAllByRole('link', { name: /Fix it/i });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute('href', '/domains');
+    expect(screen.queryAllByText(/Coming soon/i)).toHaveLength(0);
   });
 
   it('test_checklist_unknown_signal_does_not_render_fix_link', () => {
