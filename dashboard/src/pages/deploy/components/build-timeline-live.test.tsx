@@ -176,6 +176,56 @@ describe('BuildTimelineLive', () => {
     expect(screen.queryByText(/deploy complete/i)).not.toBeInTheDocument();
   });
 
+  // Seen on staging, build-51b5678fa6ef3122: the SBOM upload failed, the build went on (the
+  // SBOM step does not gate a deploy) and was deployed. The page said "Succeeded" at the top
+  // and "BUILD FAILED" under the timeline.
+  it('says the build was deployed without its SBOM when only the SBOM step failed', () => {
+    const sbom: BuildStep = {
+      step_name: 'sbom-web',
+      phase_group: 'sign',
+      status: 'failed',
+      started_at: '2026-11-26T03:19:56Z',
+      ended_at: '2026-11-26T03:20:28Z',
+      duration_seconds: 32,
+      error_class: 'UNKNOWN',
+      error_message: 'main: Error (exit code 1)',
+    };
+    mockedStream.mockReturnValue(
+      streamResult({
+        steps: [sbom],
+        status: 'failed',
+        currentStep: sbom,
+        error: { step_name: 'sbom-web', error_class: 'UNKNOWN', error_message: 'main: Error (exit code 1)', suggestion: 'Build step failed. See build logs for details.' },
+      }),
+    );
+    renderTimeline('b-1', 'teste', 'succeeded');
+
+    const notice = screen.getByRole('status');
+    expect(notice.textContent).toContain('Deployed without an SBOM for web');
+    expect(notice.textContent).toContain('The release is live');
+    expect(notice.textContent).toContain('main: Error (exit code 1)');
+    expect(screen.queryAllByRole('alert')).toEqual([]);
+    expect(document.body.textContent).not.toMatch(/build failed/i);
+    const item = screen.getByText(/sbom web/i).closest('[data-slot="stepper-step"]');
+    expect(item?.getAttribute('data-state')).toBe('failed');
+    expect(item?.textContent).toContain('did not complete');
+  });
+
+  it('keeps the failure alert when the build itself failed on that step', () => {
+    const sbom: BuildStep = { step_name: 'sbom-web', phase_group: 'sign', status: 'failed', started_at: '2026-11-26T03:19:56Z', error_class: 'UNKNOWN', error_message: 'boom' };
+    mockedStream.mockReturnValue(
+      streamResult({
+        steps: [sbom],
+        status: 'failed',
+        currentStep: sbom,
+        error: { step_name: 'sbom-web', error_class: 'UNKNOWN', error_message: 'boom', suggestion: '' },
+      }),
+    );
+    renderTimeline('b-1', 'teste', 'failed');
+
+    expect(screen.getByRole('alert').textContent).toMatch(/build failed/i);
+  });
+
   it('test_all_succeeded_shows_celebration', () => {
     const steps: BuildStep[] = [
       {
