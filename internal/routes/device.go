@@ -83,7 +83,7 @@ func (h *DeviceHandler) Accept(w http.ResponseWriter, r *http.Request) {
 			}(),
 		)
 		writeError(w, http.StatusBadGateway, "AUTH_SERVICE_ERROR",
-			"Could not authorize this device. Double-check the code or run `theo login --device-flow` again.")
+			"Could not authorize this device. Double-check the code or run `loopscale login --device-flow` again.")
 		return
 	}
 
@@ -140,7 +140,7 @@ func (h *DeviceHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	token, err := h.hydra.RefreshToken(req.RefreshToken)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "REFRESH_FAILED",
-			"Session expired. Run `theo login` to authenticate again.")
+			"Session expired. Run `loopscale login` to authenticate again.")
 		return
 	}
 

@@ -65,7 +65,7 @@ func MountLensSavedViews(r chi.Router, h *LensSavedViewsHandler, requireJWT func
 func (h *LensSavedViewsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 16*1024))
@@ -115,7 +115,7 @@ const capSavedViews = 100
 func (h *LensSavedViewsHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	// B-114 — pede UMA a mais do que devolve. Se o banco entregar `capSavedViews + 1`, havia mais
@@ -151,7 +151,7 @@ func (h *LensSavedViewsHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *LensSavedViewsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	id := chi.URLParam(r, "id")

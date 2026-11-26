@@ -225,7 +225,7 @@ type APIKeyView struct {
 func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -302,7 +302,7 @@ func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 func (h *APIKeysHandler) RevokeKey(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -353,7 +353,7 @@ func (h *APIKeysHandler) RevokeKey(w http.ResponseWriter, r *http.Request) {
 func (h *APIKeysHandler) CreateKey(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -496,7 +496,7 @@ func (h *APIKeysHandler) CreateKey(w http.ResponseWriter, r *http.Request) {
 func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -660,7 +660,7 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 func (h *APIKeysHandler) LineageKey(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 

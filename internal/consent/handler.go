@@ -58,7 +58,7 @@ const expiredLinkHTML = `<!DOCTYPE html>
   <div class="card">
     <h1>Your login link has expired</h1>
     <p>This sign-in link has expired or was already used. Login links are single-use and valid for a few minutes.</p>
-    <p>To finish signing in, re-run <code>theo login</code> in your terminal and open the new link the CLI prints.</p>
+    <p>To finish signing in, re-run <code>loopscale login</code> in your terminal and open the new link the CLI prints.</p>
   </div>
 </body>
 </html>`

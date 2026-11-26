@@ -59,7 +59,7 @@ func assertExpiredLinkResponse(t *testing.T, rec *httptest.ResponseRecorder, lab
 	// Canonical user-facing copy assertions.
 	for _, want := range []string{
 		"Your login link has expired",
-		"<code>theo login</code>",
+		"<code>loopscale login</code>",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("%s: body missing %q\n--- body ---\n%s", label, want, body)

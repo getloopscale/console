@@ -250,7 +250,7 @@ func TestSkillsDashboard_401DoRegistroNaoDeslogaOOperador(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
 		reader := &stubSkillsReader{err: &skills.UpstreamError{
 			Status: status,
-			Body:   json.RawMessage(`{"code":"UNAUTHENTICATED","message":"Not authenticated. Run: theo login"}`),
+			Body:   json.RawMessage(`{"code":"UNAUTHENTICATED","message":"Not authenticated. Run: loopscale login"}`),
 			Method: http.MethodGet,
 			Path:   "/v1/skills",
 		}}
@@ -264,8 +264,8 @@ func TestSkillsDashboard_401DoRegistroNaoDeslogaOOperador(t *testing.T) {
 		if rec.Code != http.StatusBadGateway {
 			t.Fatalf("upstream %d: esperava 502, veio %d", status, rec.Code)
 		}
-		// "Run: theo login" e texto de terminal para quem esta num navegador (CR-9).
-		if strings.Contains(rec.Body.String(), "theo login") {
+		// "Run: loopscale login" e texto de terminal para quem esta num navegador (CR-9).
+		if strings.Contains(rec.Body.String(), "loopscale login") {
 			t.Fatalf("instrucao de CLI chegou ao navegador: %s", rec.Body.String())
 		}
 	}

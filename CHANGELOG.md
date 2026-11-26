@@ -18,7 +18,8 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
--- The build detail page shows a finished deploy as finished when the engine's timeline stopped before its last event. A build whose `deploy_status` is `succeeded`, `superseded`, `rolled_back` or `archived` no longer reads "Deploying" with a running Live clock and "Rolling out…" (#589).
+-- Authentication errors from the console's API, the consent page and the device page name the CLI as `loopscale login`. They still said `theo login`.
+- The build detail page shows a finished deploy as finished when the engine's timeline stopped before its last event. A build whose `deploy_status` is `succeeded`, `superseded`, `rolled_back` or `archived` no longer reads "Deploying" with a running Live clock and "Rolling out…" (#589).
  Readiness: a missing custom domain shows a "Fix it" link to the Domains page. It said "Coming soon" although domains can be added (#577).
 - Deployments: the page of a build that was deployed although a step failed no longer reads "BUILD FAILED" under a "Succeeded" header. The SBOM step does not block a deploy, so the page now says "Deployed without an SBOM for web", with the step's message, as a warning (#584).
 

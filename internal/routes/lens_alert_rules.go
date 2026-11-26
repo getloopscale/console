@@ -154,7 +154,7 @@ const firedAlertsPageDefault = 20
 func (h *LensAlertRulesHandler) History(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -239,7 +239,7 @@ func firedAlertsPage(r *http.Request) (limit, offset int) {
 func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 16*1024))
@@ -378,7 +378,7 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *LensAlertRulesHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	// `stale` is DERIVED, not stored. last_evaluated_at freezing is the only durable signal that
@@ -438,7 +438,7 @@ func (h *LensAlertRulesHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *LensAlertRulesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -464,7 +464,7 @@ func (h *LensAlertRulesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 func (h *LensAlertRulesHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	id := chi.URLParam(r, "id")
