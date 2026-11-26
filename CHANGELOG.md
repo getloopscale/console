@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- The page of a finished build reads the build's step stream once. Its header kept reopening the stream, with backoff, for as long as the page stayed open (#563).
 - While the Scale screen loads, the cost preview reads "Not reported" for the change and the estimate. It showed the form's defaults, "2 replicas" and a price, before the saved scale arrived (#569).
 - The Timeline of a build that ended reads its event stream once. It reopened the stream for as long as the page stayed open, 7 requests in the first 10 seconds (#563).
 - The Repository screen shows the reason the API gives when it refuses a connect, for example a missing `loopzero.yaml`. It showed "Try again in a moment" for a problem a retry cannot fix (#538).

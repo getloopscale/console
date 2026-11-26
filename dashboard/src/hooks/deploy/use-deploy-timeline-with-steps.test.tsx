@@ -152,4 +152,19 @@ describe('useDeployTimelineWithSteps', () => {
     expect(step.status).toBe('succeeded');
     expect(step.name).toBe('install-deps');
   });
+  // The hero of a finished build: the step stream replays and closes, and nothing
+  // more will come, so it must not be reopened (#563).
+  it('does not reopen the step stream of an ended build', async () => {
+    renderHook(() => useDeployTimelineWithSteps('dep-4', { buildStatus: 'FAILED' }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(2));
+    const stepStream = MockEventSource.instances.find((i) => i.url.includes('/builds/'))!;
+
+    act(() => {
+      stepStream.onerror?.({ reason: { kind: 'server-closed' } });
+    });
+
+    // The first reopen is scheduled within one second.
+    await new Promise((r) => setTimeout(r, 1100));
+    expect(MockEventSource.instances.filter((i) => i.url.includes('/builds/'))).toHaveLength(1);
+  });
 });

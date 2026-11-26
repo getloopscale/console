@@ -78,7 +78,7 @@ export function DeployTimelineHero({
     aggregatorDegradedReason,
     overall,
     connected,
-  } = useDeployTimelineWithSteps(deployId, { initialLastEventID, paused });
+  } = useDeployTimelineWithSteps(deployId, { initialLastEventID, paused, buildStatus });
 
   const streamState = streamStateOf(overall, connected);
 
