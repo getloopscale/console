@@ -17,6 +17,7 @@ import {
   type PhaseStatus,
 } from '@/hooks/deploy/deploy-timeline-events';
 import { LiveReleaseBadge } from './live-release-badge';
+import { buildNeverDeployed } from '@/pages/deploy/build-outcome';
 
 /**
  * DeployTimelineHero — Plan deploy-timeline-canonical-5-phases (UI).
@@ -137,7 +138,7 @@ export function DeployTimelineHero({
       {liveRelease && (liveRelease.commitShort || liveRelease.activeSince) ? (
         <LiveReleaseBadge
           isLive={overall === 'live'}
-          notDeployed={isNotDeployed(overall, buildStatus)}
+          notDeployed={buildNeverDeployed(overall, buildStatus)}
           commitShort={liveRelease.commitShort}
           activeSince={liveRelease.activeSince}
           liveUrl={liveRelease.url}
@@ -461,12 +462,6 @@ function OverallStatusPill({ overall }: { overall: OverallStatus }) {
 }
 
 /* Helpers ------------------------------------------------------------------ */
-
-/** A failed or cancelled build never rolls out, whatever the stream has (not) said. */
-function isNotDeployed(overall: OverallStatus, buildStatus?: string): boolean {
-  const s = buildStatus?.toLowerCase();
-  return overall === 'failed' || overall === 'canceled' || s === 'failed' || s === 'cancelled' || s === 'canceled';
-}
 
 function iconFor(status: PhaseState['status']) {
   switch (status) {

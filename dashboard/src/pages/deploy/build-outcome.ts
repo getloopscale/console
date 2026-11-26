@@ -29,3 +29,14 @@ export function buildOutcome(build: BuildWithDeploy): BuildStatus {
 export function buildOutcomeLabel(build: BuildWithDeploy, labels: Record<BuildStatus, string>): string {
   return deployFailed(build) ? 'Deploy failed' : labels[buildOutcome(build)];
 }
+
+/**
+ * True for a build that will never roll out: its timeline ended failed or cancelled, or the
+ * build record says so whatever the timeline has (not) said.
+ */
+export function buildNeverDeployed(timelineOverall: string, buildStatus?: string): boolean {
+  const s = buildStatus?.toLowerCase();
+  return (
+    timelineOverall === 'failed' || timelineOverall === 'canceled' || s === 'failed' || s === 'cancelled' || s === 'canceled'
+  );
+}
