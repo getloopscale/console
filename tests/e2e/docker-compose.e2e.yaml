@@ -30,7 +30,7 @@ services:
       POSTGRES_PASSWORD: themem
       POSTGRES_DB: themem
     volumes:
-      # initdb: loopmem_app / loopmem_worker. themem stays the schema owner and only migrates.
+      # initdb: themory_app / themory_worker. themem stays the schema owner and only migrates.
       - ./sql/loopmem:/docker-entrypoint-initdb.d:ro
     ports:
       # Exposed so the host-run `go test` can seed skill rows directly (there is
@@ -143,7 +143,7 @@ services:
     environment:
       # Requests run as the contained application role: the server refuses a superuser,
       # because RLS (migration 0029) would not apply to it. The owner only migrates, at boot.
-      THEOMEM_PG_URI: postgres://loopmem_app:loopmem_app@pg-loopmem:5432/themem
+      THEOMEM_PG_URI: postgres://themory_app:themory_app@pg-loopmem:5432/themem
       THEOMEM_MIGRATE_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
       PORT: "8080"
       HOST: "0.0.0.0"
