@@ -18,7 +18,7 @@ import {
   githubErrorMessage,
   INSTALLATION_NEEDS_AUTHORIZATION,
 } from '@/hooks/projects/github-connect-errors';
-import { ApiError } from '@/lib/http/api';
+import { ApiError, refusalReason } from '@/lib/http/api';
 import { safeNavigator } from '@/lib/navigation';
 import type { InstallationRepository } from '@/lib/api/types';
 
@@ -37,17 +37,6 @@ import type { InstallationRepository } from '@/lib/api/types';
  * The page URL can carry `github_error=<code>` (shown as a sentence) and `updated=1` (a banner).
  * It never supplies an installation id.
  */
-/**
- * The sentence the API sent with a refusal the user can act on (a 4xx), or null.
- * A 5xx or a network failure says nothing the user can fix, so the caller keeps
- * its retry message for those.
- */
-function refusalReason(err: unknown): string | null {
-  if (!(err instanceof ApiError) || err.status < 400 || err.status >= 500) return null;
-  const message = (err.body as { message?: unknown } | null | undefined)?.message;
-  return typeof message === 'string' && message !== '' ? message : null;
-}
-
 export function ProjectConnectPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
@@ -163,9 +152,7 @@ export function ProjectConnectPage() {
       if (err instanceof ApiError && err.status === 403) {
         setNeedsAuthorization(true);
       } else {
-        setConnectError(
-          refusalReason(err) ?? "Couldn't connect repository. Try again in a moment.",
-        );
+        setConnectError(refusalReason(err) ?? "Couldn't connect repository. Try again in a moment.");
       }
     } finally {
       setBusy(false);

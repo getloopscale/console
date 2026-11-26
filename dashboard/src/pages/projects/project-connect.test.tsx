@@ -306,8 +306,8 @@ describe('ProjectConnectPage errors', () => {
     fireEvent.change(await screen.findByLabelText(/^repository$/i), { target: { value: 'owner/api' } });
     fireEvent.click(screen.getByRole('button', { name: /connect repository/i }));
 
-    expect(await screen.findByText(reason)).toBeInTheDocument();
-    expect(screen.queryByText(/try again in a moment/i)).not.toBeInTheDocument();
+    // The whole alert is the API's sentence, with no retry advice next to it.
+    expect((await screen.findByText(reason)).textContent).toBe(reason);
   });
 
   it('keeps the retry message when a server error carries a message', async () => {
@@ -321,8 +321,9 @@ describe('ProjectConnectPage errors', () => {
     fireEvent.change(await screen.findByLabelText(/^repository$/i), { target: { value: 'owner/api' } });
     fireEvent.click(screen.getByRole('button', { name: /connect repository/i }));
 
-    expect(await screen.findByText(/couldn.t connect repository/i)).toBeInTheDocument();
-    expect(screen.queryByText(/upstream connect error/i)).not.toBeInTheDocument();
+    expect((await screen.findByText(/couldn.t connect repository/i)).textContent).toBe(
+      "Couldn't connect repository. Try again in a moment.",
+    );
   });
 
   it('says so when the installations cannot be loaded', async () => {
