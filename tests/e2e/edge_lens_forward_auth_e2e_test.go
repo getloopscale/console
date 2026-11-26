@@ -11,7 +11,7 @@
 //
 // The stack is hermetic (docker-compose.edge.e2e.yaml): container upstream http://lens:8080,
 // consumer keys seeded in the CLOUD DB, per-tenant keys minted by the broker. looptrace runs
-// with LOOPSCALELENS_REQUIRE_CREDENTIAL=true (M13) so the direct-to-service no-key request 401s.
+// with THEOLENS_REQUIRE_CREDENTIAL=true (M13) so the direct-to-service no-key request 401s.
 // Test names carry the TestEdgeForwardAuth prefix so `make e2e-edge` (-run TestEdgeForwardAuth)
 // picks them up.
 //
@@ -329,7 +329,7 @@ func TestEdgeForwardAuthLens_FailClosed(t *testing.T) {
 		t.Fatalf("the customer key MUST work through the edge (mints per-tenant): want 200, got %d", code)
 	}
 
-	// (6) No-key DIRECT to the lens service → 401 (looptrace M13 LOOPSCALELENS_REQUIRE_CREDENTIAL).
+	// (6) No-key DIRECT to the lens service → 401 (looptrace M13 THEOLENS_REQUIRE_CREDENTIAL).
 	if code := lensCreateDatasetDirect(t, lensURL, "", "direct-no-key"); code != http.StatusUnauthorized {
 		t.Fatalf("direct-to-service with no key must be 401 (M13 fail-closed), got %d", code)
 	}

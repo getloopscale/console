@@ -2,10 +2,10 @@ package looptrace_test
 
 // M50 edge Model-B LIVE integration — the REAL loop-console looptrace.Broker driven against
 // a REAL running looptrace over the network (the dev-public seam), not an httptest stub.
-// Gated by LOOPSCALELENS_LIVE_URL so it is a no-op in normal CI; run it with a live looptrace:
+// Gated by THEOLENS_LIVE_URL so it is a no-op in normal CI; run it with a live looptrace:
 //
-//   LOOPSCALELENS_LIVE_URL=http://localhost:18084 \
-//   LOOPSCALELENS_LIVE_BOOTSTRAP=dev-bootstrap-token-change-me-min-32-chars \
+//   THEOLENS_LIVE_URL=http://localhost:18084 \
+//   THEOLENS_LIVE_BOOTSTRAP=dev-bootstrap-token-change-me-min-32-chars \
 //   go test ./internal/looptrace/ -run TestLive_ModelB -v -count=1
 //
 // Proves end-to-end: bootstrap-mint a platform-admin key against the live looptrace →
@@ -28,10 +28,10 @@ import (
 )
 
 func TestLive_ModelB_MintAndIngest(t *testing.T) {
-	base := os.Getenv("LOOPSCALELENS_LIVE_URL")
-	boot := os.Getenv("LOOPSCALELENS_LIVE_BOOTSTRAP")
+	base := os.Getenv("THEOLENS_LIVE_URL")
+	boot := os.Getenv("THEOLENS_LIVE_BOOTSTRAP")
 	if base == "" || boot == "" {
-		t.Skip("LOOPSCALELENS_LIVE_URL / LOOPSCALELENS_LIVE_BOOTSTRAP unset — live seam test skipped")
+		t.Skip("THEOLENS_LIVE_URL / THEOLENS_LIVE_BOOTSTRAP unset — live seam test skipped")
 	}
 	hc := &http.Client{Timeout: 10 * time.Second}
 

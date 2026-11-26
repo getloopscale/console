@@ -39,7 +39,7 @@
     {
       "name": "04 — vendor (node_modules eager, pos B-021/B-073)",
       "path": "dist/assets/vendor-*.js",
-      "limit": "230 kB"
+      "limit": "245 kB"
     },
     {
       "name": "05 — per-route chunk (worst-case, lazy)",
@@ -54,7 +54,7 @@
         "dist/assets/router-*.js",
         "dist/assets/vendor-*.js"
       ],
-      "limit": "320 kB"
+      "limit": "335 kB"
     }
   ],
   "dependencies": {

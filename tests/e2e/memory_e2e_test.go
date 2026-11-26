@@ -480,7 +480,7 @@ func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 // zeroVector1536 is a deterministic dummy embedding for skill seeding. The
 // skills listing query filters by kind/agent_id/superseded/soft-delete and does
 // NOT use the embedding, so a zero vector is sufficient (the e2e loopmem runs
-// LOOPSCALEMEM_EMBEDDER=openai → vector(1536)).
+// THEOMEM_EMBEDDER=openai → vector(1536)).
 func zeroVector1536() string {
 	return "[" + strings.Repeat("0,", 1535) + "0]"
 }

@@ -52,7 +52,7 @@ asserts through the gateway:
 - `mock-openai` honors `encoding_format=base64` — the official OpenAI SDK
   requests base64 by default; a mock that returns a raw float array makes the
   SDK mis-decode the bytes (the 1536→384 dimension bug).
-- The TheMemory image runs with `LOOPSCALEMEM_EMBEDDER=openai` pointed at the mock
+- The TheMemory image runs with `THEOMEM_EMBEDDER=openai` pointed at the mock
   (1536-dim) so no model download is needed at runtime.
 - A host port already taken (e.g. another stack on `55432`) is resolved by
   exporting the matching `E2E_*_PORT` (e.g. `E2E_PG_CLOUD_PORT=55442`).

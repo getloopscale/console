@@ -46,7 +46,7 @@ services:
         condition: service_healthy
     working_dir: /app/packages/api
     environment:
-      LOOPRAG_MIGRATE_PG_URI: postgres://therag:therag@pg-rag:5432/therag
+      THEORAG_MIGRATE_PG_URI: postgres://therag:therag@pg-rag:5432/therag
     command: ["node_modules/.bin/tsx", "src/migrate.ts"]
 
   rag:
@@ -59,11 +59,11 @@ services:
     environment:
       PORT: "8080"
       # The API refuses a superuser or BYPASSRLS role (RLS, migration 0027).
-      LOOPRAG_PG_URI: postgres://rag_app:rag_app@pg-rag:5432/therag
-      LOOPRAG_ADMIN_BOOTSTRAP_TOKEN: ${LOOPRAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
+      THEORAG_PG_URI: postgres://rag_app:rag_app@pg-rag:5432/therag
+      THEORAG_ADMIN_BOOTSTRAP_TOKEN: ${LOOPRAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
       # M13 fail-closed — the direct-to-service no-key → 401 proof (D4). Without it a
       # no-key direct request would resolve a dev-mode owner Principal (not a 401).
-      LOOPRAG_REQUIRE_CREDENTIAL: "true"
+      THEORAG_REQUIRE_CREDENTIAL: "true"
       # Hermetic embedder — collections CRUD never embeds, but point at mock-openai so
       # boot is identical to loopmem (no real key/network).
       OPENAI_API_KEY: dummy-key-for-mock
@@ -102,12 +102,12 @@ services:
       pg-lens:
         condition: service_healthy
     environment:
-      LOOPSCALELENS_PORT: "8080"
-      LOOPSCALELENS_PG_URI: postgres://loopscalelens:loopscalelens@pg-lens:5432/loopscalelens
-      LOOPSCALELENS_PLATFORM_ADMIN_BOOTSTRAP: ${LOOPTRACE_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}
+      THEOLENS_PORT: "8080"
+      THEOLENS_PG_URI: postgres://loopscalelens:loopscalelens@pg-lens:5432/loopscalelens
+      THEOLENS_PLATFORM_ADMIN_BOOTSTRAP: ${LOOPTRACE_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}
       # M13 fail-closed — the direct-to-service no-key → 401 proof. Without it a no-key
       # direct request would resolve a dev-mode owner Principal (not a 401).
-      LOOPSCALELENS_REQUIRE_CREDENTIAL: "true"
+      THEOLENS_REQUIRE_CREDENTIAL: "true"
     ports:
       - "${E2E_LENS_PORT:-18084}:8080"
     healthcheck:
