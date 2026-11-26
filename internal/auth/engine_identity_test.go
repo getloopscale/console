@@ -11,7 +11,7 @@ import (
 )
 
 // The engine reads X-LoopZero-User-ID, X-LoopZero-Tenant and X-LoopZero-Email
-// (getloopscale/loopzero api/internal/middleware/auth/auth.go). A proxy that
+// (getloopscale/loop-runtime api/internal/middleware/auth/auth.go). A proxy that
 // writes any other name sends an anonymous call, and the engine answers 401 on
 // every /engine route (getloopscale/console#522).
 func TestSetEngineIdentityWritesTheHeadersTheEngineReads(t *testing.T) {

@@ -102,7 +102,7 @@ describe('SBOMTab — a missing SBOM and an unreadable one are different finding
 
 describe('SBOMTab — the file is downloaded through the API', () => {
   // The link was a presigned URL to the storage endpoint, which on staging is an address no
-  // browser reaches (getloopscale/loopzero#104). The API now serves the file at `download_path`.
+  // browser reaches (getloopscale/loop-runtime#104). The API now serves the file at `download_path`.
   const withDownload = {
     apps: [
       {

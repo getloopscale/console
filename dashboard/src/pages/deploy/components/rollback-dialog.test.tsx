@@ -102,7 +102,7 @@ describe('RollbackDialog — destructive-action friction (M18)', () => {
   });
 
   it('keeps the rollback in progress until the hook reports how it ended', async () => {
-    // The API answers 202 and finishes in the background (getloopscale/loopzero#118),
+    // The API answers 202 and finishes in the background (getloopscale/loop-runtime#118),
     // so the mutation stays pending for as long as the rollback runs.
     let settle: (v: unknown) => void = () => {};
     mutateAsync.mockReturnValue(new Promise((r) => { settle = r; }));

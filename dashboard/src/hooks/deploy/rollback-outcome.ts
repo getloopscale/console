@@ -3,7 +3,7 @@ import type { ProjectStatusDetail, RollbackResponse } from '@/lib/api/types';
 /**
  * How a rollback the API accepted with 202 ended.
  *
- * The API finishes a rollback in the background (getloopscale/loopzero#118) and
+ * The API finishes a rollback in the background (getloopscale/loop-runtime#118) and
  * the only place a client reads the outcome is `active_release` of
  * `GET /api/v1/projects/{name}/status`. That field is the environment's ACTIVE
  * release, and the release being rolled back is ROLLING_BACK for as long as the

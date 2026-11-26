@@ -5,7 +5,7 @@ package auth
 
 import "net/http"
 
-// Header names the engine (getloopscale/loopzero, api/internal/middleware/auth)
+// Header names the engine (getloopscale/loop-runtime, api/internal/middleware/auth)
 // reads on a service-authenticated call from this proxy. They are a wire
 // contract with the engine: a name the engine does not read is an anonymous
 // call, which it rejects with 401 "Invalid service authentication".

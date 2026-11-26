@@ -11,7 +11,7 @@ import { formatDate } from '@/lib/formatting/format';
  *
  * The API returns SBOM metadata per app (format, component count, generated_at) and
  * `download_path`, the path of the engine API that serves the CycloneDX file. The file is not
- * inline, and no storage address reaches the browser (getloopscale/loopzero#104).
+ * inline, and no storage address reaches the browser (getloopscale/loop-runtime#104).
  *
  * UI shows: one card per app with format + component count + generated time + a "Download"
  * button that fetches the file with the session and saves it.

@@ -3,7 +3,7 @@
  * The rollback is accepted, not done: the API finishes it in the background
  * and `GET /projects/{name}/status` shows how it ended.
  *
- * @see getloopscale/loopzero api/internal/release/rollbackhttp/rollback.go
+ * @see getloopscale/loop-runtime api/internal/release/rollbackhttp/rollback.go
  */
 export interface RollbackResponse {
   status: 'in_progress';
@@ -29,7 +29,7 @@ export interface RollbackSide {
 /**
  * One rollback of a project, as `GET /api/v1/projects/{name}/rollbacks` lists it.
  *
- * @see getloopscale/loopzero api/internal/release/rollbackhttp/rollback_history.go
+ * @see getloopscale/loop-runtime api/internal/release/rollbackhttp/rollback_history.go
  */
 export interface RollbackRecord {
   id: string;
