@@ -1,5 +1,5 @@
 import { FileText, Download, Link2, Trash2 } from 'lucide-react';
-import { Button, Badge, Skeleton, Sheet, CopyButton, CodeBlock } from '@usetheo/ui';
+import { Button, Badge, Skeleton, Sheet, CopyButton, CodeBlock } from '@getloopscale/ui';
 
 import { formatBytes, previewKind, type StorageFile } from './helpers';
 

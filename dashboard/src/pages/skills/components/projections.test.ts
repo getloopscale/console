@@ -12,7 +12,7 @@ import {
 /**
  * M26 T2.1 — a projeção de versões × canais, testada FORA do React.
  *
- * As formas usadas aqui foram medidas na definição das rotas do `theo-skills`
+ * As formas usadas aqui foram medidas na definição das rotas do `loopskills`
  * (`packages/api/src/server/handlers/publishing.ts`), não inferidas do nome dos métodos:
  * `{versions:[{version, revision_id}]}` e `{channels:[{channel, revision_id, previous_revision_id}]}`.
  */

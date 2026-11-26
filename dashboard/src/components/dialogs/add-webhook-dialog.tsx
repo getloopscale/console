@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, Checkbox, Input } from '@usetheo/ui';
+import { Button, Checkbox, Input } from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 

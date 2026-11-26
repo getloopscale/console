@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// M22 (theo-skills Model B) — Broker resolves a per-tenant theoskill_live_* secret
+// M22 (loopskills Model B) — Broker resolves a per-tenant loopscaleskill_live_* secret
 // for the data path. Lazy cache-aside: an in-process LRU keyed by
 // (account, tenant, granted scopes), with a TTL far shorter than the key's
 // validity so an out-of-band revoke self-heals within one TTL. Concurrent cold
@@ -88,7 +88,7 @@ func (b *Broker) KeyForTenant(ctx context.Context, accountID, tenantID string) (
 //
 // M1: accountID is part of the cache key (an Account-aware key never shares a
 // cached secret across accounts — defense-in-depth) but is NEVER sent to the
-// minter — the minted key's workspace_id stays == tenantID, so the theo-memory
+// minter — the minted key's workspace_id stays == tenantID, so the loopmem
 // isolation unit is the tenant, unchanged. accountID == "" (legacy NULL-account
 // key) is valid and caches under the empty-account slot. The broker LAZILY trusts
 // the account→tenant relationship already authorized by ForwardAuth.

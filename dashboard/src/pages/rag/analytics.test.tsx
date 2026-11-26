@@ -92,7 +92,7 @@ describe('RagAnalyticsPage (/rag/analytics)', () => {
     // Per-level rows — a Level N label + its count share the same list item.
     const perLevelItems = await screen.findAllByRole('listitem');
     const rowTexts = perLevelItems.map((el) => el.textContent ?? '');
-    // theo-rag emits per_level as { "0": 3, "1": 2 } — the LI renders the two.
+    // looprag emits per_level as { "0": 3, "1": 2 } — the LI renders the two.
     expect(rowTexts).toEqual(expect.arrayContaining([expect.stringMatching(/Level 0.*3/), expect.stringMatching(/Level 1.*2/)]));
     // Corpus figures.
     expect(screen.getByText('42')).toBeInTheDocument(); // corpus.chunks

@@ -1,4 +1,4 @@
-import { Badge, Button, Card, Table } from '@usetheo/ui';
+import { Badge, Button, Card, Table } from '@getloopscale/ui';
 import { useInvoices, INVOICE_HISTORY_LIMIT } from '@/hooks/settings/use-invoices';
 import { formatMinor } from '@/pages/settings/components/money';
 import { formatDate } from '@/lib/formatting/format';

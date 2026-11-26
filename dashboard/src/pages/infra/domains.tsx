@@ -12,7 +12,7 @@ import {
   StatusDot,
   Table,
   type StatusKind,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

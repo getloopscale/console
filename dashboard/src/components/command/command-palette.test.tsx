@@ -18,7 +18,7 @@ describe('CommandPalette (Sprint 2 T2.1)', () => {
     expect(input).toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#57 closure: the command-palette search input was the
+  // Red Team loop-console#57 closure: the command-palette search input was the
   // last remaining search field without an explicit aria-label. cmdk's
   // Command.Input has no implicit accessible name; screen readers announce it
   // as "Edit" because the Dialog.Title is sr-only and not referenced via

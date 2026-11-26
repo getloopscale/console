@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/billing"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/billing"
 )
 
 // J-13 (MEET-2026-07-03-004) — GetInvoices handler matrix. The Stripe call is
@@ -77,7 +77,7 @@ func TestGetInvoices_Owner_ReturnsMappedList(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"stripe_customer_id"}).AddRow("cus_abc"))
 
 	fake := &fakeInvoiceLister{invoices: []billing.Invoice{
-		{ID: "in_1", Number: "THEO-1", AmountMinor: 2900, Currency: "USD", Status: "paid", HostedInvoiceURL: "https://x"},
+		{ID: "in_1", Number: "LOOPSCALE-1", AmountMinor: 2900, Currency: "USD", Status: "paid", HostedInvoiceURL: "https://x"},
 	}}
 	h := &BillingHandler{db: dbConn, invoices: fake}
 	w := httptest.NewRecorder()

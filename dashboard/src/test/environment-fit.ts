@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import ts from 'typescript';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -26,7 +26,7 @@ import { join, relative } from 'node:path';
  *
  * By READING THE SYNTAX TREE, not by grepping. A file needs jsdom when it names a DOM global
  * (`document`, `window`, `localStorage`, …), or imports a module that only works against one
- * (`@testing-library/*`, `react-dom`, `@theokit/ui`, and this repo's own `@/test/render`).
+ * (`@testing-library/*`, `react-dom`, `@getloopscale/loopzero-ui`, and this repo's own `@/test/render`).
  * Comments and strings are not candidates, because the parser does not offer them as identifiers —
  * the same property the B-241 rename relied on.
  *
@@ -102,7 +102,7 @@ const GLOBAL_OBJECTS = new Set(['globalThis', 'window', 'self', 'top', 'parent']
  * gap that the `.tsx` short-circuit hid: all 43 JSX-bearing `.test.tsx` files that the widened
  * classifier first called DOM-free import exactly this module and nothing else DOM-shaped.
  */
-const DOM_MODULES = /^(@testing-library\/|jsdom|@theokit\/ui|react-dom|@\/test\/render$)/;
+const DOM_MODULES = /^(@testing-library\/|jsdom|@getloopscale\/loopzero-ui|react-dom|@\/test\/render$)/;
 
 /** The pragma vitest reads. */
 export const NODE_PRAGMA = '@vitest-environment node';

@@ -57,7 +57,7 @@ function collectionPath(collectionID: string): string {
  * Keeping them together is what keeps the LEVEL honest. All three are scoped to the same level and
  * all three carry it in their key; a level added to one URL and forgotten in one key would render a
  * community's report from one level beside a graph from another, and nothing on screen would say
- * the two disagree. The BFF forwards theo-rag's JSON opaquely — this layer types it and nothing
+ * the two disagree. The BFF forwards looprag's JSON opaquely — this layer types it and nothing
  * more.
  */
 export function useRagGraph(collectionID: string, level: string) {

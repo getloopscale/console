@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff, X } from 'lucide-react';
-import { Button, Card, Skeleton, Timestamp } from '@usetheo/ui';
+import { Button, Card, Skeleton, Timestamp } from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import {
@@ -14,7 +14,7 @@ import {
  *
  * O conteúdo da conversa É o dado sensível que a violação denuncia — e ele chega **ÍNTEGRO**.
  *
- * LT-013 (BLOCKER): este cabeçalho afirmava o contrário — "já vem redigido do lado do theo-trust".
+ * LT-013 (BLOCKER): este cabeçalho afirmava o contrário — "já vem redigido do lado do loopguardrails".
  * Era falso. A garantia de redação do serviço cobre a superfície de violações e a tabela
  * `policy_violations`; NÃO cobre `messages.content`, que `GET /v1/conversations/:id` serve
  * original (LT-012, ADR 0009). A afirmação foi escrita por suposição, não por verificação, e a

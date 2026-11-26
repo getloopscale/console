@@ -13,7 +13,7 @@ import { useMetricsRange } from './use-metrics-range';
  *   - uptime_24h:  avg_over_time(up) is 0..1 → ×100 → percent
  *   - p95_latency: histogram_quantile is seconds → ×1000 → ms
  *   - rps:         rate is already a per-second number → ×1
- *   - error_rate:  a ratio ×100 (already a percent, per theo#170 fix) → ×1
+ *   - error_rate:  a ratio ×100 (already a percent, per loopscale#170 fix) → ×1
  */
 export function useKpiMetric(
   projectName: string | undefined,

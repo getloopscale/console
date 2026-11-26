@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package memory_webhook_worker
 
@@ -18,21 +18,21 @@ import (
 // Delivery is one row's worth of dispatch context. Loaded from
 // memory_webhook_deliveries JOIN memory_webhooks.
 type Delivery struct {
-	ID            string
-	WebhookID     string
-	URL           string
-	Secret        sql.NullString // NULL = pre-delivery-plan webhook; skip signing per D1 consequence
-	EventType     string
-	Payload       []byte
-	AttemptCount  int
+	ID           string
+	WebhookID    string
+	URL          string
+	Secret       sql.NullString // NULL = pre-delivery-plan webhook; skip signing per D1 consequence
+	EventType    string
+	Payload      []byte
+	AttemptCount int
 }
 
 // DispatchResult is the outcome of one HTTP attempt.
 type DispatchResult struct {
-	StatusCode    int    // 0 on transport error
-	Body          string // truncated to 4 KiB
-	ErrorMessage  string // populated on transport error
-	Delivered     bool   // true iff 2xx
+	StatusCode   int    // 0 on transport error
+	Body         string // truncated to 4 KiB
+	ErrorMessage string // populated on transport error
+	Delivered    bool   // true iff 2xx
 }
 
 // maxResponseBodyForAudit caps how much of the consumer's response body we
@@ -62,7 +62,7 @@ func Dispatch(ctx context.Context, httpClient *http.Client, logger *slog.Logger,
 		return DispatchResult{ErrorMessage: fmt.Sprintf("build request: %v", err)}
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Theo-Webhook/1.0")
+	req.Header.Set("User-Agent", "LoopScale-Webhook/1.0")
 	// D5 — Idempotency-Key is stable across retries of the same logical delivery.
 	req.Header.Set("Idempotency-Key", fmt.Sprintf("delivery-%s", d.ID))
 	// D1 — Sign with HMAC-SHA256 when the webhook has a secret.

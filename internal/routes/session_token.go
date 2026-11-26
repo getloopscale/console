@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -8,20 +8,20 @@ import (
 	"net/http"
 	"time"
 
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/ratelimit"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/ratelimit"
 )
 
 // SessionTokenHandler exchanges Kratos session cookies for HS256 JWT tokens.
 //
-// usetheoai/theo#477: the dashboard no longer calls this — it is authenticated
+// getloopscale/loopscale#477: the dashboard no longer calls this — it is authenticated
 // by its session cookie (auth.RequireCaller) and reads its identity from
 // GET /v1/auth/session. The endpoint stays until step 4 removes the HS256
 // issuer, because local scripts and the full-chain e2e still exchange here.
 type SessionTokenHandler struct {
-	issuer            *theojwt.SessionTokenIssuer
+	issuer            *loopscalejwt.SessionTokenIssuer
 	tenantProvisioner *auth.TenantProvisioner
 	sessions          *auth.KratosSessionAuthenticator
 	limiter           ratelimit.Limiter
@@ -33,7 +33,7 @@ const (
 )
 
 // NewSessionTokenHandler creates a session token exchange handler.
-func NewSessionTokenHandler(issuer *theojwt.SessionTokenIssuer, tenantProv *auth.TenantProvisioner, kratosInternalURL string) *SessionTokenHandler {
+func NewSessionTokenHandler(issuer *loopscalejwt.SessionTokenIssuer, tenantProv *auth.TenantProvisioner, kratosInternalURL string) *SessionTokenHandler {
 	return &SessionTokenHandler{
 		issuer:            issuer,
 		tenantProvisioner: tenantProv,

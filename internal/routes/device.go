@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package routes implements HTTP handlers for the cloud auth service.
 package routes
@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // DeviceHandler handles Device Code Flow endpoints.

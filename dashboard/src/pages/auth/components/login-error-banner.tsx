@@ -1,4 +1,4 @@
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import type { KratosErrorMapped } from '@/pages/auth/error-mapper';
 
@@ -11,7 +11,7 @@ import type { KratosErrorMapped } from '@/pages/auth/error-mapper';
  * the error-display concern; login.tsx orchestrates state but renders the
  * banner here.
  *
- * Uses @usetheo/ui <Alert intent="destructive"> for the canonical
+ * Uses @getloopscale/ui <Alert intent="destructive"> for the canonical
  * destructive-state visual + role="alert" semantics (WCAG ARIA — assistive
  * tech announces immediately).
  */

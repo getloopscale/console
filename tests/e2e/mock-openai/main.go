@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Command mock-openai is a hermetic, deterministic OpenAI-compatible server
-// used ONLY by the theo-cloud <-> TheMemory end-to-end harness
+// used ONLY by the loop-console <-> TheMemory end-to-end harness
 // (tests/e2e/docker-compose.e2e.yaml).
 //
 // TheMemory's server wires `OpenAILLM` + `OpenAIEmbedder` (the official

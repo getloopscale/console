@@ -10,7 +10,7 @@ import {
   Input,
   PageShell,
   type DataTableColumn,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -26,7 +26,7 @@ import { useBundles, useInvalidateBundles } from '@/hooks/skills/use-skills';
  * publisher não tinha como ver o que distribuía nem revogar uma credencial sem linha de comando.
  *
  * A lista traz o que a PRÓXIMA AÇÃO exige: o identificador que abre o detalhe onde tokens e
- * adoção vivem. É a lição que o `theo-trust` pagou caro — uma listagem que não devolve o que a
+ * adoção vivem. É a lição que o `loopguardrails` pagou caro — uma listagem que não devolve o que a
  * jornada seguinte precisa vira painel de só olhar, e o detalhe correspondente vira código morto.
  */
 

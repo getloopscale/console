@@ -8,7 +8,7 @@ import {
   DangerZone,
   EmptyState,
   PageShell,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -47,7 +47,7 @@ export function ProjectDetailPage() {
   // cap), so opening the 51st+ project no longer shows a false "not found".
   const { project, loading } = useProject(name);
   const { status, loading: statusLoading } = useProjectStatus(name);
-  // Red Team theo-cloud#115 closure (2026-06-28): when the project is
+  // Red Team loop-console#115 closure (2026-06-28): when the project is
   // preview-only the production status query returns no URL even though
   // the preview env has an ACTIVE release serving HTTP 200 (the CTO
   // LIVE-validated this 2026-06-28). The backend already surfaces the
@@ -136,7 +136,7 @@ export function ProjectDetailPage() {
   //
   // Fix: derive Overview metrics from the builds[] array (already loaded via
   // useDeployments on this page) instead of the listing's project shape.
-  //   - apps come from the latest successful build's apps[] snapshot (theo.yaml
+  //   - apps come from the latest successful build's apps[] snapshot (loopscale.yaml
   //     apps declared at that build time); fall back to latest build when no
   //     successful one exists yet
   //   - last deploy timestamp comes from the latest build's created_at
@@ -174,7 +174,7 @@ export function ProjectDetailPage() {
   const lastDeployAt = !isZeroTime(project.last_deploy)
     ? project.last_deploy
     : latestBuild?.created_at;
-  // Red Team theo-cloud#134 absorption (2026-07-02): the "Live envs"
+  // Red Team loop-console#134 absorption (2026-07-02): the "Live envs"
   // metric MUST use `active_env_count` (env_targets with a corresponding
   // ACTIVE release, any kind). Legacy `production_env_count` returned 0
   // for preview-only projects with Live URLs serving, contradicting the
@@ -186,7 +186,7 @@ export function ProjectDetailPage() {
   //   4. legacy singular `environment ? 1 : 0`
   const liveEnvCount = project.active_env_count ?? project.production_env_count ?? project.environment_count ?? (project.environment ? 1 : 0);
 
-  // Red Team theo-cloud#41 absorption (2026-06-27, follow-up): the
+  // Red Team loop-console#41 absorption (2026-06-27, follow-up): the
   // `isPreviewOnly` heuristic now uses the canonical signal pair
   // server-side computes — production_env_count === 0 means no
   // production env wired, AND latest_build_environment === 'preview'
@@ -231,7 +231,7 @@ export function ProjectDetailPage() {
 
         {/* T1.1 of plan 2026-06-12-...j25...: Live URL hero card above health
             (Vercel-canonical hero slot per ADR D2; data path ADR D1 = useProjectStatus.url).
-            Red Team theo-cloud#41 (2026-06-27): flag preview-only projects so
+            Red Team loop-console#41 (2026-06-27): flag preview-only projects so
             the hero renders the canonical "Preview only" empty state instead of
             "URL pending" — eliminates the divergence the Red Team caught
             (badge said Live, URL field said PENDING). isPreviewOnly is the
@@ -391,7 +391,7 @@ export function ProjectDetailPage() {
             <Card.Body>
               <ul className="divide-y divide-border">
                 {recentBuilds.map((b) => {
-                  // Red Team theo-cloud#97 closure: each row MUST surface
+                  // Red Team loop-console#97 closure: each row MUST surface
                   // status + environment (parity with the full Deployments
                   // table). Otherwise five "preview · FAILED" rows look
                   // identical to five "preview · SUCCEEDED" rows and the

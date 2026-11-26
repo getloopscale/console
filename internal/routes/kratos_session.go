@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
 import (
 	"net/http"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // tenantEnsurer is the slice of *auth.TenantProvisioner the resolver needs. An interface (not the

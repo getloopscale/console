@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // promptlyDashMinter é a porta que a fiação consome do broker (ISP): apenas a cunhagem escopada.

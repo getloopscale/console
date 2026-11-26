@@ -1,10 +1,10 @@
-import type { AnnotationConfig } from '@usetheo/ui';
+import type { AnnotationConfig } from '@getloopscale/ui';
 
 /**
  * M12 — score-configs for the labeling-queue resolve form.
  *
  * These are the named "score types" the human-in-the-loop review form composes
- * `@usetheo/ui` `AnnotationInput`s over. Per the M12 discovery, theo-cloud has
+ * `@getloopscale/ui` `AnnotationInput`s over. Per the M12 discovery, loop-console has
  * NO backend score-config store yet, so these live CLIENT-SIDE as a FIXTURE —
  * the ROADMAP-sanctioned mitigation (not a workaround). When a backend store
  * lands, this array becomes the seed/default and the page reads the store

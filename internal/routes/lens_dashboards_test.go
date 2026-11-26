@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -15,10 +15,10 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// theo-lens M66 — LensDashboardsHandler. Per-WORKSPACE custom dashboards (tenant_id scoping,
+// looptrace M66 — LensDashboardsHandler. Per-WORKSPACE custom dashboards (tenant_id scoping,
 // config-blob boundary validation, 404-not-403 cross-tenant). Mirrors the M52 saved-views harness.
 
 const validConfig = `[{"type":"kpi","metric":"traces","title":"Traces"},{"type":"trend","metric":"p95_latency"},{"type":"topn","metric":"tokens_by_model"}]`

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Input, Label } from '@usetheo/ui';
+import { Button, Input, Label } from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useCreateProject } from '@/hooks/projects/use-create-project';
@@ -83,7 +83,7 @@ export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProj
                 onChange={(e) => setName(e.target.value.toLowerCase())}
                 autoFocus
                 required
-                // Red Team theo-cloud#83 closure: tie the input to its
+                // Red Team loop-console#83 closure: tie the input to its
                 // inline help + (when present) the destructive Alert so
                 // screen readers announce the validation error when the
                 // field has focus instead of forcing the user to hunt

@@ -13,18 +13,18 @@ import { LiveUrlHero } from './live-url-hero';
  *  4. test_overview_renders_skeleton_while_status_loading (EC-6)
  *  5. test_overview_copy_button_writes_to_clipboard_and_shows_toast (EC-7 — ARIA-live)
  *
- * Per SEPA iter 2 CRITICAL fix: canonical URL is `https://teste-production.usetheo.dev`
- * (status.go:252 emits `https://<project>-<env>.<baseDomain>`). NOT `teste.usetheo.dev`
+ * Per SEPA iter 2 CRITICAL fix: canonical URL is `https://teste-production.getloopscale.com`
+ * (status.go:252 emits `https://<project>-<env>.<baseDomain>`). NOT `teste.getloopscale.com`
  * (v1.0 fabrication).
  *
  * Per SEPA iter 2 MAJOR: ProjectStatusDetail.url is `url?: string` (optional);
  * tests mock as `undefined` not `null`.
  *
- * Per SEPA iter 2 MAJOR: no Toast primitive in @usetheo/ui — use ARIA-live
+ * Per SEPA iter 2 MAJOR: no Toast primitive in @getloopscale/ui — use ARIA-live
  * transient state ("Copied" message in `<span aria-live="polite">`).
  */
 
-const CANONICAL_URL = 'https://teste-production.usetheo.dev';
+const CANONICAL_URL = 'https://teste-production.getloopscale.com';
 
 function makeStatus(overrides: Partial<ProjectStatusDetail> = {}): ProjectStatusDetail {
   return {
@@ -96,7 +96,7 @@ describe('LiveUrlHero', () => {
     });
   });
 
-  // Red Team theo-cloud#41 regression-protector (2026-06-27): when
+  // Red Team loop-console#41 regression-protector (2026-06-27): when
   // isPreviewOnly=true AND url is absent, the hero MUST render the
   // canonical "Preview only" empty state — NOT the misleading
   // "URL pending" + "appears after first successful deploy" copy that
@@ -129,12 +129,12 @@ describe('LiveUrlHero', () => {
     expect(screen.queryByText(/Preview only/i)).not.toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#115 closure (2026-06-28): when a preview-only
+  // Red Team loop-console#115 closure (2026-06-28): when a preview-only
   // project has an ACTIVE preview release whose URL is serving HTTP 200,
   // the hero MUST show that URL with a Visit button — NOT the misleading
   // "promote a release to production to assign a live URL" copy, which
   // contradicts the running state (`curl <url>` already returns 200).
-  // The CTO LIVE-validated 2026-06-28 with theokit-example deployed to
+  // The CTO LIVE-validated 2026-06-28 with loopzero-example deployed to
   // --env preview: build SUCCEEDED, release ACTIVE, Live URL serving 200,
   // yet the dashboard rendered "promote a release" — actively lying.
   //
@@ -144,14 +144,14 @@ describe('LiveUrlHero', () => {
   // environment classification honest.
   it('renders preview URL with Visit button when isPreviewOnly=true and previewStatus.url present (#115)', () => {
     const PREVIEW_URL =
-      'https://tn-cbeb584e569d5a20-theokit-example-app-preview.prod-dev.usetheo.dev';
+      'https://tn-cbeb584e569d5a20-loopzero-example-app-preview.prod-dev.getloopscale.com';
     render(
       <LiveUrlHero
         status={makeStatus({ url: undefined })}
         loading={false}
         isPreviewOnly={true}
         previewStatus={makeStatus({
-          project: 'theokit-example',
+          project: 'loopzero-example',
           environment: 'preview',
           url: PREVIEW_URL,
         })}

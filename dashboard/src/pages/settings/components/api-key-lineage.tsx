@@ -1,4 +1,4 @@
-import { Badge, Card, Sheet, Timestamp } from '@usetheo/ui';
+import { Badge, Card, Sheet, Timestamp } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { useApiKeyLineage } from '@/hooks/settings/use-api-keys';
 import type { APIKeyView, LineageItem } from '@/hooks/settings/api-keys-api';

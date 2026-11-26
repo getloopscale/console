@@ -42,7 +42,7 @@ const DIST = 'dist/assets';
 
 const MARCAS = [
   {
-    marca: '__theo_mocks_present_in_bundle__',
+    marca: '__loopscale_mocks_present_in_bundle__',
     framework: 'lib/mocks/ (handlers + fixtures)',
     entrada: 'import dinâmico em main.tsx, atrás de VITE_USE_MOCKS',
     // Sentinela injetado, com efeito de módulo. Funciona aqui porque o módulo é

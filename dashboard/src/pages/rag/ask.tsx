@@ -1,7 +1,7 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { Badge, Button, Card, PageShell, Select, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, PageShell, Select, Textarea } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -10,12 +10,12 @@ import { useAskQuestion } from '@/hooks/rag/use-answers';
 
 /**
  * M21 — /rag/ask. The core RAG surface: pick a collection, ask a question, get a
- * citation-backed answer. Mirrors the theo-memory playground (query → scored result
+ * citation-backed answer. Mirrors the loopmem playground (query → scored result
  * via POST). Calls the read+write dashboard BFF `POST /v1/dashboard/rag/answers`.
  */
 
 
-// M9 — retrieval strategies theo-rag exposes, with outcome-shaped labels (not internal
+// M9 — retrieval strategies looprag exposes, with outcome-shaped labels (not internal
 // jargon). `vector` is the default (progressive disclosure); `graph`/`global` are GraphRAG
 // (entity-graph traversal / community-summary global sensemaking), which fail-close to
 // vector upstream when the collection has no graph. Kept in lockstep with the BFF enum.
@@ -115,7 +115,7 @@ export function RagAskPage() {
                 <h2 className="text-base font-semibold">Answer</h2>
                 {answer.confidence ? <Badge variant="default">{answer.confidence}</Badge> : null}
                 {/* M9 — surface which strategy actually answered + an honest fallback note when
-                    theo-rag returns a router trace (graph/global fell back to vector). */}
+                    looprag returns a router trace (graph/global fell back to vector). */}
                 {answer.router?.strategy ?? answer.strategy ? (
                   <Badge variant="outline">
                     {answer.router?.strategy ?? answer.strategy}

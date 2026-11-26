@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // T3.7 of plan 2026-06-11-cleanroom-canonical-5-defense-layers v1.2.
 //
@@ -83,7 +83,7 @@ func TestHandlerErrorVisibility(t *testing.T) {
 
 				// Check if this block contains an error-write call. writeUpstreamError
 				// (live-test-gaps-fix F-1) is a self-logging error writer: it maps a
-				// themory upstream error to an HTTP response AND logs status+body
+				// loopmem upstream error to an HTTP response AND logs status+body
 				// internally — so it counts as both an error site and a logged one.
 				hasWriteError := blockContainsCall(blk, "writeError", "writeJSONError", "respondError", "writeUpstreamError")
 				if !hasWriteError {

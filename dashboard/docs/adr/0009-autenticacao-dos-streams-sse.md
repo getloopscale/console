@@ -1,7 +1,7 @@
 ---
 status: proposed
 date: 2026-08-07
-decision-makers: dono do projeto theo-cloud
+decision-makers: dono do projeto loop-console
 consulted: revisão de promoção do PR #469; medição direta do middleware Go
 origem: B-088 · B-015 (revertido por causa deste achado)
 ---

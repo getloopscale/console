@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/getloopscale/loop-console/internal/auth"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // J-16 slice 2 — WorkspaceWebhooksHandler, a mirror of MemoryWebhooksHandler for

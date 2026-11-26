@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M21 — a jornada das QUATRO ABAS, ponta a ponta pela tela.
 //
@@ -13,7 +13,7 @@
 // título de teste que promete mais do que a asserção entrega é pior que ausência de teste.
 //
 // A navegação é sempre por CLIQUE, a partir da raiz. Validar digitando o endereço usa o único
-// caminho que o usuário real não tem — foi assim que quatro telas do `theo-trust` ficaram
+// caminho que o usuário real não tem — foi assim que quatro telas do `loopguardrails` ficaram
 // inalcançáveis com três rodadas de validação passando por cima.
 //
 // HONESTIDADE SOBRE O ESCOPO: roda hermético contra o Vite local com `VITE_USE_MOCKS=true`, como

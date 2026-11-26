@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package s3x
 
@@ -19,7 +19,7 @@ import (
 // per-upload BFF cost goes from O(payload) to O(1).
 func BenchmarkPresignPut(b *testing.B) {
 	signer := &Signer{Region: "us-east-1", AccessKey: "AKIAEXAMPLE", SecretKey: "SECRETEXAMPLEKEY"}
-	url := "https://storage.example.com/theo-storage/tenant-x/data/report.bin"
+	url := "https://storage.example.com/loopstore/tenant-x/data/report.bin"
 	now := time.Date(2026, 1, 2, 15, 4, 5, 0, time.UTC)
 	b.ReportAllocs()
 	b.ResetTimer()

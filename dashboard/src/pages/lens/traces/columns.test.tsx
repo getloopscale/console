@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
-import { DataTable } from '@usetheo/ui';
+import { DataTable } from '@getloopscale/ui';
 
 import { render, screen } from '@/test/render';
 import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
@@ -8,7 +8,7 @@ import { tracesColumns, type Trace } from './columns';
 
 /**
  * M59 P1 T1.1 — the consensus-spine columns render latency/tokens/cost from `format.ts`, an absent
- * field renders `—` (never a fabricated value — R2), and the `@usetheo/ui` `Checkbox` toggles the
+ * field renders `—` (never a fabricated value — R2), and the `@getloopscale/ui` `Checkbox` toggles the
  * compare selection. Rendered through the real `DataTable` so the column config is exercised as shipped.
  */
 
@@ -99,7 +99,7 @@ describe('M59 P1 tracesColumns — spine columns', () => {
     expect(screen.queryByLabelText('failed')).not.toBeInTheDocument();
   });
 
-  it('toggles the compare selection through the @usetheo/ui Checkbox', async () => {
+  it('toggles the compare selection through the @getloopscale/ui Checkbox', async () => {
     const toggleSelected = vi.fn();
     renderTable({ data: [full], toggleSelected });
     await userEvent.click(screen.getByLabelText(`Select ${full.traceId} for compare`));

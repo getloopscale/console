@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package tracing
 
@@ -10,7 +10,7 @@ import (
 )
 
 func TestInit_DisabledViaEnv(t *testing.T) {
-	t.Setenv("LOOPZERO_TRACING_ENABLED", "false")
+	t.Setenv("LOOP_RUNTIME_TRACING_ENABLED", "false")
 
 	shutdown, err := Init(context.Background(), "test-service")
 	if err != nil {
@@ -26,7 +26,7 @@ func TestInit_DisabledViaEnv(t *testing.T) {
 }
 
 func TestInit_DisabledViaZero(t *testing.T) {
-	t.Setenv("LOOPZERO_TRACING_ENABLED", "0")
+	t.Setenv("LOOP_RUNTIME_TRACING_ENABLED", "0")
 
 	shutdown, err := Init(context.Background(), "test-service")
 	if err != nil {
@@ -39,7 +39,7 @@ func TestInit_DisabledViaZero(t *testing.T) {
 
 func TestInit_EnabledByDefault(t *testing.T) {
 	// Clear the env var to test default behavior
-	_ = os.Unsetenv("LOOPZERO_TRACING_ENABLED")
+	_ = os.Unsetenv("LOOP_RUNTIME_TRACING_ENABLED")
 	// Point to an unreachable endpoint so Init succeeds but export silently fails
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:0")
 
@@ -74,9 +74,9 @@ func TestIsEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envValue == "" {
-				_ = os.Unsetenv("LOOPZERO_TRACING_ENABLED")
+				_ = os.Unsetenv("LOOP_RUNTIME_TRACING_ENABLED")
 			} else {
-				t.Setenv("LOOPZERO_TRACING_ENABLED", tt.envValue)
+				t.Setenv("LOOP_RUNTIME_TRACING_ENABLED", tt.envValue)
 			}
 			if got := isEnabled(); got != tt.want {
 				t.Errorf("isEnabled() = %v, want %v", got, tt.want)
@@ -86,12 +86,12 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestGetEnv(t *testing.T) {
-	_ = os.Unsetenv("LOOPZERO_ENV")
+	_ = os.Unsetenv("LOOP_RUNTIME_ENV")
 	if got := getEnv(); got != "development" {
 		t.Errorf("getEnv() = %q, want %q", got, "development")
 	}
 
-	t.Setenv("LOOPZERO_ENV", "prod")
+	t.Setenv("LOOP_RUNTIME_ENV", "prod")
 	if got := getEnv(); got != "prod" {
 		t.Errorf("getEnv() = %q, want %q", got, "prod")
 	}

@@ -1,4 +1,4 @@
-import { Label } from '@usetheo/ui';
+import { Label } from '@getloopscale/ui';
 
 /**
  * Plan caps for replicas — mirrors pkg/enforcement.PlanLimiter expectations

@@ -1,4 +1,4 @@
-import { Badge, Card, PageShell, Skeleton } from '@usetheo/ui';
+import { Badge, Card, PageShell, Skeleton } from '@getloopscale/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

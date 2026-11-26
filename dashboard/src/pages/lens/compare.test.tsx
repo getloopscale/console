@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, waitFor, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { Toaster } from '@usetheo/ui';
-import { ThemeProvider, violetForge } from '@theokit/ui';
+import { Toaster } from '@getloopscale/ui';
+import { ThemeProvider, violetForge } from '@getloopscale/loopzero-ui';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { LensComparePage } from './compare';
 
@@ -13,7 +13,7 @@ vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFet
 
 /**
  * M8 — the compare-page integration suite (consumer-owned). The side-by-side lanes, the metrics
- * header, and the structural diff table moved to `@usetheo/ui` `TraceCompare`; this file tests the
+ * header, and the structural diff table moved to `@getloopscale/ui` `TraceCompare`; this file tests the
  * consumer concerns the DS never owns: the `?ids=` URL, the two fetches, honest per-lane error
  * surfaces, and that the mapped data drives the kit's honest deltas / "only in A/B" markers.
  */
@@ -102,7 +102,7 @@ describe('LensComparePage', () => {
   });
 
   // NOTE: the "pending lane → skeleton, no fabricated delta" behavior is owned + authoritatively tested
-  // by the design system: `@usetheo/ui` TraceCompare `test_lane_pending_mostra_skeleton_sem_delta`
+  // by the design system: `@getloopscale/ui` TraceCompare `test_lane_pending_mostra_skeleton_sem_delta`
   // asserts exactly `data-slot="lane-pending"` present + `data-slot="delta-badge"` absent while a lane
   // is pending. Per the M8 blueprint Q12, component-render behavior migrated to the lib; this page keeps
   // the consumer-owned integration (URL, the two fetches, error surfaces) covered by the cases here.

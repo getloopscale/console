@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M13 T4.2 — a jornada do painel de prompts, ponta a ponta pela tela.
 //
@@ -7,7 +7,7 @@
 // milestone; o resto da cobertura vive em lógica pura e teste de componente (122 casos), seguindo
 // o que o M12 e o M24 já fizeram.
 //
-// O QUE ESTE ARQUIVO PROVA, E POR QUE NAVEGA POR CLIQUE. No `theo-trust` (M23) quatro telas foram
+// O QUE ESTE ARQUIVO PROVA, E POR QUE NAVEGA POR CLIQUE. No `loopguardrails` (M23) quatro telas foram
 // declaradas no submenu e NUNCA abriram, porque faltava a linha em `resolveActiveMenu` — e três
 // rodadas de validação passaram por cima, porque validavam digitando a URL, que é o único caminho
 // que o usuário real não tem. Por isso aqui há UM único `page.goto`, na raiz: todo o resto é

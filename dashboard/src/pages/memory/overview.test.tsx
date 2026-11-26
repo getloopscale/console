@@ -76,7 +76,7 @@ describe('MemoryPage (/memory landing)', () => {
     expect(screen.getByTestId('memory-metrics-loading')).toBeInTheDocument();
   });
 
-  it('shows a "View Graph" explore card (themory-graph-gateway-dashboard)', async () => {
+  it('shows a "View Graph" explore card (loopmem-graph-gateway-dashboard)', async () => {
     mockCloudFetch.mockResolvedValueOnce({
       total_memories: 1,
       retrieval_api_usage: 0,

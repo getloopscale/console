@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// gateway-themory-integration T1.1 — the MCP-aware resolve endpoint the Theo MCP
+// gateway-loopmem-integration T1.1 — the MCP-aware resolve endpoint the LoopScale MCP
 // Gateway's BrokerResolver calls per request: validate the inbound theo_live_*,
 // run the SAME 3 guards as ForwardAuth (resolve → scope → cross-account), mint the
 // per-tenant key, and return the full PRINCIPAL as JSON {tenant_id, downstream_key,
@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 func authzReturning(owns bool, err error) AccountTenantAuthorizer {
@@ -74,10 +74,10 @@ func TestMCPResolve_Allow_ReturnsPrincipalJSON(t *testing.T) {
 	}
 }
 
-// theo-workspace#10 — when the capability carries a ScopeTools mapping, the
+// loopscale-workspace#10 — when the capability carries a ScopeTools mapping, the
 // principal's `scopes` field MUST be the TRANSLATED MCP tool names (the gateway maps
 // `scopes` → its tool allowlist via exact name match), NOT the raw data scopes. The
-// DOWNSTREAM key is still minted with the raw data scopes (themory's per-verb gate).
+// DOWNSTREAM key is still minted with the raw data scopes (loopmem's per-verb gate).
 func TestMCPResolve_Allow_TranslatesDataScopesToTools(t *testing.T) {
 	minter := &stubMinter{key: "theo_live_minted_for_t1"}
 	caps := map[string]MCPCapabilityBinding{"memory": {
@@ -125,7 +125,7 @@ func TestMCPResolve_Allow_TranslatesDataScopesToTools(t *testing.T) {
 	if got["memory:read"] || got["memory:write"] {
 		t.Errorf("raw data scopes must be translated, not passed through: %+v", p.Scopes)
 	}
-	// the DOWNSTREAM key is still minted with the raw data scopes (themory per-verb gate):
+	// the DOWNSTREAM key is still minted with the raw data scopes (loopmem per-verb gate):
 	if gotS := minter.lastScopes; len(gotS) != 2 || gotS[0] != "memory:read" || gotS[1] != "memory:write" {
 		t.Fatalf("broker must mint with the raw data scopes, got %+v", gotS)
 	}
@@ -276,7 +276,7 @@ func TestMCPResolve_Rag_TranslatesDataScopesToTools(t *testing.T) {
 	}
 }
 
-// M16 T2.2 — every @usetheo/rag-mcp tool is in EXACTLY one RagScopeTools bucket: no tool
+// M16 T2.2 — every @getloopscale/rag-mcp tool is in EXACTLY one RagScopeTools bucket: no tool
 // unmapped, no tool double-mapped (the tool-drift guard, roadmap risk 2). Guards the
 // PRODUCTION map against a new tool landing without a scope.
 func TestRagScopeTools_EveryToolInExactlyOneBucket(t *testing.T) {
@@ -295,14 +295,14 @@ func TestRagScopeTools_EveryToolInExactlyOneBucket(t *testing.T) {
 			t.Errorf("tool %q is not mapped to any rag scope (tool drift — add it to RagScopeTools)", tool)
 		}
 	}
-	// no bucket maps a tool that isn't a real @usetheo/rag-mcp tool
+	// no bucket maps a tool that isn't a real @getloopscale/rag-mcp tool
 	canonical := map[string]bool{}
 	for _, tool := range RagMCPTools {
 		canonical[tool] = true
 	}
 	for tool := range seen {
 		if !canonical[tool] {
-			t.Errorf("RagScopeTools maps %q which is not a known @usetheo/rag-mcp tool (RagMCPTools)", tool)
+			t.Errorf("RagScopeTools maps %q which is not a known @getloopscale/rag-mcp tool (RagMCPTools)", tool)
 		}
 	}
 	// count sanity: total mapped == total canonical (exactly-once ⇒ equal sizes)

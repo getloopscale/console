@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -68,10 +68,10 @@ var (
 
 // registrarUsoDaChave enfileira a marcação de `last_used_at`, fora do caminho de resposta.
 //
-// # Por que existe (usetheoai/theo-cloud#405)
+// # Por que existe (getloopscale/loop-console#405)
 //
 // Havia DOIS caminhos de autenticação e só um gravava. `RequireScope` (rotas Bearer do próprio
-// theo-cloud) atualizava a coluna; `ResolveAPIKey` — sobre a qual o ForwardAuth da borda é montado,
+// loop-console) atualizava a coluna; `ResolveAPIKey` — sobre a qual o ForwardAuth da borda é montado,
 // e por onde passa todo produto Model-B — não. Toda chave entregue a um agente marcava `Never` para
 // sempre, e a tela que existe para responder *quais credenciais estão vivas* respondia o oposto.
 //
@@ -164,7 +164,7 @@ func escreverRegistros(fila <-chan pedidoDeRegistro) {
 	// depende de `READ COMMITTED` (o default do servidor) para que duas escritas concorrentes da
 	// mesma chave não virem duas linhas gravadas; sob `REPEATABLE READ` a segunda erraria com falha
 	// de serialização — que o log abaixo torna visível em vez de engolir.
-	const q = `UPDATE loopzero_api_keys
+	const q = `UPDATE loop_runtime_api_keys
 		SET last_used_at = NOW()
 		WHERE id = $1
 		  AND (last_used_at IS NULL OR last_used_at < NOW() - make_interval(secs => $2))`

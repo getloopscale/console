@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Plan 0 of dashboard-memory-section-roadmap.md, T0.3.
 // Tests for GET /v1/api-keys/list — list handler that filters by
@@ -18,8 +18,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // authedRequest returns a GET request with the given UserContext attached via

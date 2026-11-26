@@ -3,7 +3,7 @@ import { flowUrl } from '@/pages/auth/kratos';
 import type { Flow } from './kratos';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2, Zap } from 'lucide-react';
-import { Button, Card, Input } from '@usetheo/ui';
+import { Button, Card, Input } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
@@ -18,7 +18,7 @@ import { RegisterCompletingScreen } from '@/pages/auth/components/register-compl
 const KRATOS_URL = AUTH_URL || API_URL;
 
 
-// Red Team theo-cloud#74 closure: the form POST navigates the page so
+// Red Team loop-console#74 closure: the form POST navigates the page so
 // React state is wiped on re-render. The user lands back here with empty
 // inputs after a benign "account exists" error and is forced to retype
 // everything (especially a long password). Persist non-secret fields
@@ -26,7 +26,7 @@ const KRATOS_URL = AUTH_URL || API_URL;
 // what was wrong. Password is NOT persisted (security) — the canonical
 // 2026 UX pattern (Vercel, Linear, Stripe) is "preserve name + email,
 // re-ask for password".
-const REGISTER_FORM_RESTORE_KEY = 'theo-register-form-restore';
+const REGISTER_FORM_RESTORE_KEY = 'loopscale-register-form-restore';
 
 function readPersistedRegisterForm(): { name?: string; email?: string } | null {
   try {
@@ -158,8 +158,8 @@ export function RegisterPage() {
     const errors: Record<string, string> = {};
     const nameErr = validateRequired(name, 'Name');
     if (nameErr) errors.name = nameErr;
-    // theo-cloud#65 closure: cap Name at 256 chars at the form gate. Mirrors
-    // the Kratos identity schema cap (theo/infra/helm/ory-kratos/identity.
+    // loop-console#65 closure: cap Name at 256 chars at the form gate. Mirrors
+    // the Kratos identity schema cap (loopscale/infra/helm/ory-kratos/identity.
     // schema.json → traits.name.maxLength: 256). Without this, a 20 000-char
     // Name bloats the session JWT to ~27 KB (root cause of #64). The HTML
     // maxLength={256} on the <Input> below is a defense-in-depth ceiling
@@ -182,8 +182,8 @@ export function RegisterPage() {
     const csrfNode = flow.ui.nodes.find((n) => n.attributes.name === 'csrf_token');
     try {
       // T3.4 of plan kratos-self-service-rate-limit-systemic v1.1 — route
-      // through the theo-cloud BFF response-shape unifier (closes Red Team
-      // theo-cloud#43). The BFF (theo-cloud /v1/auth/register) proxies to
+      // through the loop-console BFF response-shape unifier (closes Red Team
+      // loop-console#43). The BFF (loop-console /v1/auth/register) proxies to
       // the upstream identity-store and returns the canonical universal
       // response identically for both new and existing email branches,
       // so an attacker cannot distinguish account existence by reading
@@ -313,12 +313,12 @@ export function RegisterPage() {
             {/* Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2 Labels or
                 Instructions. Replace `placeholder + aria-label` anti-pattern
                 with explicit <label htmlFor> + <Input id> (id is forwarded
-                through InputHTMLAttributes per the @usetheo/ui InputProps). */}
+                through InputHTMLAttributes per the @getloopscale/ui InputProps). */}
             <label htmlFor="register-name" className="block text-body-sm font-medium text-foreground">
               Name
               <Input
                 id="register-name"
-                // Red Team theo-cloud#51 closure: add `name` so the
+                // Red Team loop-console#51 closure: add `name` so the
                 // browser-issued "form field element should have an
                 // id or name" warning stops firing and password
                 // managers can label the field properly.
@@ -329,11 +329,11 @@ export function RegisterPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Name"
                 autoComplete="name"
-                // theo-cloud#65 closure: HTML maxLength caps typed + pasted
+                // loop-console#65 closure: HTML maxLength caps typed + pasted
                 // input at 256 chars (defense-in-depth). The JS validateMax
                 // Length gate above surfaces the user-visible error message
                 // when paste-from-clipboard somehow exceeds (older browsers).
-                // 256 mirrors the Kratos identity schema cap (theo/infra/
+                // 256 mirrors the Kratos identity schema cap (loopscale/infra/
                 // helm/ory-kratos/identity.schema.json).
                 maxLength={256}
                 aria-invalid={validationErrors.name ? true : undefined}

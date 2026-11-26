@@ -1,5 +1,5 @@
 /**
- * csv.ts — shared CSV primitives (extracted from audit-csv.ts, theo-cloud#157).
+ * csv.ts — shared CSV primitives (extracted from audit-csv.ts, loop-console#157).
  *
  * ONE source of the CSV formula-injection guard + RFC-4180 escaper, reused by every exporter (audit
  * log, traces) so the guard can never drift between them (DRY / Rule 9). No peer LLM-observability

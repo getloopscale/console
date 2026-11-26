@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
@@ -126,7 +126,7 @@ func TestTick_FetchErrorSkipsTenant(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
 	e.fetch = func(_ context.Context, _ string, _ int) (json.RawMessage, error) {
-		return nil, errors.New("theo-lens down")
+		return nil, errors.New("looptrace down")
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric, comparator").
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -145,11 +145,11 @@ func TestTick_FetchErrorSkipsTenant(t *testing.T) {
 
 // ── M135 T3.1 — guard-backed alert rules ─────────────────────────────────────────────────────────
 //
-// A guard-backed rule thresholds the number of traces that breached a theo-lens guard in the
+// A guard-backed rule thresholds the number of traces that breached a looptrace guard in the
 // window. Everything downstream — the state machine, the atomic transition, the delivery enqueue —
 // is REUSED unchanged; only the source of the number differs. That is the whole point of the
-// boundary decision (D1): theo-cloud already owns a correct anti-storm evaluator, so M135 must not
-// grow a second one inside theo-lens.
+// boundary decision (D1): loop-console already owns a correct anti-storm evaluator, so M135 must not
+// grow a second one inside looptrace.
 
 // A guard rule with no data in the window MUST NOT fire — the same invariant as #247, one source
 // further upstream. An empty window is absence, not "zero traces breached".
@@ -324,7 +324,7 @@ func TestFetchErrorDoesNotStampLastEvaluated(t *testing.T) {
 // A transport failure self-heals; a deleted guard never does. Skipping forever is correct for
 // neither. On a DEFINITIVE 404 the rule is disabled, so the customer sees a disabled rule rather
 // than an armed one that can never fire — an honest downgrade. The customer has no reason to
-// connect "I deleted a guard in theo-lens" with "an alert in theo-cloud went dark"; the disabled
+// connect "I deleted a guard in looptrace" with "an alert in loop-console went dark"; the disabled
 // flag is the breadcrumb.
 func TestTick_GuardNotFound_DisablesTheRule(t *testing.T) {
 	e, mock, db := newEval(t)
@@ -345,7 +345,7 @@ func TestTick_GuardNotFound_DisablesTheRule(t *testing.T) {
 }
 
 // A TRANSPORT error must NOT disable — auto-disabling on a blip would permanently disarm every
-// guard rule in the fleet the first time theo-lens hiccups. This is the assertion that makes the
+// guard rule in the fleet the first time looptrace hiccups. This is the assertion that makes the
 // test above safe rather than dangerous.
 func TestTick_TransportError_DoesNotDisable(t *testing.T) {
 	e, mock, db := newEval(t)
@@ -365,8 +365,8 @@ func TestTick_TransportError_DoesNotDisable(t *testing.T) {
 }
 
 // The in-tick bulkhead: after K consecutive carrier failures the remaining guard rules are skipped
-// for this tick, so a hung theo-lens cannot serialize N × timeout inside one tick and stall the
-// series-backed rules queued behind it — rules with no theo-lens dependency at all.
+// for this tick, so a hung looptrace cannot serialize N × timeout inside one tick and stall the
+// series-backed rules queued behind it — rules with no looptrace dependency at all.
 func TestTick_GuardBulkheadStopsAfterBudget(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
@@ -527,15 +527,15 @@ func TestTick_BulkheadStreakResetsOnSuccess(t *testing.T) {
 
 // ── The other half of the cross-repo contract ────────────────────────────────────────────────────
 //
-// theo-lens pins the exact key set it emits (evaluators-route.integration.test.ts). This pins that
+// looptrace pins the exact key set it emits (evaluators-route.integration.test.ts). This pins that
 // we decode that same body correctly. Neither test alone would have caught the shipped defect: the
 // consumer branched on a 404 the producer never emits, and each side's tests passed because each
 // was written against its own author's intent rather than against the wire.
 //
-// The literal below is a VERBATIM response body. If theo-lens renames or drops a key, its own test
+// The literal below is a VERBATIM response body. If looptrace renames or drops a key, its own test
 // fails there; if we change what we expect, this fails here. The pair is the contract.
-func TestGuardBreachWindow_DecodesTheWireShapeTheoLensEmits(t *testing.T) {
-	// Verbatim from theo-lens, which emits BOTH names during its deprecation window (M136).
+func TestGuardBreachWindow_DecodesTheWireShapeLoopScaleLensEmits(t *testing.T) {
+	// Verbatim from looptrace, which emits BOTH names during its deprecation window (M136).
 	const wire = `{"breachCount":12,"evaluatedCount":100,"hasData":true,"monitorExists":true,"guardExists":true,"windowSeconds":3600}`
 
 	var w MonitorBreachWindow
@@ -550,7 +550,7 @@ func TestGuardBreachWindow_DecodesTheWireShapeTheoLensEmits(t *testing.T) {
 	// guardExists distinguishes it from a quiet-but-healthy guard. If the field is ever dropped,
 	// Go's zero value makes it decode as false — which happens to be the SAFE direction here (a
 	// dropped field disables rules rather than arming dead ones), but it is safe by luck, not by
-	// design, so the theo-lens side pins the key set explicitly.
+	// design, so the looptrace side pins the key set explicitly.
 	var gone MonitorBreachWindow
 	if err := json.Unmarshal([]byte(`{"breachCount":0,"evaluatedCount":0,"hasData":false,"monitorExists":false,"guardExists":false,"windowSeconds":60}`), &gone); err != nil {
 		t.Fatal(err)

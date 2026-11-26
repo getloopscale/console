@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
-# One-command end-to-end harness for the theo-cloud <-> TheMemory integration.
-# Builds the host binaries + the themory image, boots the full stack (pgvector +
-# postgres + hermetic mock-openai + themory + theo-cloud), runs the Go e2e test
+# One-command end-to-end harness for the loop-console <-> TheMemory integration.
+# Builds the host binaries + the loopmem image, boots the full stack (pgvector +
+# postgres + hermetic mock-openai + loopmem + loop-console), runs the Go e2e test
 # against the REAL endpoints, then tears everything down.
 #
-# Usage (from the theo-cloud repo root):
+# Usage (from the loop-console repo root):
 #   make e2e                 # build + up + test + down
 #   KEEP_UP=1 make e2e       # leave the stack running for debugging
 #   make e2e-down            # tear a left-up stack down
 #
 # Overridable env:
-#   THEMORY_DIR    path to the sibling theo-memory repo (default: ../theo-memory)
-#   THEORAG_DIR    path to the sibling theo-rag repo    (default: ../theo-rag)
-#   THELENS_DIR    path to the sibling theo-lens repo   (default: ../theo-lens)
-#   THEMORY_IMAGE  pre-built themory image to use instead of building one
+#   LOOPMEM_DIR    path to the sibling loopmem repo (default: ../loopmem)
+#   LOOPRAG_DIR    path to the sibling looprag repo    (default: ../looprag)
+#   LOOPTRACE_DIR    path to the sibling looptrace repo   (default: ../looptrace)
+#   LOOPMEM_IMAGE  pre-built loopmem image to use instead of building one
 #   KEEP_UP=1      do not tear the stack down after the test (debug)
 #
 # Isolamento de pilha (#333) — em CI cada job recebe projeto e portas proprios; localmente
 # ambos sao FIXOS de proposito, para que `make e2e-down` continue achando a pilha:
-#   E2E_PROJECT              nome do projeto compose (default: theo-cloud-memory-e2e local;
-#                            theo-cloud-memory-e2e-<job>-<tentativa>-<pid> em CI)
+#   E2E_PROJECT              nome do projeto compose (default: loop-console-memory-e2e local;
+#                            loop-console-memory-e2e-<job>-<tentativa>-<pid> em CI)
 #   E2E_STACK_ID             sufixo do projeto em CI (default: $GITHUB_JOB-$GITHUB_RUN_ATTEMPT-$$)
 #   E2E_DYNAMIC_PORTS=1      forca portas sorteadas do kernel fora de CI (default: 0)
 #   E2E_*_PORT               fixa uma porta especifica; vence em qualquer modo
@@ -42,9 +42,9 @@ EDGE="${EDGE:-0}"
 EDGE_COMPOSE_FILE="${E2E_DIR}/docker-compose.edge.e2e.yaml"
 BIN_DIR="${E2E_DIR}/bin"
 
-THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../theo-memory}"
-THEMORY_MASTER_KEY="${THEMORY_MASTER_KEY:-e2e-master-key}"
-export THEMORY_MASTER_KEY
+LOOPMEM_DIR="${LOOPMEM_DIR:-${ROOT}/../loopmem}"
+LOOPMEM_MASTER_KEY="${LOOPMEM_MASTER_KEY:-e2e-master-key}"
+export LOOPMEM_MASTER_KEY
 
 # #331 — segredo de assinatura de sessao, sorteado por execucao. O compose o exige (`:?`), entao
 # esquecer de exportar falha ALTO em vez de cair num default previsivel: um default que "funciona"
@@ -52,36 +52,36 @@ export THEMORY_MASTER_KEY
 E2E_SESSION_TOKEN_SECRET="${E2E_SESSION_TOKEN_SECRET:-$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
 export E2E_SESSION_TOKEN_SECRET
 
-# M18 (KEYSTONE) — the sibling theo-rag checkout (pinned source with M11/M12/M13).
-THEORAG_DIR="${THEORAG_DIR:-${ROOT}/../theo-rag}"
-THEORAG_ADMIN_BOOTSTRAP_TOKEN="${THEORAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"
-export THEORAG_ADMIN_BOOTSTRAP_TOKEN
+# M18 (KEYSTONE) — the sibling looprag checkout (pinned source with M11/M12/M13).
+LOOPRAG_DIR="${LOOPRAG_DIR:-${ROOT}/../looprag}"
+LOOPRAG_ADMIN_BOOTSTRAP_TOKEN="${LOOPRAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"
+export LOOPRAG_ADMIN_BOOTSTRAP_TOKEN
 
-# O COMPOSE NAO LIA `THEORAG_DIR` — ele hardcodava
-# `../../../../theo-data/theo-rag/packages/.../migrations`, um caminho que NAO EXISTE nem no
+# O COMPOSE NAO LIA `LOOPRAG_DIR` — ele hardcodava
+# `../../../../loopscale-data/looprag/packages/.../migrations`, um caminho que NAO EXISTE nem no
 # dev-box nem no runner. Bind de origem ausente vira DIRETORIO VAZIO, o loop de `psql`
 # itera zero vezes, e o container sai 0: schema nunca aplicado, migracao "verde".
 #
-# O theo-rag entao subia healthy (o healthcheck so bate `/v1/healthz`, que nao toca tabela)
+# O looprag entao subia healthy (o healthcheck so bate `/v1/healthz`, que nao toca tabela)
 # e `POST /v1/admin/keys` devolvia 503 sobre tabela inexistente. O harness lia esse 503 como
 # "bootstrap consumido" — palpite errado que mandou o leitor investigar o token por semanas
-# (#271). Diferente do theo-lens, que MIGRA NO BOOT e por isso nunca teve esse modo.
+# (#271). Diferente do looptrace, que MIGRA NO BOOT e por isso nunca teve esse modo.
 #
 # Exportado para o compose consumir; o guard abaixo torna o no-op silencioso impossivel.
-THEORAG_MIGRATIONS_DIR="${THEORAG_MIGRATIONS_DIR:-${THEORAG_DIR}/packages/core/src/infrastructure/db/migrations}"
-export THEORAG_MIGRATIONS_DIR
+LOOPRAG_MIGRATIONS_DIR="${LOOPRAG_MIGRATIONS_DIR:-${LOOPRAG_DIR}/packages/core/src/infrastructure/db/migrations}"
+export LOOPRAG_MIGRATIONS_DIR
 
-# M40 (KEYSTONE) — the sibling theo-lens checkout (pinned source with M22/M37/M38).
-THELENS_DIR="${THELENS_DIR:-${ROOT}/../theo-lens}"
-THELENS_ADMIN_BOOTSTRAP="${THELENS_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}"
-export THELENS_ADMIN_BOOTSTRAP
+# M40 (KEYSTONE) — the sibling looptrace checkout (pinned source with M22/M37/M38).
+LOOPTRACE_DIR="${LOOPTRACE_DIR:-${ROOT}/../looptrace}"
+LOOPTRACE_ADMIN_BOOTSTRAP="${LOOPTRACE_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}"
+export LOOPTRACE_ADMIN_BOOTSTRAP
 
 # --- BEGIN e2e-stack-identity (extraido e EXECUTADO por internal/ci/e2e_isolation_test.go) ---
 # --- Isolamento de pilha (issue #333) ----------------------------------------
 #
 # MEDIDO no run 30723256775: `e2e` e `e2e-edge` sao dois jobs do MESMO run, comecam no mesmo
 # segundo e a Blacksmith os colocou no MESMO host (`ip-172-31-64-123`) — runners distintos,
-# daemon Docker compartilhado. Ambos usavam o literal `theo-cloud-memory-e2e` e as mesmas
+# daemon Docker compartilhado. Ambos usavam o literal `loop-console-memory-e2e` e as mesmas
 # portas fixas. O `e2e` morreu ao ligar 55432, ANTES de qualquer teste rodar.
 #
 # Duas propriedades fecham a classe, e sao independentes:
@@ -95,14 +95,14 @@ export THELENS_ADMIN_BOOTSTRAP
 # pilha que o `e2e-down` nao encontra — teardown que reporta sucesso sem fazer nada, com volumes
 # de Postgres orfaos crescendo em silencio. Foi o defeito que a primeira versao desta correcao
 # introduziu, e `TestE2ELocalProjectMatchesTheMakefileTeardown` existe por causa dele.
-E2E_PROJECT_BASE="theo-cloud-memory-e2e"
+E2E_PROJECT_BASE="loop-console-memory-e2e"
 if [[ -n "${GITHUB_ACTIONS:-}" || "${E2E_DYNAMIC_PORTS:-0}" == "1" ]]; then
   E2E_STACK_ID="${E2E_STACK_ID:-${GITHUB_JOB:-job}-${GITHUB_RUN_ATTEMPT:-0}-$$}"
   # Docker exige [a-z0-9][a-z0-9_-]* no nome do projeto.
   E2E_STACK_ID="$(printf '%s' "${E2E_STACK_ID}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
   E2E_PROJECT="${E2E_PROJECT:-${E2E_PROJECT_BASE}-${E2E_STACK_ID}}"
 else
-  E2E_PROJECT="${E2E_PROJECT:-theo-cloud-memory-e2e}"
+  E2E_PROJECT="${E2E_PROJECT:-loop-console-memory-e2e}"
 fi
 export E2E_PROJECT
 # O passo de dump do ci.yml roda noutro shell; sem isto ele olharia um projeto que nao existe
@@ -141,17 +141,17 @@ fi
 # A port already taken on the host (e.g. another stack on 55432) is resolved by
 # exporting the matching E2E_*_PORT before running — the compose honors them.
 E2E_CLOUD_PORT="${E2E_CLOUD_PORT:-$(dyn_port 13002)}"
-E2E_THEMORY_PORT="${E2E_THEMORY_PORT:-$(dyn_port 18080)}"
+E2E_LOOPMEM_PORT="${E2E_LOOPMEM_PORT:-$(dyn_port 18080)}"
 E2E_RAG_PORT="${E2E_RAG_PORT:-$(dyn_port 18082)}"
 E2E_LENS_PORT="${E2E_LENS_PORT:-$(dyn_port 18084)}"
 E2E_PG_CLOUD_PORT="${E2E_PG_CLOUD_PORT:-$(dyn_port 55432)}"
-E2E_PG_THEMORY_PORT="${E2E_PG_THEMORY_PORT:-$(dyn_port 55434)}"
+E2E_PG_LOOPMEM_PORT="${E2E_PG_LOOPMEM_PORT:-$(dyn_port 55434)}"
 E2E_PG_RAG_PORT="${E2E_PG_RAG_PORT:-$(dyn_port 55435)}"
 E2E_PG_LENS_PORT="${E2E_PG_LENS_PORT:-$(dyn_port 55436)}"
 E2E_KRATOS_PUBLIC_PORT="${E2E_KRATOS_PUBLIC_PORT:-$(dyn_port 14433)}"
 E2E_KRATOS_ADMIN_PORT="${E2E_KRATOS_ADMIN_PORT:-$(dyn_port 14434)}"
 E2E_EDGE_PORT="${E2E_EDGE_PORT:-$(dyn_port 8090)}"
-export E2E_CLOUD_PORT E2E_THEMORY_PORT E2E_RAG_PORT E2E_LENS_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT E2E_PG_RAG_PORT E2E_PG_LENS_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT E2E_EDGE_PORT
+export E2E_CLOUD_PORT E2E_LOOPMEM_PORT E2E_RAG_PORT E2E_LENS_PORT E2E_PG_CLOUD_PORT E2E_PG_LOOPMEM_PORT E2E_PG_RAG_PORT E2E_PG_LENS_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT E2E_EDGE_PORT
 # --- END e2e-stack-identity ---
 
 log()  { printf '\033[1;36m[e2e]\033[0m %s\n' "$*"; }
@@ -186,7 +186,7 @@ dump_logs() {
   # Dump them FIRST + verbatim so the root cause isn't invisible.
   echo "── cloud-migrate ──"; compose logs --no-color cloud-migrate || true
   echo "── pg-cloud ──";      compose logs --no-color --tail=40 pg-cloud || true
-  compose logs --tail=80 themory theo-cloud mock-openai || true
+  compose logs --tail=80 loopmem loop-console mock-openai || true
   if [[ "${EDGE}" == "1" ]]; then compose logs --tail=80 traefik rag lens pg-lens || true; fi
 }
 
@@ -200,7 +200,7 @@ dump_logs() {
 #
 # Agora o status e o corpo aparecem. `$1` = rotulo, `$2` = url, `$3` = token,
 # `$4` = payload, `$5` = expressao sed que extrai a chave (o shape difere por servico:
-# themory/lens usam `secret` plano, rag usa `raw_key` aninhado).
+# loopmem/lens usam `secret` plano, rag usa `raw_key` aninhado).
 MINT_STATUS=""
 MINT_BODY=""
 MINT_KEY=""
@@ -231,11 +231,11 @@ mint_admin_key() {
 command -v docker >/dev/null || { fail "docker not found"; exit 1; }
 command -v go >/dev/null || { fail "go not found"; exit 1; }
 # O checkout do vizinho so e exigido quando NAO ha imagem pre-construida. Com
-# `THEMORY_IMAGE` setada (o caminho do CI, que puxa do GHCR por digest) nao ha o que
+# `LOOPMEM_IMAGE` setada (o caminho do CI, que puxa do GHCR por digest) nao ha o que
 # buildar, e exigir o diretorio faria o e2e depender de um repo que ele nao usa.
-if [[ -z "${THEMORY_IMAGE:-}" ]]; then
-  [[ -f "${THEMORY_DIR}/Dockerfile" ]] || {
-    fail "TheMemory repo not found at THEMORY_DIR=${THEMORY_DIR} (set THEMORY_DIR=/path/to/theo-memory, ou passe THEMORY_IMAGE=<ref>)"
+if [[ -z "${LOOPMEM_IMAGE:-}" ]]; then
+  [[ -f "${LOOPMEM_DIR}/Dockerfile" ]] || {
+    fail "TheMemory repo not found at LOOPMEM_DIR=${LOOPMEM_DIR} (set LOOPMEM_DIR=/path/to/loopmem, ou passe LOOPMEM_IMAGE=<ref>)"
     exit "${E2E_EXIT_HARNESS}"
   }
 fi
@@ -243,57 +243,57 @@ fi
 trap teardown EXIT
 
 # --- 1. build host binaries (static, copied into the runtime image) ----------
-log "building host binaries (theo-cloud + mock-openai)…"
+log "building host binaries (loop-console + mock-openai)…"
 mkdir -p "${BIN_DIR}"
-( cd "${ROOT}" && CGO_ENABLED=0 GOOS=linux go build -o "${BIN_DIR}/theo-cloud" ./cmd )
+( cd "${ROOT}" && CGO_ENABLED=0 GOOS=linux go build -o "${BIN_DIR}/loop-console" ./cmd )
 ( cd "${ROOT}" && CGO_ENABLED=0 GOOS=linux go build -o "${BIN_DIR}/mock-openai" ./tests/e2e/mock-openai )
 
-# --- 2. build the themory image from the sibling repo ------------------------
-if [[ -n "${THEMORY_IMAGE:-}" ]]; then
-  log "using pre-built themory image: ${THEMORY_IMAGE}"
-  export THEMORY_IMAGE
+# --- 2. build the loopmem image from the sibling repo ------------------------
+if [[ -n "${LOOPMEM_IMAGE:-}" ]]; then
+  log "using pre-built loopmem image: ${LOOPMEM_IMAGE}"
+  export LOOPMEM_IMAGE
 else
-  log "building themory image from ${THEMORY_DIR} (first run is slow; cached after)…"
-  docker build -t themory-e2e:latest -f "${THEMORY_DIR}/Dockerfile" "${THEMORY_DIR}"
-  export THEMORY_IMAGE="themory-e2e:latest"
+  log "building loopmem image from ${LOOPMEM_DIR} (first run is slow; cached after)…"
+  docker build -t loopmem-e2e:latest -f "${LOOPMEM_DIR}/Dockerfile" "${LOOPMEM_DIR}"
+  export LOOPMEM_IMAGE="loopmem-e2e:latest"
 fi
 
-# --- 2b. (EDGE=1, M18) build the theo-rag image from the sibling checkout ------
+# --- 2b. (EDGE=1, M18) build the looprag image from the sibling checkout ------
 # D1: pinned local source (M11/M12/M13), NOT a floating GHCR :develop.
 if [[ "${EDGE}" == "1" ]]; then
-  if [[ -z "${THEORAG_IMAGE:-}" ]]; then
-    [[ -f "${THEORAG_DIR}/packages/api/Dockerfile" ]] || {
-      fail "theo-rag repo not found at THEORAG_DIR=${THEORAG_DIR} (set THEORAG_DIR=/path/to/theo-rag, ou passe THEORAG_IMAGE=<ref>)"
+  if [[ -z "${LOOPRAG_IMAGE:-}" ]]; then
+    [[ -f "${LOOPRAG_DIR}/packages/api/Dockerfile" ]] || {
+      fail "looprag repo not found at LOOPRAG_DIR=${LOOPRAG_DIR} (set LOOPRAG_DIR=/path/to/looprag, ou passe LOOPRAG_IMAGE=<ref>)"
       exit "${E2E_EXIT_HARNESS}"
     }
   fi
-  if [[ -n "${THEORAG_IMAGE:-}" ]]; then
-    log "using pre-built theo-rag image: ${THEORAG_IMAGE}"
-    export THEORAG_IMAGE
+  if [[ -n "${LOOPRAG_IMAGE:-}" ]]; then
+    log "using pre-built looprag image: ${LOOPRAG_IMAGE}"
+    export LOOPRAG_IMAGE
   else
-    log "building theo-rag image from ${THEORAG_DIR} (first run is slow; cached after)…"
-    docker build -t theo-rag-e2e:latest -f "${THEORAG_DIR}/packages/api/Dockerfile" "${THEORAG_DIR}"
-    export THEORAG_IMAGE="theo-rag-e2e:latest"
+    log "building looprag image from ${LOOPRAG_DIR} (first run is slow; cached after)…"
+    docker build -t looprag-e2e:latest -f "${LOOPRAG_DIR}/packages/api/Dockerfile" "${LOOPRAG_DIR}"
+    export LOOPRAG_IMAGE="looprag-e2e:latest"
   fi
 fi
 
-# --- 2c. (EDGE=1, M40) build the theo-lens image from the sibling checkout -----
-# Pinned local source (M22/M37/M38), NOT a floating GHCR :develop. theo-lens's
+# --- 2c. (EDGE=1, M40) build the looptrace image from the sibling checkout -----
+# Pinned local source (M22/M37/M38), NOT a floating GHCR :develop. looptrace's
 # Dockerfile is at the repo ROOT (a multi-stage pnpm-workspace build serving API + UI).
 if [[ "${EDGE}" == "1" ]]; then
-  if [[ -z "${THELENS_IMAGE:-}" ]]; then
-    [[ -f "${THELENS_DIR}/Dockerfile" ]] || {
-      fail "theo-lens repo not found at THELENS_DIR=${THELENS_DIR} (set THELENS_DIR=/path/to/theo-lens, ou passe THELENS_IMAGE=<ref>)"
+  if [[ -z "${LOOPTRACE_IMAGE:-}" ]]; then
+    [[ -f "${LOOPTRACE_DIR}/Dockerfile" ]] || {
+      fail "looptrace repo not found at LOOPTRACE_DIR=${LOOPTRACE_DIR} (set LOOPTRACE_DIR=/path/to/looptrace, ou passe LOOPTRACE_IMAGE=<ref>)"
       exit "${E2E_EXIT_HARNESS}"
     }
   fi
-  if [[ -n "${THELENS_IMAGE:-}" ]]; then
-    log "using pre-built theo-lens image: ${THELENS_IMAGE}"
-    export THELENS_IMAGE
+  if [[ -n "${LOOPTRACE_IMAGE:-}" ]]; then
+    log "using pre-built looptrace image: ${LOOPTRACE_IMAGE}"
+    export LOOPTRACE_IMAGE
   else
-    log "building theo-lens image from ${THELENS_DIR} (first run is slow; cached after)…"
-    docker build -t theo-lens-e2e:latest -f "${THELENS_DIR}/Dockerfile" "${THELENS_DIR}"
-    export THELENS_IMAGE="theo-lens-e2e:latest"
+    log "building looptrace image from ${LOOPTRACE_DIR} (first run is slow; cached after)…"
+    docker build -t looptrace-e2e:latest -f "${LOOPTRACE_DIR}/Dockerfile" "${LOOPTRACE_DIR}"
+    export LOOPTRACE_IMAGE="looptrace-e2e:latest"
   fi
 fi
 
@@ -308,37 +308,37 @@ log "stack healthy."
 # --- 3.5 Model-B platform-admin provisioning (M6 full-chain) -----------------
 # The credential broker (per-tenant data keys for the dashboard memory surface)
 # needs a real memory:platform-admin theo_live_* key to mint with. Auto-provision
-# it from themory's bootstrap token (mirrors dev/run.sh § Model B) and recreate
+# it from loopmem's bootstrap token (mirrors dev/run.sh § Model B) and recreate
 # the gateway with it — otherwise the full-chain memory write fails CLOSED with
 # "resolve per-tenant key: not found".
-if [[ -z "${THEMORY_PLATFORM_ADMIN_KEY:-}" ]]; then
-  BOOTSTRAP="${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"
-  log "provisioning Model B platform-admin key via the themory bootstrap token…"
+if [[ -z "${LOOPMEM_PLATFORM_ADMIN_KEY:-}" ]]; then
+  BOOTSTRAP="${LOOPMEM_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"
+  log "provisioning Model B platform-admin key via the loopmem bootstrap token…"
   # `|| true` on the pipe so a no-match grep (e.g. bootstrap already consumed on a
   # KEEP_UP re-run) does NOT trip `set -e`/`pipefail` before the explicit guard +
   # dump_logs below — otherwise a mint failure is an opaque, log-less red.
-  if ! mint_admin_key "memory" "http://localhost:${E2E_THEMORY_PORT}/v1/admin/keys" \
+  if ! mint_admin_key "memory" "http://localhost:${E2E_LOOPMEM_PORT}/v1/admin/keys" \
     "${BOOTSTRAP}" \
-    '{"name":"theo-cloud-platform-admin","scopes":["memory:platform-admin"]}' \
+    '{"name":"loop-console-platform-admin","scopes":["memory:platform-admin"]}' \
     's/.*"secret":"\(theo_live_[^"]*\)".*/\1/p'; then
     dump_logs
     exit "${E2E_EXIT_HARNESS}"
   fi
   PA_KEY="${MINT_KEY}"
-  export THEMORY_PLATFORM_ADMIN_KEY="${PA_KEY}"
+  export LOOPMEM_PLATFORM_ADMIN_KEY="${PA_KEY}"
   log "minted platform-admin key; recreating the gateway with it…"
-  compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
+  compose up -d --no-deps --wait --wait-timeout 90 loop-console
 fi
 
 # --- 3.6 (EDGE=1, M18) rag Model-B platform-admin provisioning ----------------
 # The rag broker needs a rag:platform-admin theo_live_* to mint per-tenant keys.
-# Mint it from theo-rag's bootstrap token (M12: /v1/admin/keys, workspace_id
-# required, response nested under `raw_key` — NOT themory's flat `secret`).
+# Mint it from looprag's bootstrap token (M12: /v1/admin/keys, workspace_id
+# required, response nested under `raw_key` — NOT loopmem's flat `secret`).
 if [[ "${EDGE}" == "1" && -z "${RAG_PLATFORM_ADMIN_KEY:-}" ]]; then
-  log "provisioning rag Model B platform-admin key via the theo-rag bootstrap token…"
+  log "provisioning rag Model B platform-admin key via the looprag bootstrap token…"
   if ! mint_admin_key "rag" "http://localhost:${E2E_RAG_PORT}/v1/admin/keys" \
-    "${THEORAG_ADMIN_BOOTSTRAP_TOKEN}" \
-    '{"name":"theo-cloud-rag-admin","workspace_id":"default","scopes":["rag:platform-admin","rag:admin","rag:read","rag:write","rag:delete"]}' \
+    "${LOOPRAG_ADMIN_BOOTSTRAP_TOKEN}" \
+    '{"name":"loop-console-rag-admin","workspace_id":"default","scopes":["rag:platform-admin","rag:admin","rag:read","rag:write","rag:delete"]}' \
     's/.*"raw_key":"\([^"]*\)".*/\1/p'; then
     dump_logs
     exit "${E2E_EXIT_HARNESS}"
@@ -346,18 +346,18 @@ if [[ "${EDGE}" == "1" && -z "${RAG_PLATFORM_ADMIN_KEY:-}" ]]; then
   RA_KEY="${MINT_KEY}"
   export RAG_PLATFORM_ADMIN_KEY="${RA_KEY}"
   log "minted rag platform-admin key; recreating the gateway with it…"
-  compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
+  compose up -d --no-deps --wait --wait-timeout 90 loop-console
 fi
 
 # --- 3.7 (EDGE=1, M40) lens Model-B platform-admin provisioning ---------------
 # The lens broker (M38) needs a observability:platform-admin theo_live_* to mint per-tenant
-# keys. Mint it from theo-lens's stateless bootstrap token (M22: /v1/admin/keys,
+# keys. Mint it from looptrace's stateless bootstrap token (M22: /v1/admin/keys,
 # workspace_id required, response is FLAT `secret` — NOT rag's nested `raw_key`).
 if [[ "${EDGE}" == "1" && -z "${LENS_PLATFORM_ADMIN_KEY:-}" ]]; then
-  log "provisioning lens Model B platform-admin key via the theo-lens bootstrap token…"
+  log "provisioning lens Model B platform-admin key via the looptrace bootstrap token…"
   if ! mint_admin_key "lens" "http://localhost:${E2E_LENS_PORT}/v1/admin/keys" \
-    "${THELENS_ADMIN_BOOTSTRAP}" \
-    '{"name":"theo-cloud-lens-admin","workspace_id":"default","scopes":["observability:platform-admin","observability:admin","observability:read","observability:write","observability:delete"]}' \
+    "${LOOPTRACE_ADMIN_BOOTSTRAP}" \
+    '{"name":"loop-console-lens-admin","workspace_id":"default","scopes":["observability:platform-admin","observability:admin","observability:read","observability:write","observability:delete"]}' \
     's/.*"secret":"\([^"]*\)".*/\1/p'; then
     dump_logs
     exit "${E2E_EXIT_HARNESS}"
@@ -365,21 +365,21 @@ if [[ "${EDGE}" == "1" && -z "${LENS_PLATFORM_ADMIN_KEY:-}" ]]; then
   LA_KEY="${MINT_KEY}"
   export LENS_PLATFORM_ADMIN_KEY="${LA_KEY}"
   log "minted lens platform-admin key; recreating the gateway with it…"
-  compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
+  compose up -d --no-deps --wait --wait-timeout 90 loop-console
 fi
 
 # --- 4. test environment (URLs + DSNs the Go tests read) ---------------------
 export E2E_CLOUD_URL="http://localhost:${E2E_CLOUD_PORT}"
-export E2E_THEMORY_URL="http://localhost:${E2E_THEMORY_PORT}"
+export E2E_LOOPMEM_URL="http://localhost:${E2E_LOOPMEM_PORT}"
 # M18: the host-mapped rag service + its DB (the rag e2e reads these).
 export E2E_RAG_URL="http://localhost:${E2E_RAG_PORT}"
 export E2E_PG_RAG_DSN="postgres://therag:therag@localhost:${E2E_PG_RAG_PORT}/therag?sslmode=disable"
 # M40: the host-mapped lens service + its DB (the lens e2e reads E2E_LENS_URL).
 export E2E_LENS_URL="http://localhost:${E2E_LENS_PORT}"
-export E2E_PG_LENS_DSN="postgres://theolens:theolens@localhost:${E2E_PG_LENS_PORT}/theolens?sslmode=disable"
-# pg-cloud is the engine-migrated `theo` DB (M6 — full account-tenancy schema).
-export E2E_PG_CLOUD_DSN="postgres://loopzero:loopzero@localhost:${E2E_PG_CLOUD_PORT}/loopzero?sslmode=disable"
-export E2E_PG_THEMORY_DSN="postgres://themem:themem@localhost:${E2E_PG_THEMORY_PORT}/themem?sslmode=disable"
+export E2E_PG_LENS_DSN="postgres://loopscalelens:loopscalelens@localhost:${E2E_PG_LENS_PORT}/loopscalelens?sslmode=disable"
+# pg-cloud is the engine-migrated `loopscale` DB (M6 — full account-tenancy schema).
+export E2E_PG_CLOUD_DSN="postgres://loop_runtime:loop_runtime@localhost:${E2E_PG_CLOUD_PORT}/loop_runtime?sslmode=disable"
+export E2E_PG_LOOPMEM_DSN="postgres://themem:themem@localhost:${E2E_PG_LOOPMEM_PORT}/themem?sslmode=disable"
 # M6: real Kratos endpoints for the full-chain login flow.
 export E2E_KRATOS_PUBLIC_URL="http://localhost:${E2E_KRATOS_PUBLIC_PORT}"
 export E2E_KRATOS_ADMIN_URL="http://localhost:${E2E_KRATOS_ADMIN_PORT}"

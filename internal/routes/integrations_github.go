@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -13,8 +13,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	cloudmetrics "github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/auth"
+	cloudmetrics "github.com/getloopscale/loop-console/internal/metrics"
 )
 
 // GitHubInstallationClaimer asks the engine to bind to the user's tenant the

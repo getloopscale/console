@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package config loads and validates the cloud control-plane configuration
 // from the environment, enforcing production-safety invariants at startup.
@@ -39,23 +39,23 @@ type Config struct {
 	KratosInternalURL string
 
 	// KratosAdminURL is the Ory Kratos admin API URL (identity management).
-	// Env: KRATOS_ADMIN_URL (default: "http://ory-kratos-admin.theo-system:80")
+	// Env: KRATOS_ADMIN_URL (default: "http://ory-kratos-admin.loopscale-system:80")
 	KratosAdminURL string
 
 	// HydraPublicURL is the Ory Hydra public API URL (OAuth2 endpoints).
-	// Env: HYDRA_PUBLIC_URL (default: "http://ory-hydra-public.theo-system:4444")
+	// Env: HYDRA_PUBLIC_URL (default: "http://ory-hydra-public.loopscale-system:4444")
 	HydraPublicURL string
 
 	// HydraAdminURL is the Ory Hydra admin API URL (client management, consent).
-	// Env: HYDRA_ADMIN_URL (default: "http://ory-hydra-admin.theo-system:4445")
+	// Env: HYDRA_ADMIN_URL (default: "http://ory-hydra-admin.loopscale-system:4445")
 	HydraAdminURL string
 
 	// HydraClientID is the OAuth2 client ID for the CLI (public client).
-	// Env: HYDRA_CLIENT_ID (default: "theo-cli")
+	// Env: HYDRA_CLIENT_ID (default: "loopscale-cli")
 	HydraClientID string
 
 	// ConsentFirstPartyClients are the OAuth2 client ids whose consent is
-	// auto-approved; every other client is refused (usetheoai/theo#477).
+	// auto-approved; every other client is refused (getloopscale/loopscale#477).
 	// Env: CONSENT_FIRST_PARTY_CLIENTS, comma-separated (default: HydraClientID)
 	ConsentFirstPartyClients []string
 
@@ -65,8 +65,8 @@ type Config struct {
 	// Env: CONSENT_ALLOWED_RESOURCES, comma-separated (default: none)
 	ConsentAllowedResources []string
 
-	// EngineAPIURL is the internal URL of the Theo engine API (for proxy).
-	// Env: ENGINE_API_URL (default: "http://theo-api.theo-system:8080")
+	// EngineAPIURL is the internal URL of the LoopScale engine API (for proxy).
+	// Env: ENGINE_API_URL (default: "http://loop-runtime-api.loopscale-system:8080")
 	EngineAPIURL string
 
 	// JWTIssuer is the expected issuer in JWT tokens (must match Hydra config).
@@ -74,7 +74,7 @@ type Config struct {
 	JWTIssuer string
 
 	// Environment is the deployment environment (dev, staging, prod).
-	// Env: LOOPZERO_ENV (default: "dev")
+	// Env: LOOP_RUNTIME_ENV (default: "dev")
 	Environment string
 
 	// StripeAPIKey is the Stripe secret key for API calls.
@@ -101,33 +101,33 @@ type Config struct {
 
 	// ServiceAuthSecret is the shared secret for cloud→engine service-to-service calls.
 	// Used by the /engine/* proxy to authenticate with the engine API.
-	// Env: LOOPZERO_SERVICE_AUTH_SECRET (must match the engine's value)
+	// Env: LOOP_RUNTIME_SERVICE_AUTH_SECRET (must match the engine's value)
 	ServiceAuthSecret Secret
 
 	// ThemoryBaseURL is the OSS TheMemory REST URL (Plan 1 of dashboard-memory-section).
-	// Env: THEMORY_BASE_URL (default: "http://themory:3000" — operator overrides in prod)
+	// Env: LOOPMEM_BASE_URL (default: "http://loopmem:3000" — operator overrides in prod)
 	ThemoryBaseURL string
 
 	// ThemoryAPIKey is the LEGACY master Bearer. Model B (credential-broker)
 	// demotes it OFF the data path; it remains a transition fallback for the
 	// control-plane (admin/probe) client when ThemoryPlatformAdminKey is unset.
-	// Env: THEMORY_API_KEY
+	// Env: LOOPMEM_API_KEY
 	ThemoryAPIKey Secret
 
 	// ThemoryPlatformAdminKey is the CONTROL-PLANE credential (carrying
 	// memory:platform-admin) the gateway uses ONLY to mint/rotate/revoke
 	// per-tenant data keys via TheMemory's admin API. NEVER on the data path
 	// (Model B ADR D1). When unset, falls back to ThemoryAPIKey during transition.
-	// Env: THEMORY_PLATFORM_ADMIN_KEY
+	// Env: LOOPMEM_PLATFORM_ADMIN_KEY
 	ThemoryPlatformAdminKey Secret
 
 	// ThemorySkipCapabilityCheck disables the boot-time provider-capability guard
-	// (themory-gateway-provider-capability-guard F1). Default false (safe prod
+	// (loopmem-gateway-provider-capability-guard F1). Default false (safe prod
 	// posture). Escape hatch for emergencies (e.g. provider openapi shape change).
-	// Env: THEMORY_SKIP_CAPABILITY_CHECK ("true" to skip).
+	// Env: LOOPMEM_SKIP_CAPABILITY_CHECK ("true" to skip).
 	ThemorySkipCapabilityCheck bool
 
-	// PromptlyBaseURL is the theo-promptly REST URL (M11 — Model B L2). Native
+	// PromptlyBaseURL is the loopprompt REST URL (M11 — Model B L2). Native
 	// path, NO /v1 prefix: the broker POSTs to {base}/admin/keys directly at the
 	// host-run service (e.g. http://host.docker.internal:18083), never via the
 	// edge. Empty disables the promptly broker + its ForwardAuth handler.
@@ -135,13 +135,13 @@ type Config struct {
 	PromptlyBaseURL string
 
 	// PromptlyPlatformAdminKey is the CONTROL-PLANE credential (carrying
-	// prompt:platform-admin) the gateway uses ONLY to mint per-tenant theo-promptly
+	// prompt:platform-admin) the gateway uses ONLY to mint per-tenant loopprompt
 	// keys via POST /admin/keys. NEVER on the data path (Model B). Required when
 	// PromptlyBaseURL is set.
 	// Env: PROMPTLY_PLATFORM_ADMIN_KEY
 	PromptlyPlatformAdminKey Secret
 
-	// TrustBaseURL is the theo-trust REST URL (M10 — Model B L2). Keeps the /v1
+	// TrustBaseURL is the loopguardrails REST URL (M10 — Model B L2). Keeps the /v1
 	// prefix (memory/rag style): the broker POSTs to {base}/v1/admin/keys directly
 	// at the host-run service (e.g. http://host.docker.internal:18085), never via
 	// the edge. Empty disables the trust broker + its ForwardAuth handler.
@@ -149,36 +149,36 @@ type Config struct {
 	TrustBaseURL string
 
 	// TrustPlatformAdminKey is the CONTROL-PLANE credential (carrying
-	// trust:platform-admin) the gateway uses ONLY to mint per-tenant theo-trust
+	// trust:platform-admin) the gateway uses ONLY to mint per-tenant loopguardrails
 	// keys via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
 	// TrustBaseURL is set.
 	// Env: TRUST_PLATFORM_ADMIN_KEY
 	TrustPlatformAdminKey Secret
 
-	// RagBaseURL is the theo-rag REST URL (M14 — Model B). The broker POSTs to
-	// {base}/v1/admin/keys (theo-rag's mint endpoint carries the /v1 prefix). Empty
+	// RagBaseURL is the looprag REST URL (M14 — Model B). The broker POSTs to
+	// {base}/v1/admin/keys (looprag's mint endpoint carries the /v1 prefix). Empty
 	// disables the rag broker + its ForwardAuth handler.
 	// Env: RAG_BASE_URL
 	RagBaseURL string
 
 	// RagPlatformAdminKey is the CONTROL-PLANE credential (carrying
-	// rag:platform-admin) the gateway uses ONLY to mint per-tenant theo-rag keys
+	// rag:platform-admin) the gateway uses ONLY to mint per-tenant looprag keys
 	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
 	// RagBaseURL is set.
 	// Env: RAG_PLATFORM_ADMIN_KEY
 	RagPlatformAdminKey Secret
 
-	// LensBaseURL is the theo-lens REST URL (M38 — Model B). The broker POSTs to
-	// {base}/v1/admin/keys (theo-lens's mint endpoint carries the /v1 prefix). Empty
+	// LensBaseURL is the looptrace REST URL (M38 — Model B). The broker POSTs to
+	// {base}/v1/admin/keys (looptrace's mint endpoint carries the /v1 prefix). Empty
 	// disables the lens broker + its ForwardAuth handler.
 	// Env: LENS_BASE_URL
 	LensBaseURL string
 
-	// StorageBaseURL is the theo-storage REST URL, probed by the M21 status panel.
+	// StorageBaseURL is the loopstore REST URL, probed by the M21 status panel.
 	//
 	// Diferente das irmãs, esta NÃO cunha credencial: o painel consome apenas
 	// `GET /v1/version`, que é auth-exempt por contrato
-	// (theo-workspace/docs/service-version-endpoint.md). Não há
+	// (loopscale-workspace/docs/service-version-endpoint.md). Não há
 	// `StoragePlatformAdminKey` correspondente, e por isso nenhuma regra em
 	// Validate() a exige — acrescentar uma sem consumidor seria um gate que só pode
 	// reprovar deploy legítimo.
@@ -188,9 +188,9 @@ type Config struct {
 	// Env: STORAGE_BASE_URL
 	StorageBaseURL string
 
-	// SkillsBaseURL is the theo-skills REST URL, probed by the M21 status panel.
+	// SkillsBaseURL is the loopskills REST URL, probed by the M21 status panel.
 	//
-	// Mesmo contrato do theo-storage acima: NÃO cunha credencial. O painel consome apenas
+	// Mesmo contrato do loopstore acima: NÃO cunha credencial. O painel consome apenas
 	// `GET /v1/version`, auth-exempt por contrato — um endpoint de versão atrás de
 	// credencial faz "o serviço caiu" e "minha chave está errada" produzirem a mesma
 	// resposta, e o agregador não consegue separar os dois.
@@ -201,18 +201,18 @@ type Config struct {
 	SkillsBaseURL string
 
 	// SkillsPlatformAdminKey is the CONTROL-PLANE credential the gateway uses ONLY
-	// to mint per-tenant theo-skills keys via POST /v1/platform/keys. NEVER on the
+	// to mint per-tenant loopskills keys via POST /v1/platform/keys. NEVER on the
 	// data path (Model B). Required when SkillsBaseURL is set AND the broker is
 	// enabled.
 	//
-	// theo-skills exposes a route SEPARATE from its human-facing admin one: that
+	// loopskills exposes a route SEPARATE from its human-facing admin one: that
 	// route derives the workspace from the caller's principal and requires the
 	// target to be a member of it, so a broker cannot use it to mint into an
 	// arbitrary tenant.
 	// Env: SKILLS_PLATFORM_ADMIN_KEY
 	SkillsPlatformAdminKey Secret
 
-	// TraefikMcpBaseURL is the theo-traefik-mcp gateway URL, probed by the status panel.
+	// TraefikMcpBaseURL is the loopmcp gateway URL, probed by the status panel.
 	//
 	// Mesmo contrato dos dois acima: NÃO cunha credencial, e o painel consome apenas
 	// `GET /v1/version` — auth-exempt por contrato do lado do gateway.
@@ -228,7 +228,7 @@ type Config struct {
 	TraefikMcpBaseURL string
 
 	// LensPlatformAdminKey is the CONTROL-PLANE credential (carrying
-	// observability:platform-admin) the gateway uses ONLY to mint per-tenant theo-lens keys
+	// observability:platform-admin) the gateway uses ONLY to mint per-tenant looptrace keys
 	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
 	// LensBaseURL is set.
 	// Env: LENS_PLATFORM_ADMIN_KEY
@@ -251,10 +251,10 @@ type Config struct {
 	StorageShareSecret      Secret
 
 	// StorageUpstreamURL, when set, switches the storage vertical to THIN-PROXY
-	// mode: theo-cloud forwards /v1/storage/* to the standalone theo-storage
+	// mode: loop-console forwards /v1/storage/* to the standalone loopstore
 	// service (injecting the resolved tenant as X-Theo-Tenant) instead of running
 	// the vertical in-process. When set, the S3 vars above are NOT required here
-	// (theo-storage holds them). Env: STORAGE_UPSTREAM_URL.
+	// (loopstore holds them). Env: STORAGE_UPSTREAM_URL.
 	StorageUpstreamURL string
 
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
@@ -262,9 +262,9 @@ type Config struct {
 	// Env: SESSION_TOKEN_SECRET_PREVIOUS (optional)
 	SessionTokenSecretPrevious Secret
 
-	// GitHubAppSlug is the slug of the Theo GitHub App (e.g. "theo-platform").
+	// GitHubAppSlug is the slug of the LoopScale GitHub App (e.g. "loopscale-platform").
 	// Used to construct the install URL https://github.com/apps/{slug}/installations/new.
-	// Env: GITHUB_APP_SLUG (default: "theo-platform")
+	// Env: GITHUB_APP_SLUG (default: "loopscale-platform")
 	GitHubAppSlug string
 
 	// GitHubAppClientID is the OAuth client id of the GitHub App. The dashboard's
@@ -279,13 +279,13 @@ type Config struct {
 	GitHubWebBaseURL string
 
 	// AppPublicURL is the user-facing dashboard origin
-	// (e.g. https://app-dev.usetheo.dev). The GitHub App callback redirects
+	// (e.g. https://app-dev.getloopscale.com). The GitHub App callback redirects
 	// the browser back to this origin + the return_to path.
 	// Env: APP_PUBLIC_URL (default: BillingReturnURL)
 	AppPublicURL string
 
 	// CloudPublicURL is the user-facing cloud/BFF origin (e.g.
-	// https://cloud-dev.usetheo.dev) where browser-redirect endpoints served by
+	// https://cloud-dev.getloopscale.com) where browser-redirect endpoints served by
 	// THIS process are mounted — the RAG OAuth broker callback in particular.
 	// In split-subdomain deployments it differs from AppPublicURL (the SPA origin);
 	// the OAuth redirect_uri MUST point at this origin so the callback lands here
@@ -296,8 +296,8 @@ type Config struct {
 	// AuthCookieDomain is the explicit Domain= attribute for browser
 	// state cookies. Setting it host-only (Domain unset) is the safest
 	// default — see EC-2 of plan J-09 (subdomain cookie leak defense).
-	// In dev-public the dashboard and cloud share usetheo.dev so the
-	// operator must set this to "usetheo.dev"; locally we leave it
+	// In dev-public the dashboard and cloud share getloopscale.com so the
+	// operator must set this to "getloopscale.com"; locally we leave it
 	// empty so the cookie is host-only on localhost.
 	// Env: AUTH_COOKIE_DOMAIN (default: "")
 	AuthCookieDomain string
@@ -307,14 +307,14 @@ type Config struct {
 func Load() Config {
 	cfg := Config{
 		ListenAddr:        envOr("CLOUD_LISTEN_ADDR", ":13002"),
-		KratosPublicURL:   envOr("KRATOS_PUBLIC_URL", "http://ory-kratos-public.theo-system:80"),
-		KratosInternalURL: envOr("KRATOS_INTERNAL_URL", envOr("KRATOS_PUBLIC_URL", "http://ory-kratos-public.theo-system:80")),
-		KratosAdminURL:    envOr("KRATOS_ADMIN_URL", "http://ory-kratos-admin.theo-system:80"),
-		HydraPublicURL:    envOr("HYDRA_PUBLIC_URL", "http://ory-hydra-public.theo-system:4444"),
-		HydraAdminURL:     envOr("HYDRA_ADMIN_URL", "http://ory-hydra-admin.theo-system:4445"),
-		HydraClientID:     envOr("HYDRA_CLIENT_ID", "theo-cli"),
-		EngineAPIURL:      envOr("ENGINE_API_URL", "http://theo-api.theo-system:8080"),
-		Environment:       envOr("LOOPZERO_ENV", "dev"),
+		KratosPublicURL:   envOr("KRATOS_PUBLIC_URL", "http://ory-kratos-public.loopscale-system:80"),
+		KratosInternalURL: envOr("KRATOS_INTERNAL_URL", envOr("KRATOS_PUBLIC_URL", "http://ory-kratos-public.loopscale-system:80")),
+		KratosAdminURL:    envOr("KRATOS_ADMIN_URL", "http://ory-kratos-admin.loopscale-system:80"),
+		HydraPublicURL:    envOr("HYDRA_PUBLIC_URL", "http://ory-hydra-public.loopscale-system:4444"),
+		HydraAdminURL:     envOr("HYDRA_ADMIN_URL", "http://ory-hydra-admin.loopscale-system:4445"),
+		HydraClientID:     envOr("HYDRA_CLIENT_ID", "loopscale-cli"),
+		EngineAPIURL:      envOr("ENGINE_API_URL", "http://loop-runtime-api.loopscale-system:8080"),
+		Environment:       envOr("LOOP_RUNTIME_ENV", "dev"),
 	}
 	cfg.JWTIssuer = envOr("JWT_ISSUER", cfg.HydraPublicURL+"/")
 	cfg.ConsentFirstPartyClients = envList("CONSENT_FIRST_PARTY_CLIENTS", []string{cfg.HydraClientID})
@@ -328,19 +328,19 @@ func Load() Config {
 	// non-deterministically (different replicas reject each other's tokens).
 	cfg.SessionTokenSecret = Secret(envOr("SESSION_TOKEN_SECRET", devSecretFor(cfg.Environment)))
 	cfg.SessionTokenSecretPrevious = Secret(envOr("SESSION_TOKEN_SECRET_PREVIOUS", ""))
-	cfg.ServiceAuthSecret = Secret(envOr("LOOPZERO_SERVICE_AUTH_SECRET", devSecretFor(cfg.Environment)))
+	cfg.ServiceAuthSecret = Secret(envOr("LOOP_RUNTIME_SERVICE_AUTH_SECRET", devSecretFor(cfg.Environment)))
 	// J-09 T1.1 — GitHub App install handshake.
-	cfg.GitHubAppSlug = envOr("GITHUB_APP_SLUG", "theo-platform")
+	cfg.GitHubAppSlug = envOr("GITHUB_APP_SLUG", "loopscale-platform")
 	cfg.GitHubAppClientID = envOr("GITHUB_APP_CLIENT_ID", "")
 	cfg.GitHubWebBaseURL = envOr("GITHUB_WEB_BASE_URL", "https://github.com")
 	cfg.AppPublicURL = envOr("APP_PUBLIC_URL", cfg.BillingReturnURL)
 	cfg.CloudPublicURL = envOr("CLOUD_PUBLIC_URL", cfg.AppPublicURL)
 	cfg.AuthCookieDomain = envOr("AUTH_COOKIE_DOMAIN", "")
 
-	cfg.ThemoryBaseURL = envOr("THEMORY_BASE_URL", "")
-	cfg.ThemoryAPIKey = Secret(envOr("THEMORY_API_KEY", ""))
-	cfg.ThemoryPlatformAdminKey = Secret(envOr("THEMORY_PLATFORM_ADMIN_KEY", ""))
-	cfg.ThemorySkipCapabilityCheck = envOr("THEMORY_SKIP_CAPABILITY_CHECK", "") == "true"
+	cfg.ThemoryBaseURL = envOr("LOOPMEM_BASE_URL", "")
+	cfg.ThemoryAPIKey = Secret(envOr("LOOPMEM_API_KEY", ""))
+	cfg.ThemoryPlatformAdminKey = Secret(envOr("LOOPMEM_PLATFORM_ADMIN_KEY", ""))
+	cfg.ThemorySkipCapabilityCheck = envOr("LOOPMEM_SKIP_CAPABILITY_CHECK", "") == "true"
 	cfg.PromptlyBaseURL = envOr("PROMPTLY_BASE_URL", "")
 	cfg.PromptlyPlatformAdminKey = Secret(envOr("PROMPTLY_PLATFORM_ADMIN_KEY", ""))
 	cfg.TrustBaseURL = envOr("TRUST_BASE_URL", "")
@@ -365,7 +365,7 @@ func Load() Config {
 }
 
 // StorageProxyMode reports whether the storage vertical runs as a thin proxy to
-// the standalone theo-storage service (STORAGE_UPSTREAM_URL set). In this mode
+// the standalone loopstore service (STORAGE_UPSTREAM_URL set). In this mode
 // the S3 vars are NOT required here.
 func (c Config) StorageProxyMode() bool { return c.StorageUpstreamURL != "" }
 
@@ -415,7 +415,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("STRIPE_WEBHOOK_SECRET is required in production")
 		}
 		if len(c.ServiceAuthSecret.Value()) < 32 {
-			return fmt.Errorf("LOOPZERO_SERVICE_AUTH_SECRET must be set (>=32 chars) in production — a per-pod random secret breaks multi-replica auth")
+			return fmt.Errorf("LOOP_RUNTIME_SERVICE_AUTH_SECRET must be set (>=32 chars) in production — a per-pod random secret breaks multi-replica auth")
 		}
 		if c.KratosAdminURL == "" {
 			return fmt.Errorf("KRATOS_ADMIN_URL is required in production")
@@ -425,30 +425,30 @@ func (c Config) Validate() error {
 		}
 		// install-config-contract Slice 1 T4.1: when the memory proxy is enabled
 		// (ThemoryBaseURL set), its master bearer MUST be present — otherwise the
-		// proxy would call theo-data unauthenticated. Documented as required on the
+		// proxy would call loopscale-data unauthenticated. Documented as required on the
 		// ThemoryAPIKey field; now enforced fail-fast at boot.
 		if c.ThemoryBaseURL != "" && c.ThemoryAPIKey.Value() == "" {
-			return fmt.Errorf("THEMORY_API_KEY is required in production when THEMORY_BASE_URL is set")
+			return fmt.Errorf("LOOPMEM_API_KEY is required in production when LOOPMEM_BASE_URL is set")
 		}
-		// M11 (theo-promptly Model B L2): the platform-admin key MUST be present
+		// M11 (loopprompt Model B L2): the platform-admin key MUST be present
 		// when the promptly broker is enabled — otherwise the gateway would try
 		// to mint per-tenant keys unauthenticated. Fail-fast at boot.
 		if c.PromptlyBaseURL != "" && c.PromptlyPlatformAdminKey.Value() == "" {
 			return fmt.Errorf("PROMPTLY_PLATFORM_ADMIN_KEY is required in production when PROMPTLY_BASE_URL is set")
 		}
-		// M10 (theo-trust Model B): the platform-admin key MUST be present when the
+		// M10 (loopguardrails Model B): the platform-admin key MUST be present when the
 		// trust broker is enabled — otherwise the gateway would try to mint per-tenant
 		// keys unauthenticated. Fail-fast at boot.
 		if c.TrustBaseURL != "" && c.TrustPlatformAdminKey.Value() == "" {
 			return fmt.Errorf("TRUST_PLATFORM_ADMIN_KEY is required in production when TRUST_BASE_URL is set")
 		}
-		// M14 (theo-rag Model B): the platform-admin key MUST be present when the
+		// M14 (looprag Model B): the platform-admin key MUST be present when the
 		// rag broker is enabled — otherwise the gateway would try to mint per-tenant
 		// keys unauthenticated. Fail-fast at boot.
 		if c.RagBaseURL != "" && c.RagPlatformAdminKey.Value() == "" {
 			return fmt.Errorf("RAG_PLATFORM_ADMIN_KEY is required in production when RAG_BASE_URL is set")
 		}
-		// M38 (theo-lens Model B): the platform-admin key MUST be present when the
+		// M38 (looptrace Model B): the platform-admin key MUST be present when the
 		// lens broker is enabled — otherwise the gateway would try to mint per-tenant
 		// keys unauthenticated. Fail-fast at boot.
 		if c.LensBaseURL != "" && c.LensPlatformAdminKey.Value() == "" {
@@ -466,7 +466,7 @@ func (c Config) Validate() error {
 // validateStorage enforces the all-or-none contract for the storage vertical:
 // once any storage field is set, every field must be set.
 func (c Config) validateStorage() error {
-	// Proxy mode holds no S3 config here (theo-storage owns it) — the all-or-none
+	// Proxy mode holds no S3 config here (loopstore owns it) — the all-or-none
 	// S3 check does not apply. Only the in-process mode validates the S3 vars.
 	if c.StorageProxyMode() || !c.StorageInProcess() {
 		return nil

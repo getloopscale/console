@@ -130,7 +130,7 @@ export class SharedEventSource {
     // `recuperarAtraso()` reproduz um buffer limitado, então um cursor mais antigo que ele não
     // tem como ser atendido, e fingir que sim é o mesmo silêncio.
     //
-    // No credential is part of the key: the stream is cookie-authenticated (usetheoai/theo#477).
+    // No credential is part of the key: the stream is cookie-authenticated (getloopscale/loopscale#477).
     const key = keyOf(url, this.opcoes.lastEventId);
     this.chave = key;
     const existente = registro.get(key);
@@ -148,7 +148,7 @@ export class SharedEventSource {
 
   private openNew(url: string, key: string): Entrada {
     // B-088 — the transport is `FetchEventSource`, not `EventSource`, so the
-    // registry key is the CLEAN URL. Since usetheoai/theo#477 step 3 the
+    // registry key is the CLEAN URL. Since getloopscale/loopscale#477 step 3 the
     // stream carries no token at all; the session cookie authenticates it.
     const real = createTransport(url, { lastEventId: this.opcoes.lastEventId });
     const entrada: Entrada = {

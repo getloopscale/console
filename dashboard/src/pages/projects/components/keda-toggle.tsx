@@ -1,4 +1,4 @@
-import { Label } from '@usetheo/ui';
+import { Label } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 /**

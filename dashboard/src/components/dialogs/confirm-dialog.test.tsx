@@ -1,7 +1,7 @@
 // confirm-dialog.test.tsx
 //
 // Plan 2026-06-08-dashboard-screens-review-fixes T3.2 + ADR D5.
-// Tests the local re-export of @usetheo/ui's ConfirmDialog. The
+// Tests the local re-export of @getloopscale/ui's ConfirmDialog. The
 // upstream library has its own comprehensive test suite — these tests
 // pin THIS module's contract:
 //   - canonical import path resolves
@@ -111,7 +111,7 @@ describe('ConfirmDialog — canonical destructive confirm primitive', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it('passes intent="destructive" through (smoke contract — actual styling lives in @usetheo/ui)', () => {
+  it('passes intent="destructive" through (smoke contract — actual styling lives in @getloopscale/ui)', () => {
     // The upstream owns the destructive CSS; the local re-export just
     // forwards. We assert the prop reaches the rendered subtree by
     // checking the component renders without crashing — the upstream

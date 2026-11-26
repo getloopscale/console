@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// M22 (theo-skills Model B) — AdminClient is the CONTROL-PLANE client the gateway
-// uses to provision per-tenant theoskill_live_* keys against theo-skills'
+// M22 (loopskills Model B) — AdminClient is the CONTROL-PLANE client the gateway
+// uses to provision per-tenant loopscaleskill_live_* keys against loopskills'
 // platform API (POST /v1/platform/keys). It holds the platform credential
 // (env SKILLS_PLATFORM_ADMIN_KEY) and is used ONLY to mint — NEVER on the data
 // path. That structural separation is the NIST AC-5/AC-6 control/data-plane split
 // that closes the confused deputy (CWE-441): a data-path bug can no longer wield
 // provisioning authority.
 //
-// WHY A DIFFERENT ROUTE THAN trust/themory. theo-skills' `POST /v1/admin/keys`
+// WHY A DIFFERENT ROUTE THAN trust/loopmem. loopskills' `POST /v1/admin/keys`
 // derives the workspace from the CALLER's principal and requires the target to be
 // a member of it — correct for a human administering their own team, and useless
-// for a broker, which must mint into an arbitrary tenant. theo-skills therefore
+// for a broker, which must mint into an arbitrary tenant. loopskills therefore
 // exposes a separate `POST /v1/platform/keys` with its own credential; collapsing
 // the two would have weakened the membership and anti-escalation checks on one of
 // the paths, and a security check with an "unless" is the one nobody audits.
@@ -44,7 +44,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("skills: upstream status %d: %s", e.StatusCode, e.Body)
 }
 
-// AdminClient talks to theo-skills' platform key-mint API. Construct via
+// AdminClient talks to loopskills' platform key-mint API. Construct via
 // NewAdminClient. It is the ONLY holder of the platform credential.
 type AdminClient struct {
 	baseURL     string
@@ -53,7 +53,7 @@ type AdminClient struct {
 }
 
 // NewAdminClient constructs the control-plane client. platformKey is the
-// theo-skills platform credential (env SKILLS_PLATFORM_ADMIN_KEY) — held ONLY
+// loopskills platform credential (env SKILLS_PLATFORM_ADMIN_KEY) — held ONLY
 // here. httpClient may be nil (uses http.DefaultClient).
 func NewAdminClient(baseURL, platformKey string, httpClient *http.Client) *AdminClient {
 	if httpClient == nil {
@@ -66,7 +66,7 @@ func NewAdminClient(baseURL, platformKey string, httpClient *http.Client) *Admin
 	}
 }
 
-// MintResult is the subset of theo-skills' POST /v1/platform/keys response the
+// MintResult is the subset of loopskills' POST /v1/platform/keys response the
 // gateway consumes. Secret is shown once — the broker caches it; it is NEVER
 // logged nor returned to the browser.
 //
@@ -82,7 +82,7 @@ type MintResult struct {
 // with the given scopes.
 //
 // `name` is accepted to satisfy the broker's minter interface and is deliberately
-// UNUSED: theo-skills binds platform-minted keys to a reserved system user, so a
+// UNUSED: loopskills binds platform-minted keys to a reserved system user, so a
 // caller-supplied label would be a field the upstream ignores — carrying it would
 // suggest a naming capability that does not exist.
 //

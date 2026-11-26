@@ -23,7 +23,7 @@ import { ancestors } from './trace-detail/breadcrumb';
 /**
  * M8 — the trace-detail integration suite (consumer-owned behavior). The trace-native components
  * (SpanTree, SpanWaterfall, TraceTranscript, SpanGraph, AttributesTable, IOCards) moved to
- * `@usetheo/ui`; their component-level tests live in the design system's own suite. What STAYS here is
+ * `@getloopscale/ui`; their component-level tests live in the design system's own suite. What STAYS here is
  * the integration the lib never owns: URL-driven selection, the Tree ⇄ Transcript ⇄ Graph view toggle,
  * the breadcrumb, keyboard next/prev, fetch error/empty states, the panel composition, the trace
  * summary header, and the lens-specific SpanDetail surfaces (evaluations / cost / IO wiring).
@@ -34,7 +34,7 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
-/** A 2-level tree mirroring theo-lens GET /v1/traces/:id (root span carries children[]). */
+/** A 2-level tree mirroring looptrace GET /v1/traces/:id (root span carries children[]). */
 function tree(overrides: Record<string, unknown> = {}) {
   return {
     spanId: 'root',

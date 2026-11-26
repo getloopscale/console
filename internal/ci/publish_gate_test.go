@@ -25,9 +25,9 @@ import (
 
 type publishWorkflow struct {
 	Jobs map[string]struct {
-		Needs any    `yaml:"needs"` // string or []string
-		Uses  string `yaml:"uses"`
-		If    string `yaml:"if"`
+		Needs any            `yaml:"needs"` // string or []string
+		Uses  string         `yaml:"uses"`
+		If    string         `yaml:"if"`
 		With  map[string]any `yaml:"with"`
 	} `yaml:"jobs"`
 }

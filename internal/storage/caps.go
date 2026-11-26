@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// Package storage implements Theo's tenant blob-storage vertical: quota-enforced,
+// Package storage implements LoopScale's tenant blob-storage vertical: quota-enforced,
 // metered object storage over an S3-compatible backend, accessed via scoped API
 // keys. See .claude/knowledge-base/plans/tenant-blob-storage-plan.md (M7).
 package storage
@@ -24,7 +24,7 @@ type Caps struct {
 }
 
 // capsByTier is the authoritative per-tier caps table (blueprint ADR D4: declared
-// locally, NOT in theo-contracts, until a second consumer needs it). Values are
+// locally, NOT in contracts, until a second consumer needs it). Values are
 // the sponsor-grilled decision (product grill decision 8, 2026-07-14).
 var capsByTier = map[string]Caps{
 	"starter":    {AggregateBytes: 100 * mib, PerFileBytes: 25 * mib},

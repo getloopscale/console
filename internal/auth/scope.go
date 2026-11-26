@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -41,7 +41,7 @@ import (
 const (
 	bearerPrefix   = "Bearer "
 	secretPrefixLP = "theo_live_"
-	tracerInstName = "theo.auth"
+	tracerInstName = "loopscale.auth"
 	spanName       = "auth.scope_check"
 
 	// API Key Rotation plan D3 — emit Sunset + Deprecation headers when a
@@ -67,7 +67,7 @@ var (
 	errMalformedCredential = errors.New("auth: malformed credential")
 )
 
-// apiKeyRow is a resolved, active loopzero_api_keys row.
+// apiKeyRow is a resolved, active loop_runtime_api_keys row.
 type apiKeyRow struct {
 	keyID, subject, tenantID string
 	// accountID is M0's nullable Account link. NULL for legacy keys minted before
@@ -77,9 +77,9 @@ type apiKeyRow struct {
 	expiresAt sql.NullTime
 }
 
-// extractTheoLiveBearerFromHeader parses a raw Authorization header value.
+// extractLoopScaleLiveBearerFromHeader parses a raw Authorization header value.
 // Returns (secret, true) only for a well-formed `Bearer theo_live_*`.
-func extractTheoLiveBearerFromHeader(h string) (string, bool) {
+func extractLoopScaleLiveBearerFromHeader(h string) (string, bool) {
 	if !strings.HasPrefix(h, bearerPrefix) {
 		return "", false
 	}
@@ -100,7 +100,7 @@ func extractTheoLiveBearerFromHeader(h string) (string, bool) {
 //	ErrInvalidCredential   — no active row (unknown / expired / revoked)
 //	ErrBackendUnavailable  — db error OR corrupt scopes jsonb (logged here)
 func lookupAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*apiKeyRow, error) {
-	secret, ok := extractTheoLiveBearerFromHeader(rawAuthHeader)
+	secret, ok := extractLoopScaleLiveBearerFromHeader(rawAuthHeader)
 	if !ok {
 		return nil, errMalformedCredential
 	}
@@ -111,7 +111,7 @@ func lookupAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*apiKe
 	// API Key Rotation plan D3: also fetch expires_at so RequireScope can emit
 	// Sunset + Deprecation headers when the key is in its rotation grace window.
 	const q = `SELECT id, subject, tenant_id, account_id, scopes, expires_at
-		FROM loopzero_api_keys
+		FROM loop_runtime_api_keys
 		WHERE key_hash = $1
 		  AND revoked_at IS NULL
 		  AND (expires_at IS NULL OR expires_at > NOW())`

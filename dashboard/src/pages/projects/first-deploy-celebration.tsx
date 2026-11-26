@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useToast } from '@usetheo/ui';
+import { useToast } from '@getloopscale/ui';
 import { useFirstDeployTrigger } from '@/hooks/projects/use-first-deploy-trigger';
 
 /**

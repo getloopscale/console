@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-// usetheoai/theo#477 step 3 — theo-cloud is the dashboard's Backend for Frontend.
+// getloopscale/loopscale#477 step 3 — loop-console is the dashboard's Backend for Frontend.
 //
 // The browser keeps only the Kratos session cookie. This file is the single
 // place that turns that cookie into an identity, server-side, by asking Kratos

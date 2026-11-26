@@ -9,8 +9,8 @@ COPY . .
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.28-alpine3.21
-LABEL org.opencontainers.image.source="https://github.com/usetheo/theo"
-LABEL org.opencontainers.image.title="theo-dashboard"
+LABEL org.opencontainers.image.source="https://github.com/getloopscale/loopscale"
+LABEL org.opencontainers.image.title="loopscale-dashboard"
 
 # Upgrade Alpine packages to get latest security patches (openssl, musl).
 #

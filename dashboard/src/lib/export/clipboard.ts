@@ -2,7 +2,7 @@
  * clipboard.ts — J-19 T2.2 (R6 blueprint SHOULD).
  *
  * `navigator.clipboard.writeText` requires a SECURE CONTEXT per W3C —
- * HTTPS, `https://*.usetheo.dev`, `localhost`, or `127.0.0.1`. On
+ * HTTPS, `https://*.getloopscale.com`, `localhost`, or `127.0.0.1`. On
  * non-secure origins (e.g., `http://192.168.x.x:5173` LAN dev pairing)
  * `navigator.clipboard` is `undefined` and the Promise-style copy
  * silently fails.

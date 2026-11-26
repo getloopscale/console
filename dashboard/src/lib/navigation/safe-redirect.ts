@@ -22,7 +22,7 @@ import { ACCOUNTS_URL, API_URL, AUTH_URL, OAUTH_URL } from '@/lib/http/config';
  * response-supplied, so they are a trust root in a way `flow.ui.action` never is. Without
  * them the boundary silently bricked login, verification and recovery on any deployment
  * whose auth host is not one of the six literals below — including
- * `https://accounts.usetheo.dev`, the topology `kratos.ts` documents in its own comment.
+ * `https://accounts.getloopscale.com`, the topology `kratos.ts` documents in its own comment.
  */
 function configuredOrigins(): string[] {
   const out: string[] = [];
@@ -40,13 +40,13 @@ function configuredOrigins(): string[] {
 
 export const SAFE_REDIRECT_ORIGINS: readonly string[] = [
   // Dev-public canonical hosts (per Caddy / Cloudflare wildcard chain).
-  'https://auth-dev.usetheo.dev',
-  'https://app-dev.usetheo.dev',
-  'https://cloud-dev.usetheo.dev',
+  'https://auth-dev.getloopscale.com',
+  'https://app-dev.getloopscale.com',
+  'https://cloud-dev.getloopscale.com',
   // Production hosts (future-ready; harmless on dev because window.origin won't match).
-  'https://auth.usetheo.dev',
-  'https://app.usetheo.dev',
-  'https://cloud.usetheo.dev',
+  'https://auth.getloopscale.com',
+  'https://app.getloopscale.com',
+  'https://cloud.getloopscale.com',
 ];
 
 /**
@@ -143,10 +143,10 @@ const PERMISSOES: readonly ((url: URL) => boolean)[] = [
   // resposta do servidor, então são raiz de confiança de um jeito que `flow.ui.action` nunca é.
   // Sem elas o guarda bricava login, verificação e recuperação em qualquer deployment cujo host de
   // auth não fosse um dos seis literais de `SAFE_REDIRECT_ORIGINS` — incluindo
-  // `https://accounts.usetheo.dev`, a topologia que `kratos.ts` documenta no próprio comentário.
+  // `https://accounts.getloopscale.com`, a topologia que `kratos.ts` documenta no próprio comentário.
   //
   // Sem verificação de protocolo aqui, e nem na regra seguinte: uma string de origem JÁ carrega o
-  // esquema (`https://auth-dev.usetheo.dev`), então comparar origens rejeita `http://` pelo mesmo
+  // esquema (`https://auth-dev.getloopscale.com`), então comparar origens rejeita `http://` pelo mesmo
   // ato. `javascript:` e `data:` produzem origem `'null'`, que não está em lista nenhuma. As
   // verificações que existiam aqui eram redundantes — provado por mutação: removê-las não mudava
   // nenhum resultado. O invariante que elas aparentavam proteger é da LISTA, e é lá que ele está

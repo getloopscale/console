@@ -15,7 +15,7 @@ const documentsQueryKey = (collectionID: string) => ['cloud', BASE, collectionID
 /**
  * The documents of one collection, polled while any of them is still ingesting.
  *
- * B-244 — the poll predicate is the part that must not be lost in a move. theo-rag ingests
+ * B-244 — the poll predicate is the part that must not be lost in a move. looprag ingests
  * asynchronously and answers 202, so without the refetch the list would freeze on `processing`
  * and a document that finished — or failed — would look stuck until the user reloaded the page.
  */

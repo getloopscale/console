@@ -96,7 +96,7 @@ describe('ReadinessChecklist', () => {
     expect(screen.queryAllByText(/Coming soon/i)).toHaveLength(0);
   });
 
-  // Red Team theo-cloud#94 regression-protector (2026-06-27): when a
+  // Red Team loop-console#94 regression-protector (2026-06-27): when a
   // signal is `pass` (Ready), the row MUST NOT render a "Fix it" CTA —
   // the label would contradict the state. Closes the bug the Red Team
   // captured in the Projects-surface live test.
@@ -112,7 +112,7 @@ describe('ReadinessChecklist', () => {
     expect(screen.queryAllByText(/Coming soon/i)).toHaveLength(0);
   });
 
-  // Red Team theo-cloud#94 follow-on: `warn` MUST also render Fix it
+  // Red Team loop-console#94 follow-on: `warn` MUST also render Fix it
   // (per-status enumeration coverage). This locks the tri-state
   // contract: pass → no CTA; warn → CTA; fail → CTA; unknown → no CTA.
   it('test_checklist_warn_signal_renders_fix_link (#94)', () => {

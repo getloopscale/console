@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package auth implements OAuth2 flows via Ory Hydra.
 package auth
@@ -23,7 +23,7 @@ import (
 // (challenge expired, already consumed, or otherwise unknown). Callers
 // SHOULD render a friendly "this login link has expired — please re-run
 // `loopscale login`" page rather than letting the error bubble up as a generic
-// 502 (or, worse, silently swallowing it — see Red Team theo-cloud#117).
+// 502 (or, worse, silently swallowing it — see Red Team loop-console#117).
 var ErrChallengeNotFound = errors.New("hydra: challenge not found (expired or already consumed)")
 
 // HydraClient communicates with Ory Hydra's public and admin APIs.
@@ -205,7 +205,7 @@ type ConsentRequest struct {
 	RequestedAccessTokenAud []string       `json:"requested_access_token_audience"`
 	// RequestURL is the original authorization request as the client sent it.
 	// Hydra does not act on RFC 8707 `resource`; the consent handler reads it
-	// from here (usetheoai/theo#477).
+	// from here (getloopscale/loopscale#477).
 	RequestURL string `json:"request_url"`
 }
 
@@ -218,7 +218,7 @@ func (c *HydraClient) GetLoginRequest(challenge string) (*LoginRequest, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Red Team theo-cloud#117 closure: Hydra returns 404 for expired /
+	// Red Team loop-console#117 closure: Hydra returns 404 for expired /
 	// replayed / unknown challenges. Without this check, the decoder
 	// silently returns the zero-value LoginRequest with err == nil, and
 	// the LoginComplete handler proceeds as if the challenge were valid
@@ -269,7 +269,7 @@ func (c *HydraClient) AcceptLogin(challenge, subject string) (string, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Red Team theo-cloud#117 closure — see GetLoginRequest above for
+	// Red Team loop-console#117 closure — see GetLoginRequest above for
 	// the silent-swallow → "Page not found" failure mode this prevents.
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
@@ -297,7 +297,7 @@ func (c *HydraClient) GetConsentRequest(challenge string) (*ConsentRequest, erro
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Red Team theo-cloud#117 closure — see GetLoginRequest above.
+	// Red Team loop-console#117 closure — see GetLoginRequest above.
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
@@ -323,7 +323,7 @@ func (c *HydraClient) GetConsentRequest(challenge string) (*ConsentRequest, erro
 func (c *HydraClient) AcceptConsent(challenge string, grantScope, grantAudience []string, tokenClaims map[string]interface{}) (string, error) {
 	// Default audience: both cloud and engine, so CLI tokens work everywhere.
 	if len(grantAudience) == 0 {
-		grantAudience = []string{"theo-cloud", "theo-engine"}
+		grantAudience = []string{"loop-console", "loop-runtime-engine"}
 	}
 	payload := map[string]interface{}{
 		"grant_scope":                 grantScope,
@@ -355,7 +355,7 @@ func (c *HydraClient) AcceptConsent(challenge string, grantScope, grantAudience 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Red Team theo-cloud#117 closure — see GetLoginRequest above.
+	// Red Team loop-console#117 closure — see GetLoginRequest above.
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
@@ -457,15 +457,15 @@ func (c *HydraClient) AcceptDeviceChallenge(challenge, userCode string) (string,
 //
 // Plan J-05 iter 6 (2026-06-05) — LIVE bug F-03 caught during dogfood
 // final scope. Without an explicit audience whitelist on the CLI client,
-// Hydra rejects refresh_token grants with "Requested audience 'theo-cloud'
+// Hydra rejects refresh_token grants with "Requested audience 'loop-console'
 // has not been whitelisted by the OAuth 2.0 Client" because the original
-// device-flow consent set aud=[theo-cloud,theo-engine] via
+// device-flow consent set aud=[loop-console,loop-runtime] via
 // grant_access_token_audience (AcceptConsent). Refresh re-validates the
 // audience contract against the client registration.
-var baseClientAudiences = []string{"theo-cloud", "theo-engine"}
+var baseClientAudiences = []string{"loop-console", "loop-runtime-engine"}
 
 // clientAudience is the base audiences followed by every allowed RFC 8707
-// resource, each once, in the order given. usetheoai/theo#477: Hydra grants an
+// resource, each once, in the order given. getloopscale/loopscale#477: Hydra grants an
 // audience only if the client registers it, so the list consent may grant
 // (CONSENT_ALLOWED_RESOURCES) is the list registered here — one list, two uses.
 func clientAudience(allowedResources []string) []string {
@@ -485,7 +485,7 @@ func clientAudience(allowedResources []string) []string {
 // redirectURIs should include both localhost (dev) and production dashboard
 // callback URLs; allowedResources are the RFC 8707 resources consent may grant.
 //
-// theo-cloud is the single owner of this client (usetheoai/theo#477). A PUT
+// loop-console is the single owner of this client (getloopscale/loopscale#477). A PUT
 // replaces an existing client; when Hydra answers 404 the client does not
 // exist yet and is created with a POST, so a fresh Hydra gets it from here and
 // from nowhere else.
@@ -496,7 +496,7 @@ func (c *HydraClient) RegisterClient(redirectURIs, allowedResources []string) er
 
 	payload := map[string]interface{}{
 		"client_id":                  c.clientID,
-		"client_name":                "Theo CLI",
+		"client_name":                "LoopScale CLI",
 		"grant_types":                []string{"urn:ietf:params:oauth:grant-type:device_code", "refresh_token", "authorization_code"},
 		"response_types":             []string{"code"},
 		"scope":                      "openid offline_access",

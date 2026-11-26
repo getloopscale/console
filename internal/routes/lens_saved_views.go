@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -15,10 +15,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// LensSavedViewsHandler — theo-lens M52. A per-tenant store of saved trace-list filter combinations
+// LensSavedViewsHandler — looptrace M52. A per-tenant store of saved trace-list filter combinations
 // for the /v1/dashboard/lens dashboard. A saved view holds the nuqs-serialized filter query string
 // verbatim; "apply" pushes it back onto the URL (the dashboard's nuqs parsers hydrate it). Cloud-owned
 // Postgres (raw database/sql; engine migration 000053). Mirrors the J-16 workspace_webhooks isolation:

@@ -1,21 +1,21 @@
-# @usetheo/storage
+# @getloopscale/storage
 
-Official TypeScript client for **Theo tenant blob storage** — upload, download, list, delete, stat, and share files over the Theo `/v1/storage` API.
+Official TypeScript client for **LoopScale tenant blob storage** — upload, download, list, delete, stat, and share files over the LoopScale `/v1/storage` API.
 
 ## Install
 
 ```sh
-npm install @usetheo/storage
+npm install @getloopscale/storage
 ```
 
 ## Usage
 
 ```ts
-import { createStorageClient } from '@usetheo/storage';
+import { createStorageClient } from '@getloopscale/storage';
 
 const storage = createStorageClient({
-  baseUrl: 'https://api.usetheo.dev',
-  apiKey: process.env.THEO_STORAGE_KEY!, // a theo_live_* key with storage:read / storage:write
+  baseUrl: 'https://api.getloopscale.com',
+  apiKey: process.env.LOOPSCALE_STORAGE_KEY!, // a theo_live_* key with storage:read / storage:write
 });
 
 // Upload
@@ -50,7 +50,7 @@ Every method rejects with a typed error you can branch on:
 | `StorageError` | other | Base class; carries `status` and `code` |
 
 ```ts
-import { QuotaExceededError } from '@usetheo/storage';
+import { QuotaExceededError } from '@getloopscale/storage';
 
 try {
   await storage.upload('big.zip', bytes);

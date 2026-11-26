@@ -10,13 +10,13 @@ import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
 import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { CopyButton } from '@usetheo/ui';
+import { CopyButton } from '@getloopscale/ui';
 
 /**
  * CodeBlock (KB10) — the code-block renderer for the Knowledge Base markdown reader.
  * Syntax highlighting via react-syntax-highlighter's PrismLight (a mature, maintained
  * library — do NOT hand-roll a tokenizer, Rule 9) plus a CopyButton (reused from
- * @usetheo/ui — rung 4 of the parsimony ladder, do NOT reinvent) revealed on hover.
+ * @getloopscale/ui — rung 4 of the parsimony ladder, do NOT reinvent) revealed on hover.
  *
  * Why PrismLight (sync) over PrismAsync: async language chunks load via dynamic import,
  * which is non-deterministic under jsdom (vitest) and adds runtime waterfalls. Registering

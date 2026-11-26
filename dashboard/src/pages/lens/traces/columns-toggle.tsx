@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Button, Checkbox } from '@usetheo/ui';
+import { Button, Checkbox } from '@getloopscale/ui';
 import { Columns3 } from 'lucide-react';
 
 import { TOGGLEABLE_COLUMNS, type ColumnState } from './view-encoding';
@@ -8,7 +8,7 @@ import { TOGGLEABLE_COLUMNS, type ColumnState } from './view-encoding';
  * M59 P3 — the column-visibility control (blueprint §3 / Arize Screen 1 "select tracing table
  * columns"). A button reveals a small panel of `Checkbox`es for the optional spine columns
  * (latency/tokens/cost); toggling writes the encoded `cols=` URL param via `onChange`, so the M52
- * saved view captures the choice for free (no schema change — ADR D4). Composed from `@usetheo/ui`
+ * saved view captures the choice for free (no schema change — ADR D4). Composed from `@getloopscale/ui`
  * primitives + local state (no Radix menu) so it is deterministic under test.
  *
  * M98 (D-M5) — a11y for the hand-rolled popover: Escape closes it (and returns focus to the trigger),

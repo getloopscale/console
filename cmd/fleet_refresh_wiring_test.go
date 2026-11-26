@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/getloopscale/loop-console/internal/config"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/config"
 )
 
-// Pilar (b) da triade de wiring para theo-workspace#37.
+// Pilar (b) da triade de wiring para loopscale-workspace#37.
 //
 // `serviceversions.Refresh` pode estar perfeito e coberto por testes de unidade, e o
 // issue continuar aberto: o defeito NAO era codigo faltando, era codigo nunca
@@ -59,7 +59,7 @@ func TestFleetRefresh_IniciadoPorMain(t *testing.T) {
 	if !iniciado {
 		t.Fatal("main() nao inicia serviceversions.Refresh — a frota volta a so ser sondada quando " +
 			"um humano autenticado abre o painel, e /metrics fica em not_collected indefinidamente " +
-			"(theo-workspace#37)")
+			"(loopscale-workspace#37)")
 	}
 }
 

@@ -1,7 +1,7 @@
 // app-modal.test.tsx
 //
 // M14 T1 — AppModal is the system-wide standardized modal primitive. It wraps
-// @usetheo/ui's Dialog (Radix) and adds a size token + a title/description/body/
+// @getloopscale/ui's Dialog (Radix) and adds a size token + a title/description/body/
 // footer contract. The upstream Dialog owns focus-trap / ESC / overlay / a11y —
 // these tests pin THIS wrapper's contract:
 //   - renders title as the dialog's accessible name + body when open

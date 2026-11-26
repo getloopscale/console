@@ -486,8 +486,8 @@ describe('M12 — a promoção também não vaza detalhe interno (F-arch-3)', ()
 /**
  * M14 T4.2 — o caminho até o playground.
  *
- * O `theo-promptly/CLAUDE.md` documenta o defeito que custou quatro telas
- * invisíveis no `theo-trust`: submenu declarado, resolução de menu esquecida, e
+ * O `loopprompt/CLAUDE.md` documenta o defeito que custou quatro telas
+ * invisíveis no `loopguardrails`: submenu declarado, resolução de menu esquecida, e
  * três rodadas de validação que passaram por cima porque quem validava digitava a
  * URL — o único caminho que o usuário real não tem.
  */

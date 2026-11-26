@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package metrics provides Prometheus-native observability for the cloud service.
 // §4.1 + §4.2: Auth and billing metrics exposed via /metrics endpoint.
@@ -20,12 +20,12 @@ import (
 var (
 	// Auth metrics (§4.1)
 	tokenExchanges = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_auth_token_exchanges_total",
+		Name: "loopscale_auth_token_exchanges_total",
 		Help: "Token exchanges by result.",
 	}, []string{"result"})
 
 	deviceFlows = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_auth_device_flow_total",
+		Name: "loopscale_auth_device_flow_total",
 		Help: "Device flow completions.",
 	}, []string{"result"})
 
@@ -33,9 +33,9 @@ var (
 	// Browser-side success signal — incremented when /v1/telemetry/events
 	// receives event=device_success_viewed from the dashboard beacon.
 	// Powers SLO "CLI auth completion rate" (ratio against successful
-	// device-flow token grants in `theo_auth_device_flow_total{result=success}`).
+	// device-flow token grants in `loopscale_auth_device_flow_total{result=success}`).
 	deviceFlowBrowserSuccess = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "theo_device_flow_browser_success_total",
+		Name: "loopscale_device_flow_browser_success_total",
 		Help: "Device-flow consent confirmations rendered in the dashboard.",
 	})
 
@@ -43,17 +43,17 @@ var (
 	// tenant label — cardinality discipline; per-tenant usage lives in
 	// cost_counters + is logged for ops).
 	storageBytesWritten = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "theo_storage_bytes_written_total",
+		Name: "loopscale_storage_bytes_written_total",
 		Help: "Total bytes committed to tenant blob storage.",
 	})
 
 	storageObjectsDeleted = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "theo_storage_objects_deleted_total",
+		Name: "loopscale_storage_objects_deleted_total",
 		Help: "Total objects removed from tenant blob storage (incl. bulk/folder deletes).",
 	})
 
 	// M135 — every alert-rule visit, INCLUDING the paths that skip. A rule that stops evaluating
-	// and says nothing is the operational twin of theo-cloud#247: #247 claimed something was wrong
+	// and says nothing is the operational twin of loop-console#247: #247 claimed something was wrong
 	// when nothing was; a silent skip claims nothing is wrong when everything is. No tenant label —
 	// cardinality discipline, matching storageBytesWritten above.
 	// M21: one observation per /v1/version probe of a data-plane service. Both
@@ -61,11 +61,11 @@ var (
 	// the composition root, `result` from the four ServiceStatus states — so the
 	// series ceiling is targets x states and no user input reaches a label.
 	serviceVersionProbe = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_cloud_service_version_probe_total",
+		Name: "loop_console_service_version_probe_total",
 		Help: "One observation per /v1/version probe. result is one of ok / unreachable / timeout / not_deployed.",
 	}, []string{"service", "result"})
 
-	// M21 / theo-workspace#37 — o ESTADO CORRENTE de cada alvo da frota, como info-metric.
+	// M21 / loopscale-workspace#37 — o ESTADO CORRENTE de cada alvo da frota, como info-metric.
 	//
 	// Coexiste com o counter acima e responde a outra pergunta. O counter diz "quantas
 	// sondagens aconteceram" e so materializa serie depois da primeira — num /metrics
@@ -78,12 +78,12 @@ var (
 	// deixaria uma serie morta valendo 1 e o alvo apareceria em varios estados ao mesmo
 	// tempo.
 	//
-	// O QUE ELA NAO COBRE, e a distincao e real (ver theo-workspace#368): ela afirma que o
+	// O QUE ELA NAO COBRE, e a distincao e real (ver loopscale-workspace#368): ela afirma que o
 	// processo respondeu `/v1/version`, NAO que a capacidade do servico funciona. Um alvo
 	// pode sair `ok` aqui e ter a funcionalidade quebrada — este e' um sinal de
 	// proveniencia e alcance, nunca de corretude funcional.
 	serviceVersionInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "theo_cloud_service_version_info",
+		Name: "loop_console_service_version_info",
 		Help: "Current state of each fleet target. Always 1; the meaning is in the labels. " +
 			"state is one of ok / no_provenance / unreachable / timeout / unauthorized / " +
 			"not_deployed / not_collected. version is non-empty ONLY when state=ok. " +
@@ -91,30 +91,30 @@ var (
 	}, []string{"service", "state", "version"})
 
 	lensAlertEvaluation = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_lens_alert_evaluation_total",
+		Name: "loopscale_lens_alert_evaluation_total",
 		Help: "Alert-rule evaluations by result (ok|no_data|fetch_error|bulkhead_skipped|guard_missing|write_lost|unwired).",
 	}, []string{"result"})
 
 	tenantProvisioning = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_tenant_provisioning_total",
+		Name: "loopscale_tenant_provisioning_total",
 		Help: "Tenant provisioning operations.",
 	}, []string{"result"})
 
 	tenantProvisioningDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "theo_tenant_provisioning_duration_seconds",
+		Name:    "loopscale_tenant_provisioning_duration_seconds",
 		Help:    "Tenant provisioning duration in seconds.",
 		Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0},
 	})
 
 	authRejections = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_auth_rejections_total",
+		Name: "loopscale_auth_rejections_total",
 		Help: "Auth rejections by reason.",
 	}, []string{"reason"})
 
 	// J-16 slice 3: deploy-event webhook delivery outcome (MEET-2026-07-03-005
 	// wiring triad). result ∈ delivered | failed | dead_letter.
 	workspaceWebhookDelivery = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_workspace_webhook_delivery_total",
+		Name: "loopscale_workspace_webhook_delivery_total",
 		Help: "Deploy-event webhook delivery attempts by outcome.",
 	}, []string{"result"})
 
@@ -122,33 +122,33 @@ var (
 	// value in prod is a probe/misconfig signal worth a log correlation
 	// (MEET-2026-07-03-005). reason ∈ loopback | link_local | rfc1918_ula | …
 	workspaceWebhookSSRFRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_workspace_webhook_ssrf_rejected_total",
+		Name: "loopscale_workspace_webhook_ssrf_rejected_total",
 		Help: "Webhook delivery dials rejected by the SSRF egress guard, by reason.",
 	}, []string{"reason"})
 	// J-16 slice 3: deploy-event webhook fan-out (MEET-2026-07-03-005 wiring triad).
 	workspaceWebhookEnqueued = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_workspace_webhook_enqueued_total",
+		Name: "loopscale_workspace_webhook_enqueued_total",
 		Help: "Deploy-event webhook deliveries enqueued by the fan-out, by event type.",
 	}, []string{"event_type"})
 
 	// Billing metrics (§4.2)
 	webhookEvents = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_webhook_events_total",
+		Name: "loopscale_webhook_events_total",
 		Help: "Webhook events by status.",
 	}, []string{"status"})
 
 	checkoutOps = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_billing_checkout_total",
+		Name: "loopscale_billing_checkout_total",
 		Help: "Checkout operations.",
 	}, []string{"result"})
 
 	usageDrift = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "theo_usage_drift_detected_total",
+		Name: "loopscale_usage_drift_detected_total",
 		Help: "Usage drift detection events.",
 	})
 
 	subscriptionFallback = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "theo_subscription_fallback_total",
+		Name: "loopscale_subscription_fallback_total",
 		Help: "Subscription missing -- defaulted to starter.",
 	})
 
@@ -156,13 +156,13 @@ var (
 	// Labelled by setup_action (install | update) so SLOs can distinguish
 	// fresh provisioning from re-permission flows.
 	githubAppInstallations = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "theo_github_app_installations_total",
+		Name: "loopscale_github_app_installations_total",
 		Help: "GitHub App install callback completions by setup_action.",
 	}, []string{"setup_action"})
 
 	// HTTP metrics (added with OTel instrumentation)
 	httpRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "theo_cloud_http_request_duration_seconds",
+		Name:    "loop_console_http_request_duration_seconds",
 		Help:    "HTTP request duration in seconds.",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "path", "status_code"})

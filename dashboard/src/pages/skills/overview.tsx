@@ -16,7 +16,7 @@ import {
   MetricCard,
   PageShell,
   type DataTableColumn,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -51,7 +51,7 @@ import { filterCollection, mergePages, type SkillRow } from '@/pages/skills/comp
  * eixo web do gate de live-test ficava "não-aplicável" por AUSÊNCIA de tela.
  *
  * A lista traz o que torna possível a PRÓXIMA AÇÃO de quem a lê — o identificador que abre o
- * detalhe e a revisão vigente. É a lição que o `theo-trust` pagou caro: uma listagem que não
+ * detalhe e a revisão vigente. É a lição que o `loopguardrails` pagou caro: uma listagem que não
  * devolve o que a jornada seguinte precisa vira um painel só de olhar, e o detalhe correspondente
  * vira código morto em produção.
  */

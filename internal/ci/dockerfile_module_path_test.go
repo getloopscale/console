@@ -10,17 +10,17 @@ import (
 
 // O caminho de modulo dentro do Dockerfile tem de ser o MESMO do `go.mod`.
 //
-// A organizacao migrou de `usetheodev` para `usetheoai` em 2026-08-06 (`2d5e5b13`). O `go.mod`
+// A organizacao migrou de `getloopscale` para `getloopscale` em 2026-08-06 (`2d5e5b13`). O `go.mod`
 // acompanhou; o Dockerfile nao, em OITO lugares. Nenhum foi notado por seis dias, porque o unico
 // lugar que constroi a imagem e o `publish`, e o `publish` estava morto no startup (B-270).
 //
 // Os tres efeitos, em ordem crescente de perversidade:
 //
-//  1. `GOPRIVATE=github.com/usetheodev/*` — o modulo privado real vive em `usetheoai`, entao ele
+//  1. `GOPRIVATE=github.com/getloopscale/*` — o modulo privado real vive em `getloopscale`, entao ele
 //     deixa de ser tratado como privado e o Go tenta o proxy publico, que devolve 404.
-//  2. o `insteadOf` reescreve `usetheodev` — o token nunca e' injetado para `usetheoai`, e o
+//  2. o `insteadOf` reescreve `getloopscale` — o token nunca e' injetado para `getloopscale`, e o
 //     `go mod download` falha. Este e' o barulhento: quebra o build (job 94259... em 2026-08-12).
-//  3. as ldflags carimbam `-X github.com/usetheodev/theo-cloud/internal/version.Version` — um
+//  3. as ldflags carimbam `-X github.com/getloopscale/loop-console/internal/version.Version` — um
 //     caminho de pacote que NAO EXISTE MAIS. O linker aceita silenciosamente uma ldflag que nao
 //     casa simbolo nenhum, entao o binario compila e reporta `dev`/`unknown` para sempre.
 //

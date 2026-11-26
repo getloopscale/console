@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
 )
 
 // UserContext holds authenticated user info, set by the auth middleware.
@@ -20,7 +20,7 @@ type UserContext struct {
 	Email     string
 	Name      string
 	TenantID  string
-	AccountID string // M0: the Account ("Cliente Theo") owning this tenant; "" for legacy keys (NULL-tolerant)
+	AccountID string // M0: the Account ("Cliente LoopScale") owning this tenant; "" for legacy keys (NULL-tolerant)
 	Role      string // owner, admin, member (§5.1)
 }
 
@@ -48,7 +48,7 @@ func WithUser(ctx context.Context, u *UserContext) context.Context {
 // RequireJWT returns middleware that authenticates a Bearer token only — a
 // Hydra RS256 JWT (CLI) or an HS256 session JWT. It is RequireCaller without a
 // session authenticator, kept for callers that have no browser surface.
-func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionTokenIssuer) func(http.Handler) http.Handler {
+func RequireJWT(rsaValidator *loopscalejwt.Validator, sessValidator *loopscalejwt.SessionTokenIssuer) func(http.Handler) http.Handler {
 	return RequireCaller(rsaValidator, sessValidator, nil)
 }
 
@@ -56,10 +56,10 @@ func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionT
 // by exactly one of two credentials:
 //
 //   - `Authorization: Bearer <jwt>` — the CLI (Hydra RS256) and, until
-//     usetheoai/theo#477 step 4 deletes it, the HS256 session JWT that
+//     getloopscale/loopscale#477 step 4 deletes it, the HS256 session JWT that
 //     `/v1/auth/session/token` still issues to the scripts that call it.
-//   - the Kratos session cookie — the dashboard. theo-cloud is its Backend for
-//     Frontend (usetheoai/theo#477 step 3): the browser holds no token, and the
+//   - the Kratos session cookie — the dashboard. loop-console is its Backend for
+//     Frontend (getloopscale/loopscale#477 step 3): the browser holds no token, and the
 //     cookie is checked server-side on every request.
 //
 // A credential in the query string is NOT one of them. The `?token=` fallback
@@ -78,7 +78,7 @@ func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionT
 //
 // The tenant always comes from the credential — never from a header, a query
 // parameter, or a body the request carries.
-func RequireCaller(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionTokenIssuer, sessions SessionAuthenticator) func(http.Handler) http.Handler {
+func RequireCaller(rsaValidator *loopscalejwt.Validator, sessValidator *loopscalejwt.SessionTokenIssuer, sessions SessionAuthenticator) func(http.Handler) http.Handler {
 	crossOrigin := http.NewCrossOriginProtection()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +95,7 @@ func RequireCaller(rsaValidator *theojwt.Validator, sessValidator *theojwt.Sessi
 				slog.Warn("auth: rejected — cross-origin request with a session cookie",
 					"method", r.Method, "path", r.URL.Path, "sec_fetch_site", r.Header.Get("Sec-Fetch-Site"))
 				writeJSONError(w, http.StatusForbidden, "CROSS_ORIGIN_REJECTED",
-					"This request did not come from the Theo dashboard.")
+					"This request did not come from the LoopScale dashboard.")
 				return
 			}
 			user, err := sessions.Authenticate(r)
@@ -117,7 +117,7 @@ func RequireCaller(rsaValidator *theojwt.Validator, sessValidator *theojwt.Sessi
 	}
 }
 
-func authenticateBearer(w http.ResponseWriter, r *http.Request, next http.Handler, token string, rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionTokenIssuer) {
+func authenticateBearer(w http.ResponseWriter, r *http.Request, next http.Handler, token string, rsaValidator *loopscalejwt.Validator, sessValidator *loopscalejwt.SessionTokenIssuer) {
 	// Try RSA JWT (Hydra — CLI)
 	if rsaValidator != nil {
 		claims, err := rsaValidator.Validate(token)
@@ -142,7 +142,7 @@ func authenticateBearer(w http.ResponseWriter, r *http.Request, next http.Handle
 				Email:    email,
 				Name:     name,
 				TenantID: tenantID,
-				// usetheoai/theo#477: without this, every consumer gating on
+				// getloopscale/loopscale#477: without this, every consumer gating on
 				// AccountID (the M1 cross-account guard) skipped the check for
 				// a Hydra caller. Top-level first, ext fallback; "" for a token
 				// minted before the claim existed.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M12 — a jornada de AUTORAR e COMPARAR, ponta a ponta PELA TELA.
 //
@@ -19,7 +19,7 @@
 // eixo fechado por construção, e não por disciplina de quem escreve o teste.
 //
 // ESCOPO, dito por inteiro: roda hermético contra o Vite local com `VITE_USE_MOCKS=true`. Prova
-// a jornada da INTERFACE contra o contrato medido do `theo-promptly` — não prova que o serviço
+// a jornada da INTERFACE contra o contrato medido do `loopprompt` — não prova que o serviço
 // implantado devolve estes corpos. Essa metade se verifica em `/acceptance`, contra o build da
 // tag; afirmá-la aqui seria teatro.
 

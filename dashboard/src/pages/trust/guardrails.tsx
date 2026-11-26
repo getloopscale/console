@@ -10,7 +10,7 @@ import {
   EmptyState,
   PageShell,
   type DataTableColumn,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';

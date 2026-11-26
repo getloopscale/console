@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'https://auth-dev.usetheo.dev',
+  API_URL: 'https://auth-dev.getloopscale.com',
   AUTH_URL: '',
   ACCOUNTS_URL: '',
   OAUTH_URL: '',
@@ -54,7 +54,7 @@ function flowFixture(): FlowFixture {
   return {
     id: 'flow-1',
     ui: {
-      action: 'https://auth-dev.usetheo.dev/self-service/login?flow=flow-1',
+      action: 'https://auth-dev.getloopscale.com/self-service/login?flow=flow-1',
       method: 'POST',
       nodes: [
         { group: 'default', attributes: { name: 'csrf_token', type: 'hidden', value: 'csrf-abc' } },
@@ -403,7 +403,7 @@ describe('LoginPage', () => {
     // olhava apenas a contagem apos um terceiro render — e uma sonda mostrou que
     // ela passava mesmo com o consumo removido, ou seja, era vazia. A chave ter
     // sumido do storage e o fato que a protecao depende, e e verificavel aqui.
-    expect(sessionStorage.getItem('theo.auth.pending-attempt')).toBeNull();
+    expect(sessionStorage.getItem('loopscale.auth.pending-attempt')).toBeNull();
 
     render(<LoginPage />);
     await waitFor(() => {
@@ -447,7 +447,7 @@ describe('LoginPage', () => {
   });
 
   it('test_login_label_htmlfor_matches_input_id', async () => {
-    // EC-4: detect upstream @usetheo/ui regression
+    // EC-4: detect upstream @getloopscale/ui regression
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
     render(<LoginPage />);
     await waitFor(() => {
@@ -610,7 +610,7 @@ describe('LoginPage', () => {
     expect(googleBtn.className).toContain('ring-2');
   });
 
-  // Red Team theo-cloud#51 closure: every form field on /login MUST
+  // Red Team loop-console#51 closure: every form field on /login MUST
   // carry an `id` + `name` so the browser's "form field element should
   // have an id or name attribute" warning stops firing AND password
   // managers can label the field. (Previously the email/password

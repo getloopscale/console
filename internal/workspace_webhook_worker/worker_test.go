@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package workspace_webhook_worker
 
@@ -12,7 +12,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	mww "github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
+	mww "github.com/getloopscale/loop-console/internal/memory_webhook_worker"
 )
 
 // Real-Postgres tests for the NEW worker logic — the lease claim, the
@@ -26,7 +26,7 @@ func workerDB(t *testing.T) *sql.DB {
 	t.Helper()
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
-		url = "postgres://postgres:postgres@localhost:5432/theo_test?sslmode=disable"
+		url = "postgres://postgres:postgres@localhost:5432/loopscale_test?sslmode=disable"
 	}
 	db, err := sql.Open("pgx", url)
 	if err != nil {
@@ -202,7 +202,7 @@ func TestWorker_ReapStaleLeases_ReclaimsOrphan(t *testing.T) {
 	}
 }
 
-// B2 (theo-cloud#155): a stale worker whose lease was reaped + reclaimed by
+// B2 (loop-console#155): a stale worker whose lease was reaped + reclaimed by
 // another replica must NOT clobber the row when its own dispatch finally
 // returns. recordResult is guarded on (claimed_by, status='delivering'); a
 // non-owning write affects 0 rows and is dropped — no lost update, no
@@ -227,7 +227,7 @@ func TestWorker_RecordResult_LeaseLost_DropsStaleWrite(t *testing.T) {
 	}
 }
 
-// B3 (theo-cloud#155): the reaper must count the orphaned attempt and back off,
+// B3 (loop-console#155): the reaper must count the orphaned attempt and back off,
 // not reset next_attempt_at=NOW() (which would tight-loop) and not leave
 // attempt_count unchanged (which would bypass the dead-letter budget forever).
 func TestWorker_ReapStaleLeases_CountsAttemptAndBacksOff(t *testing.T) {
@@ -253,7 +253,7 @@ func TestWorker_ReapStaleLeases_CountsAttemptAndBacksOff(t *testing.T) {
 	}
 }
 
-// B3 (theo-cloud#155): a row reaped on its final attempt must dead-letter, not
+// B3 (loop-console#155): a row reaped on its final attempt must dead-letter, not
 // re-queue forever.
 func TestWorker_ReapStaleLeases_DeadLettersAtCap(t *testing.T) {
 	db := workerDB(t)

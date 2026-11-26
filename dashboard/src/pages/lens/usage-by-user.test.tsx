@@ -41,7 +41,7 @@ const RESPOSTA_REAL = {
 describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
   // The page computes its window from Date.now(), and the fixtures below are dated
   // 2026-07-20..22. With a live clock they fell out of the window on ~2026-08-21 and every
-  // chart rendered zero lines — a failure no code change caused (usetheoai/theo-cloud#491).
+  // chart rendered zero lines — a failure no code change caused (getloopscale/loop-console#491).
   // Only Date is faked: React's scheduling keeps its real timers.
   afterEach(() => {
     vi.useRealTimers();
@@ -281,7 +281,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
    * M144 — OS DOIS GRÁFICOS.
    *
    * A série do M143 vem esparsa: um dia sem consumo não produz ponto. O `seriesPath` do
-   * `@usetheo/ui@0.32.0` quebra a linha onde encontra `y` não-finito, e `densificar` é quem põe o
+   * `@getloopscale/ui@0.32.0` quebra a linha onde encontra `y` não-finito, e `densificar` é quem põe o
    * não-finito lá. O que estes casos protegem é essa cadeia inteira ponta a ponta.
    */
   const COM_SERIE = {
@@ -410,7 +410,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
 
   /**
    * O BLOCKER do review. A página vem ordenada pelo SERVIÇO por `inputTokens + outputTokens DESC`
-   * (verificado no SQL do theo-lens), e o gráfico de CUSTO herdava essa ordem: um usuário num modelo
+   * (verificado no SQL do looptrace), e o gráfico de CUSTO herdava essa ordem: um usuário num modelo
    * caro com poucos tokens ficava atrás de um usuário num modelo barato com muitos, e não aparecia
    * no gráfico de dólares — sob um título dizendo "maiores".
    *

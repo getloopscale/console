@@ -2,7 +2,7 @@
 //
 // In production, the container entrypoint generates /__config.js from env vars.
 // In development, the file in public/__config.js has empty defaults (same-origin).
-// This module reads from window.__THEO_CONFIG__ (set by the script tag in index.html).
+// This module reads from window.__LOOPSCALE_CONFIG__ (set by the script tag in index.html).
 
 interface RuntimeConfig {
   API_URL: string;
@@ -14,12 +14,12 @@ interface RuntimeConfig {
 
 declare global {
   interface Window {
-    __THEO_CONFIG__?: RuntimeConfig;
+    __LOOPSCALE_CONFIG__?: RuntimeConfig;
   }
 }
 
 function getConfig(): RuntimeConfig {
-  return window.__THEO_CONFIG__ ?? {
+  return window.__LOOPSCALE_CONFIG__ ?? {
     API_URL: "",
     AUTH_URL: "",
     ACCOUNTS_URL: "",

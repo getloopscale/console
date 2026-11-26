@@ -1,5 +1,5 @@
 import { ChevronRight, FileText, Folder, House } from 'lucide-react';
-import { Badge } from '@usetheo/ui';
+import { Badge } from '@getloopscale/ui';
 
 import {
   breadcrumbSegments,

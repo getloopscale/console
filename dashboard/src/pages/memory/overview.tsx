@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ExploreCard } from '@/components/explore-card';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
-import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
+import { Button, Card, MetricCard, PageShell, Skeleton } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { CategoryBars } from '@/components/charts/category-bars';
 import { ContentGrid } from '@/components/layout';
@@ -162,7 +162,7 @@ export function MemoryPage() {
             <h2 className="text-base font-semibold">Getting started</h2>
             <p className="text-sm text-muted-foreground">
               Use the SDK to remember facts from your agent. Anything you write
-              here is queryable via <code>theo.memory.user(&apos;u&apos;).recall()</code>.
+              here is queryable via <code>loopscale.memory.user(&apos;u&apos;).recall()</code>.
             </p>
             <Button asChild variant="ghost" >
               <Link to="/memory/memories">Browse memories →</Link>

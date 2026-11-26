@@ -14,18 +14,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// M15 (theo-promptly) — o agregado de uso por revisão chega ao navegador.
+// M15 (loopprompt) — o agregado de uso por revisão chega ao navegador.
 //
 // A porta é separada da de leitura de prompts de propósito: este dado vem do
-// `theo-lens`, não do `theo-promptly`, e é servido por outra credencial. Uma porta
+// `looptrace`, não do `loopprompt`, e é servido por outra credencial. Uma porta
 // só, com os dois, sugeriria um privilégio que não existe.
 
 type usoFake struct {
-	corpo      json.RawMessage
-	err        error
-	nomeVisto  string
+	corpo       json.RawMessage
+	err         error
+	nomeVisto   string
 	janelaVista int
-	chamadas   int
+	chamadas    int
 }
 
 func (f *usoFake) PromptUsage(_ context.Context, nome string, janelaDias int) (json.RawMessage, error) {

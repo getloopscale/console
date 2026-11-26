@@ -1,8 +1,8 @@
-# TheoCloud Dashboard — Design System Contract
+# LoopConsole Dashboard — Design System Contract
 
 > **Locked design system for `cloud/dashboard/`.**
 > This file is the **single source of truth** for UX/UI standards. All other artifacts (audits, plans, code review, LLM-assisted generation) defer to this.
-> Per `theo-ui` skill convention: presence of `DESIGN.md` at project root makes it the locked system — pre-flight scan reads this first and respects every clause.
+> Per `loopscale-ui` skill convention: presence of `DESIGN.md` at project root makes it the locked system — pre-flight scan reads this first and respects every clause.
 
 **Version:** 1.0 · **Locked:** 2026-05-25 · **Owner:** Paulo (sponsor) + Staff Dashboard Engineering
 **Related:** `audit` *(removido do versionamento)* · `plan` *(removido do versionamento)* · `architecture` *(removido do versionamento)*
@@ -93,12 +93,12 @@ The dashboard uses **two** npm packages, with disjoint surfaces (measured
 
 | Package | Version installed | Owns | Reach |
 |---|---|---|---|
-| `@usetheo/ui` | `0.35.1` | components | 206 files import it |
-| `@theokit/ui` | `1.3.2` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 7 files |
+| `@getloopscale/ui` | `0.38.0` | components | 206 files import it |
+| `@getloopscale/loopzero-ui` | `0.1.0` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 7 files |
 
-There is nothing to consolidate: `@usetheo/ui` exports 116 symbols and **none**
+There is nothing to consolidate: `@getloopscale/ui` exports 116 symbols and **none**
 match `Theme*`, `Usage*` or `violet*`. What the split does cost is bundle weight,
-measured and tracked in `theo-cloud#474`.
+measured and tracked in `loop-console#474`.
 
 The theme configuration has a **single owner**: `src/lib/theme/loopscale-theme.ts`,
 imported by both `main.tsx` and the test tree. Before it existed the two
@@ -205,9 +205,9 @@ A screen that only displays information without action is a dead page. Every scr
 **Good:**
 > **Deploy your first app**
 >
-> Theo builds your code into signed container images and ships them to a live URL.
+> LoopScale builds your code into signed container images and ships them to a live URL.
 >
-> Connect a GitHub repo or run `theo deploy` from your project directory.
+> Connect a GitHub repo or run `loopscale deploy` from your project directory.
 >
 > *[Connect GitHub]* *[Copy CLI]*
 
@@ -218,9 +218,9 @@ A screen that only displays information without action is a dead page. Every scr
 >
 > A project groups your apps, environments, and domains.
 >
-> Pick a GitHub repo and Theo detects the framework automatically. ~4 minutes to a live URL.
+> Pick a GitHub repo and LoopScale detects the framework automatically. ~4 minutes to a live URL.
 >
-> *[Pick a repo]* *[theo init]*
+> *[Pick a repo]* *[loopscale init]*
 
 ### 5.3 Acceptance
 
@@ -241,9 +241,9 @@ Every error message (form errors, deploy failures, API errors, system errors) MU
 | # | Element | Example |
 |---|---|---|
 | 1 | **Title** | "Build failed during dependency install" |
-| 2 | **Cause** | "pnpm could not resolve `react@19` peer dependency for `theo-app`" |
+| 2 | **Cause** | "pnpm could not resolve `react@19` peer dependency for `loopscale-app`" |
 | 3 | **Impact** | "No new release was deployed. Production still serves release `r_abc123`." |
-| 4 | **Action** | "Update `package.json` peer deps or pin pnpm version in `theo.yaml`." |
+| 4 | **Action** | "Update `package.json` peer deps or pin pnpm version in `loopscale.yaml`." |
 | 5 | **Primary CTA** | `[View logs]` |
 | 6 | **Secondary** | `[Copy diagnostic bundle]` `[Retry]` |
 
@@ -280,7 +280,7 @@ If backend provides an error code (e.g., `BUILD_LOCK_TIMEOUT`), surface it in a 
 - [ ] Step grouping (logs grouped by Argo Workflow step).
 - [ ] Highlighted current step in companion BuildTimeline.
 - [ ] Copy line (single click).
-- [ ] Copy diagnostic bundle (entire log + last 5 builds + theo.yaml + redacted secrets).
+- [ ] Copy diagnostic bundle (entire log + last 5 builds + loopscale.yaml + redacted secrets).
 - [ ] Follow-tail toggle (auto-scroll while live).
 - [ ] Pause on user scroll-up (don't fight the user).
 - [ ] Share-link with line anchor (`?cursor=foo&line=42`).
@@ -336,7 +336,7 @@ Onboarding flow (remediation plan T2.10) MUST follow this sequence:
 2. /onboarding/github       — Detect existing OIDC connection; skip if connected.
 3. /onboarding/repo         — Repo picker (last 20 commits, search, framework auto-detect badge).
 4. /onboarding/configure    — Pre-filled config; "Advanced" toggle reveals env vars/build cmd.
-5. /onboarding/deploy       — Preview of theo.yaml + [Deploy] button.
+5. /onboarding/deploy       — Preview of loopscale.yaml + [Deploy] button.
 6. /onboarding/streaming    — Live BuildTimeline + LogViewer in companion mode.
 7. /onboarding/success      — Live URL + 3 next-steps cards: [Add domain] [Create preview env] [Invite team]
 ```
@@ -381,7 +381,7 @@ The dashboard talks to developers. Be precise, not aspirational.
 | "Deploy succeeded" | "Production now serves release r_abc123 (commit 7f2a8b9)" |
 | "Error" | "Build failed during install" |
 | "Loading..." | "Fetching deployments..." |
-| "Welcome!" | "Theo dashboard" |
+| "Welcome!" | "LoopScale dashboard" |
 | "Get started" (vague) | "Connect GitHub" (specific) |
 | "Click here" | "Open project settings" (verb + object) |
 
@@ -711,7 +711,7 @@ Instrumentation lives in `src/lib/telemetry/rum.ts` (Web Vitals wired at `src/ma
 
 | Metric | Target | Captured via |
 |---|---|---|
-| Time-to-first-deploy | ≤ 5 min p50 | Web Vitals custom event `theo.onboarding.deploy.complete` |
+| Time-to-first-deploy | ≤ 5 min p50 | Web Vitals custom event `loopscale.onboarding.deploy.complete` |
 | Time-to-understand-failure | ≤ 60s p50 | Time from deploy.failed event to logs viewer interaction |
 | Clicks-to-rollback | ≤ 3 clicks p50 | Click sequence tracking |
 | Clicks-to-add-secret | ≤ 3 clicks p50 | Same |
@@ -839,7 +839,7 @@ one, because they go looking.
 
 - **Architecture, current:** `docs/architecture.md`.
 - **ADRs:** `docs/adr/`.
-- **Composite library:** `@usetheo/ui@0.35.1` — required canonical components. Theme + usage widgets come from `@theokit/ui@1.3.2`; the split is recorded in `docs/adr/0003`.
+- **Composite library:** `@getloopscale/ui@0.38.0` — required canonical components. Theme + usage widgets come from `@getloopscale/loopzero-ui@0.1.0`; the split is recorded in `docs/adr/0003`.
 - **Voice rules:** root `CLAUDE.md` § Voice and Tone (technical-direct for dashboard; aspirational reserved for PITCH.md).
 
 ---

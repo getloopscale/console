@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
-# cloud -> theo-data (theo-promptly) CONTROL-PLANE consumer contract (OpenAPI 3.0.3).
+# cloud -> loopscale-data (loopprompt) CONTROL-PLANE consumer contract (OpenAPI 3.0.3).
 #
-# This is the SUBSET of theo-promptly's admin API that internal/promptly/admin_client.go
+# This is the SUBSET of loopprompt's admin API that internal/promptly/admin_client.go
 # actually calls — the per-tenant key mint (POST /admin/keys). The path is NATIVE
 # (no /v1 prefix — M5 ADR D2): the broker talks directly to the host-run service,
-# not through the edge. Keep in sync with theo-promptly packages/api/src/server/app.ts
+# not through the edge. Keep in sync with loopprompt packages/api/src/server/app.ts
 # (AdminMintBody / the 201 response). The contract_test validates the admin_client's
 # outgoing requests against this spec so a drift fails fast (M11 Risk-2).
 openapi: 3.0.3
 info:
-  title: theo-promptly admin API (cloud control-plane subset)
+  title: loopprompt admin API (cloud control-plane subset)
   version: "0.7.0"
 
 servers:
@@ -29,7 +29,7 @@ components:
 paths:
   /admin/keys:
     post:
-      summary: Mint a per-tenant theo-promptly API key (Model B).
+      summary: Mint a per-tenant loopprompt API key (Model B).
       parameters:
         - $ref: "#/components/parameters/Authorization"
       requestBody:

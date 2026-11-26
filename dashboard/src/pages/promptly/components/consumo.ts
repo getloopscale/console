@@ -8,7 +8,7 @@
  * Dentro do JSX, a asserção seria sobre o componente, e o trecho quebraria no dia em que alguém
  * mudasse o espaçamento — sem nenhum teste falhar.
  *
- * **A forma foi lida do contrato real, não de memória:** `@usetheo/promptly-sdk` exporta
+ * **A forma foi lida do contrato real, não de memória:** `@getloopscale/promptly-sdk` exporta
  * `PromptlyClient`, cujo construtor pede `{ baseUrl, apiKey }` e cujo `getPrompt(name, options)`
  * aceita `{ label | version, variables }` (`packages/sdk/src/index.ts:122,245,335`); a ferramenta
  * MCP chama-se `get_prompt` (`packages/mcp/src/create-mcp-server.ts:76`). Um trecho com API
@@ -110,7 +110,7 @@ function sdkVariables(target: Target): string {
 }
 
 function gerarSdk(target: Target): string {
-  // `resolve: true` SÓ quando o prompt compõe (`usetheoai/theo-promptly#84`, fechado).
+  // `resolve: true` SÓ quando o prompt compõe (`getloopscale/loop-prompt#84`, fechado).
   //
   // Até a v0.17.1 o SDK não tinha como pedir resolução, e este trecho carregava uma RESSALVA
   // apontando o REST. Agora ele pede — e `prompt.resolvedContent` traz o texto composto, enquanto
@@ -122,13 +122,13 @@ function gerarSdk(target: Target): string {
   const leitura = target.compoe
     ? 'console.log(prompt.resolvedContent ?? prompt.content);'
     : 'console.log(prompt.content);';
-  return `import { PromptlyClient } from '@usetheo/promptly-sdk';
+  return `import { PromptlyClient } from '@getloopscale/promptly-sdk';
 
 const promptly = new PromptlyClient({
   baseUrl: '${target.baseUrl}',
   // PLATFORM key (\`theo_live_…\`), created in Settings → API Tokens with the
   // \`promptly:read\` scope. The service key never crosses the edge. Never in code: export it.
-  apiKey: process.env.THEO_API_KEY ?? '',
+  apiKey: process.env.LOOPSCALE_API_KEY ?? '',
 });
 
 const prompt = await promptly.getPrompt('${target.name}', {
@@ -149,7 +149,7 @@ function gerarRest(target: Target): string {
   return `# PLATFORM key (theo_live_…), from Settings → API Tokens, with the promptly:read scope.
 # Never pasted here — it comes from the environment.
 curl -sS '${caminho}' \\
-  -H "Authorization: Bearer \${THEO_API_KEY}"`;
+  -H "Authorization: Bearer \${LOOPSCALE_API_KEY}"`;
 }
 
 function gerarMcp(target: Target): string {
@@ -169,9 +169,9 @@ function gerarMcp(target: Target): string {
 
 {
   "mcpServers": {
-    "theo-promptly": {
+    "loopprompt": {
       "url": "${target.baseUrl}/mcp",
-      "headers": { "Authorization": "Bearer \${THEO_API_KEY}" }
+      "headers": { "Authorization": "Bearer \${LOOPSCALE_API_KEY}" }
     }
   }
 }

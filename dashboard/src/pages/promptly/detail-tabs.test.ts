@@ -66,7 +66,7 @@ describe('M21 — o mapa de abas do detalhe', () => {
 
   it('o menu lateral reconhece TODAS as rotas de aba', () => {
     // A segunda metade da navegação, e a que ninguém lembra: declarar o submenu não basta. No M20
-    // do `theo-trust`, quatro telas ficaram alcançáveis só digitando a URL porque esta linha não
+    // do `loopguardrails`, quatro telas ficaram alcançáveis só digitando a URL porque esta linha não
     // existia — e três rodadas de validação passaram por cima, porque validar abrindo o endereço é
     // usar o único caminho que o usuário real não tem.
     for (const aba of ABAS) {

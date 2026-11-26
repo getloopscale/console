@@ -13,7 +13,7 @@ import { reportEvent } from '@/lib/telemetry/rum';
  *
  * Real-time filter: only builds with finished_at > mountedAt qualify.
  *
- * localStorage flag (theo-first-deploy-{projectName}-celebrated) prevents
+ * localStorage flag (loopscale-first-deploy-{projectName}-celebrated) prevents
  * re-firing across tabs/sessions. prefers-reduced-motion respected.
  */
 
@@ -33,7 +33,7 @@ export function useFirstDeployTrigger({ projectName, toast, liveUrl }: Options):
 
   useEffect(() => {
     if (!projectName) return;
-    const flagKey = `theo-first-deploy-${projectName}-celebrated`;
+    const flagKey = `loopscale-first-deploy-${projectName}-celebrated`;
 
     // Safety: prevent re-firing
     try {

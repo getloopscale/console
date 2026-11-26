@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 //go:build integration
 
-// M149 / usetheoai/theo-cloud#405 — a semântica do acelerador, contra Postgres de verdade.
+// M149 / getloopscale/loop-console#405 — a semântica do acelerador, contra Postgres de verdade.
 //
 //	AUTH_TEST_DATABASE_URL=postgres://... go test -tags=integration ./internal/auth/...
 //
@@ -52,9 +52,9 @@ func bancoDeTeste(t *testing.T) *sql.DB {
 		t.Fatalf("ping: %v", err)
 	}
 	// NUNCA um DROP de nome de produção. A primeira versão fazia
-	// `DROP TABLE IF EXISTS loopzero_api_keys`; apontada a uma URL de dev compartilhado, ela apagaria
+	// `DROP TABLE IF EXISTS loop_runtime_api_keys`; apontada a uma URL de dev compartilhado, ela apagaria
 	// TODAS as chaves de API e deixaria um schema falso no lugar. A DDL real sequer vive neste
-	// repositório (está em `theo/api/internal/db/migrations`), então o teste nunca teria como
+	// repositório (está em `loopscale/api/internal/db/migrations`), então o teste nunca teria como
 	// recriá-la. Um schema temporário isola o teste sem tocar em nada de ninguém.
 	const schema = "auth_m149_tmp"
 	if _, err := db.Exec(`DROP SCHEMA IF EXISTS ` + schema + ` CASCADE`); err != nil {
@@ -66,7 +66,7 @@ func bancoDeTeste(t *testing.T) *sql.DB {
 	t.Cleanup(func() { _, _ = db.Exec(`DROP SCHEMA IF EXISTS ` + schema + ` CASCADE`) })
 	// Sem `SET search_path`: ele é estado de SESSÃO e não sobrevive à troca de conexão do pool.
 	// Toda consulta abaixo qualifica o schema — o que torna o SET não só redundante como enganoso.
-	if _, err := db.Exec(`CREATE TABLE ` + schema + `.loopzero_api_keys (
+	if _, err := db.Exec(`CREATE TABLE ` + schema + `.loop_runtime_api_keys (
 			id           text PRIMARY KEY,
 			last_used_at timestamptz
 		)`); err != nil {
@@ -78,7 +78,7 @@ func bancoDeTeste(t *testing.T) *sql.DB {
 /** Executa o mesmo comando de produção, de forma síncrona, para o teste poder observar o efeito. */
 func gravarUso(t *testing.T, db *sql.DB, keyID string) int64 {
 	t.Helper()
-	const q = `UPDATE auth_m149_tmp.loopzero_api_keys
+	const q = `UPDATE auth_m149_tmp.loop_runtime_api_keys
 		SET last_used_at = NOW()
 		WHERE id = $1
 		  AND (last_used_at IS NULL OR last_used_at < NOW() - make_interval(secs => $2))`
@@ -97,14 +97,14 @@ func TestIntegracao_OComandoDeRegistroEValidoNoPostgres(t *testing.T) {
 	// Se `make_interval(secs => $2)` não fosse aceito, isto falharia — e em produção o erro só
 	// apareceria num log `Debug` que ninguém lê.
 	db := bancoDeTeste(t)
-	if _, err := db.Exec(`INSERT INTO auth_m149_tmp.loopzero_api_keys (id) VALUES ('k1')`); err != nil {
+	if _, err := db.Exec(`INSERT INTO auth_m149_tmp.loop_runtime_api_keys (id) VALUES ('k1')`); err != nil {
 		t.Fatalf("semear: %v", err)
 	}
 	if n := gravarUso(t, db, "k1"); n != 1 {
 		t.Fatalf("a primeira gravação deveria afetar 1 linha, afetou %d", n)
 	}
 	var usadaEm sql.NullTime
-	if err := db.QueryRow(`SELECT last_used_at FROM auth_m149_tmp.loopzero_api_keys WHERE id='k1'`).Scan(&usadaEm); err != nil {
+	if err := db.QueryRow(`SELECT last_used_at FROM auth_m149_tmp.loop_runtime_api_keys WHERE id='k1'`).Scan(&usadaEm); err != nil {
 		t.Fatalf("ler: %v", err)
 	}
 	if !usadaEm.Valid {
@@ -115,7 +115,7 @@ func TestIntegracao_OComandoDeRegistroEValidoNoPostgres(t *testing.T) {
 func TestIntegracao_NAutenticacoesNaJanelaProduzemUMAEscrita(t *testing.T) {
 	// O critério de gargalo. Sem ele, "acelera" é intenção; com ele, é fato.
 	db := bancoDeTeste(t)
-	if _, err := db.Exec(`INSERT INTO auth_m149_tmp.loopzero_api_keys (id) VALUES ('k2')`); err != nil {
+	if _, err := db.Exec(`INSERT INTO auth_m149_tmp.loop_runtime_api_keys (id) VALUES ('k2')`); err != nil {
 		t.Fatalf("semear: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestIntegracao_PassadaAJanelaOUsoEGravadoDeNovo(t *testing.T) {
 	db := bancoDeTeste(t)
 	// Semeia um uso ANTIGO — mais velho que a janela.
 	if _, err := db.Exec(
-		`INSERT INTO auth_m149_tmp.loopzero_api_keys (id, last_used_at) VALUES ('k3', NOW() - make_interval(secs => $1))`,
+		`INSERT INTO auth_m149_tmp.loop_runtime_api_keys (id, last_used_at) VALUES ('k3', NOW() - make_interval(secs => $1))`,
 		janelaDeRegistroDeUso.Seconds()*2,
 	); err != nil {
 		t.Fatalf("semear: %v", err)
@@ -144,7 +144,7 @@ func TestIntegracao_PassadaAJanelaOUsoEGravadoDeNovo(t *testing.T) {
 	}
 
 	var usadaEm time.Time
-	if err := db.QueryRow(`SELECT last_used_at FROM auth_m149_tmp.loopzero_api_keys WHERE id='k3'`).Scan(&usadaEm); err != nil {
+	if err := db.QueryRow(`SELECT last_used_at FROM auth_m149_tmp.loop_runtime_api_keys WHERE id='k3'`).Scan(&usadaEm); err != nil {
 		t.Fatalf("ler: %v", err)
 	}
 	if time.Since(usadaEm) > time.Minute {

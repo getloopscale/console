@@ -16,7 +16,7 @@ vi.mock('@/lib/http/api', () => ({
  *   - UNNAMED `data: {...}\n\n` → fires `onmessage`
  *   - NAMED `event: log\ndata:{...}\n\n` → fires `addEventListener('log',...)`
  *
- * theo-api emits NAMED `event: log` (api/internal/routes/logs_stream.go
+ * loop-runtime-api emits NAMED `event: log` (api/internal/routes/logs_stream.go
  * writeSSELogEvent). useLogStream now subscribes to both channels per
  * 2026-06-13 LIVE walkthrough fix (commit bfde4349). Hermetic tests
  * MUST exercise BOTH paths to prevent regression of the LIVE catch.
@@ -57,8 +57,8 @@ class TestEventSource {
     this.onmessage?.(ev);
   }
 
-  // F-tests-2 closure — named-event dispatch (theo-api runtime SSE).
-  // Accepts the canonical theo-api shape {timestamp, line, step} which
+  // F-tests-2 closure — named-event dispatch (loop-runtime-api runtime SSE).
+  // Accepts the canonical loop-runtime-api shape {timestamp, line, step} which
   // useLogStream maps to LogLine {ts, level, msg, source}.
   emitNamed(eventType: string, data: Record<string, unknown>) {
     const ev = new MessageEvent(eventType, { data: JSON.stringify(data) });
@@ -210,13 +210,13 @@ describe('useLogStream (J-19 T1.3 — R3 droppedCount field)', () => {
   });
 
   // 2026-06-13 LIVE walkthrough fix gates — BLOCKER F-tests-2 closure
-  // (commit bfde4349). theo-api emits NAMED event 'log' with payload shape
+  // (commit bfde4349). loop-runtime-api emits NAMED event 'log' with payload shape
   // {timestamp, line, step}. useLogStream now listens via addEventListener
   // ('log', handler) + maps to LogLine {ts, msg, source}. Prior hermetic
   // tests covered only onmessage (unnamed) path — missing this channel
   // is the bug class that allowed sponsor to see "No log lines yet" with
   // backend streaming successfully.
-  it('test_use_log_stream_renders_named_log_event_from_theo_api', async () => {
+  it('test_use_log_stream_renders_named_log_event_from_loopscale_api', async () => {
     const { result } = await setupHook(100);
     const es = TestEventSource.instances[0];
     act(() => {
@@ -232,11 +232,11 @@ describe('useLogStream (J-19 T1.3 — R3 droppedCount field)', () => {
     expect(result.current.lines[0].source).toBe('api');
   });
 
-  it('test_use_log_stream_maps_theo_api_shape_timestamp_to_ts_line_to_msg_step_to_source', async () => {
-    // Field-name mapping regression gate: theo-api {timestamp,line,step}
+  it('test_use_log_stream_maps_loopscale_api_shape_timestamp_to_ts_line_to_msg_step_to_source', async () => {
+    // Field-name mapping regression gate: loop-runtime-api {timestamp,line,step}
     // → LogLine {ts,level='info',msg,source}. Prevents future drift where
     // payload uses {ts,msg,source} (legacy) vs {timestamp,line,step}
-    // (theo-api 2026-05-13 Beta Logs Gate shape).
+    // (loop-runtime-api 2026-05-13 Beta Logs Gate shape).
     const { result } = await setupHook(100);
     const es = TestEventSource.instances[0];
     act(() => {

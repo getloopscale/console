@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Undo2 } from 'lucide-react';
-import { Badge, Button, StatusDot, Table } from '@usetheo/ui';
+import { Badge, Button, StatusDot, Table } from '@getloopscale/ui';
 import { formatDate, humanizeAuthor } from '@/lib/formatting/format';
 import type { RollbackRecord } from '@/lib/api/types';
 import { formatDuration } from '@/pages/deploy/components/deployment-row';

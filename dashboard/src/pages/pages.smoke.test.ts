@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
  *   - Installing @testing-library/react + jest-dom + setup file
  *   - Mocking react-router-dom (pages use useNavigate/useLocation)
  *   - Mocking @/lib/api + @/lib/auth fetch handlers
- *   - Setting up TheoUIProvider wrapper for primitives that need theme context
+ *   - Setting up LoopZeroUIProvider wrapper for primitives that need theme context
  * Out of scope for v1.2; defer to future test infra upgrade plan.
  */
 

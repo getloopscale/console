@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // sessionIdentifier is the slice of *auth.KratosSessionAuthenticator this handler needs.
@@ -19,7 +19,7 @@ type sessionIdentifier interface {
 // SessionIdentityHandler serves GET /v1/auth/session: who the browser's Kratos
 // session belongs to, and nothing that authenticates anybody.
 //
-// usetheoai/theo#477 step 3 — the dashboard used to learn its identity from the
+// getloopscale/loopscale#477 step 3 — the dashboard used to learn its identity from the
 // response of POST /v1/auth/session/token, which also handed it an HS256 bearer
 // token. The identity half moved here; the token half the dashboard no longer
 // receives at all. The status is the contract the dashboard acts on: 401 means

@@ -2,7 +2,7 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Button,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useRedeploy } from '@/hooks/mutations/use-redeploy';
@@ -17,7 +17,7 @@ import type { Build } from '@/lib/api/types';
  * navigates to the new build's detail page so the user lands on the
  * live timeline immediately.
  *
- * Single-app monorepos work transparently (theo-packs autodetect path
+ * Single-app monorepos work transparently (loopscale-packs autodetect path
  * at build time). Multi-app monorepos with non-root app paths need
  * a schema migration (documented gap, tracked as follow-up).
  */

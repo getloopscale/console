@@ -22,7 +22,7 @@ MetricsRangeDataPoint                    interface  src/hooks/projects/use-metri
 MetricsRangeStatus                       type       src/hooks/projects/use-metrics-range.ts:30:13                 
 SignalState                              interface  src/hooks/projects/use-status-stream.reducer.ts:64:18         
 Collection                               interface  src/hooks/rag/use-collections.ts:34:18                        
-TheoError                                interface  src/lib/api/types.ts:24:18                                    
+LoopScaleError                                interface  src/lib/api/types.ts:24:18                                    
 WhoamiTeam                               interface  src/lib/api/types.ts:43:18                                    
 TeamSwitchInput                          interface  src/lib/api/types.ts:49:18                                    
 App                                      interface  src/lib/api/types.ts:59:18                                    

@@ -84,7 +84,7 @@ describe('projetarUso — os três estados', () => {
   });
 
   it('custo ZERO sem tokens NAO e um custo medido — e o defeito que a aceitacao pegou', () => {
-    // Medido no app-dev: o `theo-lens` escreve `traces.cost_usd = 0` para um trace sem
+    // Medido no app-dev: o `looptrace` escreve `traces.cost_usd = 0` para um trace sem
     // chamada de modelo. A soma devolve 0, e a tela renderizava "US$ 0.0000" — afirmando
     // um custo medido onde nao houve medicao. O operador le "barato"; a verdade e "nenhuma
     // chamada de modelo compartilhou o trace desta resolucao" (o limite do ADR-1).

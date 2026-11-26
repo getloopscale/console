@@ -116,7 +116,7 @@ export function useDeployTimeline(
   deployID: string | null | undefined,
   options: UseDeployTimelineOptions = {},
 ): UseDeployTimelineResult {
-  // Caddy + cloud BFF proxies /engine/* to theo-api per the canonical
+  // Caddy + cloud BFF proxies /engine/* to loop-runtime-api per the canonical
   // pattern documented in use-deployment-stream.ts (J-17 LIVE catch).
   const path = deployID
     ? `/engine/api/v1/deploys/${encodeURIComponent(deployID)}/timeline`

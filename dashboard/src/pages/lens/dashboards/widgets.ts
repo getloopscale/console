@@ -1,4 +1,4 @@
-import type { PercentileBucket, TrendSeries } from '@usetheo/ui';
+import type { PercentileBucket, TrendSeries } from '@getloopscale/ui';
 import {
   throughputSeries,
   errorRateSeries,

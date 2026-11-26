@@ -19,25 +19,25 @@ beforeEach(() => {
 
 describe('use-rollback-in-flight', () => {
   it('returns null when nothing is in flight', () => {
-    const { result } = renderHook(() => useRollbackInFlight('theokit-example'));
+    const { result } = renderHook(() => useRollbackInFlight('loopzero-example'));
     expect(result.current).toBeNull();
   });
 
   it('publishes and subscribers receive the update on the same project', () => {
     const { result: reader } = renderHook(() =>
-      useRollbackInFlight('theokit-example'),
+      useRollbackInFlight('loopzero-example'),
     );
     const { result: starter } = renderHook(() => useStartRollback());
     act(() => {
       starter.current({
-        projectName: 'theokit-example',
+        projectName: 'loopzero-example',
         targetBuildId: 'build-abc',
         targetSha: 'e6001ec',
         startedAt: 1718000000000,
       });
     });
     expect(reader.current).toEqual({
-      projectName: 'theokit-example',
+      projectName: 'loopzero-example',
       targetBuildId: 'build-abc',
       targetSha: 'e6001ec',
       startedAt: 1718000000000,

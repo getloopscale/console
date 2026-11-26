@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Breadcrumb as UiBreadcrumb } from '@usetheo/ui';
+import { Breadcrumb as UiBreadcrumb } from '@getloopscale/ui';
 
 import type { TraceSpanNode } from './helpers';
 
@@ -69,7 +69,7 @@ export function ancestors(root: TraceSpanNode, spanId: string): TraceSpanNode[] 
 }
 
 /**
- * Breadcrumb of the selected span's ancestor chain over the `@usetheo/ui`
+ * Breadcrumb of the selected span's ancestor chain over the `@getloopscale/ui`
  * Breadcrumb primitive (M7 adoption T2.3 — the primitive shipped in 0.16.0,
  * superseding the hand-rolled Button trail). Clicking a crumb sets `spanId`
  * via the URL store (crumbs are buttons through `Link asChild`); the selected

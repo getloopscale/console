@@ -1,5 +1,5 @@
 import { RefreshCw } from 'lucide-react';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 
 /**
  * RefreshButton — Plan J-18 T3.4.

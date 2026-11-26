@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { Button, Input, Label, Select } from '@usetheo/ui';
+import { Button, Input, Label, Select } from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useCreateEnvironment } from '@/hooks/mutations/use-environments';

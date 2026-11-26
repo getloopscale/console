@@ -27,7 +27,7 @@ export interface ScoresResult {
   scores: ScoreBucket[];
 }
 
-/** The ranges theo-lens whitelists. Passing anything else is a 400. */
+/** The ranges looptrace whitelists. Passing anything else is a 400. */
 export const SCORES_RANGES = ['1h', '24h', '7d', '30d'] as const;
 export type ScoresRange = (typeof SCORES_RANGES)[number];
 

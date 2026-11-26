@@ -27,7 +27,7 @@ const skillsQueryKey = ['cloud', '/v1/dashboard/memory/skills/all'] as const;
  * The cross-repo skill list.
  *
  * `throwOnError` so a failed fetch is `isError` rather than an empty list rendered as "no skills"
- * (theo-cloud#250).
+ * (loop-console#250).
  */
 export function useSkills(filters: { q: string; offset: number }) {
   const { q, offset } = filters;

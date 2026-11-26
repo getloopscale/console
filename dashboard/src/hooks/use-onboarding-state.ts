@@ -24,7 +24,7 @@ import { useWhoami } from '@/hooks/settings/use-whoami';
  * markStepDone('cli_installed') from user click ("I installed it" CTA).
  */
 
-export const ONBOARDING_KEY = 'theo-onboarding-v1';
+export const ONBOARDING_KEY = 'loopscale-onboarding-v1';
 
 interface OnboardingSteps {
   cli_installed: boolean;       // EC-14: user-confirmed only
@@ -101,7 +101,7 @@ export function useOnboardingState() {
   // Derive auto-tracked steps from API state. User-confirmed step
   // (cli_installed) reads from persisted localStorage only (EC-14).
   //
-  // Red Team theo-cloud#56 closure: a successful deploy is rigorous
+  // Red Team loop-console#56 closure: a successful deploy is rigorous
   // proof the user installed the CLI — the deploy command is the only
   // path to write to the engine. When `deploy_succeeded` is true,
   // cli_installed auto-flips too, regardless of whether the user

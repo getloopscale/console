@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -16,10 +16,10 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// theo-lens M53 — LensAlertRulesHandler. Per-tenant threshold alert rules, mirroring the M52
+// looptrace M53 — LensAlertRulesHandler. Per-tenant threshold alert rules, mirroring the M52
 // lens_saved_views isolation (subject+tenant_id scoping, 404-not-403 cross-tenant delete).
 
 func larReq(method, target, body, tenant string) *http.Request {
@@ -348,7 +348,7 @@ func TestLensAlertRules_Create_MonitorPairingIsEnforced(t *testing.T) {
 }
 
 // A definitive not-owned answer rejects the create — validate at the one moment a human is present
-// to fix the typo. A transport failure must NOT reject: importing theo-lens's availability into our
+// to fix the typo. A transport failure must NOT reject: importing looptrace's availability into our
 // write path would trade a rare typo for a common outage.
 func TestLensAlertRules_Create_MonitorOwnership(t *testing.T) {
 	body := `{"name":"g","metric":"monitor_breach","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1","monitor_id":"g-1"}`

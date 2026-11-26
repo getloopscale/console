@@ -3,7 +3,7 @@
  *
  * ## Why this exists next to two chart composites that do not fit
  *
- * `@usetheo/ui` ships `TrendChart` (a TIME series — `x` is epoch-ms or a bucket index) and
+ * `@getloopscale/ui` ships `TrendChart` (a TIME series — `x` is epoch-ms or a bucket index) and
  * `Histogram` (NUMBERS binned into `[lo, hi)` ranges). The four overviews that needed a chart have
  * neither shape: `high | medium | low`, counts per environment, counts per lifecycle. Measured
  * before writing this — see B-129 — none of them carries a trustworthy timestamp, and `trust` is

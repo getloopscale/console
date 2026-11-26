@@ -13,12 +13,12 @@ import {
   PageShell,
   Select,
   Textarea,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
-import { TrendChart } from '@usetheo/ui';
+import { TrendChart } from '@getloopscale/ui';
 import { scoresToSeries } from '@/pages/lens/components/lens-series';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -41,8 +41,8 @@ import {
 
 /**
  * M44 — /lens/evaluators. List / create / run / delete online evaluators via the read+write
- * lens management BFF (`/v1/dashboard/lens/evaluators`). Mirrors the theo-rag write pages. The
- * create body matches theo-lens: {name, kind:"rule"|"llm_judge", config:{predicate}|{prompt,model}}.
+ * lens management BFF (`/v1/dashboard/lens/evaluators`). Mirrors the looprag write pages. The
+ * create body matches looptrace: {name, kind:"rule"|"llm_judge", config:{predicate}|{prompt,model}}.
  */
 
 
@@ -55,7 +55,7 @@ function ruleSummary(ev: Evaluator): string {
 
 /** M133 — an async evaluator-run job (POST /run returns this queued; the client polls for progress). */
 
-// M90 — score-over-time range presets (theo-lens whitelist) + the BFF response shape.
+// M90 — score-over-time range presets (looptrace whitelist) + the BFF response shape.
 const SCORES_RANGE_LABEL: Record<ScoresRange, string> = {
   '1h': 'Last hour',
   '24h': 'Last 24h',
@@ -85,7 +85,7 @@ export function LensEvaluatorsPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
-  // E-1: the evaluator kind selects which config the form collects (theo-lens discriminated union:
+  // E-1: the evaluator kind selects which config the form collects (looptrace discriminated union:
   // rule → {predicate}, llm_judge → {prompt, model}). Default 'rule' preserves the prior behavior.
   type EvaluatorKind = 'rule' | 'llm_judge';
   const [name, setName] = useState('');
@@ -102,7 +102,7 @@ export function LensEvaluatorsPage() {
   // M82 — which evaluator is being renamed inline (+ its draft value).
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
 
-  // The active kind's required fields, and the request body the theo-lens union expects.
+  // The active kind's required fields, and the request body the looptrace union expects.
   const canCreate =
     name.trim().length > 0 &&
     (kind === 'rule' ? predicate.trim().length > 0 : prompt.trim().length > 0 && model.trim().length > 0);
@@ -113,7 +113,7 @@ export function LensEvaluatorsPage() {
 
   const query = useEvaluators();
 
-  // M90 — score-over-time: a range-selectable per-evaluator mean trend (theo-lens
+  // M90 — score-over-time: a range-selectable per-evaluator mean trend (looptrace
   // GET /v1/metrics/scores via the BFF). Range drives the server-side bucketing.
   const [scoresRange, setScoresRange] = useState<ScoresRange>('7d');
   const scoresQuery = useEvaluatorScores(scoresRange);

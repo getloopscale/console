@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// O tipo existe para que a recusa do theo-promptly ATRAVESSE as camadas sem virar string. Os
+// O tipo existe para que a recusa do loopprompt ATRAVESSE as camadas sem virar string. Os
 // testes abaixo cobrem exatamente as tres propriedades que a tela consome.
 
 func TestUpstreamError_preserva_codigo_tipado_ao_atravessar_embrulho(t *testing.T) {

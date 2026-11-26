@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Model B (edge-integration M14) — Broker resolves a per-tenant rag_live_* secret
 // for the data path. Lazy cache-aside: an in-process LRU keyed by tenant id (==
-// theo-rag workspace id), with a TTL ≪ the key's validity so an out-of-band
+// looprag workspace id), with a TTL ≪ the key's validity so an out-of-band
 // revoke self-heals within one TTL. Concurrent cache misses for the same tenant
 // are coalesced by singleflight so a cold tenant under load mints exactly once.
 //
@@ -12,7 +12,7 @@
 // (503), NEVER fall back to a master key. A fallback would re-open the confused
 // deputy (CWE-441) this design closes.
 //
-// Copied verbatim from internal/themory/broker.go (Rule 9) — the broker is
+// Copied verbatim from internal/loopmem/broker.go (Rule 9) — the broker is
 // response-shape agnostic (it consumes the minter interface + MintResult.Secret),
 // so only the package + error-prefix change.
 //
@@ -88,7 +88,7 @@ func (b *Broker) KeyForTenant(ctx context.Context, accountID, tenantID string) (
 //
 // accountID is part of the cache key (an Account-aware key never shares a cached
 // secret across accounts — defense-in-depth) but is NEVER sent to the minter —
-// the minted key's workspace_id stays == tenantID, so the theo-rag isolation unit
+// the minted key's workspace_id stays == tenantID, so the looprag isolation unit
 // is the tenant, unchanged. accountID == "" (legacy NULL-account key) is valid and
 // caches under the empty-account slot. The broker LAZILY trusts the account→tenant
 // relationship already authorized by ForwardAuth.

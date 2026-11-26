@@ -1,4 +1,4 @@
-import { Card, Tooltip } from '@usetheo/ui';
+import { Card, Tooltip } from '@getloopscale/ui';
 import { Link } from 'react-router-dom';
 import { SIGNALS, isKnownRoute } from '@/hooks/projects/signals';
 import { STATUS_VISUALS } from '@/hooks/projects/status-icons';
@@ -34,12 +34,12 @@ export function ReadinessChecklist({ signals, projectName }: ReadinessChecklistP
             const status = sig?.status ?? 'unknown';
             const visual = STATUS_VISUALS[status];
             const Icon = visual.icon;
-            // Red Team theo-cloud#94 absorption (2026-06-27): "Fix it" CTA
+            // Red Team loop-console#94 absorption (2026-06-27): "Fix it" CTA
             // ONLY renders when the signal is actionable — i.e., the status
             // is `warn` or `fail`. A `pass` signal is already Ready (CTA
             // would contradict the state); an `unknown` signal cannot be
             // fixed (we don't know what's wrong). This enumerates the
-            // POSITIVE set (per `theo-cloud/CLAUDE.md § Common Mistakes —
+            // POSITIVE set (per `loop-console/CLAUDE.md § Common Mistakes —
             // Enumeration-by-negation in the dashboard`).
             const isFixable = status === 'warn' || status === 'fail';
             const resolvedPath = def.fixPath.replace(':name', projectName);

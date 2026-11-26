@@ -68,7 +68,7 @@ export function useLogStream(
   const stream = useSSEStream<LogLine | string>(path, {
     maxEvents: maxLines,
     paused,
-    // J-19 T1.3 (R3): the theo-api runtime log stream emits NAMED `event: log`
+    // J-19 T1.3 (R3): the loop-runtime-api runtime log stream emits NAMED `event: log`
     // frames — bind them via addEventListener('log') (unnamed `message` frames
     // are also captured by useSSEStream). Without this, named frames are dropped.
     eventTypes: ['log'],
@@ -83,7 +83,7 @@ export function useLogStream(
       if (typeof data === 'string') {
         return { ts: ev.receivedAt, level: 'info', msg: data };
       }
-      // J-19: map the theo-api runtime shape {timestamp, line, step} onto the
+      // J-19: map the loop-runtime-api runtime shape {timestamp, line, step} onto the
       // canonical LogLine {ts, msg, source}; pass-through when already canonical.
       const raw = data as Partial<LogLine> & {
         timestamp?: string;

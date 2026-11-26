@@ -14,7 +14,7 @@ sources:
 
 # M0 — Authentication & Onboarding — LIVE Validation Runbook
 
-**Purpose.** M0's DoD objective is *"sign-up → email verify → first login funcionando **LIVE no dev-public**."* The engineering for the five journeys is complete and hermetically verified (unit + component + browser-e2e + Go tests, all green, reviewed). This runbook is the **operator + sponsor** procedure that closes the one remaining, non-autonomous gate: the LIVE validation on `dev-public` per the INQUEBRÁVEL `cleanroom-up-live-test-mandate` (`theo/.claude/rules/cleanroom-up-live-test-mandate.md`).
+**Purpose.** M0's DoD objective is *"sign-up → email verify → first login funcionando **LIVE no dev-public**."* The engineering for the five journeys is complete and hermetically verified (unit + component + browser-e2e + Go tests, all green, reviewed). This runbook is the **operator + sponsor** procedure that closes the one remaining, non-autonomous gate: the LIVE validation on `dev-public` per the INQUEBRÁVEL `cleanroom-up-live-test-mandate` (`loopscale/.claude/rules/cleanroom-up-live-test-mandate.md`).
 
 > An agent cannot execute this runbook: it requires a real Cleanroom on `dev-public` and a sponsor **JUNTOS** (side-by-side) browser walkthrough. That human gate is the sole blocker to marking M0 `[x]` and advancing to **M1 — Project Lifecycle**.
 
@@ -23,7 +23,7 @@ sources:
 1. **Cleanroom TOTAL** on `dev-public`: `task clean:all && task setup` → `tilt up` → `task doctor` PASS (38+/0).
 2. **OpenBao Shamir init** (dev-public: automated via `vault-bootstrap-dev.sh`; prod/persistent: witnessed).
 3. **post-Cleanroom seeds**: `bash infra/scripts/local/seed-post-cleanroom-all.sh --verify`.
-4. Kratos + Hydra + Resend courier reachable on `auth-dev.usetheo.dev`; dashboard on `app-dev.usetheo.dev`; BFF on `cloud-dev.usetheo.dev`.
+4. Kratos + Hydra + Resend courier reachable on `auth-dev.getloopscale.com`; dashboard on `app-dev.getloopscale.com`; BFF on `cloud-dev.getloopscale.com`.
 
 ## Engineering evidence already delivered (hermetic — green)
 
@@ -40,12 +40,12 @@ sources:
 For each, drive a real browser on `dev-public` with the sponsor present; capture evidence (screenshot + network `METHOD URL -> status`) per the steady-state-baseline Layer 4.
 
 ### J-01 Login (OIDC GitHub + Google)
-1. `https://app-dev.usetheo.dev/login` → **Continue with GitHub** → real GitHub OAuth → redirected back, session established, lands on the dashboard.
+1. `https://app-dev.getloopscale.com/login` → **Continue with GitHub** → real GitHub OAuth → redirected back, session established, lands on the dashboard.
 2. Repeat with **Continue with Google**.
 3. **Denial path**: start GitHub, deny consent → returns to `/login` with the honest "We couldn't sign you in." Alert (NOT a silent redirect); OIDC buttons still present for retry.
 
 ### J-02 Register (new tenant)
-1. `https://app-dev.usetheo.dev/register` → sign up (new email) → after OIDC/consent, the **"Setting up your workspace"** completing screen shows while the tenant bootstraps.
+1. `https://app-dev.getloopscale.com/register` → sign up (new email) → after OIDC/consent, the **"Setting up your workspace"** completing screen shows while the tenant bootstraps.
 2. Confirm it redirects to the app once `/v1/auth/me` reports `provisioning: active` (starter plan lazily provisioned) — verify in devtools Network: `GET /v1/auth/me` → 200 with `"provisioning":"active"`.
 3. Confirm a `subscriptions` row (starter/active) exists for the new account (psql).
 
@@ -66,9 +66,9 @@ The sponsor confirms, side-by-side, the end-to-end funnel: **sign-up → email v
 On M0 close → **M1 — Project Lifecycle** (`ROADMAP.md`, depends on M0).
 
 ## Cross-references
-- INQUEBRÁVEL mandate: `theo/.claude/rules/cleanroom-up-live-test-mandate.md`
-- Steady-state baseline rule: `theo/.claude/rules/steady-state-baseline.md`
-- M0 plans: `theo/.claude/knowledge-base/plans/2026-06-16-m0-j01-login-polish-plan.md` (+ j02/j03)
+- INQUEBRÁVEL mandate: `loopscale/.claude/rules/cleanroom-up-live-test-mandate.md`
+- Steady-state baseline rule: `loopscale/.claude/rules/steady-state-baseline.md`
+- M0 plans: `loopscale/.claude/knowledge-base/plans/2026-06-16-m0-j01-login-polish-plan.md` (+ j02/j03)
 
 - Journey plans and dashboard invariants behind J-01 to J-05:
   [`governance/dashboard`](/governance/dashboard.md).

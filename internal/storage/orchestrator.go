@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package storage
 
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/storage/share"
+	"github.com/getloopscale/loop-console/internal/storage/share"
 )
 
 // TierResolver resolves a tenant's plan tier (e.g. "pro") — implemented over the

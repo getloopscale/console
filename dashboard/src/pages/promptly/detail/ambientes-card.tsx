@@ -1,6 +1,6 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import type { Ponteiros } from './tipos';
-import { Badge, Button } from '@usetheo/ui';
+import { Badge, Button } from '@getloopscale/ui';
 import { LabelPointer } from '@/pages/promptly/components/projections';
 
 interface Props {

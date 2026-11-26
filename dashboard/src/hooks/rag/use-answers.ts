@@ -12,7 +12,7 @@ export interface AnswerResult {
   sources?: Source[];
   confidence?: string;
   /**
-   * M9 — theo-rag may echo the strategy that actually answered plus a router trace (e.g. graph or
+   * M9 — looprag may echo the strategy that actually answered plus a router trace (e.g. graph or
    * global fell back to vector). Surfaced when present — never fabricated.
    */
   strategy?: string;

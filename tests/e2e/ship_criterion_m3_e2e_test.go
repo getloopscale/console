@@ -1,7 +1,7 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M3 T4.1 — the V1 ship-criterion, proven against a fully-migrated real pg-cloud
 // (migrations through 000044, so account_id is NOT NULL). One suite composes the
@@ -15,13 +15,13 @@
 //  4. legacy → 200: a session JWT minted before M3 (no account_id claim) still
 //     authenticates (the additive-claim backward-compat M3 introduces; a
 //     NULL-account *key* can no longer exist post-000044, see scenario 5);
-//  5. NOT NULL holds; inserting tenants/loopzero_api_keys with a NULL account_id is
+//  5. NOT NULL holds; inserting tenants/loop_runtime_api_keys with a NULL account_id is
 //     rejected with SQLSTATE 23502 on account_id (M3);
 //  6. the migration pre-flight guard RAISEs on a residual NULL (EC-5).
 //
 // Build-tagged e2e; run under -race:
 //
-//	E2E_PG_CLOUD_DSN=postgres://loopzero:loopzero@host/db?sslmode=disable \
+//	E2E_PG_CLOUD_DSN=postgres://loop_runtime:loop_runtime@host/db?sslmode=disable \
 //	  go test -tags=e2e -race ./tests/e2e/ -run ShipCriterionM3 -v
 package e2e
 
@@ -33,11 +33,11 @@ import (
 	"testing"
 	"time"
 
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // assertNotNullViolation fails unless err is a Postgres not_null_violation
@@ -64,7 +64,7 @@ func cleanupShip(t *testing.T, db *sql.DB, owners ...string) {
 	t.Helper()
 	for _, owner := range owners {
 		for _, s := range []string{
-			`DELETE FROM loopzero_api_keys WHERE subject = $1`,
+			`DELETE FROM loop_runtime_api_keys WHERE subject = $1`,
 			`DELETE FROM usage_records WHERE tenant_id IN (SELECT id FROM tenants WHERE owner_id = $1)`,
 			`DELETE FROM subscriptions WHERE account_id IN (SELECT id FROM accounts WHERE owner_id = $1)`,
 			`DELETE FROM tenant_members WHERE user_id = $1`,
@@ -154,7 +154,7 @@ func TestShipCriterionM3(t *testing.T) {
 		}
 		// negative: ACME-account key pointed at RIVAL's tenant → 403, no mint.
 		evilKey := seedAccountKey(t, db, "ship-acme-evil", tenantRival, sql.NullString{String: acme, Valid: true})
-		t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM loopzero_api_keys WHERE subject = $1`, "ship-acme-evil") })
+		t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM loop_runtime_api_keys WHERE subject = $1`, "ship-acme-evil") })
 		cmEvil := &captureMinter{}
 		rec := serveM1(t, m1Handler(t, db, cmEvil), evilKey)
 		if rec.Code != http.StatusForbidden {
@@ -186,7 +186,7 @@ func TestShipCriterionM3(t *testing.T) {
 		}
 	})
 
-	// --- 4. legacy → 200 (backward-compat). M3 makes loopzero_api_keys.account_id
+	// --- 4. legacy → 200 (backward-compat). M3 makes loop_runtime_api_keys.account_id
 	//        NOT NULL, so a NULL-account *key* can no longer exist (scenario 5
 	//        proves the same NOT NULL on tenants). The backward-compat surface M3
 	//        actually introduces is the additive JWT claim: a session token minted
@@ -194,7 +194,7 @@ func TestShipCriterionM3(t *testing.T) {
 	//        through the real RequireJWT middleware. ---
 	t.Run("LegacyJWTWithoutAccountID_200", func(t *testing.T) {
 		const secret = "ship-criterion-secret-32-bytes!!"
-		issuer := theojwt.NewSessionTokenIssuer(secret, "theo-cloud", "theo-cloud", time.Hour)
+		issuer := loopscalejwt.NewSessionTokenIssuer(secret, "loop-console", "loop-console", time.Hour)
 		// A pre-M3 token: minted with an empty account_id, so the claim is omitted.
 		legacyToken, _, err := issuer.Issue("ship-legacy-sub", "legacy@e2e.test", "L", tenant1, "")
 		if err != nil {
@@ -232,13 +232,13 @@ func TestShipCriterionM3(t *testing.T) {
 		}
 		assertNotNullViolation(t, errT, "account_id")
 
-		// loopzero_api_keys.account_id NOT NULL; the OTHER table 000044 enforces.
+		// loop_runtime_api_keys.account_id NOT NULL; the OTHER table 000044 enforces.
 		_, errK := db.Exec(
-			`INSERT INTO loopzero_api_keys (id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, created_at)
+			`INSERT INTO loop_runtime_api_keys (id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, created_at)
 			 VALUES ('key-ship-null', $1, $2, NULL, 'n', 'hash-ship-null', 'theo_live_', '["memory:read"]'::jsonb, NOW() + interval '1 hour', NOW())`,
 			ownerAcme, tenant1)
 		if errK == nil {
-			_, _ = db.Exec(`DELETE FROM loopzero_api_keys WHERE id = 'key-ship-null'`)
+			_, _ = db.Exec(`DELETE FROM loop_runtime_api_keys WHERE id = 'key-ship-null'`)
 		}
 		assertNotNullViolation(t, errK, "account_id")
 	})

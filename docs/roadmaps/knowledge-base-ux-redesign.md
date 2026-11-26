@@ -20,7 +20,7 @@ sources:
 >
 > Status: **PROPOSED** (2026-07-17). Owner: dashboard. Consumes the Cycle 6+1 pipeline —
 > each milestone runs `/to-plan → /implement → /review → /release` and is **not done without a
-> LIVE Google Chrome proof on `app-dev.usetheo.dev`** (per `.claude/rules/cleanroom-up-live-test-mandate.md`).
+> LIVE Google Chrome proof on `app-dev.getloopscale.com`** (per `.claude/rules/cleanroom-up-live-test-mandate.md`).
 
 ---
 
@@ -54,13 +54,13 @@ internals in user-facing copy (Unbreakable **Rule 3**). "Chunk" stays (it is a r
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Block editor library | **TipTap** (headless) | Renders 100% in `@usetheo/ui` (dark / purple), biggest ecosystem, full control of slash menu / bubble menu / drag handles. We build the menus on our own primitives so it looks like **Theo**, not like a vendor editor. Trade-off vs BlockNote (faster but Mantine UI) accepted for design-system fidelity. |
+| Block editor library | **TipTap** (headless) | Renders 100% in `@getloopscale/ui` (dark / purple), biggest ecosystem, full control of slash menu / bubble menu / drag handles. We build the menus on our own primitives so it looks like **LoopScale**, not like a vendor editor. Trade-off vs BlockNote (faster but Mantine UI) accepted for design-system fidelity. |
 | Wiki read/edit surface | **Full-page route** `/rag/wiki/:collectionId/:pageId` (+ `/new`) | Rich, multi-step authoring belongs on a full page; a modal would block reference to source content (UX research: modals for concise/confirm tasks only). |
 | Chunk editing | **Full-page** document detail `/rag/documents/:id`, chunks **inline-editable** | High-frequency, repetitive technical edits favor in-place editing over any overlay. |
 | GraphRAG report | **Modal (`Dialog`)** with the graph visible behind a semi-transparent overlay | Concise, read-only drill-down = modal; keeps spatial context of the map. |
 | Raw OKF YAML | **Never shown to users** | Metadata (type/tags/description/path) is edited in a friendly rail; YAML is serialized on save. |
 | Save model | **Autosave** (debounced) + optimistic tree updates + "Saved · now" affordance | Notion-grade feel; explicit discard uses a confirmation modal only. |
-| Page lifecycle contract | **Land update / rename-move / delete first (KB0)** | The Notion editor cannot edit, move, or delete pages on a create-only API. This is a governed (T2) contract change spanning theo-rag + BFF; it leads the roadmap so it never blocks the editor. |
+| Page lifecycle contract | **Land update / rename-move / delete first (KB0)** | The Notion editor cannot edit, move, or delete pages on a create-only API. This is a governed (T2) contract change spanning looprag + BFF; it leads the roadmap so it never blocks the editor. |
 
 ## 4. Information architecture & navigation
 
@@ -105,23 +105,23 @@ and closes the cross-cut. Each milestone ships behind a LIVE Chrome proof.
 ### KB0 — Wiki page lifecycle contract (backend — leads the roadmap)
 **Objective:** Close the create-only gap so the editor can **update**, **rename/move** (change OKF path),
 and **delete** wiki pages.
-**Scope:** *Investigate first* — confirm what already exists (theo-rag upserts by `external_id`, so
+**Scope:** *Investigate first* — confirm what already exists (looprag upserts by `external_id`, so
 **content update may already work** via re-POST; the real gap is likely explicit rename/move + delete).
-Then land, end-to-end: theo-rag endpoints (`PATCH`/`PUT` page content + OKF metadata; rename/move that
+Then land, end-to-end: looprag endpoints (`PATCH`/`PUT` page content + OKF metadata; rename/move that
 rewrites `path`; `DELETE`), BFF proxies in `internal/rag/data_client.go` + `internal/routes/rag_dashboard.go`
 (`UpdateWikiPage` / `MoveWikiPage` / `DeleteWikiPage`), and the dashboard data-client hooks.
-**Governance:** T2 contract change (theo-rag + BFF) — ADR + review per `pre-release-governance.md`.
+**Governance:** T2 contract change (looprag + BFF) — ADR + review per `pre-release-governance.md`.
 **DoD:** update a page's body + metadata via API (OKF round-trips); rename/move changes `path`; delete
 removes it; idempotency preserved. **LIVE:** exercise update/move/delete over `okf-grouping-demo` (curl or
 dashboard) with a Chrome/HTTP proof.
 
 ### KB1 — Frontend foundations (parallel start; blocks all UI work)
 **Objective:** Establish the redesign substrate so every later UI milestone drops in cleanly.
-**Scope:** reading/prose design tokens (type scale, measure, spacing, callout/code styling in `@usetheo/ui`
+**Scope:** reading/prose design tokens (type scale, measure, spacing, callout/code styling in `@getloopscale/ui`
 idiom); **TipTap spike + wrapper** (`<KbEditor>` headless config: StarterKit + tables + code + slash menu +
 bubble menu, all styled with our primitives); full-page route scaffolding (`/rag/wiki/:collectionId/:pageId`,
 `/rag/documents/:id`); scaffolding to retire the 3 Sheets (feature-flag or route swap).
-**DoD:** TipTap renders a sample OKF doc in Theo styling; new routes resolve; deps audited (`/deps-audit`);
+**DoD:** TipTap renders a sample OKF doc in LoopScale styling; new routes resolve; deps audited (`/deps-audit`);
 no visual regression on untouched pages. **LIVE:** editor shell renders on `app-dev`.
 
 ### KB2 — Wiki workspace (read)
@@ -193,12 +193,12 @@ Added 2026-07-17 after KB0-KB8 shipped: the wiki structure was sound but the rea
 ## 8. Global invariants (every milestone)
 
 - **Product language (Rule 3):** no `vector`/`pgvector`/`S3`/`bucket`/`embedding-internals` in user copy.
-- **LIVE proof gate:** Cleanroom-or-warm-with-override + Google Chrome proof on `app-dev.usetheo.dev`
+- **LIVE proof gate:** Cleanroom-or-warm-with-override + Google Chrome proof on `app-dev.getloopscale.com`
   before any `IMPLEMENTATION_COMPLETE`. No delivery without a screenshot of the working behavior.
 - **TDD:** failing test first (component + interaction). Markdown render must be XSS-sanitized (negative tests).
-- **Contract changes are governed:** KB0 (and any later endpoint) touching theo-rag / BFF is T2 — ADR +
+- **Contract changes are governed:** KB0 (and any later endpoint) touching looprag / BFF is T2 — ADR +
   review per `pre-release-governance.md`. KB2+ are **frontend-only** against the stable `/v1/dashboard/rag/*`.
-- **Design fidelity:** built on `@usetheo/ui` primitives; no vendor UI leaking through (TipTap headless).
+- **Design fidelity:** built on `@getloopscale/ui` primitives; no vendor UI leaking through (TipTap headless).
 
 ## 9. Drawbacks & risks
 
@@ -213,7 +213,7 @@ Added 2026-07-17 after KB0-KB8 shipped: the wiki structure was sound but the rea
 
 ## 10. Open questions (resolve at `/to-plan` time)
 
-- KB0: does theo-rag's `external_id` upsert already cover **content update**, so KB0 only adds
+- KB0: does looprag's `external_id` upsert already cover **content update**, so KB0 only adds
   **rename/move + delete**? (Confirm in the KB0 investigation step.)
 - Folder **reorganize** (drag) — does moving a page rewrite its OKF `path` server-side (KB0 move endpoint),
   or is path client-derived only? (Affects KB8.)
@@ -226,7 +226,7 @@ Per milestone, in order of the dependency graph (KB0 ∥ KB1 first):
 ```
 /to-plan "KB<N> — <objective>"   →  /edge-case-plan  →  /deps-audit  →  /plan-confidence
    →  /implement KB<N>   →  /code-quality  →  /review KB<N>   →  /release
-   →  LIVE Chrome proof on app-dev.usetheo.dev  (screenshot in the release/knowledge-base)
+   →  LIVE Chrome proof on app-dev.getloopscale.com  (screenshot in the release/knowledge-base)
 ```
 
 ## References (UX research, 2026-07-17)

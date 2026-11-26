@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package memory_webhook_worker implements the dispatcher that delivers
 // memory_webhook_deliveries rows to customer-registered webhooks. Per

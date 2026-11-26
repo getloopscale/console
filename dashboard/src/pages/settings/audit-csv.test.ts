@@ -43,7 +43,7 @@ describe('auditEntriesToCsv', () => {
     expect(row).toContain('"note,with""quote"'); // comma+quote wrapped, quote doubled
   });
 
-  // CWE-1236 (theo-cloud#157): audit fields are user-authored (project names,
+  // CWE-1236 (loop-console#157): audit fields are user-authored (project names,
   // emails, resource ids) and the export is opened by a privileged owner. A
   // value starting with =/+/-/@/tab/CR is a live formula in Excel/Sheets —
   // neutralize it with a leading apostrophe BEFORE RFC-4180 quoting.

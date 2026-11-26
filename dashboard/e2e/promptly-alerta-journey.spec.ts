@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M22 — definir um monitor de PROMPT pela tela, sem `curl`.
 //
 // A `v0.83.0` liberou `prompt_resolutions` no backend e o validou no `app-dev`, mas o `Select` de
 // métrica desta tela era fechado sobre três opções: a capacidade existia e era inalcançável por
-// quem não montasse o `POST` à mão (`usetheoai/theo-cloud#459`).
+// quem não montasse o `POST` à mão (`getloopscale/loop-console#459`).
 //
 // A navegação é por CLIQUE, a partir da raiz. Validar digitando o endereço usa o único caminho que
-// o usuário real não tem — foi assim que quatro telas do `theo-trust` ficaram inalcançáveis com
+// o usuário real não tem — foi assim que quatro telas do `loopguardrails` ficaram inalcançáveis com
 // três rodadas de validação passando por cima.
 //
 // A primeira versão deste spec dizia isso no cabeçalho e fazia `page.goto('/observability/alerts')`

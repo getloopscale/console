@@ -1,7 +1,7 @@
-import { Alert as UiAlert, type AlertProps } from '@usetheo/ui';
+import { Alert as UiAlert, type AlertProps } from '@getloopscale/ui';
 
 /**
- * `Alert` — a thin guard over the `@usetheo/ui` `Alert` that closes issue usetheodev/theo-cloud#175.
+ * `Alert` — a thin guard over the `@getloopscale/ui` `Alert` that closes issue getloopscale/loop-console#175.
  *
  * The design-system `Alert` renders only `title` / `description` / `action` and **silently drops JSX
  * `children`** (which its type still allows via `HTMLAttributes`), so `<Alert>{body}</Alert>` shipped

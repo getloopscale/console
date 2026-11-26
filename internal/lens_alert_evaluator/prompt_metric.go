@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
 import "encoding/json"
 
-// MetricPromptResolutions — a métrica escopada a prompt do M21 DoD-5 do theo-promptly.
+// MetricPromptResolutions — a métrica escopada a prompt do M21 DoD-5 do loopprompt.
 //
 // O nome carrega o escopo porque é ele que o avaliador usa para decidir QUAL agregado buscar,
 // antes de ter dado algum. O engine impõe o pareamento com `prompt_name` no banco
@@ -42,13 +42,13 @@ type promptUsageRow struct {
 //
 // O bool diverge do irmão `metricFromSeries` de propósito, e a razão está no transporte:
 // `PromptUsage` já separa "não consegui ler" (sobe como *UpstreamStatusError) de "não há nada a
-// mostrar" (agregado vazio) — ver o comentário do método em `internal/thelens/data_client.go`.
+// mostrar" (agregado vazio) — ver o comentário do método em `internal/looptrace/data_client.go`.
 //
 // Como a falha de leitura nunca chega aqui disfarçada de vazio, `rows: []` significa literalmente
 // "ninguém resolveu este prompt na janela". Isso é uma medição, e devolvê-la como ausência — por
 // simetria com o irmão, que enfrenta outro transporte — tornaria impossível de escrever a regra
 // "avise se este prompt parar de ser usado": ela seria pulada exatamente na condição que existe
-// para detectar. É o theo-cloud#247 pelo avesso.
+// para detectar. É o loop-console#247 pelo avesso.
 //
 // O que NÃO é medição, e por quê — as três formas devolveriam um zero fabricado, e zero com
 // comparador `lt` é violação:
@@ -58,7 +58,7 @@ type promptUsageRow struct {
 //   - **contrato quebrado** — a chave `rows` ausente, ou uma linha sem `resolutions`.
 //
 // A terceira é a que quase escapou, e é a mais perigosa das três: `json.Unmarshal` de um objeto
-// VÁLIDO com a chave faltando não falha, e um campo renomeado no theo-lens — a forma que toda
+// VÁLIDO com a chave faltando não falha, e um campo renomeado no looptrace — a forma que toda
 // mudança de schema tem — dispararia todas as regras "avise se este prompt parar de ser usado".
 // Justamente as regras que existem para detectar que algo PAROU seriam as primeiras a mentir.
 //
@@ -66,7 +66,7 @@ type promptUsageRow struct {
 // **errado** em vez de zero — um número plausível que ninguém questiona.
 //
 // Exigir presença NÃO é exigir exclusividade: campo novo no agregado é evolução legítima e
-// frequente do upstream, e recusá-la transformaria cada release do theo-lens numa parada de alerta.
+// frequente do upstream, e recusá-la transformaria cada release do looptrace numa parada de alerta.
 func metricFromPromptUsage(body []byte, metric string) (float64, bool) {
 	if metric != MetricPromptResolutions {
 		return 0, false

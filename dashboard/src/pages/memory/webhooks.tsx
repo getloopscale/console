@@ -12,7 +12,7 @@ import {
   Sheet,
   Timestamp,
   useToast,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import { DELIVERIES_READ_FAILURE } from '@/pages/settings/webhook-copy';
 import type { Delivery } from '@/lib/webhooks/delivery';

@@ -1,11 +1,11 @@
-import type { TrendPoint } from '@usetheo/ui';
+import type { TrendPoint } from '@getloopscale/ui';
 import type { PontoDaSerie } from '@/hooks/lens/use-usage-by-user';
 
 /**
  * M144 — a densificação da série de consumo.
  *
  * A série que o M143 devolve é **esparsa por decisão**: um dia sem consumo não produz ponto, porque
- * um zero inventado é indistinguível de consumo real zero. Mas o `seriesPath` do `@usetheo/ui` só
+ * um zero inventado é indistinguível de consumo real zero. Mas o `seriesPath` do `@getloopscale/ui` só
  * quebra a linha onde encontra um `y` não-finito — ele precisa **receber** o buraco.
  *
  * Esta função transforma "ausência de ponto" em "ponto ausente", que é o formato que toda biblioteca
@@ -44,7 +44,7 @@ export function seriesWindow(
   return { start: end - days * DAY_MS, windowDays: days + 1 };
 }
 
-/** Um ponto como o serviço o devolve (`usageByUserSeriesPointSchema` do theo-lens). */
+/** Um ponto como o serviço o devolve (`usageByUserSeriesPointSchema` do looptrace). */
 // B-244 — a forma do ponto passou a morar com o ENDPOINT que a devolve
 // (`hooks/lens/use-usage-by-user.ts`). Esta aritmética é consumidora dela, não dona.
 export type { PontoDaSerie };

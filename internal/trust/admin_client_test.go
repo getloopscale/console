@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // RED tests — Model B slice 2 / T1.1: the control-plane admin client that mints
 // and revokes per-tenant trust_live_* keys via TheMemory's admin API using the
@@ -70,4 +70,3 @@ func TestAdminClient_MintKey_MapsUpstream403ToError(t *testing.T) {
 		t.Fatalf("expected *Error with 403, got %v", err)
 	}
 }
-

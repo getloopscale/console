@@ -24,19 +24,19 @@ beforeEach(() => {
 
 describe('use-mutation-in-flight', () => {
   it('returns null when nothing is in flight', () => {
-    const { result } = renderHook(() => useMutationInFlight('theokit-example'));
+    const { result } = renderHook(() => useMutationInFlight('loopzero-example'));
     expect(result.current).toBeNull();
   });
 
   it('publishes and subscribers receive the promote update', () => {
     const { result: reader } = renderHook(() =>
-      useMutationInFlight('theokit-example'),
+      useMutationInFlight('loopzero-example'),
     );
     const { result: starter } = renderHook(() => useStartMutation());
     act(() => {
       starter.current({
         kind: 'promote',
-        projectName: 'theokit-example',
+        projectName: 'loopzero-example',
         targetBuildId: 'build-abc',
         targetSha: 'e6001ec',
         startedAt: 1718000000000,
@@ -44,7 +44,7 @@ describe('use-mutation-in-flight', () => {
     });
     expect(reader.current).toEqual({
       kind: 'promote',
-      projectName: 'theokit-example',
+      projectName: 'loopzero-example',
       targetBuildId: 'build-abc',
       targetSha: 'e6001ec',
       startedAt: 1718000000000,

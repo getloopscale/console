@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M3 (account-level tenancy, Phase 2) — proves account_id propagates end-to-end
 // through the dashboard JWT path:
@@ -19,10 +19,10 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // T3.3 — the Exchange handler passes the provisioned accountID to Issue, so the
@@ -32,7 +32,7 @@ func TestExchange_MintedToken_CarriesAccountID(t *testing.T) {
 
 	cfg := mockKratosCfg{statusCode: 200, active: true}
 	cfg.identity.ID = userID
-	cfg.identity.Email = "prop@theo.dev"
+	cfg.identity.Email = "prop@loopscale.dev"
 	cfg.identity.Name = "Prop"
 	kratos := newMockKratosServer(t, cfg)
 	defer kratos.Close()
@@ -48,7 +48,7 @@ func TestExchange_MintedToken_CarriesAccountID(t *testing.T) {
 		WithArgs(userID).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "account_id", "role"}).AddRow(wantTenant, wantAccount, "owner"))
 
-	issuer := theojwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "theo-cloud-test", "theo-engine", time.Hour)
+	issuer := loopscalejwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "loop-console-test", "loop-runtime-engine", time.Hour)
 	prov := auth.NewTenantProvisioner(db, slog.New(slog.NewTextHandler(httptest.NewRecorder().Body, nil)))
 	handler := routes.NewSessionTokenHandler(issuer, prov, kratos.URL)
 
@@ -81,7 +81,7 @@ func TestExchange_MintedToken_CarriesAccountID(t *testing.T) {
 // T3.4 — RequireJWT surfaces account_id into UserContext for a token that carries
 // it, and still authenticates a legacy token WITHOUT the claim (EC-4).
 func TestRequireJWT_SurfacesAccountID_AdditiveLegacyCompat(t *testing.T) {
-	issuer := theojwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "theo-cloud-test", "theo-engine", time.Hour)
+	issuer := loopscalejwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "loop-console-test", "loop-runtime-engine", time.Hour)
 
 	var seen *auth.UserContext
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

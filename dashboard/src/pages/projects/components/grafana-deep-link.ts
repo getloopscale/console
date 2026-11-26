@@ -4,7 +4,7 @@
  * T2.3 of plan 2026-06-06-dashboard-journey-j18-status-runtime-health v1.1.
  *
  * Per ADR D2: open Grafana dashboard in new tab (no iframe — CSP block).
- * URL template: `<grafanaBaseURL>/d/theo-project?var-project=<X>&var-env=<Y>&var-signal=<Z>`.
+ * URL template: `<grafanaBaseURL>/d/loopscale-project?var-project=<X>&var-env=<Y>&var-signal=<Z>`.
  *
  * EC-6 absorption (per edge-case-plan review): URL-encode project/env/signal
  * names so values containing `&`, `?`, `#` produce a valid Grafana URL.
@@ -47,5 +47,5 @@ export function buildGrafanaDeepLink(input: GrafanaDeepLinkInput): string | null
     params.set('var-signal', signal);
   }
 
-  return `${base}/d/theo-project?${params.toString()}`;
+  return `${base}/d/loopscale-project?${params.toString()}`;
 }

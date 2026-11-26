@@ -11,7 +11,7 @@ import {
   SpanTree,
   SpanWaterfall,
   TraceTranscript,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
@@ -24,7 +24,7 @@ import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/fo
 
 /**
  * M47/M48/M58 — the trace-detail view composition root. Fetches the reconstructed span tree from the
- * read BFF (`GET /v1/dashboard/lens/traces/{id}` → theo-lens `GET /v1/traces/:id`) and renders a
+ * read BFF (`GET /v1/dashboard/lens/traces/{id}` → looptrace `GET /v1/traces/:id`) and renders a
  * resizable two-pane: left = the span tree (recursive below a threshold, react-virtual VIRTUALIZED
  * above it — M48) with a breadcrumb; right = the selected span's detail. M58 Phase 0: the URL query
  * (`?spanId=&tab=&view=`) is the single source of truth for selection (ADR D3) — the tree, the
@@ -56,7 +56,7 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
 
   const root = query.data;
 
-  // M8 adoption — map the OTLP-shaped lens node to the @usetheo/ui generic TraceSpan once per fetch.
+  // M8 adoption — map the OTLP-shaped lens node to the @getloopscale/ui generic TraceSpan once per fetch.
   // The kit components (SpanTree/SpanWaterfall/TraceTranscript/SpanGraph) consume the mapped tree; the
   // URL/selection/keyboard logic below stays in the consumer (the DS receives data, never routes).
   const uiRoot = useMemo(() => (root ? toTraceSpan(root) : null), [root]);

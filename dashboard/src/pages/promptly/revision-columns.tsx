@@ -1,4 +1,4 @@
-import { Badge, Button, type DataTableColumn } from '@usetheo/ui';
+import { Badge, Button, type DataTableColumn } from '@getloopscale/ui';
 import type { UsageRow } from '@/pages/promptly/components/usage';
 import type { RevisionRow } from '@/pages/promptly/components/projections';
 import type { ResultadoRollback } from '@/pages/promptly/components/rollback';

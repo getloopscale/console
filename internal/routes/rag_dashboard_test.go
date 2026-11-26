@@ -13,12 +13,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/rag"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/rag"
 )
 
-// stubRagDataClient records the calls; it never talks to a real theo-rag.
+// stubRagDataClient records the calls; it never talks to a real looprag.
 type stubRagDataClient struct {
 	listErr            error
 	analyticsErr       error
@@ -32,7 +32,7 @@ type stubRagDataClient struct {
 	deleteCalls        int
 	ingestCalls        int
 	askCalls           int
-	askGotStrategy     string // M9 — the strategy the handler forwarded to theo-rag
+	askGotStrategy     string // M9 — the strategy the handler forwarded to looprag
 	listConnCalls      int
 	syncCalls          int
 	delConnCalls       int
@@ -294,7 +294,7 @@ func TestRagDashboard_UpstreamError_502(t *testing.T) {
 }
 
 // v8-M7 scale — Analytics forwards the ?collection_id query param to the upstream data
-// client AND propagates the `scale` block returned by theo-rag rc.80+ back to the caller.
+// client AND propagates the `scale` block returned by looprag rc.80+ back to the caller.
 func TestRagDashboard_Analytics_ForwardsCollectionID_PropagatesScale(t *testing.T) {
 	h, stub := newRagDashboard()
 	stub.analyticsRes = &rag.AnalyticsResult{
@@ -340,7 +340,7 @@ func TestRagDashboard_Analytics_ForwardsCollectionID_PropagatesScale(t *testing.
 // the `scale` block is NOT emitted (M5 shape preserved for the un-selected view).
 func TestRagDashboard_Analytics_NoCollectionID_NoScale(t *testing.T) {
 	h, stub := newRagDashboard()
-	// Upstream returns nil Scale (theo-rag omits it when collection_id is absent).
+	// Upstream returns nil Scale (looprag omits it when collection_id is absent).
 	stub.analyticsRes = &rag.AnalyticsResult{}
 	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/analytics", nil).
 		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
@@ -487,7 +487,7 @@ func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 		}
 	})
 
-	// M8 — connect forwards the provider (path) + the credential body (opaque) to theo-rag.
+	// M8 — connect forwards the provider (path) + the credential body (opaque) to looprag.
 	t.Run("connect forwards provider + opaque credential body (201)", func(t *testing.T) {
 		h, stub := newRagDashboard()
 		w := httptest.NewRecorder()
@@ -530,7 +530,7 @@ func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 	})
 }
 
-// M9 — the Ask BFF forwards the selected retrieval strategy to theo-rag so a user can reach
+// M9 — the Ask BFF forwards the selected retrieval strategy to looprag so a user can reach
 // GraphRAG (global/graph) from the dashboard.
 func TestRagDashboard_Ask_ForwardsStrategy_M9(t *testing.T) {
 	h, stub := newRagDashboard()
@@ -542,7 +542,7 @@ func TestRagDashboard_Ask_ForwardsStrategy_M9(t *testing.T) {
 		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
 	}
 	if stub.askGotStrategy != "global" {
-		t.Fatalf("strategy not forwarded to theo-rag: want global, got %q", stub.askGotStrategy)
+		t.Fatalf("strategy not forwarded to looprag: want global, got %q", stub.askGotStrategy)
 	}
 }
 
@@ -561,7 +561,7 @@ func TestRagDashboard_Ask_InvalidStrategy_422_M9(t *testing.T) {
 	}
 }
 
-// M9 — no strategy is backward-compatible: nothing is sent, theo-rag defaults to vector.
+// M9 — no strategy is backward-compatible: nothing is sent, looprag defaults to vector.
 func TestRagDashboard_Ask_EmptyStrategy_OK_M9(t *testing.T) {
 	h, stub := newRagDashboard()
 	body := `{"collection_id":"col_1","question":"q"}`
@@ -621,7 +621,7 @@ func TestRagDashboard_GraphView_Unauthed_M10(t *testing.T) {
 }
 
 // M11 — the upload handler parses the multipart file part + collection_id and streams
-// them to the data client, returning theo-rag's async 202. Auth-gated.
+// them to the data client, returning looprag's async 202. Auth-gated.
 func TestRagDashboard_UploadDocumentFile_ParsesMultipartAndProxies(t *testing.T) {
 	stub := &stubRagDataClient{}
 	h := NewRagDashboardHandler(stub, slog.Default())
@@ -728,7 +728,7 @@ func TestRagDashboard_ChunkEditor(t *testing.T) {
 
 	t.Run("update chunk maps upstream 404 to typed CHUNK_NOT_FOUND", func(t *testing.T) {
 		h, stub := newRagDashboard()
-		stub.chunkErr = fmt.Errorf("theo-rag returned 404")
+		stub.chunkErr = fmt.Errorf("looprag returned 404")
 		req := withID(httptest.NewRequest(http.MethodPatch, "/v1/dashboard/rag/chunks/chk_x", strings.NewReader(`{"text":"x"}`)).
 			WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"})), "chk_x")
 		w := httptest.NewRecorder()

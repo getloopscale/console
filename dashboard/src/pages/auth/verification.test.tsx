@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'https://auth-dev.usetheo.dev',
+  API_URL: 'https://auth-dev.getloopscale.com',
   AUTH_URL: '',
   ACCOUNTS_URL: '',
   OAUTH_URL: '',
@@ -34,7 +34,7 @@ describe('VerificationPage', () => {
 
   // M0 J-03 T1.1 wiring — the input state renders the ResendCooldownButton
   // (localStorage-persisted 60s cooldown) in place of the old naked resend
-  // link. T1.2 (paste distribution) is satisfied by the @usetheo/ui PinInput
+  // link. T1.2 (paste distribution) is satisfied by the @getloopscale/ui PinInput
   // primitive natively (its docstring: "Paste handling fills all slots from
   // clipboard") — building a wrapper would reinvent it (Rule 9), so it is not
   // re-tested here (don't test third-party libraries). T1.3 (auto-submit on
@@ -60,7 +60,7 @@ describe('VerificationPage', () => {
         ok: true,
         json: async () => ({
           ui: {
-            action: 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc',
+            action: 'https://auth-dev.getloopscale.com/self-service/verification?flow=abc',
             nodes: [{ attributes: { name: 'csrf_token', value: 'csrf-xyz' } }],
           },
         }),
@@ -78,7 +78,7 @@ describe('VerificationPage', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
     const [submitUrl, submitOpts] = mockFetch.mock.calls[1];
-    expect(submitUrl).toBe('https://auth-dev.usetheo.dev/self-service/verification?flow=abc');
+    expect(submitUrl).toBe('https://auth-dev.getloopscale.com/self-service/verification?flow=abc');
     const body = JSON.parse(submitOpts.body);
     expect(body.method).toBe('code');
     expect(body.code).toBe('123456');
@@ -89,7 +89,7 @@ describe('VerificationPage', () => {
     // The email link goes to Kratos (/self-service/verification?code=X&flow=Y), which
     // redirects to this page with only ?flow=Y and carries the code as the value of the
     // flow's `code` node. The page must submit it, as it does for ?code= in the URL.
-    const action = 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc';
+    const action = 'https://auth-dev.getloopscale.com/self-service/verification?flow=abc';
     mockFetch.mockImplementation(async (url: string, opts?: RequestInit) => {
       if (opts?.method === 'POST' && url === action) {
         return { ok: true, json: async () => ({ state: 'passed_challenge' }) };
@@ -127,7 +127,7 @@ describe('VerificationPage', () => {
         ok: true,
         json: async () => ({
           ui: {
-            action: 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc',
+            action: 'https://auth-dev.getloopscale.com/self-service/verification?flow=abc',
             nodes: [{ attributes: { name: 'csrf_token', value: 'csrf-xyz' } }],
           },
         }),
@@ -158,7 +158,7 @@ describe('VerificationPage', () => {
         ok: true,
         json: async () => ({
           ui: {
-            action: 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc',
+            action: 'https://auth-dev.getloopscale.com/self-service/verification?flow=abc',
             nodes: [{ attributes: { name: 'csrf_token', value: 'csrf-xyz' } }],
           },
         }),

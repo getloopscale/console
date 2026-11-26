@@ -340,7 +340,7 @@ export function diagnoseDiscoverability<T>(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // O corpo é montado por uma função PURA e testada: o defeito da theo-skills#144 era
+      // O corpo é montado por uma função PURA e testada: o defeito da loopskills#144 era
       // exatamente ele — `has_embedding: false` fixo para um rascunho — e, montado inline aqui,
       // nenhum teste o alcançava.
       body: JSON.stringify(diagnosticBody(name, description, estado)),

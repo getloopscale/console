@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package promptly_test
 
@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/promptly"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/promptly"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // M11 T3.1 — the promptly ForwardAuth WIRING: the generic ForwardAuthHandler
@@ -33,7 +33,7 @@ func resolve(uc *auth.UserContext, scopes []string, err error) routes.APIKeyReso
 
 func allowOwn(_ context.Context, _, _ string) (bool, error) { return true, nil }
 
-// brokerWithUpstream builds a real promptly.Broker over an httptest theo-promptly
+// brokerWithUpstream builds a real promptly.Broker over an httptest loopprompt
 // admin stub that always mints, capturing the minted scopes.
 func brokerWithUpstream(t *testing.T, capturedScopes *[]any) *promptly.Broker {
 	t.Helper()
@@ -103,7 +103,7 @@ func TestForwardPromptly_403WithoutScope(t *testing.T) {
 }
 
 func TestForwardPromptly_503OnMintError(t *testing.T) {
-	// Upstream theo-promptly is down → broker fails closed → handler 503, no Authorization.
+	// Upstream loopprompt is down → broker fails closed → handler 503, no Authorization.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package storage
 
@@ -53,7 +53,7 @@ func TestValidatePath_MaxLength(t *testing.T) {
 	}
 }
 
-// ── theo-cloud#195 — a rejeição de path deve ver o que o caller ESCREVEU, não só o literal ────────
+// ── loop-console#195 — a rejeição de path deve ver o que o caller ESCREVEU, não só o literal ────────
 //
 // O Red Team LIVE do M7 mediu 5 achados de higiene (LOW / defense-in-depth; zero vazamento entre
 // tenants, zero escape de namespace). Três deles têm a MESMA causa: `chi.URLParam(r, "*")` entrega o

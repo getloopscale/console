@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/serviceversions"
+	"github.com/getloopscale/loop-console/internal/serviceversions"
 )
 
-// O CORACAO DO theo-workspace#37. O estado da frota so virava real quando um humano
+// O CORACAO DO loopscale-workspace#37. O estado da frota so virava real quando um humano
 // AUTENTICADO abria o painel: `Collect` era disparado exclusivamente pelo handler de
 // `/v1/dashboard/status/versions`. Consequencia medida — um container recem-recriado
 // servia `/metrics` sem nenhuma serie de version, e o `not_collected` semeado ficava

@@ -11,7 +11,7 @@ import {
   EmptyState,
   PageShell,
   ProjectCard,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ContentGrid } from '@/components/layout';
 import { OverviewKPIStrip } from '@/pages/overview/components/overview-kpi-strip';
 import { DeploysActivity } from '@/pages/overview/components/deploys-activity';
@@ -26,7 +26,7 @@ import { formatDate, isZeroTime } from '@/lib/formatting/format';
 
 /**
  * OverviewPage — mockup-aligned literal implementation per
- * cloud/dashboard/design/theo_overview_dashboard_mockup.html (Pattern D-1
+ * cloud/dashboard/design/loopscale_overview_dashboard_mockup.html (Pattern D-1
  * of plan v1.2). 2-asymmetric grid (1.2fr:1fr) with Usage + Alerts on
  * left, Projects + Recent Previews on right.
  *
@@ -163,7 +163,7 @@ export function OverviewPage() {
                       // are absent. Fallback 'queued' preserves prior shape
                       // when older backends omit the field.
                       // Map backend ProjectStatus to UI DeploymentStatus enum
-                      // @usetheo/ui@0.13.1 / @theokit/ui@0.18.0 added
+                      // @getloopscale/ui@0.13.1 / @getloopscale/loopzero-ui@0.18.0 added
                       // 'idle' to DeploymentStatus — projects that have
                       // never deployed now render with a neutral gray
                       // badge + "Idle" label (vs the prior stopgap that
@@ -181,7 +181,7 @@ export function OverviewPage() {
                       // Zero-time guard (#118 T3.1): backend now serializes
                       // *time.Time omitempty so absent → undefined here;
                       // isZeroTime catches legacy zero-literal regress.
-                      // Red Team theo-cloud#53/#76 closure: previously we
+                      // Red Team loop-console#53/#76 closure: previously we
                       // forwarded the raw RFC3339Nano ISO string and let
                       // ProjectCard render it verbatim — producing the
                       // "2026-06-26T14:16:43.712767Z" leak the Red Team

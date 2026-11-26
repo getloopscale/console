@@ -52,14 +52,14 @@ describe('BuildTimelineLive', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#122 surface 1 — when a build dies BEFORE any SSE
+  // Red Team loop-console#122 surface 1 — when a build dies BEFORE any SSE
   // step event (e.g. Argo submit Unauthorized), `steps.length === 0` made
   // the component render the Skeleton "Waiting for build to start… /
   // Connecting to build stream…" forever — contradicting the header's
   // "Failed" badge and the BuildErrorPanel below it. The REST build.status
   // is now plumbed via `restBuildStatus` so the timeline can emit an
   // honest "Build failed before any step ran" terminal-empty state instead.
-  it('Red Team theo-cloud#122 — failed build + zero events shows honest terminal-empty state (no skeleton)', () => {
+  it('Red Team loop-console#122 — failed build + zero events shows honest terminal-empty state (no skeleton)', () => {
     mockedStream.mockReturnValue(streamResult({ status: 'queued', steps: [] }));
     renderTimeline('b-1', 'teste', 'failed');
 
@@ -75,7 +75,7 @@ describe('BuildTimelineLive', () => {
   // SSE events yet KEEPS the skeleton — that's a legitimate in-flight empty
   // state, not a #122 contradiction. Preserves the existing UX for the
   // canonical happy-path "waiting for build to start" window.
-  it('Red Team theo-cloud#122 — queued build + zero events still shows skeleton (happy-path preserved)', () => {
+  it('Red Team loop-console#122 — queued build + zero events still shows skeleton (happy-path preserved)', () => {
     mockedStream.mockReturnValue(streamResult({ status: 'queued', steps: [] }));
     renderTimeline('b-1', 'teste', 'queued');
 

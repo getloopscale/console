@@ -6,7 +6,7 @@ import {
   Undo2,
   XCircle,
 } from 'lucide-react';
-import { Badge, Button, StatusDot, type StatusKind } from '@usetheo/ui';
+import { Badge, Button, StatusDot, type StatusKind } from '@getloopscale/ui';
 import { type Build, type BuildStatus } from '@/lib/api/types';
 import { buildOutcome, buildOutcomeLabel } from '@/pages/deploy/build-outcome';
 import { useMutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';

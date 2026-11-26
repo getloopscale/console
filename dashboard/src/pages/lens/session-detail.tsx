@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline, Tabs } from '@usetheo/ui';
+import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline, Tabs } from '@getloopscale/ui';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -21,7 +21,7 @@ import { SessionConversation } from './session-detail/session-conversation';
  * M9 — /observability/sessions/:sessionId. The session detail screen: fetch the session's traces
  * (`GET /v1/dashboard/lens/traces?session_id=<id>` — the SAME read the traces list uses, filtered to
  * one session), map each traces-list row to the generic `SessionTraceItem` (via the pure
- * `toSessionItem` boundary mapper), and render the `@usetheo/ui` session components: `SessionSummary`
+ * `toSessionItem` boundary mapper), and render the `@getloopscale/ui` session components: `SessionSummary`
  * (aggregate metrics — trace count, wall-clock window, ∑ cost, ∑ tokens, error count, models) +
  * `SessionTimeline` (the temporal replay, one row per trace sorted by start time). The DS receives
  * DATA (mapped items), never routes or fetches (M8 ADR D1). This page owns the consumer concerns:

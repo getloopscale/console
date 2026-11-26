@@ -48,7 +48,7 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
   });
 
   // M76 (E-1) — the llm_judge evaluator class is reachable from the UI: selecting it swaps the config
-  // fields (predicate → prompt + model) and POSTs the matching theo-lens discriminated-union body.
+  // fields (predicate → prompt + model) and POSTs the matching looptrace discriminated-union body.
   it('M76 — selecting the LLM-judge kind swaps fields and POSTs {kind:llm_judge, config:{prompt,model}}', async () => {
     mockCloudFetch.mockResolvedValue({ evaluators: [] });
     render(<LensEvaluatorsPage />);
@@ -187,7 +187,7 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
    * (`comLacuna.split('M')).toHaveLength(3)`); esta não tinha — e a diferença entre as duas telas
    * não era de biblioteca nem de dado, era que uma foi testada no nível do traço e a outra só no
    * nível da presença. Foi assim que a linha ficou sendo desenhada por cima do período sem amostra
-   * durante todo esse tempo (`usetheoai/theo-cloud#395`).
+   * durante todo esse tempo (`getloopscale/loop-console#395`).
    */
   it('M147 — a linha QUEBRA no período sem amostra, na tela', async () => {
     mockCloudFetch.mockImplementation(

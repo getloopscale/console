@@ -3,7 +3,7 @@ package routes
 import (
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/trust"
+	"github.com/getloopscale/loop-console/internal/trust"
 )
 
 // TestTrustScopesRegistered trava os escopos trust:* no registro ativo — cruzando com a
@@ -11,7 +11,7 @@ import (
 //
 // O DEFEITO QUE ISTO PREVINE já ocorreu QUATRO vezes nesta base, e nos dois sentidos:
 //
-//   - 2026-07-31: a cadeia Model B do theo-trust estava inteira de pé — borda roteando,
+//   - 2026-07-31: a cadeia Model B do loopguardrails estava inteira de pé — borda roteando,
 //     ForwardAuth ligado, broker cunhando por tenant — e nenhum cliente podia usá-la,
 //     porque `trust:read` não existia neste enum. A capacidade ficou inalcançável sem que
 //     nada ficasse vermelho.

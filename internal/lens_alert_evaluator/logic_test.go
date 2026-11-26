@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
@@ -121,7 +121,7 @@ func TestNextAlertState_NBreachedTicksFireOnce(t *testing.T) {
 }
 
 // TestMetricFromSeries_NoDataDoesNotBreach is the composition test neither this
-// suite nor the reference had, and it is exactly how theo-cloud#247 survived:
+// suite nor the reference had, and it is exactly how loop-console#247 survived:
 // the empty-window value was asserted (`empty error_rate = 0`) and the comment
 // claimed that meant "not a breach", but nothing composed metricFromSeries with
 // evaluateBreach under a below-comparator.

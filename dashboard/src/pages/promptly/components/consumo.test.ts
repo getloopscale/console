@@ -14,7 +14,7 @@ import { buildConsumptionSnippet, INTERFACES, type Target } from './consumo';
  * componente, e a diferença apareceria no dia em que alguém mudasse o espaçamento e o trecho
  * quebrasse sem nenhum teste falhar.
  *
- * **A forma vem do contrato real, lido no código, não de memória:** `@usetheo/promptly-sdk`,
+ * **A forma vem do contrato real, lido no código, não de memória:** `@getloopscale/promptly-sdk`,
  * `new PromptlyClient({ baseUrl, apiKey })`, `getPrompt(name, { label | version, vars })`, e a
  * ferramenta MCP chama-se `get_prompt`.
  *
@@ -30,7 +30,7 @@ const COM_AMBIENTE: Target = {
   label: 'production',
   environmentIsProduction: true,
   variables: ['pergunta'],
-  baseUrl: 'https://app-dev.usetheo.dev/v1/promptly',
+  baseUrl: 'https://app-dev.getloopscale.com/v1/promptly',
 };
 
 const SEM_AMBIENTE: Target = { ...COM_AMBIENTE, label: null, environmentIsProduction: true };
@@ -106,7 +106,7 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
 
   it('o pacote do SDK é o publicado, e o import é o que existe', () => {
     const sdk = buildConsumptionSnippet('sdk', COM_AMBIENTE);
-    expect(sdk).toContain("@usetheo/promptly-sdk");
+    expect(sdk).toContain("@getloopscale/promptly-sdk");
     expect(sdk).toContain('PromptlyClient');
   });
 
@@ -122,8 +122,8 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
   });
 
   it('a credencial vem do ambiente, e o trecho diz de onde', () => {
-    expect(buildConsumptionSnippet('sdk', COM_AMBIENTE)).toContain('THEO_API_KEY');
-    expect(buildConsumptionSnippet('rest', COM_AMBIENTE)).toContain('THEO_API_KEY');
+    expect(buildConsumptionSnippet('sdk', COM_AMBIENTE)).toContain('LOOPSCALE_API_KEY');
+    expect(buildConsumptionSnippet('rest', COM_AMBIENTE)).toContain('LOOPSCALE_API_KEY');
   });
 
   it('nome com pasta é escapado onde precisa ser', () => {
@@ -149,7 +149,7 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
   });
 
   it('o trecho do SDK PEDE resolução quando o prompt compõe', () => {
-    // `usetheoai/theo-promptly#84`, fechado na v0.17.1. Até então o SDK não tinha como pedir, e
+    // `getloopscale/loop-prompt#84`, fechado na v0.17.1. Até então o SDK não tinha como pedir, e
     // este trecho carregava uma ressalva apontando o REST — um aviso honesto valia mais que um
     // trecho bonito que mente. Agora ele pede, e o aviso não é mais necessário.
     const sdk = buildConsumptionSnippet('sdk', QUE_COMPOE);
@@ -168,7 +168,7 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
   });
 
   it('os trechos dizem QUAL credencial — a da plataforma, e onde obtê-la', () => {
-    // Medido: a borda resolve uma chave `theo_live_…` do theo-cloud e o broker cunha a do serviço
+    // Medido: a borda resolve uma chave `theo_live_…` do loop-console e o broker cunha a do serviço
     // por inquilino. Um trecho que só diz "a credencial vem do ambiente" fez EU levar 401 na
     // primeira execução — e eu conheço o sistema. O usuário concluiria que o produto está quebrado.
     for (const id of ['sdk', 'rest'] as const) {

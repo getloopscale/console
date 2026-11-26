@@ -168,7 +168,7 @@ function formatBytes(bytes: number): string {
  * Per plan v1.1 T-D.1 (P-3 + EC-10 defensive).
  *
  * @example
- *   maskEmail('demo@usetheo.dev')        // "d***@usetheo.dev"
+ *   maskEmail('demo@getloopscale.com')        // "d***@getloopscale.com"
  *   maskEmail('a@b.com')                 // "*@b.com"            (single-char local)
  *   maskEmail('verylonglocalpart@x.com') // "v********@x.com"    (capped at 8 stars)
  *   maskEmail('john@doe@malformed.com')  // "john@doe@malformed.com" (EC-10 passthrough)
@@ -186,7 +186,7 @@ export function maskEmail(email: string): string {
 }
 
 /**
- * Red Team theo-cloud#52/#78 closure: humanize a backend "author" field
+ * Red Team loop-console#52/#78 closure: humanize a backend "author" field
  * (e.g. `created_by` on builds) which can arrive as a UUID, an email,
  * or an already-friendly display name. The Red Team caught the
  * /deployments table rendering verbatim UUIDs ("4d6ae2dd-baa2-…") on
@@ -197,12 +197,12 @@ export function maskEmail(email: string): string {
  *   2. UUID (canonical 8-4-4-4-12 hex) → first 8 chars (e.g. "4d6ae2dd")
  *      so duplicates STILL look distinct AND the original is preserved in
  *      a `title` tooltip at the call site.
- *   3. email → local-part (e.g. "paulo@usetheo.dev" → "paulo")
+ *   3. email → local-part (e.g. "paulo@getloopscale.com" → "paulo")
  *   4. anything else (a real name like "Paulo Henrique") → as-is.
  *
  * @example
  *   humanizeAuthor('4d6ae2dd-baa2-4c01-8d33-a96e20c23d1a') // "4d6ae2dd"
- *   humanizeAuthor('paulo@usetheo.dev')                    // "paulo"
+ *   humanizeAuthor('paulo@getloopscale.com')                    // "paulo"
  *   humanizeAuthor('Paulo Henrique')                       // "Paulo Henrique"
  *   humanizeAuthor('')                                     // "—"
  */

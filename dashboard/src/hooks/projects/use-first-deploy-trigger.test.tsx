@@ -40,7 +40,7 @@ describe('useFirstDeployTrigger (Sprint 3 T3.4 / EC-05)', () => {
 
   it('test_does_not_fire_again_after_localStorage_flag_set', () => {
     // Pre-set the celebrated flag — subsequent builds shouldn't re-fire
-    localStorage.setItem('theo-first-deploy-p1-celebrated', '1');
+    localStorage.setItem('loopscale-first-deploy-p1-celebrated', '1');
     const future = {
       build_id: 'b-new',
       status: 'succeeded',
@@ -65,6 +65,6 @@ describe('useFirstDeployTrigger (Sprint 3 T3.4 / EC-05)', () => {
       useFirstDeployTrigger({ projectName: 'p1', toast, liveUrl: 'https://app.example.com' }),
     );
     expect(toast.show).toHaveBeenCalledWith('Your app is live at https://app.example.com 🎉');
-    expect(localStorage.getItem('theo-first-deploy-p1-celebrated')).toBe('1');
+    expect(localStorage.getItem('loopscale-first-deploy-p1-celebrated')).toBe('1');
   });
 });

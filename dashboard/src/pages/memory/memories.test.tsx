@@ -34,7 +34,7 @@ describe('MemoryListPage (/memory/memories)', () => {
    * was consumed by whichever query won the race, and the list query received `undefined`. React Query
    * rejects a queryFn that does not return a promise, so the page rendered "Could not load memories"
    * and FIVE tests in this file had been RED in develop. Nobody saw it because no workflow runs the
-   * dashboard suite (see theo-cloud#276). Routing by URL removes the race instead of reordering it.
+   * dashboard suite (see loop-console#276). Routing by URL removes the race instead of reordering it.
    */
   function respondList(payload: unknown, mode: 'resolve' | 'reject' = 'resolve') {
     mockCloudFetch.mockImplementation((url: string) => {
@@ -67,7 +67,7 @@ describe('MemoryListPage (/memory/memories)', () => {
     expect(screen.getByText(/hasn't stored any memories/i)).toBeInTheDocument();
   });
 
-  it('a failed fetch shows an error state, NOT an empty state (theo-cloud#250)', async () => {
+  it('a failed fetch shows an error state, NOT an empty state (loop-console#250)', async () => {
     // The whole point: a 404/502 must NOT read as "no memories". cloudFetch resolves
     // null on failure by default, which the page would render as empty; the page opts
     // into throwOnError so a rejection becomes query.isError.
@@ -79,7 +79,7 @@ describe('MemoryListPage (/memory/memories)', () => {
     expect(screen.queryByText(/hasn't stored any memories/i)).not.toBeInTheDocument();
   });
 
-  it('passes throwOnError so failures reject instead of resolving null (theo-cloud#250)', async () => {
+  it('passes throwOnError so failures reject instead of resolving null (loop-console#250)', async () => {
     respondList({ memories: [] });
     render(<MemoryListPage />);
     await screen.findByText(/No memories yet/i);
@@ -127,7 +127,7 @@ describe('MemoryListPage (/memory/memories)', () => {
     // The ConfirmDialog opens — Forget button is rendered but disabled
     // until the typed phrase equals the memory id. We only assert that
     // the dialog renders the warning copy; the typed-verification logic
-    // itself is owned by @usetheo/ui ConfirmDialog (covered there).
+    // itself is owned by @getloopscale/ui ConfirmDialog (covered there).
     expect(await screen.findByText(/will be forgotten/i)).toBeInTheDocument();
     // ADR D4 — the hard-delete (GDPR) opt-in checkbox is present.
     expect(screen.getByLabelText(/permanently erase/i)).toBeInTheDocument();

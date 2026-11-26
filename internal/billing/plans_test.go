@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package billing
 
@@ -7,7 +7,7 @@ import "testing"
 
 // Plan release-blockers-2026-06-25-set T4.1 — canonical positive-enumeration
 // helper that distinguishes "the plan name is in the allow-list" from "the
-// Stripe Price ID env var is configured". Closes theo-cloud#39.
+// Stripe Price ID env var is configured". Closes loop-console#39.
 
 // TestIsValidPlanName_Canonical enumerates positively per CLAUDE.md Common
 // Mistakes ("enumeration-by-negation"): starter, pro, team are user-purchasable;

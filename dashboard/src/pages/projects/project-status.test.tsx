@@ -52,7 +52,7 @@ function renderAt(path: string) {
 
 function makeStatus(overrides: Partial<ProjectStatusDetail> = {}): ProjectStatusDetail {
   return {
-    project: 'theokit-example',
+    project: 'loopzero-example',
     environment: 'production',
     metrics_range_url: '',
     prom_query_keys: [],
@@ -60,11 +60,11 @@ function makeStatus(overrides: Partial<ProjectStatusDetail> = {}): ProjectStatus
   } as ProjectStatusDetail;
 }
 
-describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
+describe('ProjectStatusPage — Red Team loop-console#98 closure', () => {
   // Repro per #98 verbatim: a project with 12 builds, ALL environment=preview,
   // queried at ?env=production. Engine emits status.last_build=null +
   // active_release=null + other_envs_with_releases=[{environment:'preview',
-  // has_release:true}] (per the theo @1100fd95 closure of #70/#62).
+  // has_release:true}] (per the loopscale @1100fd95 closure of #70/#62).
   //
   // The dashboard MUST surface that honest "no production deploy yet" copy
   // (NOT 'Progressing'), and MUST stop the perpetual 5s auto-refresh blurb.
@@ -81,7 +81,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
       error: null,
     });
 
-    renderAt('/projects/theokit-example/status');
+    renderAt('/projects/loopzero-example/status');
 
     // RED #98: must NOT default to 'Progressing'.
     expect(screen.queryByText(/^Progressing$/)).not.toBeInTheDocument();
@@ -113,7 +113,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
       error: null,
     });
 
-    renderAt('/projects/theokit-example/status');
+    renderAt('/projects/loopzero-example/status');
 
     expect(screen.getByText(/^Progressing$/)).toBeInTheDocument();
   });
@@ -122,7 +122,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
   // is present AND there is at least one proof of serving (replicas_ready > 0),
   // the existing UI continues to render (Status: Healthy + the auto-refresh
   // subtitle).
-  // Red Team theo-cloud#124 contract: Healthy requires release-active AND a
+  // Red Team loop-console#124 contract: Healthy requires release-active AND a
   // serving signal — `scaling.replicas` OR `replicas_ready` > 0.
   it('production active release WITH replica proof: still shows Healthy + auto-refresh subtitle (happy path preserved)', () => {
     mockUseProjectStatus.mockReturnValue({
@@ -140,7 +140,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
           commit_sha: 'abc123',
           created_at: '2026-06-27T10:00:00Z',
         },
-        url: 'https://acme-prod.usetheo.dev',
+        url: 'https://acme-prod.getloopscale.com',
         // Serving proof: replicas_ready > 0 corroborates the data plane is up.
         replicas_ready: 2,
         replicas_desired: 2,
@@ -176,7 +176,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
           commit_sha: 'abc123',
           created_at: '2026-06-27T10:00:00Z',
         },
-        url: 'https://acme-prod.usetheo.dev',
+        url: 'https://acme-prod.getloopscale.com',
         replicas_ready: 2,
         replicas_desired: 2,
       }),
@@ -191,7 +191,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
   });
 });
 
-// Red Team theo-cloud#124 — health-truth divergence.
+// Red Team loop-console#124 — health-truth divergence.
 // Repro (LIVE 2026-06-30): build SUCCEEDED + release ACTIVE + sync_status=synced +
 // URL populated, BUT the Live URL serves HTTP 502 sustained ~13min. The dashboard
 // emitted `Status: Healthy` based on `active_release.status === 'ACTIVE'` alone,
@@ -199,7 +199,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
 // Family of #41/#77/#94 — the platform must not assert "healthy" without proof
 // of serving. The fix makes the SignalGrid status verdict signal-aware: emits
 // 'Unknown' when release is ACTIVE but every serving signal is absent.
-describe('ProjectStatusPage — Red Team theo-cloud#124 closure (health-truth)', () => {
+describe('ProjectStatusPage — Red Team loop-console#124 closure (health-truth)', () => {
   it('active release + sync synced + URL populated BUT zero serving signals → Status: Unknown, NOT Healthy', () => {
     mockUseProjectStatus.mockReturnValue({
       status: makeStatus({
@@ -217,7 +217,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#124 closure (health-truth)',
           created_at: '2026-06-30T15:28:49Z',
         },
         sync_status: 'synced',
-        url: 'https://tn-0f13cba71527997c-theokit-example-app-preview.prod-dev.usetheo.dev',
+        url: 'https://tn-0f13cba71527997c-loopzero-example-app-preview.prod-dev.getloopscale.com',
         // Repro: NO scaling, NO replicas_ready, NO 5xx, NO alerts. The
         // control plane is fully green but the data plane is unproven.
       }),
@@ -225,7 +225,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#124 closure (health-truth)',
       error: null,
     });
 
-    renderAt('/projects/theokit-example/status');
+    renderAt('/projects/loopzero-example/status');
 
     // Pre-fix (#124 verbatim): UI showed `Status: Healthy` here.
     // Post-fix: must emit `Status: Unknown` because nothing on the response

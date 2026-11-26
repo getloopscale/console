@@ -24,7 +24,7 @@ import { PRIMARY_CANONICO, TEMA_LOOPSCALE } from './loopscale-theme';
  * um roxo que o app nunca mostra** — num produto travado em escuro (`D1`).
  *
  * Isso não é cosmético. O `--primary` foi escurecido por CONTRASTE, no Red Team
- * `theo/theo#163`: o default do pacote dá 3,87:1 de branco sobre primary e
+ * `loopscale/loopscale#163`: o default do pacote dá 3,87:1 de branco sobre primary e
  * reprova o WCAG AA; o valor do app dá ~4,73:1 e passa. Existe `test/a11y.test.tsx`
  * nesta suíte. Ele media a cor errada.
  *
@@ -49,14 +49,19 @@ describe('tema do design system (B-007)', () => {
   it('a árvore de TESTE computa o mesmo --primary que o app', () => {
     render(<div />);
 
-    const computado = getComputedStyle(document.documentElement)
-      .getPropertyValue('--primary')
-      .trim();
+    // The provider injects a stylesheet whose rules sit in `@layer theme`, which jsdom does
+    // not resolve, so the value is read from the rule the provider wrote for this theme.
+    const folha = Array.from(document.querySelectorAll('style'))
+      .map((style) => style.textContent ?? '')
+      .join('\n');
+    const tema = document.documentElement.getAttribute('data-theme');
+    const regra = new RegExp(`\\[data-theme="${tema}"\\][^{]*\\{[^}]*--primary:\\s*([^;]+);`);
+    const computado = (folha.match(regra)?.[1] ?? '').trim();
 
     expect(
       computado,
       'A suíte renderiza um --primary diferente do app.\n\n' +
-        'O valor do app foi escolhido por CONTRASTE (Red Team theo/theo#163): o\n' +
+        'O valor do app foi escolhido por CONTRASTE (Red Team loopscale/loopscale#163): o\n' +
         'default do pacote reprova o WCAG AA em branco-sobre-primary. Se a suíte\n' +
         'renderiza outro, `test/a11y.test.tsx` mede uma cor que ninguém vê.\n\n' +
         'A causa provável é a árvore de teste montar o tema por conta própria em\n' +

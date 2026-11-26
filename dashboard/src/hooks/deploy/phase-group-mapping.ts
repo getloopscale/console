@@ -18,7 +18,7 @@ import type { Phase } from './deploy-timeline-events';
  *
  * The Deploy Timeline phases 'deploy' and 'live' have no J-17 step events
  * by design — those phases are driven by the aggregator's argocd_app /
- * theoapp_informer / status_url_probe sources (not by build steps).
+ * loopscaleapp_informer / status_url_probe sources (not by build steps).
  */
 export function phaseGroupToCanonicalPhase(group: PhaseGroup, stepName?: string): Phase {
   switch (group) {

@@ -135,7 +135,7 @@ describe('logout — B-055: o cache do service worker sai junto', () => {
   it('logout() apaga o cache de dados do tenant', async () => {
     const deletadas: string[] = [];
     vi.stubGlobal('caches', {
-      keys: () => Promise.resolve(['theo-api', 'theo-assets']),
+      keys: () => Promise.resolve(['loop-runtime-api', 'loopscale-assets']),
       delete: (n: string) => {
         deletadas.push(n);
         return Promise.resolve(true);
@@ -153,8 +153,8 @@ describe('logout — B-055: o cache do service worker sai junto', () => {
     // cobre a função isolada. A distinção importa: hoje mesmo, três invalidações
     // de cache ficaram apontando para chaves que ninguém mais lia, e o que
     // faltava em todas era exatamente um teste do wire.
-    expect(deletadas).toContain('theo-api');
-    expect(deletadas).not.toContain('theo-assets');
+    expect(deletadas).toContain('loop-runtime-api');
+    expect(deletadas).not.toContain('loopscale-assets');
     vi.unstubAllGlobals();
   });
 });
@@ -195,7 +195,7 @@ describe('B-139 — um logout que o servidor não confirmou não se parece com u
   });
 });
 
-describe('getSession — the identity comes from the BFF, with no token (usetheoai/theo#477)', () => {
+describe('getSession — the identity comes from the BFF, with no token (getloopscale/loopscale#477)', () => {
   it('builds the session from GET /v1/auth/session and asks nothing else', async () => {
     const { getSession } = await import('./session');
     const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>

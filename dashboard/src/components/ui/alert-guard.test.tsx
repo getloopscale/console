@@ -4,7 +4,7 @@ import { render, screen } from '@/test/render';
 import { Alert } from './alert-guard';
 
 describe('AlertGuard (renders children as body — closes #175)', () => {
-  it('renders a children body (the @usetheo/ui Alert silently drops it)', () => {
+  it('renders a children body (the @getloopscale/ui Alert silently drops it)', () => {
     render(<Alert intent="warning" title="Could not resolve">the specific failure detail</Alert>);
     expect(screen.getByText('Could not resolve')).toBeInTheDocument();
     expect(screen.getByText('the specific failure detail')).toBeInTheDocument(); // the #175 fix

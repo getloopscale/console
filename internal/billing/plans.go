@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package billing
 
@@ -35,7 +35,7 @@ func LoadPlanConfig() PlanConfig {
 // canonical {starter, pro, team} set. Enterprise is sales-led with no
 // public signup (per MEET-2026-05-12 D4) and intentionally excluded.
 //
-// Plan release-blockers-2026-06-25-set T4.1 — closes theo-cloud#39:
+// Plan release-blockers-2026-06-25-set T4.1 — closes loop-console#39:
 // distinguishes "plan name is in allow-list" (this check) from "Stripe
 // Price ID env var is configured" (PriceIDForPlan returning ""). The
 // handler ladder MUST run IsValidPlanName BEFORE PriceIDForPlan so that

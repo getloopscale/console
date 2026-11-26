@@ -56,7 +56,7 @@ describe('legLabel', () => {
     // MEDIDO no app-dev em 2026-08-04, com o servidor respondendo
     // `matched: [{"leg":"keyword","rank":1}]` e a tela exibindo "ORIGEM NÃO INFORMADA".
     //
-    // O contrato é `leg: 'vector' | 'keyword'` (theo-skills
+    // O contrato é `leg: 'vector' | 'keyword'` (loopskills
     // `packages/core/src/domain/retrievers/types.ts:79`). A primeira versão desta projeção
     // inventou `'lexical'` — um nome plausível que o registro nunca emitiu — e por isso TODO
     // resultado casado por palavra caía no fallback. O score aparecia; o porquê, não. Metade do

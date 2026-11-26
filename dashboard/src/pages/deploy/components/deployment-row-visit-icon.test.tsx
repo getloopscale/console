@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { DeploymentRowVisitIcon } from './deployment-row-visit-icon';
 
-const CANONICAL_URL = 'https://teste-production.usetheo.dev';
+const CANONICAL_URL = 'https://teste-production.getloopscale.com';
 
 describe('DeploymentRowVisitIcon (T3.1 active-only affordance)', () => {
   it('renders ExternalLink anchor only when isActive AND url present', () => {

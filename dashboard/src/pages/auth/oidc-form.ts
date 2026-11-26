@@ -10,7 +10,7 @@ import { safeNavigator } from '@/lib/navigation';
  *
  * Extraído de `login.tsx` por dois motivos, nessa ordem:
  *
- *  1. O clique retomado (theo#140) precisa reexecutar o POST — e SÓ o POST. Reexecutar o
+ *  1. O clique retomado (loopscale#140) precisa reexecutar o POST — e SÓ o POST. Reexecutar o
  *     comando inteiro reemitia `auth.method.attempt`, dando dois eventos com
  *     correlation_ids distintos para um único clique do usuário.
  *  2. `login.tsx` estava em 500 linhas EXATAS, colado no teto de `login-loc-budget.test.ts`.

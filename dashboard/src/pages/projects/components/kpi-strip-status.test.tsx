@@ -69,7 +69,7 @@ describe('KPIStripStatus — T3.1 J-18', () => {
     expect(emDashes.length).toBe(5);
   });
 
-  // theo-cloud#158 (sibling of SignalGrid): NaN/Inf are `typeof === 'number'`,
+  // loop-console#158 (sibling of SignalGrid): NaN/Inf are `typeof === 'number'`,
   // so a null/undefined-only guard lets an error_rate 0/0 (idle tenant) render
   // "NaN%". Non-finite must render "—" muted, same honest-empty-state contract.
   it('non-finite values (NaN/Inf) render "—" muted, never "NaN%"/red', () => {

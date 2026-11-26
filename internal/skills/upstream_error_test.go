@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// O defeito que estes testes existem para impedir: uma recusa TIPADA do theo-skills chegar ao
+// O defeito que estes testes existem para impedir: uma recusa TIPADA do loopskills chegar ao
 // operador como "erro". O registro recusa publicacao por razoes que o proprio operador pode
 // corrigir — frontmatter invalido, nome ja tomado, versao repetida — e cada uma delas diz O QUE
 // arrumar. Colapsada num 502 generico, a tela manda o operador tentar de novo identico.
@@ -19,7 +19,7 @@ import (
 // generico. O tipo existe para que a separacao sobreviva ao caminho.
 
 func TestUpstreamError_preservaStatusECorpoTipadoDoUpstream(t *testing.T) {
-	// Um 422 real do theo-skills: o registro recusou o frontmatter e disse por que.
+	// Um 422 real do loopskills: o registro recusou o frontmatter e disse por que.
 	corpo := json.RawMessage(`{"code":"INVALID_FRONTMATTER","message":"campo 'version' ausente"}`)
 	var err error = &UpstreamError{Status: 422, Body: corpo, Method: "POST", Path: "/v1/skills"}
 

@@ -18,7 +18,7 @@ import { isPath } from '@/test/url';
 
 describe('alertSeverity (honest status → Severity)', () => {
   it('a firing rule is alert, a cleared rule is ok', () => {
-    // SeverityBadge maps alert→destructive, ok→success (verified in @usetheo/ui).
+    // SeverityBadge maps alert→destructive, ok→success (verified in @getloopscale/ui).
     expect(alertSeverity('TRIGGERED', true)).toBe('alert');
     expect(alertSeverity('OK', true)).toBe('ok');
   });
@@ -224,7 +224,7 @@ describe('LensAlertsPage (M53)', () => {
 // ── M22 — a métrica escopada a um prompt ────────────────────────────────────────────────────────
 //
 // A `v0.83.0` liberou `prompt_resolutions` no backend, e o `Select` desta tela era fechado sobre
-// três opções: a capacidade existia e era inalcançável sem `curl` (`usetheoai/theo-cloud#459`).
+// três opções: a capacidade existia e era inalcançável sem `curl` (`getloopscale/loop-console#459`).
 //
 // A tela é COMPARTILHADA — é o risco #1 do milestone. Metade destes testes é regressão: alargar
 // não pode estreitar o que já servia.

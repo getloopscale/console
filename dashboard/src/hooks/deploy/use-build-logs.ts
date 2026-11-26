@@ -43,8 +43,8 @@ interface BackendLogsResponse {
  * Convert backend LogEntry → frontend LogLine.
  *
  * Plan J-17 Layer 4 (2026-06-06): pipeline lines that go through the
- * the `::theo::` marker wrapper come prefixed with
- *   `::theo:: phase=X step=Y level=Z msg="..."`
+ * the `::loopscale::` marker wrapper come prefixed with
+ *   `::loopscale:: phase=X step=Y level=Z msg="..."`
  * Strip the marker and surface only the human message + structured
  * fields. The phase is used as source so the LogViewer can color-code
  * by phase group (clone / install / build / sign / deliver).
@@ -53,7 +53,7 @@ interface BackendLogsResponse {
  * useful for debug mode (raw container output).
  */
 const BUILD_LOG_MARKER_RE =
-  /^::theo:: phase=(?<phase>\w+) step=(?<step>[\w-]+) level=(?<level>\w+) msg=(?<msg>.+?)\s*$/;
+  /^::loopscale:: phase=(?<phase>\w+) step=(?<step>[\w-]+) level=(?<level>\w+) msg=(?<msg>.+?)\s*$/;
 
 function toLogLine(e: BackendLogEntry): LogLine {
   const content = e.content ?? '';

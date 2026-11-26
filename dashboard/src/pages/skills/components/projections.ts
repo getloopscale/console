@@ -5,7 +5,7 @@
  * promover um canal — a operação mais perigosa do produto. Regra testável só com browser é regra
  * que ninguém re-testa depois do primeiro dia.
  *
- * As formas abaixo foram **medidas** na definição das rotas do `theo-skills`
+ * As formas abaixo foram **medidas** na definição das rotas do `loopskills`
  * (`packages/api/src/server/handlers/publishing.ts`), não inferidas de nomes de método. Se elas
  * mudarem lá, é aqui que o teste quebra — e não numa tela que renderiza `undefined` em silêncio.
  */

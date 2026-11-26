@@ -1,4 +1,4 @@
-// M25 — o caminho de MUTACAO do theo-promptly: promover um label para outra revisao.
+// M25 — o caminho de MUTACAO do loopprompt: promover um label para outra revisao.
 //
 // Vive em arquivo e TIPO proprios, separados do de leitura, e a separacao e o mecanismo de menor
 // privilegio — nao organizacao de arquivo. O cliente de leitura recebe uma credencial cunhada
@@ -22,7 +22,7 @@ import (
 	"strings"
 )
 
-// WriteClient promove labels no theo-promptly, por inquilino.
+// WriteClient promove labels no loopprompt, por inquilino.
 type WriteClient struct {
 	baseURL     string
 	httpClient  *http.Client

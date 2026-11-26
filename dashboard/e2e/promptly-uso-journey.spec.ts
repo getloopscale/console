@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M15 T5.1 — a jornada até o uso por revisão, ponta a ponta pela tela.
 //
@@ -7,14 +7,14 @@
 // TRÊS estados que o milestone promete distinguir. É o único e2e do milestone; o resto da
 // cobertura vive em lógica pura (`usage.ts`, 6 casos) e teste de componente (6 casos).
 //
-// POR QUE NAVEGA POR CLIQUE. No `theo-trust` (M23) quatro telas foram declaradas no submenu e
+// POR QUE NAVEGA POR CLIQUE. No `loopguardrails` (M23) quatro telas foram declaradas no submenu e
 // nunca abriram, porque faltava a linha em `resolveActiveMenu` — e três rodadas de validação
 // passaram por cima, porque validavam digitando a URL, que é o único caminho que o usuário real
 // não tem. Há UM `page.goto` neste arquivo, na raiz.
 //
 // O QUE ESTE ARQUIVO PROVA, E O QUE NÃO PROVA. Roda hermético contra o Vite local com
 // `VITE_USE_MOCKS=true`. Prova a jornada da INTERFACE e as três renderizações distintas — não
-// prova que o span de resolução sai do `theo-promptly`, chega ao `theo-lens` e volta agregado
+// prova que o span de resolução sai do `loopprompt`, chega ao `looptrace` e volta agregado
 // pelo BFF. Essa metade é verificada contra o `app-dev` e registrada como evidência de
 // aceitação; nenhum mock poderia prová-la, e dizer o contrário seria o defeito que este
 // milestone existe para eliminar.

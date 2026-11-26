@@ -124,15 +124,15 @@ const AFIRMACOES: readonly AfirmacaoNumerica[] = [
   },
   {
     doc: 'DESIGN.md',
-    sobre: 'how many files import @usetheo/ui (B-208)',
-    padrao: /\| `@usetheo\/ui` \| `[\d.]+` \| components \| (\d+) files import it \|/,
-    medir: () => contarArquivosImportando('@usetheo/ui'),
+    sobre: 'how many files import @getloopscale/ui (B-208)',
+    padrao: /\| `@getloopscale\/ui` \| `[\d.]+` \| components \| (\d+) files import it \|/,
+    medir: () => contarArquivosImportando('@getloopscale/ui'),
   },
   {
     doc: 'DESIGN.md',
-    sobre: 'how many files import @theokit/ui (B-208)',
-    padrao: /\| `@theokit\/ui` \| `[\d.]+` \| [^|]*\| (\d+) files/,
-    medir: () => contarArquivosImportando('@theokit/ui'),
+    sobre: 'how many files import @getloopscale/loopzero-ui (B-208)',
+    padrao: /\| `@getloopscale\/loopzero-ui` \| `[\d.]+` \| [^|]*\| (\d+) files/,
+    medir: () => contarArquivosImportando('@getloopscale/loopzero-ui'),
   },
   {
     doc: 'docs/architecture.md',

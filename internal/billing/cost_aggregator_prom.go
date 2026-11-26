@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package billing
 
@@ -31,7 +31,7 @@ type HTTPPromQuerier struct {
 }
 
 // NewHTTPPromQuerier constructs a querier pointed at the given Prometheus
-// HTTP base URL (e.g., "http://prometheus.theo-system.svc.cluster.local:9090").
+// HTTP base URL (e.g., "http://prometheus.loopscale-system.svc.cluster.local:9090").
 //
 // Returns error if the URL is malformed. The HTTP client uses the default
 // transport — no auth headers, suitable for in-cluster Prometheus served

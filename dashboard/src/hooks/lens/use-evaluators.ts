@@ -21,7 +21,7 @@ export interface Evaluator {
   kind?: string;
   enabled?: boolean;
   /**
-   * The evaluator's rule config — passed through verbatim from theo-lens (BFF `json.RawMessage`).
+   * The evaluator's rule config — passed through verbatim from looptrace (BFF `json.RawMessage`).
    * `rule` → `{ predicate }`; `llm_judge` → `{ prompt, model }`. Optional and loose because it is
    * an upstream shape this layer does not own.
    */

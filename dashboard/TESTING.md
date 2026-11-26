@@ -121,7 +121,7 @@ function Bomb(): ReactElement {
 ## Naming convention
 
 Test names describe behavior, not method names. Prefix `test_` is optional
-in vitest but consistent with the Theo monorepo convention.
+in vitest but consistent with the LoopScale monorepo convention.
 
 | Bad                  | Good                                                |
 | -------------------- | --------------------------------------------------- |
@@ -185,7 +185,7 @@ Two sentinels rather than one because the two mock frameworks have different
 elimination paths:
 
 ```
-__theo_mocks_present_in_bundle__   (the /api/v1 layer)
+__loopscale_mocks_present_in_bundle__   (the /api/v1 layer)
 choose_method                      (the Kratos layer)
 ```
 

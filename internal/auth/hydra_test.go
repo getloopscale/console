@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
 import (
-	"errors"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +14,7 @@ import (
 
 // Plan J-05 iter 5 (2026-06-05) — pin the Hydra v2 nested-client_id
 // contract for both login and consent challenge responses. Catches the
-// LIVE regression where Hydra emitted {"client":{"client_id":"theo-cli"}}
+// LIVE regression where Hydra emitted {"client":{"client_id":"loopscale-cli"}}
 // and our struct decoded the flat `client_id` to an empty string,
 // causing consent handler to reject "Unauthorized client".
 
@@ -24,23 +24,23 @@ func TestGetConsentRequest_ParsesNestedClientID(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"challenge": "abc",
 			"client": map[string]interface{}{
-				"client_id":   "theo-cli",
-				"client_name": "Theo CLI",
+				"client_id":   "loopscale-cli",
+				"client_name": "LoopScale CLI",
 			},
-			"subject":                          "user-1",
-			"requested_scope":                  []string{"openid"},
-			"requested_access_token_audience":  []string{"theo-cloud"},
+			"subject":                         "user-1",
+			"requested_scope":                 []string{"openid"},
+			"requested_access_token_audience": []string{"loop-console"},
 		})
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	got, err := c.GetConsentRequest("abc")
 	if err != nil {
 		t.Fatalf("GetConsentRequest: %v", err)
 	}
-	if got.ClientID != "theo-cli" {
-		t.Fatalf("ClientID = %q, want %q", got.ClientID, "theo-cli")
+	if got.ClientID != "loopscale-cli" {
+		t.Fatalf("ClientID = %q, want %q", got.ClientID, "loopscale-cli")
 	}
 }
 
@@ -51,18 +51,18 @@ func TestGetConsentRequest_FlatClientIDStillWorks(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"challenge": "abc",
-			"client_id": "theo-cli",
+			"client_id": "loopscale-cli",
 			"subject":   "user-1",
 		})
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	got, err := c.GetConsentRequest("abc")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if got.ClientID != "theo-cli" {
+	if got.ClientID != "loopscale-cli" {
 		t.Fatalf("flat client_id lost: got %q", got.ClientID)
 	}
 }
@@ -73,7 +73,7 @@ func TestGetLoginRequest_ParsesNestedClientID(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"challenge": "abc",
 			"client": map[string]interface{}{
-				"client_id": "theo-cli",
+				"client_id": "loopscale-cli",
 			},
 			"subject": "user-1",
 			"skip":    false,
@@ -81,13 +81,13 @@ func TestGetLoginRequest_ParsesNestedClientID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	got, err := c.GetLoginRequest("abc")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if got.ClientID != "theo-cli" {
-		t.Fatalf("ClientID = %q, want theo-cli", got.ClientID)
+	if got.ClientID != "loopscale-cli" {
+		t.Fatalf("ClientID = %q, want loopscale-cli", got.ClientID)
 	}
 }
 
@@ -107,7 +107,7 @@ func TestGetLoginRequest_FlatPreferredWhenBothPresent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	got, _ := c.GetLoginRequest("abc")
 	if got.ClientID != "from-flat" {
 		t.Fatalf("flat should win when both present: got %q", got.ClientID)
@@ -116,23 +116,23 @@ func TestGetLoginRequest_FlatPreferredWhenBothPresent(t *testing.T) {
 
 func TestRegisterClient_IncludesAudienceWhitelist(t *testing.T) {
 	// Plan J-05 iter 6 — F-03 LIVE bug: without audience on the registration
-	// payload, refresh_token grants fail with "Requested audience 'theo-cloud'
+	// payload, refresh_token grants fail with "Requested audience 'loop-console'
 	// has not been whitelisted by the OAuth 2.0 Client" because the original
-	// device-flow consent set aud=[theo-cloud,theo-engine] and Hydra
+	// device-flow consent set aud=[loop-console,loop-runtime] and Hydra
 	// re-validates against the client registration on every refresh.
 	var captured map[string]interface{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "PUT" && strings.Contains(r.URL.Path, "/admin/clients/theo-cli") {
+		if r.Method == "PUT" && strings.Contains(r.URL.Path, "/admin/clients/loopscale-cli") {
 			_ = json.NewDecoder(r.Body).Decode(&captured)
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"client_id":"theo-cli"}`))
+			_, _ = w.Write([]byte(`{"client_id":"loopscale-cli"}`))
 			return
 		}
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	if err := c.RegisterClient([]string{"http://localhost:9876/auth"}, nil); err != nil {
 		t.Fatalf("RegisterClient: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestRegisterClient_IncludesAudienceWhitelist(t *testing.T) {
 		got[i], _ = v.(string)
 	}
 
-	for _, want := range []string{"theo-cloud", "theo-engine"} {
+	for _, want := range []string{"loop-console", "loop-runtime-engine"} {
 		found := false
 		for _, g := range got {
 			if g == want {
@@ -169,7 +169,7 @@ func TestGetConsentRequest_NeitherFlatNorNested_StaysEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	got, _ := c.GetConsentRequest("abc")
 	if got.ClientID != "" {
 		t.Fatalf("expected empty ClientID, got %q", got.ClientID)
@@ -179,7 +179,7 @@ func TestGetConsentRequest_NeitherFlatNorNested_StaysEmpty(t *testing.T) {
 	}
 }
 
-// Red Team theo-cloud#117 closure — silent error swallow.
+// Red Team loop-console#117 closure — silent error swallow.
 //
 // Hydra returns 404 when a login/consent challenge is expired, replayed, or
 // otherwise unknown (canonical body: {"status_code":404,"message":"Not Found"}).
@@ -207,7 +207,7 @@ func TestGetLoginRequest_HydraReturns404_ReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	_, err := c.GetLoginRequest("expired-or-replayed")
 	if err == nil {
 		t.Fatal("GetLoginRequest returned nil error on Hydra 404 — silent swallow regression (#117)")
@@ -222,7 +222,7 @@ func TestAcceptLogin_HydraReturns404_ReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	redirectTo, err := c.AcceptLogin("expired-or-replayed", "subject-1")
 	if err == nil {
 		t.Fatalf("AcceptLogin returned nil error on Hydra 404 (redirectTo=%q) — silent swallow regression (#117)", redirectTo)
@@ -243,7 +243,7 @@ func TestGetConsentRequest_HydraReturns404_ReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	_, err := c.GetConsentRequest("expired-consent-challenge")
 	if err == nil {
 		t.Fatal("GetConsentRequest returned nil error on Hydra 404 — silent swallow regression (#117)")
@@ -258,7 +258,7 @@ func TestAcceptConsent_HydraReturns404_ReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	redirectTo, err := c.AcceptConsent("expired-consent-challenge", []string{"openid"}, nil, nil)
 	if err == nil {
 		t.Fatalf("AcceptConsent returned nil error on Hydra 404 (redirectTo=%q) — silent swallow regression (#117)", redirectTo)
@@ -281,7 +281,7 @@ func TestAcceptLogin_HydraReturns200WithRedirectTo_ReturnsURL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	redirectTo, err := c.AcceptLogin("valid-challenge", "subject-1")
 	if err != nil {
 		t.Fatalf("happy-path AcceptLogin returned error: %v", err)
@@ -299,7 +299,7 @@ func TestAcceptConsent_HydraReturns200WithRedirectTo_ReturnsURL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	redirectTo, err := c.AcceptConsent("valid-challenge", []string{"openid"}, nil, nil)
 	if err != nil {
 		t.Fatalf("happy-path AcceptConsent returned error: %v", err)
@@ -309,7 +309,7 @@ func TestAcceptConsent_HydraReturns200WithRedirectTo_ReturnsURL(t *testing.T) {
 	}
 }
 
-// usetheoai/theo#477 — RejectConsent: an expired challenge is the typed
+// getloopscale/loopscale#477 — RejectConsent: an expired challenge is the typed
 // ErrChallengeNotFound (so the handler renders the expired-link page), and the
 // consent request's original authorization URL is decoded for RFC 8707.
 
@@ -319,7 +319,7 @@ func TestRejectConsent_HydraReturns404_ReturnsChallengeNotFound(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	redirectTo, err := c.RejectConsent("expired-consent-challenge", "access_denied", "denied")
 	if !errors.Is(err, ErrChallengeNotFound) {
 		t.Fatalf("RejectConsent err = %v, want ErrChallengeNotFound", err)
@@ -330,13 +330,13 @@ func TestRejectConsent_HydraReturns404_ReturnsChallengeNotFound(t *testing.T) {
 }
 
 func TestGetConsentRequest_DecodesRequestURL(t *testing.T) {
-	const want = "https://auth.example/oauth2/auth?client_id=theo-cli&resource=https%3A%2F%2Fmcp.example%2Fmemory"
+	const want = "https://auth.example/oauth2/auth?client_id=loopscale-cli&resource=https%3A%2F%2Fmcp.example%2Fmemory"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"client":{"client_id":"theo-cli"},"request_url":"` + want + `"}`))
+		_, _ = w.Write([]byte(`{"client":{"client_id":"loopscale-cli"},"request_url":"` + want + `"}`))
 	}))
 	defer srv.Close()
 
-	c := NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	c := NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	req, err := c.GetConsentRequest("chal")
 	if err != nil {
 		t.Fatalf("GetConsentRequest: %v", err)

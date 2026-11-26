@@ -1,21 +1,21 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M40 (KEYSTONE) — the non-negotiable proof of invariant #6 for the LENS capability:
 // cross-tenant isolation + the per-verb scope wall + fail-closed hold END-TO-END through
 // the REAL Traefik edge + REAL ForwardAuth (the M38 handler) + REAL broker + a REAL
-// theo-lens container. Mirrors the rag edge e2e (edge_rag_forward_auth_e2e_test.go, M18)
+// looptrace container. Mirrors the rag edge e2e (edge_rag_forward_auth_e2e_test.go, M18)
 // but uses datasets CRUD (no LLM — pure isolation) so the proof needs no OTLP/provider.
 //
 // The stack is hermetic (docker-compose.edge.e2e.yaml): container upstream http://lens:8080,
-// consumer keys seeded in the CLOUD DB, per-tenant keys minted by the broker. theo-lens runs
-// with THEOLENS_REQUIRE_CREDENTIAL=true (M13) so the direct-to-service no-key request 401s.
+// consumer keys seeded in the CLOUD DB, per-tenant keys minted by the broker. looptrace runs
+// with LOOPSCALELENS_REQUIRE_CREDENTIAL=true (M13) so the direct-to-service no-key request 401s.
 // Test names carry the TestEdgeForwardAuth prefix so `make e2e-edge` (-run TestEdgeForwardAuth)
 // picks them up.
 //
-// Deltas vs the rag mirror: theo-lens POST /v1/datasets returns 200 (idempotent create-or-get),
+// Deltas vs the rag mirror: looptrace POST /v1/datasets returns 200 (idempotent create-or-get),
 // NOT rag's 201; the list shape is {"datasets":[{name}]}, NOT rag's {"items":[{name}]}.
 package e2e
 
@@ -32,7 +32,7 @@ import (
 )
 
 // seedLensAPIKey inserts a customer theo_live_* key in the CLOUD DB scoped for lens
-// (mirrors seedAPIKey but with lens scopes). Consumer key resolution is theo-cloud's job
+// (mirrors seedAPIKey but with lens scopes). Consumer key resolution is loop-console's job
 // (capability-agnostic); only the scopes JSON differs from the memory/rag variants.
 func seedLensAPIKey(t *testing.T, db *sql.DB, subject, tenant, scopesJSON string) string {
 	t.Helper()
@@ -42,7 +42,7 @@ func seedLensAPIKey(t *testing.T, db *sql.DB, subject, tenant, scopesJSON string
 	keyHash := hex.EncodeToString(sum[:])
 	id := "e2e-lens-" + keyHash[:16]
 	_, err := db.Exec(`
-		INSERT INTO loopzero_api_keys
+		INSERT INTO loop_runtime_api_keys
 			(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, bff_minted, created_at)
 		VALUES ($1,$2,$3,$4,'e2e-lens',$5,'theo_live_',$6::jsonb, NOW() + interval '1 hour', false, NOW())
 		ON CONFLICT (key_hash) DO NOTHING`,
@@ -54,7 +54,7 @@ func seedLensAPIKey(t *testing.T, db *sql.DB, subject, tenant, scopesJSON string
 }
 
 // lensCreateDataset POSTs a dataset to base (edge or direct); returns the status.
-// theo-lens's create-or-get returns 200 (not 201).
+// looptrace's create-or-get returns 200 (not 201).
 func lensCreateDataset(t *testing.T, base, bearer, name string) int {
 	t.Helper()
 	body, _ := json.Marshal(map[string]string{"name": name})
@@ -69,7 +69,7 @@ func lensCreateDataset(t *testing.T, base, bearer, name string) int {
 }
 
 // lensCreateDatasetDirect POSTs straight at the lens service (bypassing the edge/rewrite):
-// theo-lens's native path is /v1/datasets (no /lens prefix).
+// looptrace's native path is /v1/datasets (no /lens prefix).
 func lensCreateDatasetDirect(t *testing.T, lensURL, bearer, name string) int {
 	t.Helper()
 	body, _ := json.Marshal(map[string]string{"name": name})
@@ -137,7 +137,7 @@ func lensCreateDatasetReturningID(t *testing.T, edgeURL, bearer, name string) st
 }
 
 // lensDeleteDatasetItem DELETEs a dataset item through the edge and returns the status
-// (theo-lens: 200 dataset-detail when the dataset is in the caller's workspace — idempotent on
+// (looptrace: 200 dataset-detail when the dataset is in the caller's workspace — idempotent on
 // a missing item; 404 when the dataset is absent for the caller — the cross-tenant signal).
 func lensDeleteDatasetItem(t *testing.T, edgeURL, bearer, datasetID, traceID string) int {
 	t.Helper()
@@ -149,7 +149,7 @@ func lensDeleteDatasetItem(t *testing.T, edgeURL, bearer, datasetID, traceID str
 }
 
 // TestEdgeForwardAuthLens_DeleteVerbWallE2E — M44: the DELETE half of the per-verb wall. A
-// minted observability:read-only key is 403 on a DELETE THROUGH Traefik (theo-lens's M22
+// minted observability:read-only key is 403 on a DELETE THROUGH Traefik (looptrace's M22
 // requireScopeOnPrincipal('observability:delete')). M40 proved the POST wall; the M44 write surface adds
 // DELETE routes, so the delete verb must be walled at the edge too. The 403 fires at the scope
 // check before any resource lookup, so the ids need not exist.
@@ -266,7 +266,7 @@ func TestEdgeForwardAuthLensTenantIsolationE2E(t *testing.T) {
 }
 
 // TestEdgeForwardAuthLens_PerVerbWall — a minted observability:read-only key is 403 on a write
-// THROUGH Traefik (theo-lens's M22 requireScopeOnPrincipal('observability:write')).
+// THROUGH Traefik (looptrace's M22 requireScopeOnPrincipal('observability:write')).
 func TestEdgeForwardAuthLens_PerVerbWall(t *testing.T) {
 	edgeURL := requireE2EEdge(t)
 	pgDSN := env(t, "E2E_PG_CLOUD_DSN", "")
@@ -310,7 +310,7 @@ func TestEdgeForwardAuthLens_FailClosed(t *testing.T) {
 	seedTenant(t, db, "tn-lens-fc", "lens-fc-uid")
 	bearerC := seedLensAPIKey(t, db, "lens-fc", "tn-lens-fc", `["observability:read","observability:write"]`)
 
-	// (5) No-key through the edge → DENIED at ForwardAuth (never reaches theo-lens).
+	// (5) No-key through the edge → DENIED at ForwardAuth (never reaches looptrace).
 	req, _ := http.NewRequest(http.MethodPost, edgeURL+"/v1/lens/datasets", nil)
 	resp := mustDo(t, req)
 	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
@@ -329,12 +329,12 @@ func TestEdgeForwardAuthLens_FailClosed(t *testing.T) {
 		t.Fatalf("the customer key MUST work through the edge (mints per-tenant): want 200, got %d", code)
 	}
 
-	// (6) No-key DIRECT to the lens service → 401 (theo-lens M13 THEOLENS_REQUIRE_CREDENTIAL).
+	// (6) No-key DIRECT to the lens service → 401 (looptrace M13 LOOPSCALELENS_REQUIRE_CREDENTIAL).
 	if code := lensCreateDatasetDirect(t, lensURL, "", "direct-no-key"); code != http.StatusUnauthorized {
 		t.Fatalf("direct-to-service with no key must be 401 (M13 fail-closed), got %d", code)
 	}
 
-	// (7) The SAME RAW customer key DIRECT to the lens service → 401 (theo-lens does not know
+	// (7) The SAME RAW customer key DIRECT to the lens service → 401 (looptrace does not know
 	// it; only the edge-minted per-tenant key resolves). With (5b) this is the airtight
 	// minted≠customer proof: bearerC is 200 through the edge yet 401 direct-to-service.
 	if code := lensCreateDatasetDirect(t, lensURL, bearerC, "direct-customer-key"); code != http.StatusUnauthorized {

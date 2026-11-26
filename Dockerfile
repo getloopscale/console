@@ -9,16 +9,16 @@ FROM golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38
 WORKDIR /workspace
 
 ENV GOWORK=off
-ENV GOPRIVATE=github.com/usetheoai/*,github.com/usetheodev/*
+ENV GOPRIVATE=github.com/getloopscale/*
 
-# theo-contracts is a PINNED published module (M5 version-pin cutover — go.mod requires
-# github.com/usetheoai/theo-contracts v0.1.0, NO replace). The private module is fetched via
+# contracts is a PINNED published module (M5 version-pin cutover — go.mod requires
+# github.com/getloopscale/contracts v0.1.0, NO replace). The private module is fetched via
 # a short-lived token mounted as a buildx secret (id=gomod_token); the token is NEVER written
 # to an image layer. git is required for the module VCS fetch.
 RUN apk add --no-cache git
 
-# Post-M4 decomposition: theo-cloud is its own repo (no more cloud/ subdir).
-# Build context is theo-cloud/ root; main.go lives at cmd/main.go directly.
+# Post-M4 decomposition: loop-console is its own repo (no more cloud/ subdir).
+# Build context is loop-console/ root; main.go lives at cmd/main.go directly.
 COPY go.mod go.sum ./
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
@@ -39,8 +39,7 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     # caindo no $HOME/.gitconfig vazio. Medido: `fatal: could not read Username`.
     sh -c 'export GIT_CONFIG_GLOBAL=/tmp/gitcfg/config; \
       if [ -s /run/secrets/gomod_token ]; then \
-        git config --global url."https://x-access-token:$(cat /run/secrets/gomod_token)@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"; \
-        git config --global url."https://x-access-token:$(cat /run/secrets/gomod_token)@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"; \
+        git config --global url."https://x-access-token:$(cat /run/secrets/gomod_token)@github.com/getloopscale/".insteadOf "https://github.com/getloopscale/"; \
       fi; \
       go mod download'
 
@@ -66,9 +65,9 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath \
       -ldflags="-s -w \
-        -X github.com/usetheoai/theo-cloud/internal/version.Version=${VERSION:-dev} \
-        -X github.com/usetheoai/theo-cloud/internal/version.GitSHA=${GIT_SHA:-unknown} \
-        -X github.com/usetheoai/theo-cloud/internal/version.BuiltAt=${BUILT_AT:-unknown}" \
+        -X github.com/getloopscale/loop-console/internal/version.Version=${VERSION:-dev} \
+        -X github.com/getloopscale/loop-console/internal/version.GitSHA=${GIT_SHA:-unknown} \
+        -X github.com/getloopscale/loop-console/internal/version.BuiltAt=${BUILT_AT:-unknown}" \
       -o /cloud-api ./cmd
 
 # Distroless static runtime (find_infra_009): no shell/apk/utilities to reduce
@@ -76,9 +75,9 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
 # built-in nonroot user (uid 65532). The binary is fully static (CGO_ENABLED=0).
 FROM gcr.io/distroless/static-debian12:nonroot
 
-LABEL org.opencontainers.image.source="https://github.com/usetheoai/theo-cloud"
-LABEL org.opencontainers.image.title="theo-cloud"
-LABEL org.opencontainers.image.description="TheoCloud service"
+LABEL org.opencontainers.image.source="https://github.com/getloopscale/loop-console"
+LABEL org.opencontainers.image.title="loop-console"
+LABEL org.opencontainers.image.description="LoopConsole service"
 
 COPY --from=builder /cloud-api /cloud-api
 USER nonroot:nonroot

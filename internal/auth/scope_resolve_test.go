@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // platform-api-gateway-edge-slice1 (M6) T0.1 — ResolveAPIKey is the inbound
 // theo_live_* validation extracted from RequireScope (DRY, ADR D1) so the
@@ -34,7 +34,7 @@ func TestResolveAPIKey_ValidKey_ReturnsUserAndScopes(t *testing.T) {
 	db, mock := newAuthMock(t)
 	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 		AddRow("k1", "user-a", "tenant-a", nil, []byte(`["memory:read","memory:write"]`), nil)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(rows)
+	mock.ExpectQuery("FROM loop_runtime_api_keys").WillReturnRows(rows)
 
 	uc, scopes, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_abc"))
 	if err != nil {
@@ -54,7 +54,7 @@ func TestResolveAPIKey_UnknownOrExpiredKey_ReturnsInvalidCredential(t *testing.T
 	// (existing RequireScope D5 invariant): no distinction prevents keyspace
 	// probing (covers EC-5 boundary too — `== now` is excluded by `> NOW()`).
 	db, mock := newAuthMock(t)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("FROM loop_runtime_api_keys").WillReturnError(sql.ErrNoRows)
 
 	_, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
 	if !errors.Is(err, ErrInvalidCredential) {
@@ -66,7 +66,7 @@ func TestResolveAPIKey_DBError_ReturnsBackendUnavailable(t *testing.T) {
 	// EC-1: a DB/infra error must NOT be reported as a bad key (401) — it is a
 	// fail-closed backend-unavailable (503 at the handler), never ErrInvalidCredential.
 	db, mock := newAuthMock(t)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnError(errors.New("connection reset"))
+	mock.ExpectQuery("FROM loop_runtime_api_keys").WillReturnError(errors.New("connection reset"))
 
 	_, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
 	if !errors.Is(err, ErrBackendUnavailable) {
@@ -84,7 +84,7 @@ func TestResolveAPIKey_EmptyTenant_ReturnsInvalid(t *testing.T) {
 	db, mock := newAuthMock(t)
 	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 		AddRow("k1", "user-a", "", nil, []byte(`["memory:read"]`), nil)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(rows)
+	mock.ExpectQuery("FROM loop_runtime_api_keys").WillReturnRows(rows)
 
 	_, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
 	if !errors.Is(err, ErrInvalidCredential) {
@@ -109,7 +109,7 @@ func TestResolveAPIKey_ScopesCorruption_ReturnsBackendUnavailable(t *testing.T) 
 	db, mock := newAuthMock(t)
 	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 		AddRow("k1", "user-a", "tenant-a", nil, []byte(`not-json`), nil)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(rows)
+	mock.ExpectQuery("FROM loop_runtime_api_keys").WillReturnRows(rows)
 
 	_, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
 	if !errors.Is(err, ErrBackendUnavailable) {
@@ -122,7 +122,7 @@ func TestResolveAPIKey_PopulatesAccountID(t *testing.T) {
 	db, mock := newAuthMock(t)
 	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 		AddRow("k1", "user-a", "tenant-a", "acct-0123456789abcdef", []byte(`["memory:read"]`), nil)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(rows)
+	mock.ExpectQuery("FROM loop_runtime_api_keys").WillReturnRows(rows)
 
 	uc, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
 	if err != nil {
@@ -139,7 +139,7 @@ func TestResolveAPIKey_ToleratesNullAccountID(t *testing.T) {
 	db, mock := newAuthMock(t)
 	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 		AddRow("k1", "user-a", "tenant-a", nil, []byte(`["memory:read"]`), nil)
-	mock.ExpectQuery("FROM loopzero_api_keys").WillReturnRows(rows)
+	mock.ExpectQuery("FROM loop_runtime_api_keys").WillReturnRows(rows)
 
 	uc, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_legacy"))
 	if err != nil {

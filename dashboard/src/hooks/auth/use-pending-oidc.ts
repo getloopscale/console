@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 export type OIDCProvider = 'github' | 'google';
 
 /**
- * theo#140 — completes an OIDC click that arrived BEFORE the login flow resolved.
+ * loopscale#140 — completes an OIDC click that arrived BEFORE the login flow resolved.
  *
  * `submitOIDC` cannot POST without a flow id and a CSRF token, so a click landing before the flow
  * used to start a new flow and return. That silently DISCARDED the click: no error, no spinner, no

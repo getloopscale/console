@@ -1,4 +1,4 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { SLO, sloTone } from '@/pages/projects/components/slo-tones';
 import { Activity, AlertTriangle, Cpu, Clock, TrendingUp } from 'lucide-react';
 import { formatLatencyMs, formatRps } from '@/pages/projects/components/metric-format';

@@ -20,17 +20,17 @@ describe('MarkdownView (KB1 reading foundation)', () => {
   });
 
   it('renders a fenced code block as a copyable code block (KB10)', () => {
-    const md = ['```bash', 'theo deploy --env prod', '```'].join('\n');
+    const md = ['```bash', 'loopscale deploy --env prod', '```'].join('\n');
     render(<MarkdownView source={md} />);
     const block = screen.getByTestId('kb-code-block');
     expect(block).toBeInTheDocument();
-    expect(block).toHaveTextContent('theo deploy --env prod');
+    expect(block).toHaveTextContent('loopscale deploy --env prod');
     // a copy control exists inside the block (KB10 DoD)
     expect(block.querySelector('button')).not.toBeNull();
   });
 
   it('keeps inline code inline — not a code block (KB10 negative case)', () => {
-    const { container } = render(<MarkdownView source={'run `theo login` first'} />);
+    const { container } = render(<MarkdownView source={'run `loopscale login` first'} />);
     expect(screen.queryByTestId('kb-code-block')).toBeNull();
     expect(container.querySelector('code')).not.toBeNull();
   });

@@ -6,7 +6,7 @@ import ForceGraph2D, {
   type LinkObject,
   type NodeObject,
 } from 'react-force-graph-2d';
-import { Card, EmptyState, PageShell, Tabs } from '@usetheo/ui';
+import { Card, EmptyState, PageShell, Tabs } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -17,7 +17,7 @@ import {
 } from '@/hooks/memory/use-graph';
 
 /**
- * themory-graph-gateway-dashboard — /memory/graph.
+ * loopmem-graph-gateway-dashboard — /memory/graph.
  *
  * Entity relation graph ({nodes, edges}) rendered as an interactive
  * force-directed view via `react-force-graph-2d` (ADR graph-viz-lib supersedes
@@ -181,7 +181,7 @@ export function toGraphData(result: GraphResult): ForceGraphData {
 
 /** Sentinel id for the synthetic hub (avoids colliding with a real entity named
  *  "You"/"Você"); the node renders its `label` instead. */
-const HUB_ID = '__themory_hub__';
+const HUB_ID = '__loopmem_hub__';
 
 /**
  * View-only UX aid: add a synthetic "hub" root so the graph reads as one star of
@@ -210,7 +210,7 @@ export function withHub(data: ForceGraphData, label: string): ForceGraphData {
 }
 
 /**
- * theo-cloud#254 — above this many nodes the unfiltered graph is a hairball, so the two mitigations
+ * loop-console#254 — above this many nodes the unfiltered graph is a hairball, so the two mitigations
  * that already existed as buttons are ON by default. Below it the full graph is legible and stays
  * whole: a default that hides data on a 40-node workspace would be its own defect.
  *
@@ -225,7 +225,7 @@ export const LABEL_BUDGET = 40;
 
 
 /**
- * theo-cloud#254 — whether unconnected (degree-0) nodes are shown on FIRST paint.
+ * loop-console#254 — whether unconnected (degree-0) nodes are shown on FIRST paint.
  *
  * 1266 of 4423 nodes (29%) were unconnected, occupying area and adding nothing to a graph whose whole
  * subject is relations. "Hide N unconnected" already existed; it was just off, so the operator had to
@@ -241,7 +241,7 @@ export function defaultShowIsolated(nodeCount: number, isolatedCount: number): b
 }
 
 /**
- * theo-cloud#254 — the ids whose label is drawn at the default zoom: the `limit` most-CONNECTED nodes.
+ * loop-console#254 — the ids whose label is drawn at the default zoom: the `limit` most-CONNECTED nodes.
  *
  * Every connected node used to be labelled unconditionally (`!n.isolated`), so 3157 labels overlapped
  * into an unreadable wash — the single largest contributor to the illegibility, and the one that

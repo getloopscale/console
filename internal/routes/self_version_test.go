@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/serviceversions"
-	"github.com/usetheoai/theo-cloud/internal/version"
+	"github.com/getloopscale/loop-console/internal/serviceversions"
+	"github.com/getloopscale/loop-console/internal/version"
 )
 
 type stubCollector struct {
@@ -27,7 +27,7 @@ func (s *stubCollector) Collect(context.Context) serviceversions.Report {
 var fixedNow = time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 
 func stamped() version.Info {
-	return version.Info{Name: "theo-cloud", Version: "0.71.0", GitSHA: "abc1234", BuiltAt: "2026-07-30T12:00:00Z", Node: "go1.26.5"}
+	return version.Info{Name: "loop-console", Version: "0.71.0", GitSHA: "abc1234", BuiltAt: "2026-07-30T12:00:00Z", Node: "go1.26.5"}
 }
 
 // The gateway must appear on the panel it serves, and it must get there WITHOUT an HTTP call to
@@ -37,7 +37,7 @@ func TestSelfRowIsAppendedFromInProcessMetadata(t *testing.T) {
 	inner := &stubCollector{report: serviceversions.Report{
 		CollectedAt: fixedNow,
 		Services: []serviceversions.ServiceStatus{
-			serviceversions.OK("theo-memory", "1.2.3", "", fixedNow),
+			serviceversions.OK("loopmem", "1.2.3", "", fixedNow),
 		},
 	}}
 
@@ -48,8 +48,8 @@ func TestSelfRowIsAppendedFromInProcessMetadata(t *testing.T) {
 		t.Fatalf("services = %d, want 2 (inner + self)", len(got.Services))
 	}
 	self := got.Services[len(got.Services)-1]
-	if self.Name() != "theo-cloud" {
-		t.Errorf("self-row name = %q, want theo-cloud", self.Name())
+	if self.Name() != "loop-console" {
+		t.Errorf("self-row name = %q, want loop-console", self.Name())
 	}
 	if self.State() != serviceversions.StateOK {
 		t.Errorf("self-row state = %v, want ok for a stamped build", self.State())
@@ -62,7 +62,7 @@ func TestSelfRowIsAppendedFromInProcessMetadata(t *testing.T) {
 // array. The decorator must copy.
 func TestDecoratorDoesNotMutateTheInnerReport(t *testing.T) {
 	backing := make([]serviceversions.ServiceStatus, 1, 8) // spare capacity ON PURPOSE
-	backing[0] = serviceversions.OK("theo-memory", "1.2.3", "", fixedNow)
+	backing[0] = serviceversions.OK("loopmem", "1.2.3", "", fixedNow)
 	inner := &stubCollector{report: serviceversions.Report{CollectedAt: fixedNow, Services: backing}}
 
 	dec := NewSelfReportingCollector(inner, stamped(), func() time.Time { return fixedNow }, nil)
@@ -73,7 +73,7 @@ func TestDecoratorDoesNotMutateTheInnerReport(t *testing.T) {
 	// no callee, escreva ele in-place ou nao. Passaria contra um append-in-place quebrado, diluindo
 	// o sinal de falha. A assercao abaixo e a que faz o trabalho: `backing` tem cap 8 e len 1, entao
 	// `backing[:2][1]` alcanca o slot 1 do array diretamente. (Review LOW-1.)
-	if got := backing[:2][1].Name(); got == "theo-cloud" {
+	if got := backing[:2][1].Name(); got == "loop-console" {
 		t.Fatal("EC-1: the decorator wrote the self-row into the inner collector's backing array " +
 			"instead of copying; two concurrent requests would corrupt each other's report")
 	}
@@ -95,7 +95,7 @@ func TestDecoratorDoesNotMutateTheInnerReport(t *testing.T) {
 // (dashboard/src/hooks/use-service-versions.test.ts): este teste garante so o estado.
 func TestUnstampedBuildReportsNoProvenanceNotOk(t *testing.T) {
 	inner := &stubCollector{report: serviceversions.Report{CollectedAt: fixedNow}}
-	unstamped := version.Info{Name: "theo-cloud", Version: "dev", GitSHA: "unknown", BuiltAt: "unknown"}
+	unstamped := version.Info{Name: "loop-console", Version: "dev", GitSHA: "unknown", BuiltAt: "unknown"}
 
 	got := NewSelfReportingCollector(inner, unstamped, func() time.Time { return fixedNow }, nil).
 		Collect(context.Background())
@@ -131,8 +131,8 @@ func TestSelfRowEmitsItsOwnMetricObservation(t *testing.T) {
 	}
 	// A versao acompanha a observacao quando — e SO quando — o estado e' ok. E' o que
 	// permite a metrica info publicar a revisao sem um segundo caminho de coleta.
-	if seen[0] != "theo-cloud:ok:"+stamped().Version {
-		t.Errorf("observation = %q, want %q", seen[0], "theo-cloud:ok:"+stamped().Version)
+	if seen[0] != "loop-console:ok:"+stamped().Version {
+		t.Errorf("observation = %q, want %q", seen[0], "loop-console:ok:"+stamped().Version)
 	}
 }
 
@@ -140,7 +140,7 @@ func TestSelfRowEmitsItsOwnMetricObservation(t *testing.T) {
 func TestCollectIsSafeUnderConcurrentCalls(t *testing.T) {
 	inner := &stubCollector{report: serviceversions.Report{
 		CollectedAt: fixedNow,
-		Services:    []serviceversions.ServiceStatus{serviceversions.OK("theo-memory", "1.2.3", "", fixedNow)},
+		Services:    []serviceversions.ServiceStatus{serviceversions.OK("loopmem", "1.2.3", "", fixedNow)},
 	}}
 	dec := NewSelfReportingCollector(inner, stamped(), func() time.Time { return fixedNow }, nil)
 

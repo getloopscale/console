@@ -1,7 +1,7 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/pages/rag/components/markdown-view';
 import { KbEditor } from '@/pages/rag/components/kb-editor';
@@ -29,7 +29,7 @@ import {
  * Open Wiki — /rag/wiki. A single folder-browser (like /workspaces) over per-tenant
  * markdown pages: navigate folders, create folders + pages, and read/edit a page in a
  * master-detail split (the list collapses to a rail while a page or the new-page editor
- * is open). A wiki page is a source_type='wiki' theo-rag document whose OKF `name` is its
+ * is open). A wiki page is a source_type='wiki' looprag document whose OKF `name` is its
  * path; a "folder" is a path prefix (empty folders carry a hidden `.keep` marker).
  */
 
@@ -43,7 +43,7 @@ function folderOf(name: string): string {
 
 /**
  * Build an OKF (Open Knowledge Format) frontmatter fence from the structured fields and
- * prepend it to the body. The data-plane parser (theo-rag) splits this back into
+ * prepend it to the body. The data-plane parser (looprag) splits this back into
  * `documents.metadata.okf` + the stripped body. Only emits a fence when a non-default
  * field is set, so a plain page stays plain.
  */

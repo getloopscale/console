@@ -11,7 +11,7 @@ import {
   Input,
   PageShell,
   type DataTableColumn,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
@@ -274,7 +274,7 @@ export function BundleDetailPage() {
                       chegar na skill nem descobrir QUAL revisão aquele canal serve hoje — que é a
                       única pergunta que importa quando se olha o conteúdo de um pacote.
 
-                      É a lição que o `CLAUDE.md` deste repositório registra sobre o theo-trust:
+                      É a lição que o `CLAUDE.md` deste repositório registra sobre o loopguardrails:
                       uma lista que não devolve o caminho da próxima ação vira um painel só de
                       olhar, e a tela de destino vira código morto em produção. */}
                   <Link

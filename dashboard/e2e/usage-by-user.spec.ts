@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M142 DoD-2 — a jornada até o consumo por end-user, POR CLIQUE desde a raiz, afirmando CONTEÚDO.
 //
@@ -80,7 +80,7 @@ test.describe('M142 — o consumo por end-user alcançado pelo produto', () => {
 
     // (b) …e o dado NÃO some por quebrar. Um `M` sozinho tem comprimento zero: o navegador o
     // reporta como hidden, e o operador não vê nada. Foi o que esta jornada mediu antes do
-    // `markedPoints` (@usetheo/ui 0.34.0) — a asserção (a) já passava e a tela estava vazia.
+    // `markedPoints` (@getloopscale/ui 0.34.0) — a asserção (a) já passava e a tela estava vazia.
     // Sem esta segunda asserção, o e2e teria ficado verde sobre um gráfico que não desenha.
     await expect(primeiro.locator('[data-slot="trend-chart-dot"]').first()).toBeVisible();
 

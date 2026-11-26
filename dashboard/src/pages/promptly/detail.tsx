@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Button, PageShell } from '@usetheo/ui';
+import { Button, PageShell } from '@getloopscale/ui';
 import {
   dependentRows,
   hasComposition,
@@ -101,7 +101,7 @@ const REVISIONS_LIMIT = 10;
 
 
 
-/** A linha crua do agregado, como o BFF a repassa do `theo-lens`. */
+/** A linha crua do agregado, como o BFF a repassa do `looptrace`. */
 interface RawAggregateRow {
   readonly revision: number;
   readonly resolutions: number;

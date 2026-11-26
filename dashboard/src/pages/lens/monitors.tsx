@@ -15,7 +15,7 @@ import {
   type Severity,
   SeverityBadge,
   Skeleton,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
@@ -38,15 +38,15 @@ import { alertSeverity } from './alerts';
 
 /**
  * M44 — /lens/monitors. List / create / delete monitors via the read+write lens management BFF
- * (`/v1/dashboard/lens/monitors`). The create body matches theo-lens:
+ * (`/v1/dashboard/lens/monitors`). The create body matches looptrace:
  * {evaluatorId, operator:"lt"|"lte"|"gt"|"gte"|"eq"|"label_eq", threshold?}.
  */
 
 
 /**
- * theo-cloud#259 — the slice of an alert rule this screen needs to show a monitor's live state.
+ * loop-console#259 — the slice of an alert rule this screen needs to show a monitor's live state.
  *
- * A monitor lives in theo-lens; the state of the thing that WATCHES it lives here, in theo-cloud's
+ * A monitor lives in looptrace; the state of the thing that WATCHES it lives here, in loop-console's
  * `lens_alert_rules` (the M135 evaluator writes `status` / `last_evaluated_at` on its 60s tick).
  * `stale` is derived server-side — the rule is enabled but has gone unevaluated for several ticks —
  * and the client cannot compute it, because the cadence is not published.
@@ -59,7 +59,7 @@ interface MonitorState {
 }
 
 /**
- * theo-cloud#259 — the honest state of a monitor, extending `alertSeverity` (alerts.tsx) with the
+ * loop-console#259 — the honest state of a monitor, extending `alertSeverity` (alerts.tsx) with the
  * three cases that exist for a MONITOR but not for a rule seen on its own.
  *
  * Every branch that is not a measured, current, cleared evaluation must say so. The M135 risk
@@ -82,7 +82,7 @@ export function monitorState(rule: MonitorRule | undefined, rulesFailed: boolean
   return { severity: alertSeverity(rule.status, rule.enabled), label: rule.status };
 }
 
-// The monitor operators theo-lens accepts. `label_eq` matches a label string (no numeric threshold);
+// The monitor operators looptrace accepts. `label_eq` matches a label string (no numeric threshold);
 // the others compare the evaluator score to a threshold.
 const OPERATORS = [
   { value: 'gte', label: '≥ threshold' },

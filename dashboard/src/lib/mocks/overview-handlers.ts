@@ -32,7 +32,7 @@ import { registerRoute } from './server';
  * para cada rota exatamente por isso.
  */
 
-/** O prefixo depende de `window.__THEO_CONFIG__.API_URL`: vazio em dev, `/api` atrás do proxy. */
+/** O prefixo depende de `window.__LOOPSCALE_CONFIG__.API_URL`: vazio em dev, `/api` atrás do proxy. */
 const PREFIXOS = ['', '/api'] as const;
 
 /**

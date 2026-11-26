@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package ci
 
@@ -235,9 +235,9 @@ func TestCloudHealthcheckRespectsTheProbeVerdict(t *testing.T) {
 		t.Fatalf("compose do e2e: %v", err)
 	}
 
-	test := strings.Join(compose.Services["theo-cloud"].Healthcheck.Test, " ")
+	test := strings.Join(compose.Services["loop-console"].Healthcheck.Test, " ")
 	if test == "" {
-		t.Fatal("o servico theo-cloud perdeu o healthcheck — a sonda existe e ninguem a le")
+		t.Fatal("o servico loop-console perdeu o healthcheck — a sonda existe e ninguem a le")
 	}
 	if !strings.Contains(test, "/ready") {
 		t.Errorf("o healthcheck tem de sondar /ready (readiness), nao /health: %q", test)

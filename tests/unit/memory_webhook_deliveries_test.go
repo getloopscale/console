@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Delivery Replay plan — T8.2 RED tests for the replay handler.
 //
@@ -30,8 +30,8 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 func newDeliveriesHandler(t *testing.T) (*routes.MemoryWebhookDeliveriesHandler, sqlmock.Sqlmock) {

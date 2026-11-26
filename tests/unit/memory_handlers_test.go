@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Plan 1 of dashboard-memory-section-roadmap.md, T1.3-T1.5.
 // Tests for the 3 memory handlers (List / Metrics / Forget) — covering
@@ -23,9 +23,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
-	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/loopmem"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // fakeTheMemory captures inbound arguments + lets each test program a
@@ -33,7 +33,7 @@ import (
 // the handler can be wired without a real HTTP server.
 type fakeTheMemory struct {
 	lastUserID        string
-	lastOpts          themory.ListOptions
+	lastOpts          loopmem.ListOptions
 	lastForget        string
 	lastForgetHard    bool
 	lastEntitiesScope string
@@ -44,60 +44,60 @@ type fakeTheMemory struct {
 	lastRecallAsOf    string
 	lastReflectIter   int
 
-	listResp          *themory.ListResult
-	listErr           error
+	listResp *loopmem.ListResult
+	listErr  error
 	// issue #6 (export pagination): when set, List serves pages keyed by the
 	// inbound cursor ("" = first page) and records EVERY call's opts. listLimitCap
 	// (>0) makes List reject opts.Limit > cap with a 422-shaped error, reproducing
 	// the provider's `limit <= 100` zod cap.
-	listPagesByCursor map[string]*themory.ListResult
-	sessionsResp      *themory.SessionsResult
-	listAllOpts       []themory.ListOptions
-	listLimitCap      int
-	metricsResp       *themory.MetricsResult
-	metricsErr        error
-	forgetErr         error
-	entitiesResp      *themory.EntitiesResult
-	entitiesErr       error
-	graphResp         *themory.GraphResult
-	graphErr          error
-	lastGraphScope    string
-	episodesResp      *themory.EpisodesResult
-	episodesErr       error
-	lastEpisodesScope string
-	lastEpisodeOpts   themory.EpisodeOptions
-	rememberResp      *themory.RememberResult
-	rememberErr       error
-	recallResp        *themory.RecallResult
-	recallErr         error
-	reflectResp       *themory.ReflectResult
-	reflectErr        error
-	skillsResp        *themory.SkillsResult
-	skillsErr         error
-	lastSkillsRepoID  string
-	addSkillResp      *themory.CreatedSkill
-	addSkillErr       error
-	lastAddSkillDraft themory.SkillDraft
+	listPagesByCursor    map[string]*loopmem.ListResult
+	sessionsResp         *loopmem.SessionsResult
+	listAllOpts          []loopmem.ListOptions
+	listLimitCap         int
+	metricsResp          *loopmem.MetricsResult
+	metricsErr           error
+	forgetErr            error
+	entitiesResp         *loopmem.EntitiesResult
+	entitiesErr          error
+	graphResp            *loopmem.GraphResult
+	graphErr             error
+	lastGraphScope       string
+	episodesResp         *loopmem.EpisodesResult
+	episodesErr          error
+	lastEpisodesScope    string
+	lastEpisodeOpts      loopmem.EpisodeOptions
+	rememberResp         *loopmem.RememberResult
+	rememberErr          error
+	recallResp           *loopmem.RecallResult
+	recallErr            error
+	reflectResp          *loopmem.ReflectResult
+	reflectErr           error
+	skillsResp           *loopmem.SkillsResult
+	skillsErr            error
+	lastSkillsRepoID     string
+	addSkillResp         *loopmem.CreatedSkill
+	addSkillErr          error
+	lastAddSkillDraft    loopmem.SkillDraft
 	forgetSkillErr       error
 	lastForgetSkillID    string
-	skillsAllResp        *themory.SkillsAllResult
+	skillsAllResp        *loopmem.SkillsAllResult
 	skillsAllErr         error
 	lastSkillsAllSubject string
-	lastSkillsAllOpts    themory.SkillsAllOptions
+	lastSkillsAllOpts    loopmem.SkillsAllOptions
 }
 
-func (f *fakeTheMemory) ListSkills(_ context.Context, repoID string) (*themory.SkillsResult, error) {
+func (f *fakeTheMemory) ListSkills(_ context.Context, repoID string) (*loopmem.SkillsResult, error) {
 	f.lastSkillsRepoID = repoID
 	return f.skillsResp, f.skillsErr
 }
 
-func (f *fakeTheMemory) ListSkillsAll(_ context.Context, subject string, opts themory.SkillsAllOptions) (*themory.SkillsAllResult, error) {
+func (f *fakeTheMemory) ListSkillsAll(_ context.Context, subject string, opts loopmem.SkillsAllOptions) (*loopmem.SkillsAllResult, error) {
 	f.lastSkillsAllSubject = subject
 	f.lastSkillsAllOpts = opts
 	return f.skillsAllResp, f.skillsAllErr
 }
 
-func (f *fakeTheMemory) AddSkill(_ context.Context, repoID string, draft themory.SkillDraft) (*themory.CreatedSkill, error) {
+func (f *fakeTheMemory) AddSkill(_ context.Context, repoID string, draft loopmem.SkillDraft) (*loopmem.CreatedSkill, error) {
 	f.lastSkillsRepoID = repoID
 	f.lastAddSkillDraft = draft
 	return f.addSkillResp, f.addSkillErr
@@ -109,7 +109,7 @@ func (f *fakeTheMemory) ForgetSkill(_ context.Context, repoID, skillID string) e
 	return f.forgetSkillErr
 }
 
-func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error) {
+func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts loopmem.RememberOptions) (*loopmem.RememberResult, error) {
 	f.lastUserID = userID
 	f.lastRememberText = text
 	f.lastRememberAttr = opts.AttributedTo
@@ -117,45 +117,45 @@ func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts th
 	return f.rememberResp, f.rememberErr
 }
 
-func (f *fakeTheMemory) Recall(_ context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error) {
+func (f *fakeTheMemory) Recall(_ context.Context, userID, query string, opts loopmem.RecallOptions) (*loopmem.RecallResult, error) {
 	f.lastUserID = userID
 	f.lastRecallQuery = query
 	f.lastRecallAsOf = opts.AsOf
 	return f.recallResp, f.recallErr
 }
 
-func (f *fakeTheMemory) Reflect(_ context.Context, userID string, opts themory.ReflectOptions) (*themory.ReflectResult, error) {
+func (f *fakeTheMemory) Reflect(_ context.Context, userID string, opts loopmem.ReflectOptions) (*loopmem.ReflectResult, error) {
 	f.lastUserID = userID
 	f.lastReflectIter = opts.MaxIterations
 	return f.reflectResp, f.reflectErr
 }
 
-func (f *fakeTheMemory) List(_ context.Context, userID string, opts themory.ListOptions) (*themory.ListResult, error) {
+func (f *fakeTheMemory) List(_ context.Context, userID string, opts loopmem.ListOptions) (*loopmem.ListResult, error) {
 	f.lastUserID = userID
 	f.lastOpts = opts
 	f.listAllOpts = append(f.listAllOpts, opts)
 	if f.listLimitCap > 0 && opts.Limit > f.listLimitCap {
 		// Reproduce the provider's 422 INVALID_QUERY when page size exceeds the cap.
-		return nil, errors.New(`themory: upstream status 422: {"code":"INVALID_QUERY","message":"Number must be less than or equal to 100"}`)
+		return nil, errors.New(`loopmem: upstream status 422: {"code":"INVALID_QUERY","message":"Number must be less than or equal to 100"}`)
 	}
 	if f.listPagesByCursor != nil {
 		if page, ok := f.listPagesByCursor[opts.Cursor]; ok {
 			return page, nil
 		}
-		return &themory.ListResult{}, nil
+		return &loopmem.ListResult{}, nil
 	}
 	return f.listResp, f.listErr
 }
 
-func (f *fakeTheMemory) ListSessions(_ context.Context, userID string) (*themory.SessionsResult, error) {
+func (f *fakeTheMemory) ListSessions(_ context.Context, userID string) (*loopmem.SessionsResult, error) {
 	f.lastUserID = userID
 	if f.sessionsResp != nil {
 		return f.sessionsResp, nil
 	}
-	return &themory.SessionsResult{Sessions: []themory.SessionRow{}}, nil
+	return &loopmem.SessionsResult{Sessions: []loopmem.SessionRow{}}, nil
 }
 
-func (f *fakeTheMemory) Metrics(_ context.Context, userID string) (*themory.MetricsResult, error) {
+func (f *fakeTheMemory) Metrics(_ context.Context, userID string) (*loopmem.MetricsResult, error) {
 	f.lastUserID = userID
 	return f.metricsResp, f.metricsErr
 }
@@ -192,7 +192,7 @@ func TestMemoryList_RejectsUnauthenticated(t *testing.T) {
 // the client should receive the authenticated subject.
 func TestMemoryList_DerivesUserIDFromAuthNotQuery(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.listResp = &themory.ListResult{Memories: []themory.MemoryRow{}}
+	fake.listResp = &loopmem.ListResult{Memories: []loopmem.MemoryRow{}}
 
 	req := authedRequest("GET", "/v1/memory/list?subject=attacker-supplied",
 		&auth.UserContext{Subject: "user-A", TenantID: "tenant-A"})
@@ -209,7 +209,7 @@ func TestMemoryList_DerivesUserIDFromAuthNotQuery(t *testing.T) {
 
 func TestMemoryList_PropagatesPaginationParams(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.listResp = &themory.ListResult{Memories: []themory.MemoryRow{}}
+	fake.listResp = &loopmem.ListResult{Memories: []loopmem.MemoryRow{}}
 
 	req := authedRequest("GET", "/v1/memory/list?limit=50&offset=100&category=facts",
 		&auth.UserContext{Subject: "u", TenantID: "t"})
@@ -230,7 +230,7 @@ func TestMemoryList_PropagatesPaginationParams(t *testing.T) {
 // default), never forwarded as-is.
 func TestMemoryList_DoesNotForwardLimitAboveProviderCap(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.listResp = &themory.ListResult{Memories: []themory.MemoryRow{}}
+	fake.listResp = &loopmem.ListResult{Memories: []loopmem.MemoryRow{}}
 
 	req := authedRequest("GET", "/v1/memory/list?limit=150",
 		&auth.UserContext{Subject: "u", TenantID: "t"})
@@ -250,7 +250,7 @@ func TestMemoryList_EmptyResultSerialisesAsArrayNotNull(t *testing.T) {
 	h, fake := newMemoryHandler(t)
 	// Simulate TheMemory returning literally nil — the client wraps to
 	// empty slice, but defense-in-depth here too.
-	fake.listResp = &themory.ListResult{Memories: nil}
+	fake.listResp = &loopmem.ListResult{Memories: nil}
 
 	rec := httptest.NewRecorder()
 	h.List(rec, authedRequest("GET", "/v1/memory/list", &auth.UserContext{Subject: "u", TenantID: "t"}))
@@ -299,7 +299,7 @@ func TestMemoryMetrics_RejectsUnauthenticated(t *testing.T) {
 // must serialise it as JSON numbers, not omit fields or send strings.
 func TestMemoryMetrics_EmptyPgVectorRendersAsZeroNotNaN(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.metricsResp = &themory.MetricsResult{} // all zeros
+	fake.metricsResp = &loopmem.MetricsResult{} // all zeros
 
 	rec := httptest.NewRecorder()
 	h.Metrics(rec, authedRequest("GET", "/v1/memory/metrics", &auth.UserContext{Subject: "u", TenantID: "t"}))
@@ -328,7 +328,7 @@ func TestMemoryMetrics_EmptyPgVectorRendersAsZeroNotNaN(t *testing.T) {
 
 func TestMemoryMetrics_PopulatedEchosCorrectly(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.metricsResp = &themory.MetricsResult{
+	fake.metricsResp = &loopmem.MetricsResult{
 		TotalMemories: 42, RetrievalAPIUsage: 1000, AddEvents: 5, EntityCount: 7,
 	}
 
@@ -393,7 +393,7 @@ func TestMemoryForget_OwnMemoryReturns204(t *testing.T) {
 // because the memoryID + X-Theo-User-Id combination doesn't match.
 func TestMemoryForget_CrossTenantReturns404NotForbidden(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.forgetErr = themory.ErrNotFound
+	fake.forgetErr = loopmem.ErrNotFound
 
 	rec := httptest.NewRecorder()
 	h.Forget(rec, memoryForgetReq(t, "mem-someoneeleses", &auth.UserContext{Subject: "user-B", TenantID: "tenant-B"}))
@@ -488,7 +488,7 @@ func TestMemoryForget_NoEventOnNotFound(t *testing.T) {
 	h, fake := newMemoryHandler(t)
 	pub := &fakePublisher{}
 	h.WithEventPublisher(pub)
-	fake.forgetErr = themory.ErrNotFound
+	fake.forgetErr = loopmem.ErrNotFound
 
 	rec := httptest.NewRecorder()
 	h.Forget(rec, memoryForgetReq(t, "mem-aaaa1111bbbb2222", &auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
@@ -534,21 +534,21 @@ func TestMemoryForget_UpstreamErrorReturns502(t *testing.T) {
 
 // Extend fakeTheMemory with the Entities method. (Anonymous embedding
 // would risk forgetting an interface method — explicit add.)
-func (f *fakeTheMemory) Entities(_ context.Context, userID, scope string) (*themory.EntitiesResult, error) {
+func (f *fakeTheMemory) Entities(_ context.Context, userID, scope string) (*loopmem.EntitiesResult, error) {
 	f.lastUserID = userID
 	f.lastEntitiesScope = scope
 	return f.entitiesResp, f.entitiesErr
 }
 
-// Graph — themory-graph-gateway-dashboard. Mirrors Entities.
-func (f *fakeTheMemory) Graph(_ context.Context, userID, scope string, _ bool) (*themory.GraphResult, error) {
+// Graph — loopmem-graph-gateway-dashboard. Mirrors Entities.
+func (f *fakeTheMemory) Graph(_ context.Context, userID, scope string, _ bool) (*loopmem.GraphResult, error) {
 	f.lastUserID = userID
 	f.lastGraphScope = scope
 	return f.graphResp, f.graphErr
 }
 
 // Episodes — episodes-gateway-dashboard. Mirrors Entities.
-func (f *fakeTheMemory) Episodes(_ context.Context, userID, scope string, opts themory.EpisodeOptions) (*themory.EpisodesResult, error) {
+func (f *fakeTheMemory) Episodes(_ context.Context, userID, scope string, opts loopmem.EpisodeOptions) (*loopmem.EpisodesResult, error) {
 	f.lastUserID = userID
 	f.lastEpisodesScope = scope
 	f.lastEpisodeOpts = opts
@@ -602,8 +602,8 @@ func TestMemoryEpisodes_InvalidLimitReturns400(t *testing.T) {
 func TestMemoryEpisodes_HappyPathForwardsOptsAndReturnsItems(t *testing.T) {
 	h, fake := newMemoryHandler(t)
 	cur := "CUR1"
-	fake.episodesResp = &themory.EpisodesResult{
-		Items:      []themory.EpisodeItem{{ID: "ep-1", Text: "moved to Lisbon", ScopeType: "user", CreatedAt: "2026-06-22T10:00:00.000Z"}},
+	fake.episodesResp = &loopmem.EpisodesResult{
+		Items:      []loopmem.EpisodeItem{{ID: "ep-1", Text: "moved to Lisbon", ScopeType: "user", CreatedAt: "2026-06-22T10:00:00.000Z"}},
 		NextCursor: &cur,
 	}
 	rec := httptest.NewRecorder()
@@ -652,7 +652,7 @@ func TestMemoryEntities_InvalidScopeReturns400(t *testing.T) {
 // T2.3 — D1 + D5 inheritance: subject derived from auth, NEVER query.
 func TestMemoryEntities_SubjectFromAuthNotQuery(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.entitiesResp = &themory.EntitiesResult{Entities: []themory.Entity{}}
+	fake.entitiesResp = &loopmem.EntitiesResult{Entities: []loopmem.Entity{}}
 
 	rec := httptest.NewRecorder()
 	req := authedRequest("GET", "/v1/memory/entities?scope=user&subject=attacker",
@@ -672,7 +672,7 @@ func TestMemoryEntities_AllValidScopesAccepted(t *testing.T) {
 	for _, sc := range []string{"user", "session", "agent", "repo"} {
 		t.Run(sc, func(t *testing.T) {
 			h, fake := newMemoryHandler(t)
-			fake.entitiesResp = &themory.EntitiesResult{Entities: []themory.Entity{}}
+			fake.entitiesResp = &loopmem.EntitiesResult{Entities: []loopmem.Entity{}}
 			rec := httptest.NewRecorder()
 			h.Entities(rec, authedRequest("GET", "/v1/memory/entities?scope="+sc,
 				&auth.UserContext{Subject: "u", TenantID: "t"}))
@@ -689,7 +689,7 @@ func TestMemoryEntities_AllValidScopesAccepted(t *testing.T) {
 // T2.3 — D3 inheritance: empty entities → `[]` not null.
 func TestMemoryEntities_EmptyResultSerialisesAsArray(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.entitiesResp = &themory.EntitiesResult{Entities: nil}
+	fake.entitiesResp = &loopmem.EntitiesResult{Entities: nil}
 
 	rec := httptest.NewRecorder()
 	h.Entities(rec, authedRequest("GET", "/v1/memory/entities?scope=user",
@@ -719,14 +719,14 @@ func TestMemoryEntities_UpstreamErrorReturns502(t *testing.T) {
 }
 
 // =============================================================================
-// GET /v1/memory/graph — themory-graph-gateway-dashboard
+// GET /v1/memory/graph — loopmem-graph-gateway-dashboard
 // =============================================================================
 
 func TestMemoryGraph_ReturnsNodesAndEdges(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.graphResp = &themory.GraphResult{
-		Nodes: []themory.GraphNode{{ID: "John Smith", ScopeType: "user", MemoryCount: 2}},
-		Edges: []themory.GraphEdge{{Source: "John Smith", Relation: "works at", Target: "Google", MemoryCount: 1}},
+	fake.graphResp = &loopmem.GraphResult{
+		Nodes: []loopmem.GraphNode{{ID: "John Smith", ScopeType: "user", MemoryCount: 2}},
+		Edges: []loopmem.GraphEdge{{Source: "John Smith", Relation: "works at", Target: "Google", MemoryCount: 1}},
 	}
 	rec := httptest.NewRecorder()
 	h.Graph(rec, authedRequest("GET", "/v1/memory/graph?scope=user",
@@ -759,7 +759,7 @@ func TestMemoryGraph_InvalidScopeReturns400(t *testing.T) {
 
 func TestMemoryGraph_EmptyResultSerialisesAsArrays(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.graphResp = &themory.GraphResult{Nodes: nil, Edges: nil}
+	fake.graphResp = &loopmem.GraphResult{Nodes: nil, Edges: nil}
 	rec := httptest.NewRecorder()
 	h.Graph(rec, authedRequest("GET", "/v1/memory/graph?scope=user",
 		&auth.UserContext{Subject: "u", TenantID: "t"}))
@@ -809,7 +809,7 @@ func TestMemoryRemember_RejectsUnauthenticated(t *testing.T) {
 
 func TestMemoryRemember_DerivesSubjectFromAuthAndDelegates(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1", Content: "Paulo likes oat milk"}}}
+	fake.rememberResp = &loopmem.RememberResult{Items: []loopmem.MemoryRow{{ID: "m1", Content: "Paulo likes oat milk"}}}
 
 	rec := httptest.NewRecorder()
 	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember",
@@ -842,7 +842,7 @@ func TestMemoryRemember_MissingTextReturns400(t *testing.T) {
 
 func TestMemoryRecall_DelegatesAndReturnsResults(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.recallResp = &themory.RecallResult{Results: []themory.RecallHit{{ID: "m1", Content: "oat milk", Score: 0.92}}}
+	fake.recallResp = &loopmem.RecallResult{Results: []loopmem.RecallHit{{ID: "m1", Content: "oat milk", Score: 0.92}}}
 
 	rec := httptest.NewRecorder()
 	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall",
@@ -872,7 +872,7 @@ func TestMemoryRecall_MissingQueryReturns400(t *testing.T) {
 
 func TestMemoryReflect_DelegatesAndPassesThroughResult(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.reflectResp = &themory.ReflectResult{Raw: []byte(`{"consolidated":3}`)}
+	fake.reflectResp = &loopmem.ReflectResult{Raw: []byte(`{"consolidated":3}`)}
 
 	rec := httptest.NewRecorder()
 	h.Reflect(rec, authedBodyReq("POST", "/v1/memory/reflect", `{"maxIterations":4}`,
@@ -963,7 +963,7 @@ func TestMemoryVerbs_UpstreamErrorReturns502(t *testing.T) {
 // Phase 2A — attribution-write: attributedTo threaded to the client.
 func TestMemoryRemember_AttributedToThreaded(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1"}}}
+	fake.rememberResp = &loopmem.RememberResult{Items: []loopmem.MemoryRow{{ID: "m1"}}}
 	rec := httptest.NewRecorder()
 	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember",
 		`{"text":"Paulo likes oat milk","attributedTo":"paulo"}`,
@@ -983,7 +983,7 @@ func TestMemoryRemember_AttributedToThreaded(t *testing.T) {
 // Without a peer, remember keeps the default extraction path (infer unset).
 func TestMemoryRemember_NoPeerKeepsDefaultInfer(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1"}}}
+	fake.rememberResp = &loopmem.RememberResult{Items: []loopmem.MemoryRow{{ID: "m1"}}}
 	rec := httptest.NewRecorder()
 	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember", `{"text":"plain fact"}`,
 		&auth.UserContext{Subject: "u", TenantID: "t"}))
@@ -998,7 +998,7 @@ func TestMemoryRemember_NoPeerKeepsDefaultInfer(t *testing.T) {
 // Phase 2A — bi-temporal: valid asOf threaded to the client.
 func TestMemoryRecall_AsOfThreaded(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.recallResp = &themory.RecallResult{Results: []themory.RecallHit{}}
+	fake.recallResp = &loopmem.RecallResult{Results: []loopmem.RecallHit{}}
 	rec := httptest.NewRecorder()
 	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall",
 		`{"query":"x","asOf":"2026-06-01T00:00:00Z"}`,
@@ -1081,7 +1081,7 @@ func TestMemorySkills_RejectsRepoIDWithSeparator(t *testing.T) {
 // D3: the handler namespaces the upstream repoId as {subject}:{repoId}.
 func TestMemorySkills_NamespacesRepoIDBySubject(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.skillsResp = &themory.SkillsResult{Skills: []themory.Skill{{ID: "s1"}}, Truncated: false}
+	fake.skillsResp = &loopmem.SkillsResult{Skills: []loopmem.Skill{{ID: "s1"}}, Truncated: false}
 	rec := httptest.NewRecorder()
 	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "sub-123", TenantID: "t"}))
 	if rec.Code != http.StatusOK {
@@ -1094,7 +1094,7 @@ func TestMemorySkills_NamespacesRepoIDBySubject(t *testing.T) {
 
 func TestMemorySkills_EmptyResultIsArray(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.skillsResp = &themory.SkillsResult{Skills: nil}
+	fake.skillsResp = &loopmem.SkillsResult{Skills: nil}
 	rec := httptest.NewRecorder()
 	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "u", TenantID: "t"}))
 	if rec.Code != http.StatusOK {
@@ -1122,8 +1122,8 @@ func TestMemorySkills_UpstreamErrorReturns502(t *testing.T) {
 // ADR D1: the handler passes the BARE authenticated subject (NOT namespaced).
 func TestMemorySkillsAll_PassesBareSubjectNotNamespaced(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.skillsAllResp = &themory.SkillsAllResult{
-		Skills: []themory.SkillWithRepo{{Skill: themory.Skill{ID: "s1"}, RepoID: "repo-a"}},
+	fake.skillsAllResp = &loopmem.SkillsAllResult{
+		Skills: []loopmem.SkillWithRepo{{Skill: loopmem.Skill{ID: "s1"}, RepoID: "repo-a"}},
 		Total:  1,
 	}
 	rec := httptest.NewRecorder()
@@ -1165,7 +1165,7 @@ func TestMemorySkillsAll_UpstreamErrorReturns502(t *testing.T) {
 
 func TestMemorySkillsAll_EmptyResultIsArray(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.skillsAllResp = &themory.SkillsAllResult{Skills: nil, Total: 0}
+	fake.skillsAllResp = &loopmem.SkillsAllResult{Skills: nil, Total: 0}
 	rec := httptest.NewRecorder()
 	h.ListSkillsAll(rec, authedRequest("GET", "/v1/memory/skills/all", &auth.UserContext{Subject: "u", TenantID: "t"}))
 	if rec.Code != http.StatusOK {
@@ -1191,7 +1191,7 @@ func TestMemoryAddSkill_RejectsUnauthenticated(t *testing.T) {
 
 func TestMemoryAddSkill_NamespacesAndCreates(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.addSkillResp = &themory.CreatedSkill{ID: "sk-1", Hash: "h-1"}
+	fake.addSkillResp = &loopmem.CreatedSkill{ID: "sk-1", Hash: "h-1"}
 	body := `{"code":"export const x=1;","description":"a skill","codeLanguage":"typescript"}`
 	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "sub-123", TenantID: "t"})
 	r = requestWithBody(r, body)
@@ -1210,7 +1210,7 @@ func TestMemoryAddSkill_NamespacesAndCreates(t *testing.T) {
 
 func TestMemoryAddSkill_Conflict409(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.addSkillErr = themory.ErrSkillConflict
+	fake.addSkillErr = loopmem.ErrSkillConflict
 	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
 	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
 	rec := httptest.NewRecorder()
@@ -1257,7 +1257,7 @@ func TestMemoryForgetSkill_204(t *testing.T) {
 
 func TestMemoryForgetSkill_404(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.forgetSkillErr = themory.ErrNotFound
+	fake.forgetSkillErr = loopmem.ErrNotFound
 	r := skillDeleteReq(t, "sk-x", "acme", &auth.UserContext{Subject: "sub", TenantID: "t"})
 	rec := httptest.NewRecorder()
 	h.ForgetSkill(rec, r)
@@ -1286,15 +1286,15 @@ func skillDeleteReq(t *testing.T, skillID, repoID string, u *auth.UserContext) *
 }
 
 // =============================================================================
-// live-test-gaps-fix F-1 — gateway propagates themory upstream 4xx (not 502)
+// live-test-gaps-fix F-1 — gateway propagates loopmem upstream 4xx (not 502)
 // =============================================================================
 
-// A themory upstream 422 (e.g. unsupported skill codeLanguage) is a CLIENT
+// A loopmem upstream 422 (e.g. unsupported skill codeLanguage) is a CLIENT
 // error — it MUST pass through as 422 with the upstream code/message, NOT be
 // laundered into a misleading 502 "try again".
 func TestMemoryAddSkill_Upstream422PassesThrough(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.addSkillErr = &themory.Error{
+	fake.addSkillErr = &loopmem.Error{
 		StatusCode: http.StatusUnprocessableEntity,
 		Body:       `{"code":"INVALID_BODY","message":"Invalid enum value. Expected 'typescript' | 'javascript', received 'python'"}`,
 	}
@@ -1316,7 +1316,7 @@ func TestMemoryAddSkill_Upstream422PassesThrough(t *testing.T) {
 // Representative verb handler: an upstream 4xx on recall also passes through.
 func TestMemoryRecall_Upstream400PassesThrough(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.recallErr = &themory.Error{
+	fake.recallErr = &loopmem.Error{
 		StatusCode: http.StatusBadRequest,
 		Body:       `{"code":"INVALID_QUERY","message":"query too long"}`,
 	}
@@ -1332,11 +1332,11 @@ func TestMemoryRecall_Upstream400PassesThrough(t *testing.T) {
 	}
 }
 
-// A themory upstream 5xx is NOT a client error — it stays 502 (upstream is
+// A loopmem upstream 5xx is NOT a client error — it stays 502 (upstream is
 // genuinely unavailable from the consumer's view).
 func TestMemoryAddSkill_Upstream5xxStays502(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.addSkillErr = &themory.Error{StatusCode: http.StatusInternalServerError, Body: `{"code":"INTERNAL"}`}
+	fake.addSkillErr = &loopmem.Error{StatusCode: http.StatusInternalServerError, Body: `{"code":"INTERNAL"}`}
 	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
 	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
 	rec := httptest.NewRecorder()
@@ -1346,14 +1346,14 @@ func TestMemoryAddSkill_Upstream5xxStays502(t *testing.T) {
 	}
 }
 
-// F-1 security refinement: a themory upstream 401/403/429 is a GATEWAY-side
+// F-1 security refinement: a loopmem upstream 401/403/429 is a GATEWAY-side
 // condition (master key invalid/unscoped/rate-limited), NOT the consumer's
 // fault — it must be laundered to 502, never surfaced as the consumer's own
 // auth/rate-limit failure.
 func TestMemoryRecall_Upstream401Becomes502(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests} {
 		h, fake := newMemoryHandler(t)
-		fake.recallErr = &themory.Error{StatusCode: status, Body: `{"code":"X"}`}
+		fake.recallErr = &loopmem.Error{StatusCode: status, Body: `{"code":"X"}`}
 		r := authedRequest("POST", "/v1/memory/recall", &auth.UserContext{Subject: "s", TenantID: "t"})
 		r = requestWithBody(r, `{"query":"x"}`)
 		rec := httptest.NewRecorder()
@@ -1371,7 +1371,7 @@ func TestMemoryRecall_Upstream401Becomes502(t *testing.T) {
 func TestMemoryRecall_UnexpectedUpstream4xxBecomes502(t *testing.T) {
 	for _, status := range []int{http.StatusConflict, http.StatusLocked, http.StatusUnavailableForLegalReasons, http.StatusNotAcceptable} {
 		h, fake := newMemoryHandler(t)
-		fake.recallErr = &themory.Error{StatusCode: status, Body: `{"code":"X","message":"y"}`}
+		fake.recallErr = &loopmem.Error{StatusCode: status, Body: `{"code":"X","message":"y"}`}
 		r := authedRequest("POST", "/v1/memory/recall", &auth.UserContext{Subject: "s", TenantID: "t"})
 		r = requestWithBody(r, `{"query":"x"}`)
 		rec := httptest.NewRecorder()
@@ -1385,7 +1385,7 @@ func TestMemoryRecall_UnexpectedUpstream4xxBecomes502(t *testing.T) {
 // 413 (body too large) is a consumer-fault status in the allowlist → passthrough.
 func TestMemoryAddSkill_Upstream413PassesThrough(t *testing.T) {
 	h, fake := newMemoryHandler(t)
-	fake.addSkillErr = &themory.Error{StatusCode: http.StatusRequestEntityTooLarge, Body: `{"code":"PAYLOAD_TOO_LARGE","message":"body exceeds 1MB"}`}
+	fake.addSkillErr = &loopmem.Error{StatusCode: http.StatusRequestEntityTooLarge, Body: `{"code":"PAYLOAD_TOO_LARGE","message":"body exceeds 1MB"}`}
 	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
 	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
 	rec := httptest.NewRecorder()

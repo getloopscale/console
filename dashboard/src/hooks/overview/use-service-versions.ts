@@ -76,7 +76,7 @@ export function aggregateState(services: readonly ServiceStatus[] | undefined): 
   // da pagina /status, nao de pintar tudo de vermelho.
   // `no_provenance` entra na MESMA allowlist e pelo mesmo argumento: o alvo respondeu,
   // entao nao ha evidencia de degradacao. E o que preserva a intencao original da linha
-  // self do theo-cloud (internal/routes/self_version_test.go) — um build sem carimbo nao
+  // self do loop-console (internal/routes/self_version_test.go) — um build sem carimbo nao
   // pode pintar o painel de ambar permanente — agora sem precisar que ela AFIRME uma
   // versao que nao tem.
   const measured = (s: ServiceStatus) =>

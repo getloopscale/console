@@ -1,8 +1,8 @@
 ---
 type: Architecture
-title: theo-cloud as the MCP Model B broker
-description: How theo-cloud authorizes MCP traffic by validating a consumer credential and minting a least-privilege per-tenant downstream key.
-resource: https://github.com/usetheoai/theo-cloud/blob/main/internal/routes/mcp_resolve.go
+title: loop-console as the MCP Model B broker
+description: How loop-console authorizes MCP traffic by validating a consumer credential and minting a least-privilege per-tenant downstream key.
+resource: https://github.com/getloopscale/loop-console/blob/main/internal/routes/mcp_resolve.go
 tags: [mcp, authorization, broker, tenancy, gateway]
 generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
 status: stable
@@ -13,10 +13,10 @@ sources:
     last_modified: 2026-06-30
 ---
 
-# theo-cloud as the MCP Model B broker
+# loop-console as the MCP Model B broker
 
-theo-cloud is the **Model B authorization broker** for MCP traffic fronted by the
-Theo MCP Gateway. This doc explains theo-cloud's role in the integrated MCP path so the
+loop-console is the **Model B authorization broker** for MCP traffic fronted by the
+LoopScale MCP Gateway. This doc explains loop-console's role in the integrated MCP path so the
 team can run + reason about it.
 
 ## The endpoint
@@ -36,32 +36,32 @@ team can run + reason about it.
 ## Where it runs in the integrated path
 
 ```
-consumer ──theo_live_*──▶ edge /mcp/* ──▶ Theo MCP Gateway
+consumer ──theo_live_*──▶ edge /mcp/* ──▶ LoopScale MCP Gateway
                                               │  POST /internal/authz/mcp-resolve
                                               ▼
-                                          theo-cloud  ── mints per-tenant key ──▶ gateway injects downstream
+                                          loop-console  ── mints per-tenant key ──▶ gateway injects downstream
 ```
 
-- In the **theo-workspace** local stack, theo-cloud runs as the `theo-cloud` **compose
+- In the **loopscale-workspace** local stack, loop-console runs as the `loop-console` **compose
   service** (GHCR `:develop` image, or `make up-local` to build from this repo). The
-  `mcp-resolve` endpoint ships in the published image since **theo-cloud v0.15.0** — pull a
+  `mcp-resolve` endpoint ships in the published image since **loop-console v0.15.0** — pull a
   recent `:develop` (or build local) so the gateway's broker calls resolve.
-- The gateway points at it via `THEO_MCP_BROKER_URL=http://theo-cloud:13002` (compose DNS).
+- The gateway points at it via `LOOPSCALE_MCP_BROKER_URL=http://loop-console:13002` (compose DNS).
 - The gateway's own per-tenant tool allowlist (from the returned `scopes`) is
-  defense-in-depth on top of themory's bearer check.
+  defense-in-depth on top of loopmem's bearer check.
 
-## Running theo-cloud standalone (outside the workspace)
+## Running loop-console standalone (outside the workspace)
 
-`make dev-up` brings theo-cloud's own dev stack up (apps + real LLM) — used for end-user
-validation of theo-cloud itself. For the **integrated MCP path**, prefer the
-theo-workspace umbrella (`make up`), which wires theo-cloud + theo-memory + the Gateway
-together; see `../../theo-workspace/README.md` § Integrated MCP path and
-`../../theo-traefik-mcp/docs/local-compose.md`.
+`make dev-up` brings loop-console's own dev stack up (apps + real LLM) — used for end-user
+validation of loop-console itself. For the **integrated MCP path**, prefer the
+loopscale-workspace umbrella (`make up`), which wires loop-console + loopmem + the Gateway
+together; see `../../loopscale-workspace/README.md` § Integrated MCP path and
+`../../loopmcp/docs/local-compose.md`.
 
 ## Related
 
-- Gateway broker resolver: `theo-traefik-mcp` `internal/auth` (`BrokerResolver`) — calls this endpoint.
-- Edge wiring + runbook: `theo-workspace/dev/traefik/dynamic.yml`, `theo-traefik-mcp/docs/local-compose.md`.
+- Gateway broker resolver: `loopmcp` `internal/auth` (`BrokerResolver`) — calls this endpoint.
+- Edge wiring + runbook: `loopscale-workspace/dev/traefik/dynamic.yml`, `loopmcp/docs/local-compose.md`.
 
 - Scoped-key model this broker mints against:
   [`governance/dashboard`](/governance/dashboard.md) invariant 4 (unified `theo_live_*` key with scopes).

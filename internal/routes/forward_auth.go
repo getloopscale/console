@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // AuthzForwardPath is the internal endpoint the edge (Traefik ForwardAuth) calls
@@ -19,30 +19,30 @@ import (
 const AuthzForwardPath = "/internal/authz/forward"
 
 // AuthzForwardPromptlyPath is the internal ForwardAuth endpoint for the
-// theo-promptly capability (M11 — Model B L2). The generic ForwardAuthHandler is
+// loopprompt capability (M11 — Model B L2). The generic ForwardAuthHandler is
 // reused (a 2nd instance wired with the promptly broker + "promptly:read"); only
 // the path differs so the Traefik `forward-auth-promptly` middleware targets it.
 const AuthzForwardPromptlyPath = "/internal/authz/forward-promptly"
 
-// AuthzForwardRagPath is the internal ForwardAuth endpoint for the theo-rag
+// AuthzForwardRagPath is the internal ForwardAuth endpoint for the looprag
 // capability (M14 — Model B). The generic ForwardAuthHandler is reused (a 3rd
 // instance wired with the rag broker + "rag:read"); only the path differs so the
 // Traefik `forward-auth-rag` middleware targets it.
 const AuthzForwardRagPath = "/internal/authz/forward-rag"
 
-// AuthzForwardLensPath is the internal ForwardAuth endpoint for the theo-lens
+// AuthzForwardLensPath is the internal ForwardAuth endpoint for the looptrace
 // capability (M38 — Model B). The generic ForwardAuthHandler is reused (a 4th
 // instance wired with the lens broker + "observability:read"); only the path differs so the
 // Traefik `forward-auth-lens` middleware targets it.
 const AuthzForwardLensPath = "/internal/authz/forward-lens"
 
-// AuthzForwardTrustPath is the internal ForwardAuth endpoint for the theo-trust
+// AuthzForwardTrustPath is the internal ForwardAuth endpoint for the loopguardrails
 // capability (M10 — Model B). The generic ForwardAuthHandler is reused (wired with
 // the trust broker + "trust:read"); only the path differs so the Traefik
 // `forward-auth-trust` middleware targets it.
 const AuthzForwardTrustPath = "/internal/authz/forward-trust"
 
-// AuthzForwardSkillsPath is the internal ForwardAuth endpoint for the theo-skills
+// AuthzForwardSkillsPath is the internal ForwardAuth endpoint for the loopskills
 // capability (M22 — Model B). The generic ForwardAuthHandler is reused (wired with
 // the skills broker + "skills:read"); only the path differs so the Traefik
 // `forward-auth-skills` middleware targets it.
@@ -55,7 +55,7 @@ type APIKeyResolver func(ctx context.Context, rawAuthHeader string) (*auth.UserC
 
 // TenantKeyMinter mints/loads the per-tenant downstream credential scoped to the
 // consumer's OWN scopes (least privilege — a read-only consumer never receives a
-// write/delete key). Satisfied by *themory.Broker (memory) and *promptly.Broker
+// write/delete key). Satisfied by *loopmem.Broker (memory) and *promptly.Broker
 // (M11) — both implement KeyForTenantScoped (Model B); an interface here keeps the
 // handler DIP-clean and lets one generic handler serve both capabilities.
 type TenantKeyMinter interface {
@@ -149,7 +149,7 @@ func (h *ForwardAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// is stripped at the edge (D3) so the backend sees ONLY this scoped key.
 	w.Header().Set("Authorization", "Bearer "+minted)
 	// Also hand the credential's user identity so the REST backend can bind the user
-	// tier the SAME way the MCP path does (theo-cloud#249). Auth-trusted — from the
+	// tier the SAME way the MCP path does (loop-console#249). Auth-trusted — from the
 	// resolved credential, never a client header. The edge strips any client-supplied
 	// X-Theo-User-Id and copies THIS one via authResponseHeaders. Empty for legacy
 	// credentials; the backend then keeps its body-tier behavior.

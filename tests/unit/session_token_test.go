@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // T1.1 + T1.3 of plan 2026-05-27-backend-frontend-integration v1.1.
 //
@@ -35,9 +35,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // mockKratosServer simulates Kratos /sessions/whoami. behavior is configured
@@ -104,12 +104,12 @@ func newMockKratosServer(t *testing.T, cfg mockKratosCfg) *httptest.Server {
 // buildHandler wires a SessionTokenHandler against a mock Kratos and an
 // in-process SessionTokenIssuer + nil-db TenantProvisioner (returns
 // "dev-tenant"/"owner" per tenant.go:36-38).
-func buildHandler(t *testing.T, kratos *httptest.Server) (*routes.SessionTokenHandler, *theojwt.SessionTokenIssuer) {
+func buildHandler(t *testing.T, kratos *httptest.Server) (*routes.SessionTokenHandler, *loopscalejwt.SessionTokenIssuer) {
 	t.Helper()
-	issuer := theojwt.NewSessionTokenIssuer(
+	issuer := loopscalejwt.NewSessionTokenIssuer(
 		"test-secret-at-least-32-bytes-long-ok!",
-		"theo-cloud-test",
-		"theo-engine",
+		"loop-console-test",
+		"loop-runtime-engine",
 		3600*time.Second,
 	)
 	prov := auth.NewTenantProvisioner(nil, slog.Default()) // nil DB → "dev-tenant"
@@ -130,7 +130,7 @@ func postWithCookie(t *testing.T, handler *routes.SessionTokenHandler, cookies m
 func TestExchange_HappyPath_ReturnsJWT(t *testing.T) {
 	cfg := mockKratosCfg{statusCode: 200, active: true}
 	cfg.identity.ID = "kratos-user-id-001"
-	cfg.identity.Email = "alice@theo.dev"
+	cfg.identity.Email = "alice@loopscale.dev"
 	cfg.identity.Name = "Alice"
 	kratos := newMockKratosServer(t, cfg)
 	defer kratos.Close()
@@ -169,7 +169,7 @@ func TestExchange_RoundTrip_MintThenValidate(t *testing.T) {
 	// auth middleware accepts (single source of truth: pkg/jwt).
 	cfg := mockKratosCfg{statusCode: 200, active: true}
 	cfg.identity.ID = "kratos-user-id-002"
-	cfg.identity.Email = "bob@theo.dev"
+	cfg.identity.Email = "bob@loopscale.dev"
 	cfg.identity.Name = "Bob"
 	kratos := newMockKratosServer(t, cfg)
 	defer kratos.Close()
@@ -194,7 +194,7 @@ func TestExchange_RoundTrip_MintThenValidate(t *testing.T) {
 	if claims.Subject != "kratos-user-id-002" {
 		t.Errorf("subject = %q, want kratos-user-id-002", claims.Subject)
 	}
-	if claims.Email != "bob@theo.dev" {
+	if claims.Email != "bob@loopscale.dev" {
 		t.Errorf("email = %q", claims.Email)
 	}
 	if claims.TenantID == "" {
@@ -223,7 +223,7 @@ func TestExchange_InactiveSession_Returns401(t *testing.T) {
 	// but cookie not yet purged). Handler must treat this as 401.
 	cfg := mockKratosCfg{statusCode: 200, active: false}
 	cfg.identity.ID = "user-x"
-	cfg.identity.Email = "expired@theo.dev"
+	cfg.identity.Email = "expired@loopscale.dev"
 	kratos := newMockKratosServer(t, cfg)
 	defer kratos.Close()
 
@@ -237,7 +237,7 @@ func TestExchange_InactiveSession_Returns401(t *testing.T) {
 
 func TestExchange_KratosUnreachable_Returns502(t *testing.T) {
 	// Point handler at a dead address. Net.DialContext fails fast → 502.
-	issuer := theojwt.NewSessionTokenIssuer("test-secret-32-bytes-blah-ok-blah-12", "i", "a", 3600*time.Second)
+	issuer := loopscalejwt.NewSessionTokenIssuer("test-secret-32-bytes-blah-ok-blah-12", "i", "a", 3600*time.Second)
 	prov := auth.NewTenantProvisioner(nil, slog.Default())
 	// Reserved address (RFC 5737) — guaranteed unroutable.
 	handler := routes.NewSessionTokenHandler(issuer, prov, "http://192.0.2.1:1") // TEST-NET-1
@@ -291,7 +291,7 @@ func TestExchange_NewUser_AutoProvisionsTenant(t *testing.T) {
 	// onboarding-redirect branch. nil-DB provisioner returns "dev-tenant".
 	cfg := mockKratosCfg{statusCode: 200, active: true}
 	cfg.identity.ID = "brand-new-user"
-	cfg.identity.Email = "brand-new@theo.dev"
+	cfg.identity.Email = "brand-new@loopscale.dev"
 	kratos := newMockKratosServer(t, cfg)
 	defer kratos.Close()
 
@@ -319,7 +319,7 @@ func TestExchange_RateLimit_Exceeded_Returns429(t *testing.T) {
 	// from the SAME RemoteAddr must respond 429 with standard headers.
 	cfg := mockKratosCfg{statusCode: 200, active: true}
 	cfg.identity.ID = "x"
-	cfg.identity.Email = "x@theo.dev"
+	cfg.identity.Email = "x@loopscale.dev"
 	kratos := newMockKratosServer(t, cfg)
 	defer kratos.Close()
 
@@ -355,7 +355,7 @@ func TestExchange_MalformedKratosBody_Returns401(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	issuer := theojwt.NewSessionTokenIssuer("test-secret-32-bytes-blah-ok-blah-12", "i", "a", 3600*time.Second)
+	issuer := loopscalejwt.NewSessionTokenIssuer("test-secret-32-bytes-blah-ok-blah-12", "i", "a", 3600*time.Second)
 	prov := auth.NewTenantProvisioner(nil, slog.Default())
 	handler := routes.NewSessionTokenHandler(issuer, prov, srv.URL)
 
@@ -432,7 +432,7 @@ func mockKratosWithFullSession(t *testing.T) *httptest.Server {
 			"active": true,
 			"identity": map[string]any{
 				"id":         "de110292-bcba-498a-94bd-631a755ca5e9",
-				"schema_url": "https://auth-dev.usetheo.dev/schemas/ZGVmYXVsdA",
+				"schema_url": "https://auth-dev.getloopscale.com/schemas/ZGVmYXVsdA",
 				"traits":     map[string]string{"email": "user@example.com", "name": "A User"},
 				"verifiable_addresses": []map[string]any{
 					{"value": "user@example.com", "verified": false, "via": "email", "status": "sent"},

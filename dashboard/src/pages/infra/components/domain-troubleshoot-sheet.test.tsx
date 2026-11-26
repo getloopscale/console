@@ -12,7 +12,7 @@ describe('DomainTroubleshootSheet (J-11 v1.1 T2.4)', () => {
       <DomainTroubleshootSheet
         open={true}
         onOpenChange={vi.fn()}
-        domainName="theo-test.example"
+        domainName="loopscale-test.example"
         failureMode="cert-manager error"
       />,
     );
@@ -25,7 +25,7 @@ describe('DomainTroubleshootSheet (J-11 v1.1 T2.4)', () => {
       <DomainTroubleshootSheet
         open={true}
         onOpenChange={vi.fn()}
-        domainName="theo-test.example"
+        domainName="loopscale-test.example"
         failureMode="CF API error"
       />,
     );
@@ -37,7 +37,7 @@ describe('DomainTroubleshootSheet (J-11 v1.1 T2.4)', () => {
       <DomainTroubleshootSheet
         open={true}
         onOpenChange={vi.fn()}
-        domainName="theo-test.example"
+        domainName="loopscale-test.example"
         failureMode="some-unknown-mode"
       />,
     );
@@ -50,7 +50,7 @@ describe('DomainTroubleshootSheet (J-11 v1.1 T2.4)', () => {
       <DomainTroubleshootSheet
         open={true}
         onOpenChange={vi.fn()}
-        domainName="theo-test.example"
+        domainName="loopscale-test.example"
       />,
     );
     expect(screen.getByText(/Need help/i)).toBeInTheDocument();

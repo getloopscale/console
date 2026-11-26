@@ -6,7 +6,7 @@ import { BFF_NAVIGATION_DENYLIST, BFF_NAVIGATION_REGEXP, isBffNavigationPath } f
 const denied = (p: string) => BFF_NAVIGATION_DENYLIST.some((re) => re.test(p));
 
 describe('SW BFF navigation denylist — the service worker must NOT shadow BFF navigations', () => {
-  it('denies /v1/rag-connect authorize AND callback (theo-cloud#203 — OAuth "Connect with X")', () => {
+  it('denies /v1/rag-connect authorize AND callback (loop-console#203 — OAuth "Connect with X")', () => {
     // Both are top-level browser navigations by design; without the denylist the
     // Workbox navigateFallback serves the SPA shell → React Router "Page not found".
     expect(denied('/v1/rag-connect/google-drive/authorize')).toBe(true);
@@ -22,7 +22,7 @@ describe('SW BFF navigation denylist — the service worker must NOT shadow BFF 
     expect(BFF_NAVIGATION_REGEXP.test('https://app.example.test/v1/integrations/github/install?return_to=%2F')).toBe(true);
   });
 
-  it('still denies the Hydra/Kratos auth-broker navigations (theo-cloud#112 regression)', () => {
+  it('still denies the Hydra/Kratos auth-broker navigations (loop-console#112 regression)', () => {
     for (const p of [
       '/auth/login',
       '/auth/login/complete',
@@ -65,13 +65,13 @@ describe('SW runtimeCaching urlPattern must be a self-contained RegExp value', (
       '/self-service/login/browser',
       '/oauth2/auth',
     ]) {
-      expect(BFF_NAVIGATION_REGEXP.test(`https://app-dev.usetheo.dev${p}`)).toBe(true);
+      expect(BFF_NAVIGATION_REGEXP.test(`https://app-dev.getloopscale.com${p}`)).toBe(true);
     }
   });
 
   it('does NOT match SPA navigations nor the file-upload POST path (they must reach the network un-shadowed)', () => {
     for (const p of ['/', '/rag/documents', '/projects/teste', '/v1/dashboard/rag/documents/doc_x/file']) {
-      expect(BFF_NAVIGATION_REGEXP.test(`https://app-dev.usetheo.dev${p}`)).toBe(false);
+      expect(BFF_NAVIGATION_REGEXP.test(`https://app-dev.getloopscale.com${p}`)).toBe(false);
     }
   });
 });

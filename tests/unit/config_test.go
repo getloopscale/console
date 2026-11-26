@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package unit
 
@@ -7,12 +7,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/config"
+	"github.com/getloopscale/loop-console/internal/config"
 )
 
 func TestConfigLoadDefaults(t *testing.T) {
 	// Clear env to test defaults
-	for _, key := range []string{"CLOUD_LISTEN_ADDR", "KRATOS_PUBLIC_URL", "HYDRA_PUBLIC_URL", "HYDRA_CLIENT_ID", "LOOPZERO_ENV"} {
+	for _, key := range []string{"CLOUD_LISTEN_ADDR", "KRATOS_PUBLIC_URL", "HYDRA_PUBLIC_URL", "HYDRA_CLIENT_ID", "LOOP_RUNTIME_ENV"} {
 		_ = os.Unsetenv(key)
 	}
 
@@ -21,8 +21,8 @@ func TestConfigLoadDefaults(t *testing.T) {
 	if cfg.ListenAddr != ":13002" {
 		t.Errorf("ListenAddr = %q, want %q", cfg.ListenAddr, ":13002")
 	}
-	if cfg.HydraClientID != "theo-cli" {
-		t.Errorf("HydraClientID = %q, want %q", cfg.HydraClientID, "theo-cli")
+	if cfg.HydraClientID != "loopscale-cli" {
+		t.Errorf("HydraClientID = %q, want %q", cfg.HydraClientID, "loopscale-cli")
 	}
 	if cfg.Environment != "dev" {
 		t.Errorf("Environment = %q, want %q", cfg.Environment, "dev")
@@ -32,7 +32,7 @@ func TestConfigLoadDefaults(t *testing.T) {
 func TestConfigLoadFromEnv(t *testing.T) {
 	t.Setenv("CLOUD_LISTEN_ADDR", ":9999")
 	t.Setenv("HYDRA_CLIENT_ID", "custom-cli")
-	t.Setenv("LOOPZERO_ENV", "prod")
+	t.Setenv("LOOP_RUNTIME_ENV", "prod")
 
 	cfg := config.Load()
 
@@ -48,7 +48,7 @@ func TestConfigLoadFromEnv(t *testing.T) {
 }
 
 func TestConfigValidateProd(t *testing.T) {
-	t.Setenv("LOOPZERO_ENV", "prod")
+	t.Setenv("LOOP_RUNTIME_ENV", "prod")
 	t.Setenv("HYDRA_PUBLIC_URL", "")
 
 	cfg := config.Load()
@@ -70,10 +70,10 @@ func TestConfigValidateDevOK(t *testing.T) {
 }
 
 func TestConfigDatabaseURL(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/theodb?sslmode=disable")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/loopscaledb?sslmode=disable")
 	cfg := config.Load()
 
-	if cfg.DatabaseURL != "postgres://user:pass@localhost:5432/theodb?sslmode=disable" {
+	if cfg.DatabaseURL != "postgres://user:pass@localhost:5432/loopscaledb?sslmode=disable" {
 		t.Errorf("DatabaseURL = %q, want postgres URL", cfg.DatabaseURL)
 	}
 }
@@ -145,7 +145,7 @@ func TestConfigValidateProdRequiresServiceAuthSecret(t *testing.T) {
 	cfg.ServiceAuthSecret = "" // not set
 
 	if err := cfg.Validate(); err == nil {
-		t.Error("Validate() should fail when LOOPZERO_SERVICE_AUTH_SECRET is empty in prod")
+		t.Error("Validate() should fail when LOOP_RUNTIME_SERVICE_AUTH_SECRET is empty in prod")
 	}
 }
 
@@ -177,9 +177,9 @@ func TestConfigValidateProdRequiresAdminURLs(t *testing.T) {
 
 // T1.6 — secrets must NOT be auto-generated in production.
 func TestConfigLoadProdDoesNotAutogenSecrets(t *testing.T) {
-	t.Setenv("LOOPZERO_ENV", "prod")
+	t.Setenv("LOOP_RUNTIME_ENV", "prod")
 	_ = os.Unsetenv("SESSION_TOKEN_SECRET")
-	_ = os.Unsetenv("LOOPZERO_SERVICE_AUTH_SECRET")
+	_ = os.Unsetenv("LOOP_RUNTIME_SERVICE_AUTH_SECRET")
 
 	cfg := config.Load()
 
@@ -187,12 +187,12 @@ func TestConfigLoadProdDoesNotAutogenSecrets(t *testing.T) {
 		t.Error("SESSION_TOKEN_SECRET must not be auto-generated in prod")
 	}
 	if cfg.ServiceAuthSecret.Value() != "" {
-		t.Error("LOOPZERO_SERVICE_AUTH_SECRET must not be auto-generated in prod")
+		t.Error("LOOP_RUNTIME_SERVICE_AUTH_SECRET must not be auto-generated in prod")
 	}
 }
 
-// usetheoai/theo#477 — consent policy config. The first-party allowlist
-// defaults to the Hydra client this service owns (theo-cli); the resource
+// getloopscale/loopscale#477 — consent policy config. The first-party allowlist
+// defaults to the Hydra client this service owns (loopscale-cli); the resource
 // allowlist defaults to empty, so no RFC 8707 resource is granted until named.
 func TestConfigConsentPolicyDefaults(t *testing.T) {
 	t.Setenv("HYDRA_CLIENT_ID", "")
@@ -201,8 +201,8 @@ func TestConfigConsentPolicyDefaults(t *testing.T) {
 
 	cfg := config.Load()
 
-	if len(cfg.ConsentFirstPartyClients) != 1 || cfg.ConsentFirstPartyClients[0] != "theo-cli" {
-		t.Errorf("ConsentFirstPartyClients = %v, want [theo-cli]", cfg.ConsentFirstPartyClients)
+	if len(cfg.ConsentFirstPartyClients) != 1 || cfg.ConsentFirstPartyClients[0] != "loopscale-cli" {
+		t.Errorf("ConsentFirstPartyClients = %v, want [loopscale-cli]", cfg.ConsentFirstPartyClients)
 	}
 	if len(cfg.ConsentAllowedResources) != 0 {
 		t.Errorf("ConsentAllowedResources = %v, want empty", cfg.ConsentAllowedResources)
@@ -210,15 +210,15 @@ func TestConfigConsentPolicyDefaults(t *testing.T) {
 }
 
 func TestConfigConsentPolicyFromEnv(t *testing.T) {
-	t.Setenv("CONSENT_FIRST_PARTY_CLIENTS", "theo-cli, theo-dashboard ,")
-	t.Setenv("CONSENT_ALLOWED_RESOURCES", "https://mcp.usetheo.dev/memory,https://mcp.usetheo.dev/rag")
+	t.Setenv("CONSENT_FIRST_PARTY_CLIENTS", "loopscale-cli, loopscale-dashboard ,")
+	t.Setenv("CONSENT_ALLOWED_RESOURCES", "https://mcp.getloopscale.com/memory,https://mcp.getloopscale.com/rag")
 
 	cfg := config.Load()
 
-	if got := cfg.ConsentFirstPartyClients; len(got) != 2 || got[0] != "theo-cli" || got[1] != "theo-dashboard" {
-		t.Errorf("ConsentFirstPartyClients = %q, want [theo-cli theo-dashboard]", got)
+	if got := cfg.ConsentFirstPartyClients; len(got) != 2 || got[0] != "loopscale-cli" || got[1] != "loopscale-dashboard" {
+		t.Errorf("ConsentFirstPartyClients = %q, want [loopscale-cli loopscale-dashboard]", got)
 	}
-	if got := cfg.ConsentAllowedResources; len(got) != 2 || got[1] != "https://mcp.usetheo.dev/rag" {
+	if got := cfg.ConsentAllowedResources; len(got) != 2 || got[1] != "https://mcp.getloopscale.com/rag" {
 		t.Errorf("ConsentAllowedResources = %q, want the two MCP URIs", got)
 	}
 }

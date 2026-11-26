@@ -5,8 +5,8 @@ const mockConfetti = vi.fn();
 vi.mock('canvas-confetti', () => ({ default: (...a: unknown[]) => mockConfetti(...a) }));
 
 const mockToast = vi.fn();
-vi.mock('@usetheo/ui', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('@usetheo/ui');
+vi.mock('@getloopscale/ui', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@getloopscale/ui');
   return { ...actual, useToast: () => ({ toast: mockToast }) };
 });
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // Defensive-shape tests for src/lib/rum.ts. Both `reportEvent` and
 // `trackInteraction` must never throw — they are telemetry transports and

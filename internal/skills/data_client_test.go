@@ -142,11 +142,11 @@ func TestDataClient_bearerNuncaAparecEmMensagemDeErro(t *testing.T) {
 
 func TestDataClient_cadaLeituraBateNoCaminhoRealDaAPI(t *testing.T) {
 	// Impede caminho FABRICADO. Os literais abaixo foram medidos em
-	// theo-skills/packages/api/src/server/app.ts — nao inferidos do nome do metodo.
+	// loopskills/packages/api/src/server/app.ts — nao inferidos do nome do metodo.
 	casos := []struct {
-		nome     string
-		chamar   func(*DataClient) error
-		caminho  string
+		nome    string
+		chamar  func(*DataClient) error
+		caminho string
 	}{
 		{"List", func(c *DataClient) error { _, e := c.List(context.Background(), 20, ""); return e }, "/v1/skills"},
 		{"Get", func(c *DataClient) error { _, e := c.Get(context.Background(), "sk_1"); return e }, "/v1/skills/sk_1"},

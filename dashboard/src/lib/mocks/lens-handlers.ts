@@ -43,7 +43,7 @@ const USAGE_BY_USER = {
 };
 
 /**
- * O prefixo depende de `window.__THEO_CONFIG__.API_URL`, vazio em dev (same-origin) e `/api` atrás
+ * O prefixo depende de `window.__LOOPSCALE_CONFIG__.API_URL`, vazio em dev (same-origin) e `/api` atrás
  * do gateway. Registrar os dois é o que o `trust-handlers.ts` faz, pela razão registrada lá: sem
  * isso o mock funciona numa configuração e silenciosamente não na outra.
  */

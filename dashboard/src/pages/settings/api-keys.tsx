@@ -7,7 +7,7 @@ import {
 } from '@/hooks/settings/use-api-keys';
 import type { APIKeyView, CreateKeyResponse } from '@/hooks/settings/api-keys-api';
 import {History, Key, Plus, Recycle, Trash2} from 'lucide-react';
-import {Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp} from '@usetheo/ui';
+import {Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp} from '@getloopscale/ui';
 import {Alert} from '@/components/ui/alert-guard';
 import { ListTruncationNotice } from '@/components/ui/list-truncation-notice';
 import {usePageMeta} from '@/hooks/use-page-meta';
@@ -82,8 +82,8 @@ export const ACTIVE_SCOPES = [
     label: 'observability:admin',
     description: 'Observability key lifecycle',
   },
-  // RAG vertical (theo-rag, M12-M20) — customer-issuable (#168). rag:admin is intentionally
-  // omitted: it is theo-rag's broker-held key-lifecycle scope, never minted to a consumer.
+  // RAG vertical (looprag, M12-M20) — customer-issuable (#168). rag:admin is intentionally
+  // omitted: it is looprag's broker-held key-lifecycle scope, never minted to a consumer.
   {
     id: 'rag:read',
     label: 'rag:read',
@@ -112,7 +112,7 @@ export const ACTIVE_SCOPES = [
     label: 'storage:write',
     description: 'Upload and delete stored objects',
   },
-  // Trust vertical (theo-trust, Model B L2). A cadeia inteira já estava de pé — borda
+  // Trust vertical (loopguardrails, Model B L2). A cadeia inteira já estava de pé — borda
   // roteando /v1/trust/*, forward-auth cunhando chave por tenant — e nenhum cliente podia
   // alcançá-la, porque o escopo que a borda exige não era emitível em lugar nenhum.
   {
@@ -140,7 +140,7 @@ export const ACTIVE_SCOPES = [
     description:
       'Read raw conversation text, including content flagged as a secret',
   },
-  // Promptly vertical (theo-promptly, M11 Model B L2). MESMA história do trust logo acima,
+  // Promptly vertical (loopprompt, M11 Model B L2). MESMA história do trust logo acima,
   // e a terceira vez que ela se repete: em 2026-08-01 a cadeia estava inteira de pé — borda
   // roteando /v1/promptly/*, ForwardAuth exigindo `promptly:read`, broker cunhando por
   // tenant — e o produto era inutilizável, porque o escopo não era emitível.
@@ -159,7 +159,7 @@ export const ACTIVE_SCOPES = [
     label: 'promptly:write',
     description: 'Create prompt revisions and move environment labels',
   },
-  // Skills vertical (theo-skills, M22 Model B). Diferente do trust — onde a cadeia já
+  // Skills vertical (loopskills, M22 Model B). Diferente do trust — onde a cadeia já
   // estava de pé e só o escopo faltava — aqui NADA existia: sem broker, sem forward-auth,
   // sem rota de borda. Oferecer o escopo antes dessas peças entregaria uma chave que
   // nenhuma borda aceita: o defeito oposto, e igualmente silencioso. `skills:admin` é

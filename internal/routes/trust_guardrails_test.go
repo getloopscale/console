@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/trust"
+	"github.com/getloopscale/loop-console/internal/trust"
 )
 
 type stubTrustWriter struct {
@@ -105,7 +105,7 @@ func TestDryRunDoesNotCreate(t *testing.T) {
 }
 
 // O corpo chega ao upstream INTACTO: re-serializar no meio do caminho perderia campos que o
-// dashboard ainda nao conhece e que o theo-trust ja aceita.
+// dashboard ainda nao conhece e que o loopguardrails ja aceita.
 func TestSpecReachesUpstreamUnmodified(t *testing.T) {
 	w := &stubTrustWriter{}
 	const spec = `{"name":"sem-cpf","spec":{"kind":"ban-list","terms":["cpf"],"action":"modify","replacement":"[redigido]"}}`

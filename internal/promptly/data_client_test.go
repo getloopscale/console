@@ -162,14 +162,17 @@ func TestDataClient_bearer_nunca_aparece_na_mensagem_de_erro(t *testing.T) {
 }
 
 func TestDataClient_labels_e_catalogo_batem_nos_caminhos_do_servico(t *testing.T) {
-	// Os caminhos sao medidos contra a definicao de rotas do theo-promptly, nao inferidos do nome
+	// Os caminhos sao medidos contra a definicao de rotas do loopprompt, nao inferidos do nome
 	// do metodo: um caminho errado responde 404 e a tela renderiza "nao ha nada" para sempre.
 	casos := []struct {
 		nome    string
 		chamar  func(*DataClient) error
 		caminho string
 	}{
-		{"catalogo", func(c *DataClient) error { _, _, e := c.Catalog(context.Background(), 0, "", CatalogoFiltro{}); return e }, "/prompts"},
+		{"catalogo", func(c *DataClient) error {
+			_, _, e := c.Catalog(context.Background(), 0, "", CatalogoFiltro{})
+			return e
+		}, "/prompts"},
 		{"prompt", func(c *DataClient) error { _, e := c.Prompt(context.Background(), "s"); return e }, "/prompts/s"},
 		{"revisoes", func(c *DataClient) error { _, e := c.Revisions(context.Background(), "s", 5, 0); return e }, "/prompts/s/revisions"},
 		{"labels", func(c *DataClient) error { _, e := c.Labels(context.Background(), "s"); return e }, "/prompts/s/labels"},
@@ -195,7 +198,7 @@ func TestDataClient_labels_e_catalogo_batem_nos_caminhos_do_servico(t *testing.T
 // ---------------------------------------------------------------------------------------------
 // M13 — o sinal de continuacao de pagina.
 //
-// O theo-promptly sinaliza proxima pagina por header RFC-5988 (`Link: <...>; rel="next"`, montado
+// O loopprompt sinaliza proxima pagina por header RFC-5988 (`Link: <...>; rel="next"`, montado
 // em packages/api/src/server/app.ts:594 pedindo limit+1 para nao gastar segunda consulta). Ate
 // aqui este cliente devolvia so o corpo, e o sinal MORRIA nesta funcao — antes de qualquer decisao
 // de produto. Enquanto ele morresse aqui, nenhuma camada acima podia ser honesta: toda contagem

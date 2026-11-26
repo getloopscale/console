@@ -12,7 +12,7 @@ import {
   EmptyState,
   Badge,
   Checkbox,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { triggerBlobDownload } from '@/lib/export/download';
 

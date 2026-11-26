@@ -1,19 +1,19 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Model B slice 2 / T5.1 — the headline confused-deputy (CWE-441) closure proven
 // END-TO-END through the real gateway → TheMemory path: a customer bound to
 // tenant A cannot read tenant B's memory, because the gateway authenticates the
 // data path with a PER-TENANT theo_live_* key (resolved by the credential
 // broker from the authenticated tenant) and TheMemory enforces isolation from
-// that credential. Requires the Model B dev stack (THEMORY_REQUIRE_CREDENTIAL=true
-// on themory + a bootstrapped THEMORY_PLATFORM_ADMIN_KEY on the gateway — see
+// that credential. Requires the Model B dev stack (LOOPMEM_REQUIRE_CREDENTIAL=true
+// on loopmem + a bootstrapped LOOPMEM_PLATFORM_ADMIN_KEY on the gateway — see
 // dev/README § Model B). Build-tagged `e2e`; run via `make e2e`.
 //
 // The mint-failure → fail-closed leg is proven deterministically at the
-// unit/handler level (internal/themory/client_resolver_test.go +
+// unit/handler level (internal/loopmem/client_resolver_test.go +
 // internal/routes/memory_failclosed_test.go) — it does not need a live outage here.
 package e2e
 

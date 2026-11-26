@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTrace } from '@/hooks/lens/use-trace';
-import { EmptyState, PageShell, TraceCompare } from '@usetheo/ui';
+import { EmptyState, PageShell, TraceCompare } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -12,7 +12,7 @@ import { toTraceSpan } from './trace-detail/to-trace-span';
 
 /**
  * M54 / M8 — /observability/compare?ids=A,B. Compare two traces side by side. The side-by-side lanes,
- * the metrics header, and the structural diff table now come from `@usetheo/ui` `TraceCompare` (honest
+ * the metrics header, and the structural diff table now come from `@getloopscale/ui` `TraceCompare` (honest
  * deltas: unmatched spans are marked "only in A/B" and their delta is suppressed — no fabricated 1:1
  * diff). This page keeps the consumer-owned concerns: auth, the `?ids=` URL, the two fetches, and the
  * "pick two traces" empty state. The DS receives DATA (mapped lanes), never routes or fetches (ADR D1).

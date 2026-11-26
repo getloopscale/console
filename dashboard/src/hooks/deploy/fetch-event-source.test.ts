@@ -25,7 +25,7 @@ import { FetchEventSource } from './fetch-event-source';
  *
  * A superfície de `EventSource` que o hook usa — `onopen`, `onmessage`,
  * `onerror`, `addEventListener`, `close`, `readyState` — sobre `fetch`. A troca
- * é de uma linha em `SharedEventSource`. Since usetheoai/theo#477 step 3 the
+ * é de uma linha em `SharedEventSource`. Since getloopscale/loopscale#477 step 3 the
  * stream carries no token at all — the session cookie authenticates it.
  */
 
@@ -51,7 +51,7 @@ describe('FetchEventSource (B-088)', () => {
   });
 
   it('carries no credential of its own — the session cookie authenticates the stream', async () => {
-    // usetheoai/theo#477 step 3: no token in the URL (access logs, Referer), none in a header.
+    // getloopscale/loopscale#477 step 3: no token in the URL (access logs, Referer), none in a header.
     fetchMock.mockResolvedValue(respostaOk(stream('')));
     const es = new FetchEventSource('/api/stream?env=prod', {});
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());

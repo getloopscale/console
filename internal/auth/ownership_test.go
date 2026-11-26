@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M1 T2.1 — AccountOwnsTenant ownership check (sqlmock). Proves the three paths
 // distinctly: owns→true, not-owns→(false,nil), DB error→(false,non-nil) so the

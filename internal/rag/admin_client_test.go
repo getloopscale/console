@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package rag
 
@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-// TestMintKey_ParsesNestedResponse — the load-bearing adaptation (EC-1): theo-rag
+// TestMintKey_ParsesNestedResponse — the load-bearing adaptation (EC-1): looprag
 // M12 returns {"key":{"id","scopes"},"raw_key":"rag_live_..."}, NOT TheMemory's
 // flat {"id","secret"}. A verbatim copy would yield an empty Secret.
 func TestMintKey_ParsesNestedResponse(t *testing.T) {

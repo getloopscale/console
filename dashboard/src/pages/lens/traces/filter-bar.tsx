@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, Input, Select } from '@usetheo/ui';
+import { Badge, Button, Input, Select } from '@getloopscale/ui';
 import { X } from 'lucide-react';
 
 import {
@@ -15,8 +15,8 @@ import {
 /**
  * M59 P2 T2.2 — the chip-filter builder (blueprint §3; ADR D2/D3). An **Add-filter** column `Select`
  * (column → operator → value) appends a filter; applied filters render as removable `Badge` chips
- * (× drops the exact URL param); a count `Badge` shows the active count. Composed from `@usetheo/ui`
- * `Select`/`Input`/`Badge` — NOT `Popover` (which `@usetheo/ui` does not export — ADR D3 / parsimony
+ * (× drops the exact URL param); a count `Badge` shows the active count. Composed from `@getloopscale/ui`
+ * `Select`/`Input`/`Badge` — NOT `Popover` (which `@getloopscale/ui` does not export — ADR D3 / parsimony
  * rung-4). It writes the SAME `nuqs` params via `onApply`, so `buildTraceQuery` + the M49 BFF whitelist
  * are unchanged. `Select` (not a Radix menu) so the picker is deterministic under test (combobox/option).
  */

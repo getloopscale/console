@@ -5,9 +5,9 @@ import { globSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Recurrence guard for #175 (the @usetheo/ui Alert-body drop). Every page/component MUST import
+ * Recurrence guard for #175 (the @getloopscale/ui Alert-body drop). Every page/component MUST import
  * `Alert` from the app-side `alert-guard` wrapper (which renders `children` as the body), NEVER the
- * raw `@usetheo/ui` Alert (which silently drops `children`). Reaching for the raw primitive again
+ * raw `@getloopscale/ui` Alert (which silently drops `children`). Reaching for the raw primitive again
  * re-opens the exact class M87 closed — this test fails loudly. Scope widened from `pages/lens` to the
  * whole `src/**` tree (M87: all 45 Alert consumers now route through the guard), matching the
  * `no-restricted-imports` ESLint ban's coverage. The guard file itself is the ONE sanctioned
@@ -24,15 +24,15 @@ function srcTsxFiles(): string[] {
 }
 
 describe('#175 recurrence guard — dashboard-wide Alert usage', () => {
-  it('no src file imports Alert directly from @usetheo/ui (must use the alert-guard wrapper)', () => {
+  it('no src file imports Alert directly from @getloopscale/ui (must use the alert-guard wrapper)', () => {
     const offenders: string[] = [];
     for (const file of srcTsxFiles()) {
       const src = readFileSync(file, 'utf8');
-      // multiline-aware: match the whole @usetheo/ui named-import block
-      const uiImport = src.match(/import\s*\{([^}]*)\}\s*from\s*'@usetheo\/ui';/s);
+      // multiline-aware: match the whole @getloopscale/ui named-import block
+      const uiImport = src.match(/import\s*\{([^}]*)\}\s*from\s*'@getloopscale\/ui';/s);
       if (uiImport && /\bAlert\b/.test(uiImport[1])) offenders.push(file);
     }
-    expect(offenders, `raw @usetheo/ui Alert import found in: ${offenders.join(', ')}`).toEqual([]);
+    expect(offenders, `raw @getloopscale/ui Alert import found in: ${offenders.join(', ')}`).toEqual([]);
   });
 
   it('every file that renders <Alert> imports it from the alert-guard wrapper', () => {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package billing
 
@@ -12,7 +12,7 @@ import (
 //
 // MEDIDO em 2026-08-11: `cmd/main.go` liga a cobrança inteira com uma condição só —
 // `if cfg.StripeAPIKey.Value() != ""` — e o segredo do webhook entra sem ser olhado. No
-// app-dev o Secret `theo-stripe-webhook` estava ausente, `StripeWebhookSecret` era vazia,
+// app-dev o Secret `loopscale-stripe-webhook` estava ausente, `StripeWebhookSecret` era vazia,
 // e o processo registrou `"billing enabled"` às 09:44:08.
 //
 // O que salva a segurança é `VerifySignature` (webhook.go:376), que recusa segredo vazio —

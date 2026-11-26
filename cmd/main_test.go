@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package main
 
@@ -15,10 +15,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/config"
-	"github.com/usetheoai/theo-cloud/internal/rag"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/config"
+	"github.com/getloopscale/loop-console/internal/rag"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -55,7 +55,7 @@ func TestBuildLensForwardAuth_Disabled_WhenBaseURLUnset(t *testing.T) {
 // edge ForwardAuth handler AND the dashboard BFF resolver (one mint cache).
 func TestBuildLensForwardAuth_Wired_WhenConfigured(t *testing.T) {
 	cfg := config.Config{
-		LensBaseURL:          "http://theo-lens:18082",
+		LensBaseURL:          "http://looptrace:18082",
 		LensPlatformAdminKey: config.Secret("theo_live_platform"),
 	}
 	h, broker, err := buildLensForwardAuth(cfg, stubResolve, stubAuthorize, quietLogger())
@@ -90,7 +90,7 @@ func TestBuildRagForwardAuth_Disabled_WhenBaseURLUnset(t *testing.T) {
 // REST ForwardAuth handler AND the MCP-resolve rag binding (one mint cache).
 func TestBuildRagForwardAuth_Wired_WhenConfigured(t *testing.T) {
 	cfg := config.Config{
-		RagBaseURL:          "http://theo-rag:8787",
+		RagBaseURL:          "http://looprag:8787",
 		RagPlatformAdminKey: config.Secret("rag_live_platform"),
 	}
 	h, broker, err := buildRagForwardAuth(cfg, stubResolve, stubAuthorize, quietLogger())
@@ -322,7 +322,7 @@ func (s *stubLensDashMinter) KeyForTenantScoped(_ context.Context, accountID, te
 
 // M44 — the SHIPPED lens dashboard keyResolver mints a observability:read+write+delete key from the JWT
 // tenant (the management BFF; ADR-1: one resolver, per-verb least privilege enforced at
-// theo-lens). The tenant/account MUST come from the JWT, never a param; the scope set MUST be
+// looptrace). The tenant/account MUST come from the JWT, never a param; the scope set MUST be
 // exactly [observability:read, observability:write, observability:delete].
 func TestNewLensDashboardKeyResolver_MintsReadWriteDeleteFromJWTTenant(t *testing.T) {
 	stub := &stubLensDashMinter{}
@@ -385,11 +385,11 @@ func (stubRagMinter) MintKey(_ context.Context, workspaceID, _ string, scopes []
 
 // M21 T6.1 (G5) — END-TO-END write-path isolation through the FULL BFF chain:
 // mounted router → requireJWT → handler → data_client → newRagDashboardKeyResolver →
-// broker mint → stub theo-rag. Proves a tenant-A dashboard WRITE carries a tenant-A
+// broker mint → stub looprag. Proves a tenant-A dashboard WRITE carries a tenant-A
 // scoped key and tenant-B a tenant-B key (distinct — no cross-tenant leak), the JWT
 // tenant is the sole source, and a no-JWT write is denied 401 with NO upstream call.
 func TestRagDashboard_WritePath_CrossTenantIsolation_E2E(t *testing.T) {
-	// A stub theo-rag that records the bearer + method + path per request.
+	// A stub looprag that records the bearer + method + path per request.
 	type hit struct{ auth, method, path string }
 	var hits []hit
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -430,7 +430,7 @@ func TestRagDashboard_WritePath_CrossTenantIsolation_E2E(t *testing.T) {
 		return w
 	}
 
-	// tenant A + tenant B write → each carries its OWN per-tenant bearer at theo-rag.
+	// tenant A + tenant B write → each carries its OWN per-tenant bearer at looprag.
 	if w := create("tenantA"); w.Code != http.StatusCreated {
 		t.Fatalf("tenantA create: want 201, got %d (%s)", w.Code, w.Body.String())
 	}
@@ -459,6 +459,6 @@ func TestRagDashboard_WritePath_CrossTenantIsolation_E2E(t *testing.T) {
 		t.Fatalf("no-JWT write: want 401, got %d", w.Code)
 	}
 	if len(hits) != before {
-		t.Fatal("no-JWT write reached theo-rag — must fail closed BEFORE any upstream call")
+		t.Fatal("no-JWT write reached looprag — must fail closed BEFORE any upstream call")
 	}
 }

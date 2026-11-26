@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
 # Hermetic e2e EDGE — trimmed Traefik DYNAMIC config (issue #113).
 #
@@ -8,9 +8,9 @@
 # Traefik). This is a faithful SUBSET of dev/traefik/dynamic.yml: ONLY the
 # /v1/memory capability router, so the path under test is byte-identical to dev:
 #
-#   /v1/memory/*  --forward-auth--> theo-cloud /internal/authz/forward
+#   /v1/memory/*  --forward-auth--> loop-console /internal/authz/forward
 #                 (authResponseHeaders Del-then-set strips the client key, D3)
-#                 --memory-rewrite--> /v1/*  --> themory:8080 DIRECT (ADR D7)
+#                 --memory-rewrite--> /v1/*  --> loopmem:8080 DIRECT (ADR D7)
 #
 # The unified SPA/Kratos/BFF routers (dev dynamic.yml) are intentionally OMITTED:
 # they need the dashboard SPA image (M8 slice-3a) — a separate, heavier concern
@@ -23,13 +23,13 @@ http:
       rule: "PathPrefix(`/v1/memory`)"
       entryPoints:
         - web
-      service: themory
+      service: loopmem
       middlewares:
         - forward-auth
         - memory-rewrite
 
     # M18 (KEYSTONE) — the rag capability router. /v1/rag/* --forward-auth-rag-->
-    # theo-cloud /internal/authz/forward-rag (mints a per-tenant rag_live_*; D3
+    # loop-console /internal/authz/forward-rag (mints a per-tenant rag_live_*; D3
     # Del-then-set strips the client key) --rag-rewrite--> /v1/* --> rag:8080 DIRECT.
     # Priority 92 (non-colliding with memory-edge 100).
     rag-edge:
@@ -43,7 +43,7 @@ http:
         - rag-rewrite
 
     # M40 (KEYSTONE) — the lens capability router. /v1/lens/* --forward-auth-lens-->
-    # theo-cloud /internal/authz/forward-lens (mints a per-tenant theo_live_*; Del-then-set
+    # loop-console /internal/authz/forward-lens (mints a per-tenant theo_live_*; Del-then-set
     # strips the client key) --lens-rewrite--> /v1/* --> lens:8080 DIRECT.
     # Priority 91 (non-colliding with memory-edge 100, rag-edge 92).
     lens-edge:
@@ -57,18 +57,18 @@ http:
         - lens-rewrite
 
   middlewares:
-    # D3 + credential exchange: delegate authZ to theo-cloud; copy ONLY the minted
+    # D3 + credential exchange: delegate authZ to loop-console; copy ONLY the minted
     # Authorization onto the upstream (Del-then-set strips the client's). On a
     # non-2xx from the authz endpoint, Traefik denies (no upstream call) — the
     # fail-closed behavior TestEdgeForwardAuth_NoKey_DeniedAtEdge asserts.
     forward-auth:
       forwardAuth:
-        address: "http://theo-cloud:13002/internal/authz/forward"
+        address: "http://loop-console:13002/internal/authz/forward"
         authResponseHeaders:
           - "Authorization"
         trustForwardHeader: false
 
-    # Capability namespace -> themory native path: /v1/memory/recall -> /v1/recall.
+    # Capability namespace -> loopmem native path: /v1/memory/recall -> /v1/recall.
     memory-rewrite:
       replacePathRegex:
         regex: "^/v1/memory/(.*)"
@@ -78,12 +78,12 @@ http:
     # client key). Distinct address (M14 /internal/authz/forward-rag). Non-2xx → deny.
     forward-auth-rag:
       forwardAuth:
-        address: "http://theo-cloud:13002/internal/authz/forward-rag"
+        address: "http://loop-console:13002/internal/authz/forward-rag"
         authResponseHeaders:
           - "Authorization"
         trustForwardHeader: false
 
-    # theo-rag KEEPS its /v1 prefix (memory-style): /v1/rag/collections -> /v1/collections.
+    # looprag KEEPS its /v1 prefix (memory-style): /v1/rag/collections -> /v1/collections.
     rag-rewrite:
       replacePathRegex:
         regex: "^/v1/rag/(.*)"
@@ -93,22 +93,22 @@ http:
     # client key). Distinct address (M38 /internal/authz/forward-lens). Non-2xx → deny.
     forward-auth-lens:
       forwardAuth:
-        address: "http://theo-cloud:13002/internal/authz/forward-lens"
+        address: "http://loop-console:13002/internal/authz/forward-lens"
         authResponseHeaders:
           - "Authorization"
         trustForwardHeader: false
 
-    # theo-lens KEEPS its /v1 prefix (memory-style): /v1/lens/datasets -> /v1/datasets.
+    # looptrace KEEPS its /v1 prefix (memory-style): /v1/lens/datasets -> /v1/datasets.
     lens-rewrite:
       replacePathRegex:
         regex: "^/v1/lens/(.*)"
         replacement: "/v1/$1"
 
   services:
-    themory:
+    loopmem:
       loadBalancer:
         servers:
-          - url: "http://themory:8080"
+          - url: "http://loopmem:8080"
     rag:
       loadBalancer:
         servers:

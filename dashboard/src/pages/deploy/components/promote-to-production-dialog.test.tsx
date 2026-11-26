@@ -4,8 +4,8 @@ import { userEvent } from '@testing-library/user-event';
 import type { Build } from '@/lib/api/types';
 
 const toastSpy = vi.fn();
-vi.mock('@usetheo/ui', async (orig) => {
-  const actual = await orig<typeof import('@usetheo/ui')>();
+vi.mock('@getloopscale/ui', async (orig) => {
+  const actual = await orig<typeof import('@getloopscale/ui')>();
   return { ...actual, useToast: () => ({ toast: toastSpy, dismiss: vi.fn() }) };
 });
 vi.mock('@/hooks/deploy/use-mutation-in-flight', () => ({

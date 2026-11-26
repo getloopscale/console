@@ -16,21 +16,21 @@ interface Project {
   // server-derived per-project total env count and 5-value status enum.
   // Backend additive — legacy CLI consumers ignore unknown fields.
   environment_count?: number;
-  // Red Team theo-cloud#41 (2026-06-27): production-only env_targets count
+  // Red Team loop-console#41 (2026-06-27): production-only env_targets count
   // — the canonical "Live envs" metric. Aligned with src/lib/api/types.ts.
   production_env_count?: number;
-  // Red Team theo-cloud#134 (2026-07-02): env_targets with an ACTIVE release
+  // Red Team loop-console#134 (2026-07-02): env_targets with an ACTIVE release
   // — the truest "Live envs" signal (any kind, permanent OR preview).
   // Preferred over production_env_count for preview-only projects that serve
   // real traffic via a preview env with an ACTIVE release. Aligned with
   // src/lib/api/types.ts Project + engine api/internal/domain/types.go
   // ProjectSummary.ActiveEnvCount.
   active_env_count?: number;
-  // Red Team theo-cloud#41 (2026-06-27): 'preview' added — preview-only
+  // Red Team loop-console#41 (2026-06-27): 'preview' added — preview-only
   // project (succeeded preview builds, no active production release).
   // Aligned with the canonical type in src/lib/api/types.ts ProjectStatus.
   last_deploy_status?: 'live' | 'building' | 'failed' | 'idle' | 'queued' | 'preview';
-  // Red Team theo-cloud#41 (2026-06-27): latest_build.environment from the
+  // Red Team loop-console#41 (2026-06-27): latest_build.environment from the
   // backend LATERAL join — feeds the preview-only disambiguation.
   latest_build_environment?: string;
   // T5.3 LIVE-bug fix 2026-06-08 — additive completion of T2.1's summary
@@ -41,7 +41,7 @@ interface Project {
   // apps[] array from the listing.
   apps_count?: number;
   // latest_framework = latest_build.apps_spec[0].type — closest semantic
-  // to "framework" indicator (theo.yaml apps schema has `type`, not
+  // to "framework" indicator (loopscale.yaml apps schema has `type`, not
   // `framework`). Empty string when no builds OR apps_spec missing.
   latest_framework?: string;
 }

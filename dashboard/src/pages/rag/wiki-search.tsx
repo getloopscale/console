@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { FileText } from 'lucide-react';
-import { Input } from '@usetheo/ui';
+import { Input } from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { leafName, WIKI_FOLDER_MARKER, type WikiEntry } from './wiki-entries';
 

@@ -94,7 +94,7 @@ describe('RagConnectorsPage — destructive delete flow', () => {
   });
 
   it('surfaces an error (not a silent hang) when delete fails with 409 while syncing', async () => {
-    // list ok, then the DELETE rejects (theo-rag returns 409 connection_syncing). Path/method-aware
+    // list ok, then the DELETE rejects (looprag returns 409 connection_syncing). Path/method-aware
     // so it is robust to the extra providers/collections queries the M8 connect flow now fires.
     mockCloudFetch.mockImplementation((path: string, opts?: { method?: string }) => {
       if (opts?.method === 'DELETE') return Promise.reject(new Error('409 connection_syncing'));

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FolderKanban, Loader2 } from 'lucide-react';
-import { Button, EmptyState, PageShell } from '@usetheo/ui';
+import { Button, EmptyState, PageShell } from '@getloopscale/ui';
 import { useProjects } from '@/hooks/projects/use-projects';
 
 /**
@@ -10,7 +10,7 @@ import { useProjects } from '@/hooks/projects/use-projects';
  * INSTEAD of the sub-view rendering functional UI on top of an empty
  * data set.
  *
- * Red Team theo-cloud#93 absorption (2026-06-27): the Overview already
+ * Red Team loop-console#93 absorption (2026-06-27): the Overview already
  * does this check inline (project-detail.tsx:65) but every sibling
  * sub-route (Secrets / Previews / Logs / Status / Scale / Readiness)
  * rendered fully because the backend handlers return 200 + empty list

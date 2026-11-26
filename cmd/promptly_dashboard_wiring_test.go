@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/promptly"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/promptly"
 )
 
 type recordingPromptlyMinter struct {
@@ -134,7 +134,7 @@ func TestPromptlyPromotionResolverMintsWriteScope(t *testing.T) {
 // DOIS caminhos: o de escrita e o mais grave, porque escreveria no inquilino errado.
 func TestPromptlyResolversFailClosedWithoutAuthenticatedTenant(t *testing.T) {
 	resolvers := map[string]func(promptlyDashMinter) func(context.Context) (string, error){
-		"leitura":  newPromptlyDashboardKeyResolver,
+		"leitura": newPromptlyDashboardKeyResolver,
 		"promocao": func(m promptlyDashMinter) func(context.Context) (string, error) {
 			return newPromptlyPromotionKeyResolver(m, &resolvedorDePapel{papel: "admin"})
 		},

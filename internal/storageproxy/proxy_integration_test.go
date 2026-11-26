@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 //go:build integration
 
-// End-to-end proof of the strangler-fig: theo-cloud's real StorageHandler wired
+// End-to-end proof of the strangler-fig: loop-console's real StorageHandler wired
 // with the real storageproxy.Client, driving the full chain through chi routes
-// against a REAL running theo-storage service (which itself hits real PG+MinIO).
-// The only thing stubbed is theo-cloud's auth middleware (tenant injected), same
+// against a REAL running loopstore service (which itself hits real PG+MinIO).
+// The only thing stubbed is loop-console's auth middleware (tenant injected), same
 // as the in-process storage_integration_test.go. Run with:
 //
-//	THEO_STORAGE_URL=http://localhost:8080 \
+//	LOOPSCALE_STORAGE_URL=http://localhost:8080 \
 //	go test -tags=integration ./internal/storageproxy/ -run E2E -v
 package storageproxy
 
@@ -25,8 +25,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 func injectTenant(next http.Handler, tenant string) http.Handler {
@@ -36,12 +36,12 @@ func injectTenant(next http.Handler, tenant string) http.Handler {
 	})
 }
 
-func TestE2E_ProxyThroughToTheoStorage(t *testing.T) {
-	up := os.Getenv("THEO_STORAGE_URL")
+func TestE2E_ProxyThroughToLoopScaleStorage(t *testing.T) {
+	up := os.Getenv("LOOPSCALE_STORAGE_URL")
 	if up == "" {
-		t.Skip("THEO_STORAGE_URL not set — skipping proxy e2e (needs a running theo-storage)")
+		t.Skip("LOOPSCALE_STORAGE_URL not set — skipping proxy e2e (needs a running loopstore)")
 	}
-	// Real handler over the real proxy over the real theo-storage.
+	// Real handler over the real proxy over the real loopstore.
 	h := routes.NewStorageHandler(New(up, http.DefaultClient))
 	const tenant = "tn-proxy-e2e"
 
@@ -57,7 +57,7 @@ func TestE2E_ProxyThroughToTheoStorage(t *testing.T) {
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	payload := []byte("theo-cloud handler → proxy → theo-storage → PG+MinIO")
+	payload := []byte("loop-console handler → proxy → loopstore → PG+MinIO")
 
 	// PUT upload
 	req, _ := http.NewRequest(http.MethodPut, srv.URL+"/v1/storage/objects/proxy/doc.txt", bytes.NewReader(payload))

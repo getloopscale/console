@@ -1,8 +1,8 @@
-// Kratos session-based authentication for the Theo dashboard.
+// Kratos session-based authentication for the LoopScale dashboard.
 //
 // The dashboard is a first-party SPA — uses Kratos sessions directly.
 // No Hydra, no PKCE, no tokens. Just HTTP-only session cookies, validated by
-// theo-cloud (its Backend for Frontend) on every request — usetheoai/theo#477.
+// loop-console (its Backend for Frontend) on every request — getloopscale/loopscale#477.
 //
 // Hydra is only used for the CLI (Device Code Flow).
 //
@@ -13,7 +13,7 @@
 
 // AUTH_URL is the dedicated Kratos URL. Falls back to API_URL when AUTH_URL
 // isn't set (dev / same-origin). Production with split domains (Kratos at
-// accounts.theo.dev vs API at api.theo.dev) requires AUTH_URL set explicitly
+// accounts.loopscale.dev vs API at api.loopscale.dev) requires AUTH_URL set explicitly
 // via /__config.js — without this fallback the auth flow breaks silently.
 import { API_URL, AUTH_URL, mocksEnabled } from '@/lib/http/config';
 import { reportEvent } from '@/lib/telemetry/rum';
@@ -69,7 +69,7 @@ export function isEmailVerified(session: Session): boolean {
 /** Check if user has an active session. Returns session or null.
  *
  * SECURITY (2026-06-01): Calls Kratos directly via cross-subdomain XHR with
- * credentials:include. Cookie is scoped Domain=usetheo.dev so it travels on
+ * credentials:include. Cookie is scoped Domain=getloopscale.com so it travels on
  * same-site (eTLD+1) requests; SameSite=Lax allows this per RFC6265bis §5.5.7.
  * CORS Access-Control-Allow-Origin includes the dashboard origin.
  *
@@ -87,14 +87,14 @@ export async function getSession(): Promise<Session | null> {
     // subset this app reads (GET /v1/auth/session). Going through it — instead
     // of calling Kratos from the browser — keeps devices[].ip_address and
     // recovery_addresses out of the page: they are never sent, so no XSS can
-    // read them from here. No token comes back with it (usetheoai/theo#477).
+    // read them from here. No token comes back with it (getloopscale/loopscale#477).
     const identity = await fetchSessionIdentity();
     if (!identity) {
       // eslint-disable-next-line no-console
       console.warn(
         `[auth] getSession: no active session (or it could not be checked). ` +
           `If you just registered/logged in but see this, the session cookie may not have been ` +
-          `set (open DevTools → Application → Cookies → usetheo.dev and look for ory_kratos_session). ` +
+          `set (open DevTools → Application → Cookies → getloopscale.com and look for ory_kratos_session). ` +
           `Clear cookies and re-login to reset.`,
       );
       return null;

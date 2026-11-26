@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Crown } from 'lucide-react';
 import {
   Button,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { Link } from 'react-router-dom';

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowUpToLine, RefreshCw } from 'lucide-react';
-import { Badge, Button, StatusDot, Table, type StatusKind } from '@usetheo/ui';
+import { Badge, Button, StatusDot, Table, type StatusKind } from '@getloopscale/ui';
 import { formatDate, humanizeAuthor } from '@/lib/formatting/format';
 import type { MutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 import { DeploymentRowVisitIcon } from '@/pages/deploy/components/deployment-row-visit-icon';
@@ -77,7 +77,7 @@ export function DeploymentRow({
   // transitional badge expresses the in-flight state
   // honestly. Same logic covers rollback + promote.
   //
-  // Red Team theo-cloud#121: ACTIVE per the ROW's own env,
+  // Red Team loop-console#121: ACTIVE per the ROW's own env,
   // not the global production active. The page fetches both
   // env statuses (prod + preview); each row marks active when
   // its env's active_release.build_id matches the row's
@@ -176,7 +176,7 @@ export function DeploymentRow({
         </div>
       </Table.Cell>
       <Table.Cell className="hidden md:table-cell">
-        {/* Red Team theo-cloud#52/#78 closure: the backend
+        {/* Red Team loop-console#52/#78 closure: the backend
             field `created_by` is the user's UUID — rendering
             it verbatim leaks an opaque 36-char identifier
             that means nothing to the operator. Humanize via
@@ -215,7 +215,7 @@ export function DeploymentRow({
           {/* T3.1 J-25 — active-only ExternalLink icon
               (anti-trap UX: only currently-serving row
               gets the open-in-new-tab affordance).
-              Red Team theo-cloud#121: URL is the ROW's
+              Red Team loop-console#121: URL is the ROW's
               env URL (preview → preview URL, production
               → production URL) — pre-fix this passed
               prodStatus?.url unconditionally, so a preview

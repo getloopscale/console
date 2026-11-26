@@ -8,7 +8,7 @@ import (
 )
 
 // O par que discrimina, e ele e a razao de esta metrica existir
-// (usetheodev/theo-workspace#37).
+// (getloopscale/loopscale-workspace#37).
 //
 // O painel de versoes e o instrumento de observabilidade da frota e nao tinha
 // observabilidade propria: o counter que ja existia so materializa serie DEPOIS que
@@ -17,9 +17,9 @@ import (
 
 // Servico configurado e respondendo: state=ok E a versao real como label.
 func TestServiceVersionInfo_ok_carries_the_real_version(t *testing.T) {
-	SetServiceVersionInfo("theo-traefik-mcp", "ok", "develop-6d0db8d")
+	SetServiceVersionInfo("loopmcp", "ok", "develop-6d0db8d")
 
-	if got := ServiceVersionInfoValue("theo-traefik-mcp", "ok", "develop-6d0db8d"); got != 1 {
+	if got := ServiceVersionInfoValue("loopmcp", "ok", "develop-6d0db8d"); got != 1 {
 		t.Fatalf("value = %v, want 1 — a serie do estado corrente tem de existir", got)
 	}
 }
@@ -28,9 +28,9 @@ func TestServiceVersionInfo_ok_carries_the_real_version(t *testing.T) {
 // Se sumisse, quem le o grafico concluiria que a frota encolheu — e um alvo ausente
 // seria indistinguivel de um coletor que parou.
 func TestServiceVersionInfo_unconfigured_target_still_emits(t *testing.T) {
-	SetServiceVersionInfo("theo-lens", "not_deployed", "")
+	SetServiceVersionInfo("looptrace", "not_deployed", "")
 
-	if got := ServiceVersionInfoValue("theo-lens", "not_deployed", ""); got != 1 {
+	if got := ServiceVersionInfoValue("looptrace", "not_deployed", ""); got != 1 {
 		t.Fatalf("value = %v, want 1 — alvo nao configurado tem de aparecer, nao sumir", got)
 	}
 }
@@ -39,9 +39,9 @@ func TestServiceVersionInfo_unconfigured_target_still_emits(t *testing.T) {
 // E o que torna a ausencia de serie inequivoca — ausencia passa a significar
 // exatamente uma coisa: o alvo nao esta declarado.
 func TestServiceVersionInfo_seeded_before_any_collection(t *testing.T) {
-	SeedServiceVersionInfo("theo-storage")
+	SeedServiceVersionInfo("loopstore")
 
-	if got := ServiceVersionInfoValue("theo-storage", "not_collected", ""); got != 1 {
+	if got := ServiceVersionInfoValue("loopstore", "not_collected", ""); got != 1 {
 		t.Fatalf("value = %v, want 1 — alvo declarado tem serie antes da primeira coleta", got)
 	}
 }
@@ -51,17 +51,17 @@ func TestServiceVersionInfo_seeded_before_any_collection(t *testing.T) {
 // lado da nova, e o alvo apareceria em dois estados ao mesmo tempo. Exatamente a
 // classe de mentira que o painel vem corrigindo o dia todo.
 func TestServiceVersionInfo_transition_retires_the_previous_series(t *testing.T) {
-	SetServiceVersionInfo("theo-rag", "ok", "1.2.3")
-	if got := ServiceVersionInfoValue("theo-rag", "ok", "1.2.3"); got != 1 {
+	SetServiceVersionInfo("looprag", "ok", "1.2.3")
+	if got := ServiceVersionInfoValue("looprag", "ok", "1.2.3"); got != 1 {
 		t.Fatalf("pre-condicao falhou: value = %v, want 1", got)
 	}
 
-	SetServiceVersionInfo("theo-rag", "no_provenance", "")
+	SetServiceVersionInfo("looprag", "no_provenance", "")
 
-	if got := ServiceVersionInfoValue("theo-rag", "ok", "1.2.3"); got != 0 {
+	if got := ServiceVersionInfoValue("looprag", "ok", "1.2.3"); got != 0 {
 		t.Fatalf("serie antiga sobreviveu (value = %v): o alvo apareceria em DOIS estados", got)
 	}
-	if got := ServiceVersionInfoValue("theo-rag", "no_provenance", ""); got != 1 {
+	if got := ServiceVersionInfoValue("looprag", "no_provenance", ""); got != 1 {
 		t.Fatalf("serie nova = %v, want 1", got)
 	}
 }
@@ -71,10 +71,10 @@ func TestServiceVersionInfo_transition_retires_the_previous_series(t *testing.T)
 // e o emissor (internal/serviceversions) so passa versao quando o estado e' ok.
 // Este teste trava o comportamento do SETTER caso alguem o chame errado.
 func TestServiceVersionInfo_degraded_state_never_keeps_a_version_label(t *testing.T) {
-	SetServiceVersionInfo("theo-x", "ok", "9.9.9")
-	SetServiceVersionInfo("theo-x", "unreachable", "")
+	SetServiceVersionInfo("loopscale-x", "ok", "9.9.9")
+	SetServiceVersionInfo("loopscale-x", "unreachable", "")
 
-	if got := ServiceVersionInfoValue("theo-x", "ok", "9.9.9"); got != 0 {
+	if got := ServiceVersionInfoValue("loopscale-x", "ok", "9.9.9"); got != 0 {
 		t.Fatalf("estado degradado conviveu com a versao antiga (value = %v)", got)
 	}
 }
@@ -87,16 +87,16 @@ func TestServiceVersionInfo_degraded_state_never_keeps_a_version_label(t *testin
 // E' o pilar de metrica-de-runtime do wiring triad exercido de verdade: nao "o codigo
 // existe e compila", mas "a serie aparece na exposicao HTTP".
 func TestServiceVersionInfo_is_actually_exposed_on_the_metrics_endpoint(t *testing.T) {
-	SetServiceVersionInfo("theo-exposed", "ok", "9.9.9")
+	SetServiceVersionInfo("loopscale-exposed", "ok", "9.9.9")
 
 	rec := httptest.NewRecorder()
 	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "theo_cloud_service_version_info") {
-		t.Fatal("theo_cloud_service_version_info ausente do /metrics — GaugeVec nao registrado")
+	if !strings.Contains(body, "loop_console_service_version_info") {
+		t.Fatal("loop_console_service_version_info ausente do /metrics — GaugeVec nao registrado")
 	}
-	if !strings.Contains(body, `service="theo-exposed"`) || !strings.Contains(body, `version="9.9.9"`) {
+	if !strings.Contains(body, `service="loopscale-exposed"`) || !strings.Contains(body, `version="9.9.9"`) {
 		t.Error("a serie foi exposta sem os labels que a tornam util (service/version)")
 	}
 }

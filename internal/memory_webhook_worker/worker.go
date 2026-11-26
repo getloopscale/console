@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package memory_webhook_worker
 
@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/safehttp"
+	"github.com/getloopscale/loop-console/internal/safehttp"
 )
 
 // Defaults — overridable via Config when constructing Worker.
@@ -22,14 +22,14 @@ const (
 	// Claim only what we can immediately dispatch (== MaxInFlight). If the claim
 	// batch exceeds in-flight concurrency, batch-tail rows block in the semaphore
 	// while their lease clock runs — the reaper could then reclaim a row this
-	// worker still holds → concurrent double-delivery (theo-cloud#160 B1). New()
+	// worker still holds → concurrent double-delivery (loop-console#160 B1). New()
 	// clamps a custom ClaimBatch down to MaxInFlight to preserve this invariant.
 	defaultClaimBatch        = defaultMaxInFlight
 	defaultHTTPClientTimeout = 35 * time.Second // > httpAttemptTimeout (30s) so the client doesn't kill mid-flight
 	// leaseTimeout bounds how long a row may sit in 'delivering' before the
 	// reaper reclaims it. Larger than the worst-case single dispatch (~55s: 30s
 	// attempt ctx + dial + record) so a LIVE dispatch is never reaped — only a
-	// crashed worker's permanent orphan is (theo-cloud#160).
+	// crashed worker's permanent orphan is (loop-console#160).
 	defaultLeaseTimeout = 90 * time.Second
 )
 
@@ -79,12 +79,12 @@ func New(db *sql.DB, logger *slog.Logger, cfg *Config) *Worker {
 		}
 	}
 	if c.HTTPClient == nil {
-		// SSRF guard (theo-cloud#148): the delivery target is a
+		// SSRF guard (loop-console#148): the delivery target is a
 		// customer-controlled URL. safehttp rejects the resolved IP at
 		// dial time (defeats DNS rebinding) and does not follow redirects.
 		c.HTTPClient = safehttp.NewClient(defaultHTTPClientTimeout)
 	}
-	// Invariant (theo-cloud#160 B1): never claim more than we can immediately
+	// Invariant (loop-console#160 B1): never claim more than we can immediately
 	// dispatch, else batch-tail rows expire their lease while queued and the
 	// reaper double-fires them.
 	if c.ClaimBatch > c.MaxInFlight {
@@ -202,7 +202,7 @@ func (w *Worker) claimDue(ctx context.Context, limit int) ([]*Delivery, error) {
 	// Mark each as delivering + stamp a lease deadline on next_attempt_at (which
 	// claimDue never reads for a 'delivering' row) so the reaper can distinguish
 	// a live in-flight row (deadline future) from a crashed orphan (deadline
-	// past) without a claimed_at column (theo-cloud#160).
+	// past) without a claimed_at column (loop-console#160).
 	leaseSecs := int(defaultLeaseTimeout.Seconds())
 	for _, d := range deliveries {
 		if _, err := tx.ExecContext(ctx,
@@ -225,7 +225,7 @@ func (w *Worker) claimDue(ctx context.Context, limit int) ([]*Delivery, error) {
 // deadline (next_attempt_at) — a worker that crashed mid-dispatch. Each is
 // treated as a real failed attempt: counted, backed off, and dead-lettered at
 // the cap (reusing NextBackoff/IsTerminalAttempt, DRY), so an orphaned delivery
-// is retried instead of silently lost forever (theo-cloud#160). Because the
+// is retried instead of silently lost forever (loop-console#160). Because the
 // claim batch is capped at MaxInFlight, a LIVE dispatch never outlives its lease
 // — the reaper only ever touches genuinely-crashed orphans (whose worker is gone
 // and will not write), so no lost-update guard is needed. Returns the count.

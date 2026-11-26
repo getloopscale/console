@@ -24,7 +24,7 @@ import { credentialIsSuspect, shouldReopen, type StreamEndReason } from './strea
  * - `paused` lets the consumer freeze updates without disconnecting.
  *
  * Auth: the Kratos session cookie, sent by the browser on this same-origin request and validated
- * by theo-cloud (usetheoai/theo#477 step 3). No token in the URL, none in a header, none in memory.
+ * by loop-console (getloopscale/loopscale#477 step 3). No token in the URL, none in a header, none in memory.
  *
  * B-219 — this block once said the JWT goes in `?token=` because SSE cannot set headers; B-088
  * moved it to a header, and #477 removed it entirely. See `fetch-event-source.ts` and ADR-0009.
@@ -204,7 +204,7 @@ export function useSSEStream<T = unknown>(
       if (cancelled) return;
       // B-088 — the URL carries neither a credential nor the resume cursor. Until 2026-08-07 it
       // carried `?token=${jwt}`, which reaches access logs, proxy logs, browser history and the
-      // Referer header. Since usetheoai/theo#477 step 3 there is no token at all: the request is
+      // Referer header. Since getloopscale/loopscale#477 step 3 there is no token at all: the request is
       // authenticated by the session cookie, and `Last-Event-ID` travels as a header.
       const url = `${API_URL}${path}`;
 

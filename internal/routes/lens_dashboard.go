@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -13,20 +13,20 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/looptrace"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/thelens"
 )
 
-// LensDataClient is the theo-lens proxy the dashboard BFF depends on (DIP — a stub satisfies it
-// in tests). Satisfied by *thelens.DataClient. M44 extends the M41 read-only surface to
+// LensDataClient is the looptrace proxy the dashboard BFF depends on (DIP — a stub satisfies it
+// in tests). Satisfied by *looptrace.DataClient. M44 extends the M41 read-only surface to
 // read+write+delete: the interface adds the mutating methods for datasets / evaluators / guards /
 // trace tags+annotations (the writable surfaces) plus the reads the new pages need. Each method
 // returns the upstream body verbatim (json.RawMessage) — the BFF is a thin proxy that never
-// re-models theo-lens's shape. theo-lens enforces the per-verb lens:* scope on the minted key.
+// re-models looptrace's shape. looptrace enforces the per-verb lens:* scope on the minted key.
 type LensDataClient interface {
 	// Reads (M41 + M44; M49 adds the whitelisted trace-list filter)
-	ListTraces(ctx context.Context, f thelens.TraceListFilter) (json.RawMessage, error)
+	ListTraces(ctx context.Context, f looptrace.TraceListFilter) (json.RawMessage, error)
 	ListSessions(ctx context.Context, limit, offset int) (json.RawMessage, error)
 	Observability(ctx context.Context, timeRange string) (json.RawMessage, error)
 	Scores(ctx context.Context, timeRange string) (json.RawMessage, error)
@@ -49,7 +49,7 @@ type LensDataClient interface {
 	AskFeedback(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	DeleteAskFeedback(ctx context.Context, traceID, turnID string) (json.RawMessage, error)
 	Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
-	// M131 — Session Coherence: cached verdict read + billable run (proxied to theo-lens).
+	// M131 — Session Coherence: cached verdict read + billable run (proxied to looptrace).
 	GetSessionCoherence(ctx context.Context, id string) (json.RawMessage, error)
 	RunSessionCoherence(ctx context.Context, id string) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
@@ -84,7 +84,7 @@ type LensDataClient interface {
 }
 
 // LensDashboardHandler serves the read-only /v1/dashboard/lens BFF. Browser JWT sessions
-// (requireJWT) reach it; the injected data client proxies to theo-lens with a per-tenant
+// (requireJWT) reach it; the injected data client proxies to looptrace with a per-tenant
 // observability:read key resolved from the JWT tenant (never the request body/params). Read-only:
 // the write/delete management surface is M44.
 type LensDashboardHandler struct {
@@ -111,8 +111,8 @@ func (h *LensDashboardHandler) authTenant(w http.ResponseWriter, r *http.Request
 func pageParams(r *http.Request) (limit, offset int) {
 	q := r.URL.Query()
 	if v := q.Get("limit"); v != "" {
-		// M56: the export pages at limit=500 (theo-lens LIST_TRACES_LIMIT_CAP). A value above the cap is
-		// dropped (theo-lens would 400 on it), never silently clamped to a smaller page.
+		// M56: the export pages at limit=500 (looptrace LIST_TRACES_LIMIT_CAP). A value above the cap is
+		// dropped (looptrace would 400 on it), never silently clamped to a smaller page.
 		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
 			limit = n
 		}
@@ -126,7 +126,7 @@ func pageParams(r *http.Request) (limit, offset int) {
 }
 
 // observabilityRange reads the WHITELISTED time-range for the observability series (M51). Only the
-// theo-lens-supported presets are honored; anything else (empty/invalid) returns "" so theo-lens
+// looptrace-supported presets are honored; anything else (empty/invalid) returns "" so looptrace
 // applies its own 24h default — an arbitrary range string is structurally unforwardable.
 func observabilityRange(r *http.Request) string {
 	switch r.URL.Query().Get("range") {
@@ -139,11 +139,11 @@ func observabilityRange(r *http.Request) string {
 
 // traceFilter reads the WHITELISTED trace-list filter params from the request query (M49). Only the
 // known keys (status/model/from/to/q + limit/offset) are read; a request's unknown params are never
-// forwarded to theo-lens. Values pass through — theo-lens validates them (e.g. a bad status → 400).
-func traceFilter(r *http.Request) thelens.TraceListFilter {
+// forwarded to looptrace. Values pass through — looptrace validates them (e.g. a bad status → 400).
+func traceFilter(r *http.Request) looptrace.TraceListFilter {
 	limit, offset := pageParams(r)
 	q := r.URL.Query()
-	return thelens.TraceListFilter{
+	return looptrace.TraceListFilter{
 		Limit:  limit,
 		Offset: offset,
 		Status: q.Get("status"),
@@ -157,7 +157,7 @@ func traceFilter(r *http.Request) thelens.TraceListFilter {
 		MinTokens:  q.Get("min_tokens"),
 		MaxTokens:  q.Get("max_tokens"),
 		SessionID:  q.Get("session_id"),
-		SpanQuery:  q.Get("span_query"), // M92: the span-query DSL; theo-lens parses + validates (injection-safe).
+		SpanQuery:  q.Get("span_query"), // M92: the span-query DSL; looptrace parses + validates (injection-safe).
 	}
 }
 
@@ -193,7 +193,7 @@ func (h *LensDashboardHandler) ListSessions(w http.ResponseWriter, r *http.Reque
 }
 
 // Observability serves GET /v1/dashboard/lens/observability — the caller workspace's
-// observability summary (theo-lens GET /v1/metrics/observability).
+// observability summary (looptrace GET /v1/metrics/observability).
 func (h *LensDashboardHandler) Observability(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -208,7 +208,7 @@ func (h *LensDashboardHandler) Observability(w http.ResponseWriter, r *http.Requ
 }
 
 // Scores serves GET /v1/dashboard/lens/metrics/scores — the caller workspace's per-evaluator
-// score aggregation over time (theo-lens GET /v1/metrics/scores, M90). Same whitelisted range.
+// score aggregation over time (looptrace GET /v1/metrics/scores, M90). Same whitelisted range.
 func (h *LensDashboardHandler) Scores(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -224,7 +224,7 @@ func (h *LensDashboardHandler) Scores(w http.ResponseWriter, r *http.Request) {
 
 // SpanAttributes serves GET /v1/dashboard/lens/metrics/span-attributes — facet discovery (M92):
 // the caller workspace's top attribute keys, or (with ?key=) the top values for one key. The key
-// passes through to theo-lens, which binds it as a jsonb path (injection-safe).
+// passes through to looptrace, which binds it as a jsonb path (injection-safe).
 func (h *LensDashboardHandler) SpanAttributes(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -239,7 +239,7 @@ func (h *LensDashboardHandler) SpanAttributes(w http.ResponseWriter, r *http.Req
 }
 
 // Cost serves GET /v1/dashboard/lens/cost?since — the caller workspace's cost summary
-// (theo-lens GET /v1/analytics/cost).
+// (looptrace GET /v1/analytics/cost).
 func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -254,7 +254,7 @@ func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
 }
 
 // UsageByUser serves GET /v1/dashboard/lens/usage-by-user — the caller workspace's consumption
-// grouped by end user (theo-lens GET /v1/analytics/usage-by-user, M140).
+// grouped by end user (looptrace GET /v1/analytics/usage-by-user, M140).
 //
 // It goes through h.proxy, NOT through the older shape of Cost above, and the difference is
 // load-bearing: M140 REJECTS an out-of-range `days`/`limit` with a typed 400 instead of clamping in
@@ -272,10 +272,10 @@ func (h *LensDashboardHandler) UsageByUser(w http.ResponseWriter, r *http.Reques
 
 // --- M44 read+write+delete management surface --------------------------------------------
 
-// browserActionableUpstream reports whether a theo-lens status is one the BROWSER can act on and so
+// browserActionableUpstream reports whether a looptrace status is one the BROWSER can act on and so
 // should be forwarded verbatim (M82). Forwarded: a 4xx the caller can fix or react to — 400 invalid
 // input, 404 absent, 409 name-conflict, 422 unprocessable, 429 rate-limited. NOT forwarded: 401/403,
-// because those reflect the BFF↔theo-lens minted-key trust boundary, NOT the browser's JWT session —
+// because those reflect the BFF↔looptrace minted-key trust boundary, NOT the browser's JWT session —
 // forwarding a 401 would trip the dashboard's session-expiry redirect (a spurious logout on a broker
 // misconfig), and a 403 would falsely tell an authorized user they lack access. Everything else
 // (401/403 + 5xx + non-status transport errors) collapses to a generic 502 (fail-closed).
@@ -289,14 +289,14 @@ func browserActionableUpstream(status int) bool {
 	}
 }
 
-// writeUpstreamErr maps an upstream failure to the client. A browser-actionable theo-lens 4xx
-// (*thelens.UpstreamStatusError, per browserActionableUpstream) is FORWARDED verbatim — the real
-// status + theo-lens's own {code,message} body — so the browser can act on it (e.g. show "name
+// writeUpstreamErr maps an upstream failure to the client. A browser-actionable looptrace 4xx
+// (*looptrace.UpstreamStatusError, per browserActionableUpstream) is FORWARDED verbatim — the real
+// status + looptrace's own {code,message} body — so the browser can act on it (e.g. show "name
 // already taken" on a 409). Every other upstream status (401/403 minted-key boundary, 5xx) and any
 // transport/resolver error collapses to a generic 502 (fail-closed — never a spurious session
 // redirect).
 func (h *LensDashboardHandler) writeUpstreamErr(w http.ResponseWriter, what string, err error) {
-	var ue *thelens.UpstreamStatusError
+	var ue *looptrace.UpstreamStatusError
 	if errors.As(err, &ue) && browserActionableUpstream(ue.Status) {
 		h.logger.Warn("lens dashboard: "+what+" upstream status", "status", ue.Status)
 		writeJSON(w, ue.Status, json.RawMessage(ue.Body))
@@ -307,7 +307,7 @@ func (h *LensDashboardHandler) writeUpstreamErr(w http.ResponseWriter, what stri
 }
 
 // proxy runs fn (an upstream call) behind the fail-closed tenant guard and writes the result:
-// 401 when no tenant, the forwarded upstream status on a theo-lens non-2xx (502 only on a
+// 401 when no tenant, the forwarded upstream status on a looptrace non-2xx (502 only on a
 // transport error), otherwise 200 + the pass-through body.
 func (h *LensDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, what string, fn func() (json.RawMessage, error)) {
 	if !h.authTenant(w, r) {
@@ -371,7 +371,7 @@ func (h *LensDashboardHandler) GetTrace(w http.ResponseWriter, r *http.Request) 
 }
 
 // GetTraceCost serves GET /v1/dashboard/lens/traces/{traceID}/cost — the per-trace cost summary
-// (theo-lens GET /v1/traces/:id/cost, M5). Feeds the M54 compare view's delta table. Same per-tenant
+// (looptrace GET /v1/traces/:id/cost, M5). Feeds the M54 compare view's delta table. Same per-tenant
 // Model-B path + upstream-error mapping as GetTrace (h.proxy), so a foreign/missing trace is refused
 // upstream exactly like the single-trace detail — no fabricated cost, no cross-tenant leak.
 func (h *LensDashboardHandler) GetTraceCost(w http.ResponseWriter, r *http.Request) {
@@ -384,7 +384,7 @@ func (h *LensDashboardHandler) GetTraceTags(w http.ResponseWriter, r *http.Reque
 }
 
 // GetSessionCoherence serves GET /v1/dashboard/lens/sessions/{sessionID}/coherence — the cached
-// Session Coherence verdict (theo-lens GET /v1/sessions/:id/coherence, M131). null verdict → badge
+// Session Coherence verdict (looptrace GET /v1/sessions/:id/coherence, M131). null verdict → badge
 // "pending". Same per-tenant Model-B path + fail-closed guard as the trace reads (h.proxy).
 func (h *LensDashboardHandler) GetSessionCoherence(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "sessionID")
@@ -392,7 +392,7 @@ func (h *LensDashboardHandler) GetSessionCoherence(w http.ResponseWriter, r *htt
 }
 
 // RunSessionCoherence serves POST /v1/dashboard/lens/sessions/{sessionID}/coherence — runs the
-// billable session-coherence judge (theo-lens POST, rate-limited + write scope). No request body.
+// billable session-coherence judge (looptrace POST, rate-limited + write scope). No request body.
 func (h *LensDashboardHandler) RunSessionCoherence(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "sessionID")
 	h.proxy(w, r, "run session coherence", func() (json.RawMessage, error) { return h.client.RunSessionCoherence(r.Context(), id) })
@@ -407,7 +407,7 @@ func (h *LensDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 }
 
 // AskFeedback serves POST /v1/dashboard/lens/traces/{traceID}/ask/feedback — the M83 thumbs up/down
-// (theo-lens POST /v1/traces/:id/ask/feedback, write-scope). Independent of the LLM; the browser body
+// (looptrace POST /v1/traces/:id/ask/feedback, write-scope). Independent of the LLM; the browser body
 // ({turnId,label}) is forwarded verbatim behind the fail-closed tenant guard.
 func (h *LensDashboardHandler) AskFeedback(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
@@ -417,7 +417,7 @@ func (h *LensDashboardHandler) AskFeedback(w http.ResponseWriter, r *http.Reques
 }
 
 // DeleteAskFeedback serves DELETE /v1/dashboard/lens/traces/{traceID}/ask/feedback?turnId= — the M83
-// vote retract (theo-lens DELETE, write-scope). turnId comes from the query (whitelisted).
+// vote retract (looptrace DELETE, write-scope). turnId comes from the query (whitelisted).
 func (h *LensDashboardHandler) DeleteAskFeedback(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
 	turnID := r.URL.Query().Get("turnId")
@@ -426,11 +426,11 @@ func (h *LensDashboardHandler) DeleteAskFeedback(w http.ResponseWriter, r *http.
 	})
 }
 
-// Replay serves POST /v1/dashboard/lens/traces/{traceID}/replay — the M55 span replay (theo-lens
+// Replay serves POST /v1/dashboard/lens/traces/{traceID}/replay — the M55 span replay (looptrace
 // POST /v1/traces/:id/replay): re-run an edited message list against the real provider server-side.
 // Same per-tenant Model-B path + fail-closed body-proxy as Ask; a read-scope EPHEMERAL provider call
 // that never mutates the trace body (the persist path is save-as-dataset). The browser never holds a
-// provider key — the credential stays in theo-lens.
+// provider key — the credential stays in looptrace.
 func (h *LensDashboardHandler) Replay(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
 	h.proxyBody(w, r, "replay", func(body json.RawMessage) (json.RawMessage, error) { return h.client.Replay(r.Context(), id, body) })
@@ -530,7 +530,7 @@ func (h *LensDashboardHandler) DeleteTraceAnnotation(w http.ResponseWriter, r *h
 }
 
 // M63 — labeling queues. All behind the fail-closed tenant guard; the per-tenant observability
-// read/write scope is enforced upstream (theo-lens), the BFF is a thin verbatim proxy.
+// read/write scope is enforced upstream (looptrace), the BFF is a thin verbatim proxy.
 func (h *LensDashboardHandler) ListLabelingQueue(w http.ResponseWriter, r *http.Request) {
 	h.proxy(w, r, "list labeling queue", func() (json.RawMessage, error) {
 		return h.client.ListLabelingQueue(r.Context(), r.URL.Query())
@@ -561,7 +561,7 @@ func (h *LensDashboardHandler) ExportLabelingQueueAsDataset(w http.ResponseWrite
 }
 
 // M64 — experiments. All behind the fail-closed tenant guard; the per-tenant observability read/write
-// scope is enforced upstream (theo-lens), the BFF is a thin verbatim proxy.
+// scope is enforced upstream (looptrace), the BFF is a thin verbatim proxy.
 func (h *LensDashboardHandler) CreateExperimentRun(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "create experiment run", func(body json.RawMessage) (json.RawMessage, error) {
 		return h.client.CreateExperimentRun(r.Context(), body)

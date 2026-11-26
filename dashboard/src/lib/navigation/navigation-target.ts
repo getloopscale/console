@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { isSafeRedirectUrl } from '@/lib/navigation/safe-redirect';
 
@@ -39,7 +39,7 @@ export interface NavigationPolicy {
   readonly additionalOrigins: readonly string[];
 }
 
-/** The default: same-origin plus the canonical Theo auth hosts. */
+/** The default: same-origin plus the canonical LoopScale auth hosts. */
 const SAME_APP_AND_AUTH: NavigationPolicy = { name: 'same-app-and-auth', additionalOrigins: [] };
 
 /**

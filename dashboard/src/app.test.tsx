@@ -3,7 +3,7 @@
 // Before this commit:
 //   - /api-keys              → ApiKeysPage (orphaned; no sidebar entry pointed here)
 //   - /settings/tokens       → SubPagePlaceholder ("coming soon" + a non-existent
-//                              `theo token create` CLI suggestion — the sidebar's
+//                              `loopscale token create` CLI suggestion — the sidebar's
 //                              actual target)
 //
 // After:
@@ -63,7 +63,7 @@ vi.mock('@/lib/http/api', () => ({
 // which would conflict with the MemoryRouter the test render helper provides.
 // Pinning the behavior in isolation keeps the regression contract sharp and
 // independent of unrelated route additions to app.tsx.
-// Red Team theo-cloud#102 closure: same shape as PreviewsRedirect, but
+// Red Team loop-console#102 closure: same shape as PreviewsRedirect, but
 // /projects/:name/repository → /projects/:name/connect.
 function RepositoryAliasStub() {
   const { name } = useParams();
@@ -83,7 +83,7 @@ function RoutingHarness() {
       <Route path="/projects/:name/repository" element={<RepositoryAliasStub />} />
       <Route path="/projects/:name/connect" element={<ConnectStub />} />
       <Route path="/environments" element={<EnvironmentsStub />} />
-      {/* Red Team theo-cloud#55 closure: /registration is an alias of
+      {/* Red Team loop-console#55 closure: /registration is an alias of
           /register. We pin the route here in isolation so the regression
           is locked even if app.tsx churns. */}
       <Route path="/registration" element={<Navigate to="/register" replace />} />
@@ -103,10 +103,10 @@ describe('App routing — API tokens consolidation', () => {
 
     // The real page shows the empty-state copy from ApiKeysPage; the old
     // placeholder said "API Tokens is coming soon" + suggested the
-    // non-existent `theo token create --name my-token` CLI.
+    // non-existent `loopscale token create --name my-token` CLI.
     expect(await screen.findByText(/No API keys yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/theo token create/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/loopscale token create/i)).not.toBeInTheDocument();
   });
 
   it('/api-keys redirects to /settings/tokens (URL alias for bookmarks)', async () => {
@@ -120,16 +120,16 @@ describe('App routing — API tokens consolidation', () => {
   });
 });
 
-describe('App routing — Red Team theo-cloud#102 closure', () => {
+describe('App routing — Red Team loop-console#102 closure', () => {
   it('/projects/:name/repository redirects to /projects/:name/connect', async () => {
     render(<RoutingHarness />, {
-      initialEntries: ['/projects/theokit-example/repository'],
+      initialEntries: ['/projects/loopzero-example/repository'],
     });
     expect(await screen.findByTestId('connect-page-stub')).toBeInTheDocument();
   });
 });
 
-describe('App routing — Red Team theo-cloud#55 closure', () => {
+describe('App routing — Red Team loop-console#55 closure', () => {
   it('/registration redirects to /register without falsely claiming "Session expired"', async () => {
     render(<RoutingHarness />, { initialEntries: ['/registration'] });
     // After the Navigate replace, the stub for /register renders.

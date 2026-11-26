@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// AuthzMCPResolvePath is the internal endpoint the Theo MCP Gateway's BrokerResolver
-// calls per request (gateway-themory-integration D1). UNLIKE the Traefik ForwardAuth
+// AuthzMCPResolvePath is the internal endpoint the LoopScale MCP Gateway's BrokerResolver
+// calls per request (gateway-loopmem-integration D1). UNLIKE the Traefik ForwardAuth
 // endpoint (which returns ONLY the minted Authorization header for the edge to copy
 // upstream), this endpoint returns the FULL PRINCIPAL as JSON so the gateway can
 // populate its own per-tenant tool gate (M2) + tenant attribution. Internal-only
@@ -32,8 +32,8 @@ type MCPCapabilityBinding struct {
 	// ScopeTools maps each data scope (e.g. "memory:read") to the MCP tool names it
 	// grants (e.g. "recall", "episodes"). The gateway's allowlist matches scope==tool
 	// name exactly, so the principal's `scopes` field MUST carry tool names, not the
-	// raw data scopes (theo-workspace#10). The DOWNSTREAM minted key still carries the
-	// raw data scopes — themory remains the authoritative per-verb gate. When nil, the
+	// raw data scopes (loopscale-workspace#10). The DOWNSTREAM minted key still carries the
+	// raw data scopes — loopmem remains the authoritative per-verb gate. When nil, the
 	// raw scopes pass through unchanged (backward-compat for capabilities without a map).
 	ScopeTools map[string][]string
 }
@@ -41,7 +41,7 @@ type MCPCapabilityBinding struct {
 // mcpPrincipal is the JSON the gateway consumes. DownstreamKey is a secret (same
 // trust model as the ForwardAuth Authorization header on the internal hop) and is
 // NEVER logged. Scopes are the consumer's resolved scopes (the gateway maps them to
-// its per-tenant tool allowlist; themory is the authoritative downstream gate).
+// its per-tenant tool allowlist; loopmem is the authoritative downstream gate).
 type mcpPrincipal struct {
 	TenantID string `json:"tenant_id"`
 	// Subject is the credential's owning user, forwarded so the gateway can bind the
@@ -145,7 +145,7 @@ func (h *MCPResolveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // grantedTools translates the consumer's data scopes into the MCP tool names the
-// gateway allowlist expects (theo-workspace#10). The gateway matches scope==tool name
+// gateway allowlist expects (loopscale-workspace#10). The gateway matches scope==tool name
 // exactly, so a data scope like "memory:read" must become its verbs ("recall", …).
 // Deterministic (sorted, deduped). When the binding has no ScopeTools map, the raw
 // scopes pass through (backward-compat for capabilities that have not declared one).

@@ -4,7 +4,7 @@
 // waste it exists to measure.
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
@@ -61,7 +61,7 @@ const SRC = resolve(__dirname, '..');
  * Measured, not guessed: each of these was moved to `node`, failed with `ReferenceError: window is
  * not defined` or `document is not defined`, and was moved back. `lib/http/config.ts` is the
  * clearest instance — `export const API_URL = getConfig().API_URL` runs at import time and reads
- * `window.__THEO_CONFIG__`, and `api.ts` (151 importers) imports it. `vitest.config.ts` names that
+ * `window.__LOOPSCALE_CONFIG__`, and `api.ts` (151 importers) imports it. `vitest.config.ts` names that
  * module by name as the reason the whole suite defaults to jsdom.
  *
  * A one-line defensive read (`globalThis.window?.`) was TRIED and REVERTED in the same session: it

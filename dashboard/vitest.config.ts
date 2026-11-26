@@ -7,7 +7,7 @@ import path from 'path';
  * load test setup.
  *
  * jsdom environment provides window, document, etc. — required because
- * src/lib/config.ts reads from window.__THEO_CONFIG__ and gets transitively
+ * src/lib/config.ts reads from window.__LOOPSCALE_CONFIG__ and gets transitively
  * imported by other lib/ modules.
  */
 export default defineConfig({

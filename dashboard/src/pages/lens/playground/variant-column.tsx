@@ -2,7 +2,7 @@ import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { useDatasets } from '@/hooks/lens/use-datasets';
 import { Braces, Plus, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, Input, Select, Textarea } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { useReplaySpan, useSaveToDataset } from '@/hooks/lens/use-trace-actions';

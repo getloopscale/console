@@ -1,4 +1,4 @@
-import { Card, CodeBlock } from '@usetheo/ui';
+import { Card, CodeBlock } from '@getloopscale/ui';
 import { ExternalLink } from 'lucide-react';
 
 /**

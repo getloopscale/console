@@ -22,7 +22,7 @@ const { isSafeRedirectUrl } = await import('./safe-redirect');
 
 describe('as origens que o operador configurou', () => {
   beforeEach(() => {
-    vi.stubGlobal('window', { location: { origin: 'https://app-dev.usetheo.dev' } });
+    vi.stubGlobal('window', { location: { origin: 'https://app-dev.getloopscale.com' } });
   });
 
   it('aceita uma origem configurada em https, fora da lista canônica', () => {
@@ -61,7 +61,7 @@ describe('sem window (SSR / node)', () => {
   });
 
   it('um host canônico continua aceito', () => {
-    expect(isSafeRedirectUrl('https://auth-dev.usetheo.dev/x')).toBe(true);
+    expect(isSafeRedirectUrl('https://auth-dev.getloopscale.com/x')).toBe(true);
   });
 
   it('um caminho relativo é RECUSADO — sem origem, não há como julgá-lo', () => {
@@ -102,7 +102,7 @@ describe('B-214 — numa página http, a origem configurada em http passa', () =
 
   it('e continua aceitando https', () => {
     expect(isSafeRedirectUrl('https://cloud.exemplo.test/x')).toBe(true);
-    expect(isSafeRedirectUrl('https://auth-dev.usetheo.dev/x')).toBe(true);
+    expect(isSafeRedirectUrl('https://auth-dev.getloopscale.com/x')).toBe(true);
   });
 
   it('mesma origem em http continua valendo', () => {
@@ -122,8 +122,8 @@ describe('B-214 — os dois casos que só existem fora de uma página https', ()
     // aceitar um deles em texto claro anularia a razão de estarem na lista. A regra
     // anti-downgrade não cobre este caso — a página é http, então não há descida.
     vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
-    expect(isSafeRedirectUrl('http://auth-dev.usetheo.dev/x')).toBe(false);
-    expect(isSafeRedirectUrl('https://auth-dev.usetheo.dev/x')).toBe(true);
+    expect(isSafeRedirectUrl('http://auth-dev.getloopscale.com/x')).toBe(false);
+    expect(isSafeRedirectUrl('https://auth-dev.getloopscale.com/x')).toBe(true);
   });
 
   it('sem window, um destino http é recusado — não se supõe o esquema da página', () => {

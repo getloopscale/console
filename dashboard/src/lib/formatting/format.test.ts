@@ -123,7 +123,7 @@ describe('formatNumber', () => {
 describe('maskEmail (T-D.1 / P-3 / EC-10)', () => {
   it('test_mask_email_preserves_domain', () => {
     // Plan v1.1 T-D.1: preserve full domain, redact only local part
-    expect(maskEmail('demo@usetheo.dev')).toBe('d***@usetheo.dev');
+    expect(maskEmail('demo@getloopscale.com')).toBe('d***@getloopscale.com');
     expect(maskEmail('paulo@example.com')).toBe('p****@example.com');
   });
 
@@ -149,7 +149,7 @@ describe('maskEmail (T-D.1 / P-3 / EC-10)', () => {
   });
 });
 
-// Red Team theo-cloud#52/#78 closure: the /deployments table used to
+// Red Team loop-console#52/#78 closure: the /deployments table used to
 // render the backend `created_by` UUID verbatim. humanizeAuthor maps a
 // UUID to its first 8 chars, an email to its local-part, and passes
 // through anything else.
@@ -159,7 +159,7 @@ describe('humanizeAuthor (#52/#78)', () => {
   });
 
   it('keeps the local-part of an email', () => {
-    expect(humanizeAuthor('paulo@usetheo.dev')).toBe('paulo');
+    expect(humanizeAuthor('paulo@getloopscale.com')).toBe('paulo');
   });
 
   it('passes through a real name', () => {

@@ -202,7 +202,7 @@ describe('SignalDetailSheet — T3.3 J-18', () => {
           signal="replicas"
           projectName="teste"
           env="production"
-          grafanaBaseURL="https://grafana.theo.local"
+          grafanaBaseURL="https://grafana.loopscale.local"
         />,
       ),
     );

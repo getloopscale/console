@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/storage",
+  "name": "@getloopscale/storage",
   "version": "0.1.0",
-  "description": "Official TypeScript client for Theo tenant blob storage — upload, download, list, delete, stat, and share files over the /v1/storage API.",
+  "description": "Official TypeScript client for LoopScale tenant blob storage — upload, download, list, delete, stat, and share files over the /v1/storage API.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,7 +18,7 @@
     "test": "vitest run",
     "prepublishOnly": "npm run build && npm test"
   },
-  "keywords": ["theo", "storage", "blob", "s3", "files"],
+  "keywords": ["loopscale", "storage", "blob", "s3", "files"],
   "devDependencies": {
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

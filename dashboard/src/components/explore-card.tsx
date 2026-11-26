@@ -1,4 +1,4 @@
-import { Button, Card } from '@usetheo/ui';
+import { Button, Card } from '@getloopscale/ui';
 import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 

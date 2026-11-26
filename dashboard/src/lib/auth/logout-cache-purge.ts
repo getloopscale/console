@@ -36,13 +36,13 @@
 /**
  * Prefixos dos caches que guardam dado de tenant.
  *
- * Prefixo, e não nome exato, porque o Workbox versiona (`theo-api-v3`). Casar
+ * Prefixo, e não nome exato, porque o Workbox versiona (`loop-runtime-api-v3`). Casar
  * por igualdade deixaria um cache renomeado sobreviver ao logout, em silêncio.
  *
- * ## `theo-api` continua aqui DEPOIS de a regra ter saído do build
+ * ## `loop-runtime-api` continua aqui DEPOIS de a regra ter saído do build
  *
  * Desde o `ADR-0004`/B-055 o service worker não guarda mais dado de servidor, e
- * um build novo nunca cria `theo-api`. Manter a entrada não é resíduo: **o
+ * um build novo nunca cria `loop-runtime-api`. Manter a entrada não é resíduo: **o
  * service worker que está instalado no navegador de alguém ainda tem o cache
  * dele.** Ele só é substituído quando aquela pessoa carrega a página de novo, e
  * até lá o dado do tenant anterior continua em disco.
@@ -56,7 +56,7 @@
  * precisa entrar aqui — `logout-cache-purge.test.ts` é a única coisa que
  * lembra disso.
  */
-export const CACHES_DE_DADOS = ['theo-api'] as const;
+export const CACHES_DE_DADOS = ['loop-runtime-api'] as const;
 
 function guardaDado(name: string): boolean {
   return CACHES_DE_DADOS.some((p) => name === p || name.startsWith(`${p}-`));

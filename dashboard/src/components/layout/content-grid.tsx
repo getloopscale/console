@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '@usetheo/ui';
+import { cn } from '@getloopscale/ui';
 
 type GridColumns = '1' | '2-equal' | '2-asymmetric' | '3-equal';
 

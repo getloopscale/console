@@ -98,9 +98,9 @@ const LAZY_ONLY_RE = new RegExp(
 );
 
 export function manualChunks(id: string): string | undefined {
-  // NOTE (F-fe-1): @usetheo/ui / @radix-ui / lucide are NOT given dedicated chunks.
-  // @usetheo/ui re-exports Radix + utility deps that ALSO live in `vendor`, forming
-  // a `vendor ↔ theo-ui ↔ radix` chunk cycle; Rollup then orders a `vendor` binding
+  // NOTE (F-fe-1): @getloopscale/ui / @radix-ui / lucide are NOT given dedicated chunks.
+  // @getloopscale/ui re-exports Radix + utility deps that ALSO live in `vendor`, forming
+  // a `vendor ↔ loopscale-ui ↔ radix` chunk cycle; Rollup then orders a `vendor` binding
   // read before its init → "Cannot access X before initialization" → blank SPA. The
   // same failure mode ADR D1 documents for scheduler: circular chunks must be MERGED,
   // not split. Letting them fall to the single `vendor` chunk breaks the cycle.

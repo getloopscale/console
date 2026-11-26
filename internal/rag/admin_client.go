@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Model B (edge-integration M14) — AdminClient is the CONTROL-PLANE client the
-// gateway uses to provision per-tenant rag_live_* keys against theo-rag's admin
+// gateway uses to provision per-tenant rag_live_* keys against looprag's admin
 // API. It holds the platform-admin credential (rag:platform-admin) and is used
 // ONLY to mint keys — NEVER on the data path. The Broker (broker.go) holds no
 // reference to the platform key; this structural separation is the NIST
 // AC-5/AC-6 control/data-plane split that closes the confused deputy (CWE-441):
 // a data-path bug can no longer wield provisioning authority.
 //
-// Adapted from internal/themory/admin_client.go (Rule 9). The ONE deviation:
-// theo-rag's M12 POST /v1/admin/keys returns a NESTED envelope
+// Adapted from internal/loopmem/admin_client.go (Rule 9). The ONE deviation:
+// looprag's M12 POST /v1/admin/keys returns a NESTED envelope
 // {"key":{"id","scopes"},"raw_key":"rag_live_..."} (not TheMemory's flat
 // {"id","secret"}), so MintKey unmarshals that shape and maps raw_key -> Secret.
 //
@@ -45,7 +45,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("rag: upstream status %d: %s", e.StatusCode, e.Body)
 }
 
-// AdminClient talks to theo-rag's admin key-lifecycle API. Construct via
+// AdminClient talks to looprag's admin key-lifecycle API. Construct via
 // NewAdminClient. Holds the platform credential so the data path cannot reach it.
 type AdminClient struct {
 	baseURL     string
@@ -67,7 +67,7 @@ func NewAdminClient(baseURL, platformKey string, httpClient *http.Client) *Admin
 	}
 }
 
-// MintResult is the subset of theo-rag's mint response the gateway consumes.
+// MintResult is the subset of looprag's mint response the gateway consumes.
 // Secret is the raw rag_live_* key, shown once — the broker caches it; it is
 // NEVER logged or returned to the browser.
 type MintResult struct {
@@ -76,7 +76,7 @@ type MintResult struct {
 	Scopes []string
 }
 
-// mintResponse mirrors theo-rag's M12 POST /v1/admin/keys response envelope
+// mintResponse mirrors looprag's M12 POST /v1/admin/keys response envelope
 // ({"key":{...},"raw_key":"..."}). Kept private — callers see MintResult.
 type mintResponse struct {
 	Key struct {

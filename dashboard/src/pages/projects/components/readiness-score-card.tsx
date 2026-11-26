@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 
 /**
  * J-21 Readiness Score plan v1.1 T2.1 — ReadinessScoreCard.
@@ -25,7 +25,7 @@ export interface ReadinessScoreCardProps {
   totalSignals: number;
 }
 
-const STORAGE_PREFIX = 'theo:readiness-score-prev:';
+const STORAGE_PREFIX = 'loopscale:readiness-score-prev:';
 
 function thresholdClass(score: number): string {
   if (score >= 90) return 'text-success';

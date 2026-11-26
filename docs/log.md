@@ -1,6 +1,6 @@
 ---
 type: Log
-title: theo-cloud docs bundle history
+title: loop-console docs bundle history
 ---
 
 # Bundle history
@@ -16,8 +16,8 @@ title: theo-cloud docs bundle history
   follows the files.
 - **Crawl boundary.** The bundle covers `docs/` only. Documents this repository's knowledge
   depends on but does not contain are cited in prose and NOT absorbed as concepts: the plans and
-  ADRs under `.claude/knowledge-base/`, the engine repo's `theo/.claude/rules/` mandates, and the
-  cross-repo handoffs in `theo-lens/` and `theo-workspace/`. Their paths appear in concept bodies
+  ADRs under `.claude/knowledge-base/`, the engine repo's `loopscale/.claude/rules/` mandates, and the
+  cross-repo handoffs in `looptrace/` and `loopscale-workspace/`. Their paths appear in concept bodies
   as written references, not as concept links, because the targets are outside this bundle.
 - **Converted four dead hyperlinks to prose references** in `governance/dashboard.md`. They pointed at
   `.claude/knowledge-base/...` and `docs/handoff/...` paths that resolve in the *engine* repository, not

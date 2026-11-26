@@ -12,7 +12,7 @@ import {
   PageShell,
   Timestamp,
   type DataTableColumn,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ConversationPanel } from '@/pages/trust/components/conversation-panel';
 import { usePageMeta } from '@/hooks/use-page-meta';

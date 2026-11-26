@@ -65,7 +65,7 @@ export interface UseMetricsRangeResult {
  * B-176 — o parâmetro `env` foi REMOVIDO, e não apenas tirado da chave de cache.
  *
  * Ele nunca chegou à URL. A medição do lado do servidor diz por quê:
- * `theo/api/internal/routes/metrics_proxy.go` lê apenas `signal` e `range`, e `buildPromQL` rotula
+ * `loopscale/api/internal/routes/metrics_proxy.go` lê apenas `signal` e `range`, e `buildPromQL` rotula
  * só por `tenant_id`/`project` — o endpoint não tem dimensão de ambiente.
  *
  * Um parâmetro que não vai a lugar nenhum é pior que a ausência dele: quem chama acredita que
@@ -84,7 +84,7 @@ export function useMetricsRange(
 
   const query = useQuery({
     // B-176 — `env` saiu da chave. Ele NUNCA foi para a URL, e a medição do lado do servidor
-    // explica por quê: `theo/api/internal/routes/metrics_proxy.go` lê apenas `signal` e `range`, e
+    // explica por quê: `loopscale/api/internal/routes/metrics_proxy.go` lê apenas `signal` e `range`, e
     // `buildPromQL` rotula só por `tenant_id`/`project`. O endpoint não tem dimensão de ambiente.
     //
     // Manter `env` na chave era pior que inútil: o cache AFIRMAVA que staging e production eram

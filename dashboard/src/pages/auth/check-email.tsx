@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Mail } from 'lucide-react';
-import { Button, Card } from '@usetheo/ui';
+import { Button, Card } from '@getloopscale/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { AUTH_URL, API_URL } from '@/lib/http/config';
 
-// Red Team theo/theo#162 closure (2026-07-01): the post-signup redirect
+// Red Team loopscale/loopscale#162 closure (2026-07-01): the post-signup redirect
 // target /auth/check-email used to return 404 Caddy raw because the
-// Caddyfile handle /auth/* proxied EVERY path to the theo-cloud BFF, and
+// Caddyfile handle /auth/* proxied EVERY path to the loop-console BFF, and
 // the BFF only registered 4 OAuth handlers. The Caddyfile is now narrowed
 // to a named @auth_bff matcher (login/login-complete/consent/device) so
 // /auth/check-email falls through to the SPA and this page renders.

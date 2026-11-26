@@ -6,7 +6,7 @@ import {
   ChevronRight,
   Search,
 } from 'lucide-react';
-import { Input, Sidebar } from '@usetheo/ui';
+import { Input, Sidebar } from '@getloopscale/ui';
 import { SystemStatusIndicator } from './system-status-indicator';
 import type { Session } from '@/lib/auth/session';
 import { TeamSwitcher } from '@/components/layout/team-switcher';

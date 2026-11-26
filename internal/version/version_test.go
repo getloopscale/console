@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/version"
+	"github.com/getloopscale/loop-console/internal/version"
 )
 
 // D3 — the sentinel choice is load-bearing, not cosmetic.

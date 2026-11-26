@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Invoice is the Theo wire shape for a Stripe invoice (MEET-2026-07-03-004 D1).
+// Invoice is the LoopScale wire shape for a Stripe invoice (MEET-2026-07-03-004 D1).
 // Money is integer minor units + explicit currency (never float); timestamps are
 // ISO-8601 UTC (matching the sibling GET /v1/billing period fields).
 //

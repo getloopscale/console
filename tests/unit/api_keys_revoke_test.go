@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Plan 0 of dashboard-memory-section-roadmap.md, T0.4.
 // Tests for DELETE /v1/api-keys/{id} — soft-delete handler per D7,
@@ -17,7 +17,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // chiRequestWithID returns a request whose chi.URLParam("id") yields keyID.
@@ -48,7 +48,7 @@ func TestRevokeKey_RejectsUnauthenticated(t *testing.T) {
 // UPDATE returns RowsAffected=1 → response 204 No Content.
 func TestRevokeKey_OwnKeyRevoked(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
-	mock.ExpectExec("UPDATE loopzero_api_keys SET revoked_at").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys SET revoked_at").
 		WithArgs("apk-abcd1234abcd1234", "user-A", "tenant-A").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -73,7 +73,7 @@ func TestRevokeKey_OwnKeyRevoked(t *testing.T) {
 // tenant_id = $3, so the cross-tenant attacker's row was never touched.
 func TestRevokeKey_CrossTenantReturns404NotForbidden(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
-	mock.ExpectExec("UPDATE loopzero_api_keys SET revoked_at").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys SET revoked_at").
 		WithArgs("apk-abcd1234abcd1234", "user-B", "tenant-B").
 		WillReturnResult(sqlmock.NewResult(0, 0)) // 0 affected — key belongs to a different tenant
 
@@ -95,7 +95,7 @@ func TestRevokeKey_CrossTenantReturns404NotForbidden(t *testing.T) {
 // second DELETE finds 0 rows and is indistinguishable from non-existent.
 func TestRevokeKey_AlreadyRevokedReturns404(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
-	mock.ExpectExec("UPDATE loopzero_api_keys SET revoked_at").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys SET revoked_at").
 		WithArgs("apk-abcd1234abcd1234", "user-A", "tenant-A").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
@@ -120,10 +120,10 @@ func TestRevokeKey_MalformedIDRejectedBeforeDB(t *testing.T) {
 		"../../../etc/passwd",
 		"'; DROP TABLE--",
 		"not-a-key-id",
-		"apk-XYZ", // wrong character set
-		"apk-",    // empty body
-		"",        // empty entirely
-		"apk-abcd1234abcd123",  // 15 hex chars — off by one
+		"apk-XYZ",               // wrong character set
+		"apk-",                  // empty body
+		"",                      // empty entirely
+		"apk-abcd1234abcd123",   // 15 hex chars — off by one
 		"apk-abcd1234abcd12345", // 17 hex chars — off by one
 	}
 	for _, malformed := range cases {

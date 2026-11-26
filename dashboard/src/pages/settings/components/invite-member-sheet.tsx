@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Input, Label, Select, Sheet } from '@usetheo/ui';
+import { Button, Input, Label, Select, Sheet } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { useInviteMember } from '@/hooks/mutations/use-team';
 import type { TeamMember, TeamRole } from '@/lib/api/types';

@@ -52,7 +52,7 @@ describe('PreviewRow', () => {
       project_id: 'demo',
       active_pr_number: 42,
       active_branch: 'feat/new-thing',
-      url: 'https://demo-pr-42.preview-dev.usetheo.dev',
+      url: 'https://demo-pr-42.preview-dev.getloopscale.com',
       updated_at: '2026-06-07T00:00:00Z',
     });
     // 2026-06-07 per-project: row also surfaces project_id in the name cell.
@@ -62,7 +62,7 @@ describe('PreviewRow', () => {
     const link = screen.getByRole('link', { name: /Open/ });
     expect(link).toHaveAttribute(
       'href',
-      'https://demo-pr-42.preview-dev.usetheo.dev',
+      'https://demo-pr-42.preview-dev.getloopscale.com',
     );
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');

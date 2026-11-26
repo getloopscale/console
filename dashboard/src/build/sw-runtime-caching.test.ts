@@ -113,7 +113,7 @@ describe('cache do service worker (B-055)', () => {
   });
 
   it('os caminhos de navegação BFF continuam NetworkOnly', () => {
-    // theo-cloud#112 e #203 — a classe de bug que reincidiu duas vezes. Cachear
+    // loop-console#112 e #203 — a classe de bug que reincidiu duas vezes. Cachear
     // um destes devolve a tela de "Page not found" no lugar do redirect do BFF.
     const bff = SW_RUNTIME_CACHING.filter((r) => r.handler === 'NetworkOnly');
     expect(bff.length, 'a regra NetworkOnly dos caminhos BFF sumiu').toBeGreaterThan(0);
@@ -134,42 +134,42 @@ describe('B-196 — quem atende cada caminho é a PRIMEIRA regra que casa', () =
     // O defeito: `/__config.js` termina em `.js`. Depois de uma rotação de `AUTH_URL`/`API_URL`,
     // quem já tinha visitado ficava com a config antiga por até um mês — apontando para hosts que
     // a política de CSP talvez já não permita.
-    const regra = quemAtende('https://app.usetheo.dev/__config.js');
-    expect(regra?.options?.cacheName).toBe('theo-config');
+    const regra = quemAtende('https://app.getloopscale.com/__config.js');
+    expect(regra?.options?.cacheName).toBe('loopscale-config');
     expect(regra?.handler).toBe('NetworkFirst');
   });
 
   it('reads the runtime config from the network first and keeps the cache as offline fallback', () => {
     // StaleWhileRevalidate answered from cache first, so the request after a config change still
     // got the old file, without the auth host the login form posts to.
-    const regra = quemAtende('https://app.usetheo.dev/__config.js');
+    const regra = quemAtende('https://app.getloopscale.com/__config.js');
     expect(regra?.handler).toBe('NetworkFirst');
     expect(regra?.options?.networkTimeoutSeconds).toBeGreaterThan(0);
     expect(regra?.options?.networkTimeoutSeconds).toBeLessThanOrEqual(5);
     const configIndex = SW_RUNTIME_CACHING.indexOf(regra!);
-    const assetsIndex = SW_RUNTIME_CACHING.findIndex((r) => r.options?.cacheName === 'theo-assets');
+    const assetsIndex = SW_RUNTIME_CACHING.findIndex((r) => r.options?.cacheName === 'loopscale-assets');
     expect(configIndex).toBeLessThan(assetsIndex);
   });
 
   it('um asset com hash continua em CacheFirst', () => {
     // A correção não pode virar "nada é CacheFirst": o nome com hash é o que torna os 30 dias
     // seguros, e é ele que tira o bundle do caminho crítico numa segunda visita.
-    const regra = quemAtende('https://app.usetheo.dev/assets/index-a1b2c3.js');
-    expect(regra?.options?.cacheName).toBe('theo-assets');
+    const regra = quemAtende('https://app.getloopscale.com/assets/index-a1b2c3.js');
+    expect(regra?.options?.cacheName).toBe('loopscale-assets');
     expect(regra?.handler).toBe('CacheFirst');
   });
 
   it('um caminho BFF é atendido por NetworkOnly antes de qualquer outra', () => {
-    expect(quemAtende('https://app.usetheo.dev/api/v1/auth/whoami')?.handler).toBe('NetworkOnly');
+    expect(quemAtende('https://app.getloopscale.com/api/v1/auth/whoami')?.handler).toBe('NetworkOnly');
   });
 
   it('nenhuma regra é MORTA — cada uma atende ao menos um caminho representativo', () => {
     // Uma regra que nenhuma URL alcança descreve uma política que não existe. Este caso é o que
     // teria reprovado a ordenação anterior no dia em que ela foi escrita.
     const representativos = [
-      'https://app.usetheo.dev/api/v1/auth/whoami',
-      'https://app.usetheo.dev/__config.js',
-      'https://app.usetheo.dev/assets/index-a1b2c3.js',
+      'https://app.getloopscale.com/api/v1/auth/whoami',
+      'https://app.getloopscale.com/__config.js',
+      'https://app.getloopscale.com/assets/index-a1b2c3.js',
     ];
     const atendem = new Set(representativos.map((u) => quemAtende(u)));
     expect(

@@ -6,9 +6,9 @@
 # o PR obrigatório**. Neste repositório a segunda camada NÃO EXISTE e não pode existir no plano atual —
 # medido, não suposto:
 #
-#   $ gh api repos/getloopscale/console/branches/develop/protection
+#   $ gh api repos/getloopscale/loop-console/branches/develop/protection
 #   403 "Upgrade to GitHub Pro or make this repository public to enable this feature."
-#   $ gh api repos/getloopscale/console/rulesets
+#   $ gh api repos/getloopscale/loop-console/rulesets
 #   403 (idem)
 #
 # Ou seja: hoje o PR é convenção, não garantia. Habilitar a camada real custa uma decisão de plano
@@ -19,7 +19,7 @@
 # estritamente menos que branch protection e estritamente mais que nada — e a diferença entre
 # "aconteceu e ninguém soube" e "aconteceu e está vermelho" é a única que este plano permite comprar.
 #
-# Ver `theo-cloud#276` para a medição da ausência de branch protection.
+# Ver `loop-console#276` para a medição da ausência de branch protection.
 name: promotion-guard
 
 on:
@@ -97,7 +97,7 @@ jobs:
 
           Este repositório NÃO tem branch protection — medido: a API devolve 403
           "Upgrade to GitHub Pro" tanto em /branches/${BRANCH}/protection quanto em /rulesets
-          (ver theo-cloud#276). Logo NADA no servidor impediu isto, e este gate não impede: ele
+          (ver loop-console#276). Logo NADA no servidor impediu isto, e este gate não impede: ele
           apenas garante que não passe em silêncio.
 
           O caminho é: o trabalho nasce em 'workspace' -> PR para 'develop' -> PR para 'main'.

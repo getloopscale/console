@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
 import "testing"
 
-// theo-promptly M21 DoD-5 — o pareamento prompt↔métrica na borda.
+// loopprompt M21 DoD-5 — o pareamento prompt↔métrica na borda.
 //
 // O banco já o impõe (CHECK da migração 000060). Esta é a metade AMIGÁVEL: sem ela o cliente
 // recebe uma violação de constraint em vez de uma mensagem tipada, e é a mesma escolha que o M135

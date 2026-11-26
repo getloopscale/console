@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M12 Fase A — bundle-grep migration to real-DOM assertions.
 //
@@ -125,7 +125,7 @@ test.describe('M12 Fase A — bundle-grep migration to real-DOM assertions', () 
       (window as unknown as { __LOOPSCALE_MOCK_LOGGED_OUT?: boolean }).__LOOPSCALE_MOCK_LOGGED_OUT = true;
       // Pre-seed sessionStorage to simulate rehydrate path.
       sessionStorage.setItem(
-        'theo-register-form-restore',
+        'loopscale-register-form-restore',
         JSON.stringify({ name: 'M12 Test User', email: 'preserved@example.com' })
       );
     });
@@ -173,7 +173,7 @@ test.describe('M12 Fase A — bundle-grep migration to real-DOM assertions', () 
     expect(wired + genericBad).toBeGreaterThanOrEqual(0);
   });
 
-  // #50 — the shell paints on session detection. Since usetheoai/theo#477 there is no token
+  // #50 — the shell paints on session detection. Since getloopscale/loopscale#477 there is no token
   // exchange left to defer: one session check (GET /v1/auth/session) is the only round trip.
   test('#50 shell paints on session-detect', async ({ page }) => {
     await page.goto('/');

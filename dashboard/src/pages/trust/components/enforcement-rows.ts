@@ -7,7 +7,7 @@ export type { EnforcementEvent, EnforcementPayload };
  * M24 T7.1 — a projeção do log de auditoria do enforcement inline.
  *
  * A regra que este módulo carrega é de segurança, não de formatação: **só o marcador redigido
- * atravessa**. O `theo-trust` já garante a redação na origem — conteúdo bruto nunca chega àquela
+ * atravessa**. O `loopguardrails` já garante a redação na origem — conteúdo bruto nunca chega àquela
  * tabela — e esta projeção só expõe campos nomeados, nunca a linha inteira do serviço. Assim, se
  * um dia o serviço passar a devolver um campo com trecho bruto, ele não aparece na tela por
  * omissão: teria de ser adicionado aqui, de propósito, por alguém.

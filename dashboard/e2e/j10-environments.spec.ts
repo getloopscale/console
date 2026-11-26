@@ -6,7 +6,7 @@
  * Closes the "sponsor manual browser end-to-end" DoD HARD STOP by
  * exercising the J-10 critical flows against a real browser engine
  * (chromium) with VITE_USE_MOCKS=true. Mocks substitute the engine
- * backend so the test is hermetic (no Kratos, no theo-api, no deploy
+ * backend so the test is hermetic (no Kratos, no loop-runtime-api, no deploy
  * pipeline), but the SPA renders REAL CSS/JS/React — the layer that
  * jsdom-based vitest cannot exercise.
  *

@@ -33,7 +33,7 @@ describe('InvoicesCard (J-13)', () => {
       invoices: [
         {
           id: 'in_1',
-          number: 'THEO-0001',
+          number: 'LOOPSCALE-0001',
           amount_minor: 2900,
           currency: 'usd',
           status: 'paid',
@@ -45,7 +45,7 @@ describe('InvoicesCard (J-13)', () => {
       ],
     });
     render(<InvoicesCard />);
-    expect(screen.getByText('THEO-0001')).toBeInTheDocument();
+    expect(screen.getByText('LOOPSCALE-0001')).toBeInTheDocument();
     // Money from integer minor units — 2900 → $29.00 (never a float artifact).
     expect(screen.getByText('$29.00')).toBeInTheDocument();
     expect(screen.getByText('paid')).toBeInTheDocument();

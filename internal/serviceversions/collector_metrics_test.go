@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	cloudmetrics "github.com/usetheoai/theo-cloud/internal/metrics"
+	cloudmetrics "github.com/getloopscale/loop-console/internal/metrics"
 )
 
 // TestCollect_wired_to_metrics_observes_non_zero_counter is the wiring triad's

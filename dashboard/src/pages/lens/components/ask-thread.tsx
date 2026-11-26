@@ -2,7 +2,7 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 
-import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import {

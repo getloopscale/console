@@ -22,8 +22,8 @@
  * consumido seria descartado pelo minificador, e o gate voltaria a ser
  * tautologia por um caminho novo. A atribuicao e o que garante a presenca.
  */
-export const MOCKS_BUNDLE_SENTINEL = '__theo_mocks_present_in_bundle__';
-(globalThis as Record<string, unknown>).__theoMocks = MOCKS_BUNDLE_SENTINEL;
+export const MOCKS_BUNDLE_SENTINEL = '__loopscale_mocks_present_in_bundle__';
+(globalThis as Record<string, unknown>).__loopscaleMocks = MOCKS_BUNDLE_SENTINEL;
 
 import type {
   AuditEntry,
@@ -106,7 +106,7 @@ export const buildsFixture: Build[] = [
       {
         name: 'frontend',
         image_digest: 'sha256:abc123def456',
-        url: 'https://acme-web.theo.app',
+        url: 'https://acme-web.loopscale.app',
         duration_ms: 145000,
       },
     ],
@@ -237,7 +237,7 @@ export const domainsFixture: Domain[] = [
     app: 'frontend',
     environment: 'production',
     status: 'active',
-    cname_target: 'acme-web.theo.app',
+    cname_target: 'acme-web.loopscale.app',
     created_at: '2026-04-10T12:00:00Z',
     verified_at: '2026-04-10T12:08:00Z',
     tls: { status: 'issued', expires_at: '2026-07-10T12:08:00Z' },
@@ -249,10 +249,10 @@ export const domainsFixture: Domain[] = [
     app: 'landing',
     environment: 'staging',
     status: 'pending_verification',
-    cname_target: 'acme-marketing.theo.app',
+    cname_target: 'acme-marketing.loopscale.app',
     created_at: '2026-05-24T14:00:00Z',
     verification: {
-      txt_name: '_theo.staging.acme.com',
+      txt_name: '_loopscale.staging.acme.com',
       txt_value: 'verify=a1b2c3d4e5f6g7h8',
     },
   },
@@ -381,7 +381,7 @@ export const buildLogLines = [
   { ts: '2026-05-26T07:15:32Z', level: 'info', msg: '1843 packages installed in 21s' },
   { ts: '2026-05-26T07:15:33Z', level: 'info', msg: 'Running build: next build' },
   { ts: '2026-05-26T07:15:48Z', level: 'info', msg: 'Compiled successfully' },
-  { ts: '2026-05-26T07:15:52Z', level: 'info', msg: 'Pushing image: registry.theo.dev/acme-web/frontend:c2d3e4f' },
+  { ts: '2026-05-26T07:15:52Z', level: 'info', msg: 'Pushing image: registry.loopscale.dev/acme-web/frontend:c2d3e4f' },
   { ts: '2026-05-26T07:16:01Z', level: 'info', msg: 'Image signed with cosign keyless' },
   { ts: '2026-05-26T07:16:03Z', level: 'info', msg: 'SBOM uploaded to attestation store' },
   { ts: '2026-05-26T07:16:08Z', level: 'info', msg: 'Build succeeded in 60.3s' },

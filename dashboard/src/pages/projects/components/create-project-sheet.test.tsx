@@ -8,7 +8,7 @@ vi.mock('@/lib/http/api', () => ({
 
 import { CreateProjectSheet } from './create-project-sheet';
 
-describe('CreateProjectSheet — Red Team theo-cloud#59/#82 closure', () => {
+describe('CreateProjectSheet — Red Team loop-console#59/#82 closure', () => {
   // Repro per #82/#59 verbatim: the dialog Description exposed
   // "lands in a future iter" — internal roadmap jargon that doesn't
   // belong in user-facing copy (per Cross-Project Rule 9 + `.claude/
@@ -34,7 +34,7 @@ describe('CreateProjectSheet — Red Team theo-cloud#59/#82 closure', () => {
     expect(screen.getByLabelText(/project name/i)).toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#83 closure: the input MUST be programmatically
+  // Red Team loop-console#83 closure: the input MUST be programmatically
   // linked to its validation error so screen readers announce the error
   // when the field has focus. Before this fix the error was in a
   // detached Alert region — sighted users could see it but AT users

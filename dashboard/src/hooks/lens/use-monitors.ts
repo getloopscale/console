@@ -14,9 +14,9 @@ export interface MonitorsResult {
 }
 
 /**
- * theo-cloud#259 — the slice of an alert rule this screen needs to show a monitor's live state.
+ * loop-console#259 — the slice of an alert rule this screen needs to show a monitor's live state.
  *
- * A monitor lives in theo-lens; the state of the thing that WATCHES it lives here, in theo-cloud's
+ * A monitor lives in looptrace; the state of the thing that WATCHES it lives here, in loop-console's
  * `lens_alert_rules` (the M135 evaluator writes `status` / `last_evaluated_at` on its 60s tick).
  * `stale` is derived server-side — the rule is enabled but has gone unevaluated for several ticks.
  */

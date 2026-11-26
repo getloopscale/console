@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // API Key Lineage View plan, T7.2.
 // Tests for GET /v1/api-keys/{id}/lineage.
@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 func lineageRequest(t *testing.T, keyID string, u *auth.UserContext) *http.Request {
@@ -138,7 +138,7 @@ func TestLineageKey_MultiRotationChainOrdered(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "key_name", "key_prefix", "created_at", "revoked_at", "expires_at",
 		}).
-			AddRow("apk-10aaaaaaaaaaaaaa", "prod-agent (root)", "theo_live_Aa", t1, nil, &t2). // root, expired at t2 (rotated)
+			AddRow("apk-10aaaaaaaaaaaaaa", "prod-agent (root)", "theo_live_Aa", t1, nil, &t2).               // root, expired at t2 (rotated)
 			AddRow("apk-11aaaaaaaaaaaaaa", "prod-agent (rotated 2026-06-04)", "theo_live_Bb", t2, nil, &t3). // r1, expired at t3
 			AddRow("apk-12aaaaaaaaaaaaaa", "prod-agent (rotated 2026-06-05)", "theo_live_Cc", t3, nil, &t4). // r2, expired at t4
 			AddRow("apk-c00ec00ec00ec00e", "prod-agent (rotated 2026-06-06)", "theo_live_Dd", t4, nil, nil)) // current

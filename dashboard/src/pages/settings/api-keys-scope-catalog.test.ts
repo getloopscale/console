@@ -3,7 +3,7 @@
 // O DEFEITO QUE ISTO PREVINE, medido em 2026-07-31: as duas listas divergiram em
 // silêncio, nos dois sentidos.
 //
-//   `trust:*`   — a cadeia Model B do theo-trust estava inteira de pé (borda roteando,
+//   `trust:*`   — a cadeia Model B do loopguardrails estava inteira de pé (borda roteando,
 //                 forward-auth ligado, broker cunhando chave por tenant) e NENHUM cliente
 //                 podia alcançá-la: o escopo não existia nem na tela nem no backend.
 //   `storage:*` — o oposto: o backend aceitava `storage:read`/`storage:write` (e havia

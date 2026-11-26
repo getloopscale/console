@@ -1,4 +1,4 @@
-import { violetForge } from '@theokit/ui';
+import { violetForge } from '@getloopscale/loopzero-ui';
 
 /**
  * A configuração do tema do dashboard — o dono ÚNICO.
@@ -20,7 +20,7 @@ import { violetForge } from '@theokit/ui';
  *
  * ## Por que o `primary` não é o do pacote
  *
- * Red Team `theo/theo#163`, WCAG 1.4.3. O default do `violetForge`
+ * Red Team `loopscale/loopscale#163`, WCAG 1.4.3. O default do `violetForge`
  * (`oklch(0.50 0.16 296.97)`, e antes dele `oklch(0.628 0.225 296)`) dá 3,87:1
  * de branco sobre primary — reprova o AA para texto normal. O valor daqui é um
  * roxo Dracula neutro (croma 0,13 · matiz 302) e dá ~4,73:1.

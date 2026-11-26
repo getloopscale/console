@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package ci
 
@@ -82,7 +82,7 @@ func TestTheLintGateDoesNotSwallowItsOwnFailure(t *testing.T) {
 
 func TestTheVersionIsStillPinned(t *testing.T) {
 	// The reason the action was pinned in the first place: an unpinned resolve let a new v2.11.3
-	// break theo-traefik-mcp with no code change. Changing the acquisition path must not lose that.
+	// break loopmcp with no code change. Changing the acquisition path must not lose that.
 	wf := readQualityWorkflow(t)
 	if !strings.Contains(wf, "golangci-lint@v2.12.2") {
 		t.Error("the golangci-lint version is no longer pinned to v2.12.2")

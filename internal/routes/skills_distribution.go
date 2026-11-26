@@ -28,7 +28,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/skills"
+	"github.com/getloopscale/loop-console/internal/skills"
 )
 
 // skillsDistributor é a porta da superfície de distribuição.

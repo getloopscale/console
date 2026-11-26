@@ -6,7 +6,7 @@
 # omissão custou um milestone inteiro (M23/M24: quatro telas declaradas e inalcançáveis por clique).
 #
 # O CHECK CHAMADO `e2e` NÃO É ESTE, E A CONFUSÃO DE NOME FOI PARTE DO DEFEITO. Os checks `e2e` e
-# `e2e-edge` (em `e2e-drift.yml` / `Makefile`) exercitam o BACKEND — theo-cloud ↔ TheMemory contra
+# `e2e-edge` (em `e2e-drift.yml` / `Makefile`) exercitam o BACKEND — loop-console ↔ TheMemory contra
 # endpoints reais, e o ForwardAuth pela borda Traefik. Ler `e2e → pass` como "a jornada da tela
 # passou" foi um erro real de leitura desta sessão. Daí o nome distinto: `e2e-ui`.
 #
@@ -91,7 +91,7 @@
 #     juntos, que é o argumento inteiro a favor de nunca deixar caso pulado.
 #   • `recovery` — a premissa "visitante sem sessão" nunca era estabelecida. O produto está certo:
 #     com sessão ativa, `/recovery` mostra de propósito "You're already signed in" (fecho de Red
-#     Team, `theo-cloud#54`). A alavanca `__LOOPSCALE_MOCK_LOGGED_OUT` já existia e é a mesma do
+#     Team, `loop-console#54`). A alavanca `__LOOPSCALE_MOCK_LOGGED_OUT` já existia e é a mesma do
 #     `login.spec.ts`. Um terceiro caso falhava por outro motivo, também medido: sob mocks o
 #     `ui.action` é o sentinela `#mock-submit-recovery`, que o `fetch` resolve contra o documento
 #     atual — o POST sai para a própria URL da página, não para `/self-service/recovery`.

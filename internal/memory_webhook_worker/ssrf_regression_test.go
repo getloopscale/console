@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package memory_webhook_worker
 
@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// Regression for theo-cloud#148 (CRITICAL SSRF): the worker's DEFAULT HTTP
+// Regression for loop-console#148 (CRITICAL SSRF): the worker's DEFAULT HTTP
 // client (used when Config.HTTPClient is nil, i.e. the production path) must be
 // egress-guarded. A delivery whose URL targets a loopback/internal address must
 // NOT be delivered and must open ZERO sockets to the target.

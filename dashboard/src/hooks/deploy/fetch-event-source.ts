@@ -3,7 +3,7 @@ import { streamEndEvent, type StreamEndReason } from './stream-end-reason';
 /**
  * B-088 — SSE sobre `fetch`, para que o JWT de sessão saia da URL.
  *
- * usetheoai/theo#477 step 3 (2026-09-30) — the stream now carries NO token at all: theo-cloud
+ * getloopscale/loopscale#477 step 3 (2026-09-30) — the stream now carries NO token at all: loop-console
  * authenticates it from the Kratos session cookie. Option (a) below was rejected at the time
  * because the API did not read cookies and accepting them would trade exposure for CSRF; the
  * backend now reads them, and refuses cross-origin unsafe requests (`auth.RequireCaller`). The
@@ -130,7 +130,7 @@ export class FetchEventSource {
       resposta = await fetch(this.url, {
         headers,
         signal: this.abort.signal,
-        // usetheoai/theo#477 step 3: the stream is authenticated by the session
+        // getloopscale/loopscale#477 step 3: the stream is authenticated by the session
         // cookie, like every other dashboard call. No credential in the URL or
         // in a header the page could read.
         credentials: 'same-origin',

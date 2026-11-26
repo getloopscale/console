@@ -4,8 +4,8 @@ The single dev edge (M8 slice-3a). Routes everything on `:8090`:
 
 | Router | Rule | Upstream | Priority |
 |---|---|---|---|
-| `memory-edge` | `PathPrefix(/v1/memory)` | `themory:8080` (via ForwardAuth + rewrite) | 100 |
-| `bff` | `/v1`, `/engine`, `/health` | `theo-cloud:13002` | 10 |
+| `memory-edge` | `PathPrefix(/v1/memory)` | `loopmem:8080` (via ForwardAuth + rewrite) | 100 |
+| `bff` | `/v1`, `/engine`, `/health` | `loop-console:13002` | 10 |
 | `kratos` | `/self-service`, `/sessions`, `/.well-known/ory` | `kratos:4433` | rule-length |
 | `dashboard-spa` | `PathPrefix(/)` (catch-all) | `dashboard` (nginx static) | 1 |
 
@@ -22,14 +22,14 @@ serversTransport is **defined but not referenced** in dev.
 ```yaml
 http:
   services:
-    theo-cloud-bff:
+    loop-console-bff:
       loadBalancer:
         servers:
-          - url: "https://theo-cloud:13002"   # was http:// in dev
+          - url: "https://loop-console:13002"   # was http:// in dev
         serversTransport: internal-tls          # references the scaffold
   serversTransports:
     internal-tls:
-      serverName: "theo-cloud.internal"
+      serverName: "loop-console.internal"
       rootCAs: [ "/etc/traefik/certs/ca.pem" ]
       certificates:                              # client certs → mTLS (prod only)
         - certFile: "/etc/traefik/certs/edge.crt"

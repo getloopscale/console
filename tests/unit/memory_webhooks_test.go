@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Plan 3 of dashboard-memory-section-roadmap.md, T3.4.
 // Tests for the 3 memory webhook handlers (Create / List / Delete).
@@ -17,11 +17,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 func newWebhooksHandler(t *testing.T) (*routes.MemoryWebhooksHandler, sqlmock.Sqlmock) {
@@ -210,7 +210,9 @@ func TestMemoryWebhooks_CreateProducesUniqueSecrets(t *testing.T) {
 		req = req.WithContext(auth.WithUser(req.Context(), &auth.UserContext{Subject: "u", TenantID: "t"}))
 		rec := httptest.NewRecorder()
 		h.Create(rec, req)
-		var resp struct{ Secret string `json:"secret"` }
+		var resp struct {
+			Secret string `json:"secret"`
+		}
 		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 		return resp.Secret
 	}

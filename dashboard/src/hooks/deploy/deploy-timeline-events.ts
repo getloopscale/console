@@ -1,6 +1,6 @@
 /**
  * Canonical Deploy Timeline event types — mirror the
- * theo/api/internal/aggregator emission contract.
+ * loopscale/api/internal/aggregator emission contract.
  *
  * Event types follow `deploy_timeline.<phase>.<status>` per ADR D1.
  * Payloads are PRE-SCRUBBED server-side (ADR D4a) — internal terms

@@ -1,4 +1,4 @@
-# theo-cloud dev stack — run the real apps locally
+# loop-console dev stack — run the real apps locally
 
 Spins up the **full real stack** for end-user validation: dashboard (real login),
 gateway API, TheMemory (REST + MCP), Ory Kratos, Postgres + pgvector. One command.
@@ -10,7 +10,7 @@ make dev-logs    # tail backend logs   (dashboard log: dev/.vite.log)
 ```
 
 Requires `docker`, `docker compose`, `go`, `node`/`npm`. The sibling TheMemory
-repo is expected at `../theo-memory` (override `THEMORY_DIR`).
+repo is expected at `../loopmem` (override `LOOPMEM_DIR`).
 First run builds the TheMemory image + installs dashboard deps (slow; cached after).
 
 ## What you get
@@ -23,13 +23,13 @@ First run builds the TheMemory image + installs dashboard deps (slow; cached aft
 | TheMemory REST | http://localhost:18081/v1/health | the memory backend |
 | Kratos (direct) | http://localhost:14433 | identity service |
 | **MCP (OpenMemory SSE)** | http://localhost:8765/{client}/sse/{user} | drop-in for OpenMemory clients |
-| pg-cloud / pg-themory | :55433 / :15432 | Postgres (cloud schema) / pgvector |
+| pg-cloud / pg-loopmem | :55433 / :15432 | Postgres (cloud schema) / pgvector |
 
 ## First-run login
 
 The dashboard uses **real Kratos**. On first open, click **Create account** and
 register (email + password, min 8 chars). Email verification is disabled in dev,
-so you're logged in immediately. Example: `dev@theo.local` / `DevPassw0rd!2026`.
+so you're logged in immediately. Example: `dev@loopscale.local` / `DevPassw0rd!2026`.
 
 Then open **Memory** in the sidebar — the metrics load through the real path
 (browser → gateway `/v1/dashboard/memory/*` → mints a server-side `theo_live_*`
@@ -59,7 +59,7 @@ OpenMemory-wired client at it. Example `.mcp.json` (Cursor / Claude Desktop):
 ```json
 {
   "mcpServers": {
-    "theo-memory": {
+    "loopmem": {
       "url": "http://localhost:8765/cursor/sse/dev-user"
     }
   }
@@ -80,11 +80,11 @@ export OPENAI_API_KEY=sk-...                        # OpenAI
 export OPENAI_API_KEY=sk-or-... OPENAI_BASE_URL=https://openrouter.ai/api/v1
 ```
 
-(The key in `theo-memory/.env` returns 401 — expired — so it is NOT auto-loaded.)
+(The key in `loopmem/.env` returns 401 — expired — so it is NOT auto-loaded.)
 
 ## Known limitations (dev stack)
 
-- **Engine features 502** — `/engine/*` (Projects, Domains, deploy) need the Theo
+- **Engine features 502** — `/engine/*` (Projects, Domains, deploy) need the LoopScale
   engine, which is NOT in this stack. The dashboard shows those areas as errors;
   Memory / Billing / account work.
 - **Dashboard runs via `vite dev`** (not the production bundle) — the prod build

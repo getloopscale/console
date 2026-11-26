@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package storage
 
 import (
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/metrics"
 )
 
 // TestAddStorageBytes_PrometheusCounter proves the exported metrics hook

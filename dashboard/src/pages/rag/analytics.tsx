@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useCollections } from '@/hooks/rag/use-collections';
-import { Card, MetricCard, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Card, MetricCard, PageShell, Select, Skeleton } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -9,10 +9,10 @@ import { useRagAnalytics, type ScaleObservability } from '@/hooks/rag/use-rag-an
 
 /**
  * M21 + v8-M7 — /rag/analytics. Read-only usage/cost/latency for the caller's workspace,
- * via the dashboard BFF `GET /v1/dashboard/rag/analytics` (the theo-rag M5 summary).
+ * via the dashboard BFF `GET /v1/dashboard/rag/analytics` (the looprag M5 summary).
  *
  * v8-M7 (scale observability): when the operator picks a collection, the page fetches
- * `?collection_id=X` and renders the per-collection `scale` block returned by theo-rag
+ * `?collection_id=X` and renders the per-collection `scale` block returned by looprag
  * rc.80+ (extraction tokens, community count/level, corpus size). Without a collection
  * selected the M5 summary is shown alone (backward-compat).
  */

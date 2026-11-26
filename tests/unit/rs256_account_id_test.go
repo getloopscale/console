@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// usetheoai/theo#477 step 2 — RequireJWT must surface account_id from a Hydra
+// getloopscale/loopscale#477 step 2 — RequireJWT must surface account_id from a Hydra
 // RS256 access token. Before this, only the HMAC session path set AccountID, so
 // every consumer that gates on `uc.AccountID != ""` (the M1 cross-account guard
 // in forward-auth and MCP-resolve) silently skipped the check for an RS256 caller.
@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
 	goJWT "github.com/golang-jwt/jwt/v5"
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 const (
@@ -34,10 +34,10 @@ const (
 )
 
 // hydraSigner is an in-process stand-in for Hydra: an RSA key, its JWKS, and a
-// validator configured exactly as production configures it (theo-cloud + theo-engine).
+// validator configured exactly as production configures it (loop-console + loop-runtime).
 type hydraSigner struct {
 	key       *rsa.PrivateKey
-	validator *theojwt.Validator
+	validator *loopscalejwt.Validator
 }
 
 func newHydraSigner(t *testing.T) *hydraSigner {
@@ -58,7 +58,7 @@ func newHydraSigner(t *testing.T) *hydraSigner {
 	t.Cleanup(jwks.Close)
 	return &hydraSigner{
 		key:       key,
-		validator: theojwt.NewValidatorWithAudiences(jwks.URL, rs256TestIssuer, []string{"theo-cloud", "theo-engine"}),
+		validator: loopscalejwt.NewValidatorWithAudiences(jwks.URL, rs256TestIssuer, []string{"loop-console", "loop-runtime-engine"}),
 	}
 }
 
@@ -67,7 +67,7 @@ func (s *hydraSigner) mint(t *testing.T, extra goJWT.MapClaims) string {
 	claims := goJWT.MapClaims{
 		"iss": rs256TestIssuer,
 		"sub": "kratos-user-rs256",
-		"aud": []string{"theo-cloud", "theo-engine"},
+		"aud": []string{"loop-console", "loop-runtime-engine"},
 		"exp": time.Now().Add(time.Hour).Unix(),
 		"iat": time.Now().Unix(),
 	}

@@ -167,7 +167,7 @@ describe('honestidade dos placeholders (B-069/B-076)', () => {
 /**
  * B-132/B-133 — as telas anunciavam comandos de CLI que não existem.
  *
- * Sete `cliCommand` estavam nas rotas; SEIS nomeavam algo que `theo-cli` não registra:
+ * Sete `cliCommand` estavam nas rotas; SEIS nomeavam algo que `loopscale-cli` não registra:
  * `billing status` (existe `billing`, com `portal` — não `status`), `notify` (nenhum comando
  * `notify` é registrado), `team delete` (existem list/add/remove/role/switch), `session`,
  * `account`, e a opção `--rotate-credentials` de `login` (as opções são
@@ -180,12 +180,12 @@ describe('honestidade dos placeholders (B-069/B-076)', () => {
  *
  * ## Limite honesto deste guarda
  *
- * `theo-cli` é outro repositório e pode não estar clonado onde esta suíte roda, então este teste
+ * `loopscale-cli` é outro repositório e pode não estar clonado onde esta suíte roda, então este teste
  * NÃO o lê. Ele confere contra `COMANDOS_CONHECIDOS`, uma lista que este repositório mantém e que
  * foi MEDIDA em 2026-08-11 com
- * `grep -rho "\.command('[a-z:-]*'" theo-cli/src/register/*.ts`.
+ * `grep -rho "\.command('[a-z:-]*'" loopscale-cli/src/register/*.ts`.
  *
- * Isso pega o que importa — uma tela inventando um comando — e NÃO pega `theo-cli` removendo um
+ * Isso pega o que importa — uma tela inventando um comando — e NÃO pega `loopscale-cli` removendo um
  * que existia. Esse segundo caso é um item de ecossistema, não deste repo, e fingir que um teste
  * local o cobre seria a mesma classe de afirmação que ele existe para impedir.
  */
@@ -208,7 +208,7 @@ const SUBCOMANDOS_CONHECIDOS: Record<string, Set<string>> = {
  * cópia da CLI dentro deste repo, e uma cópia que ninguém atualiza é pior que nenhuma. Ela cobre
  * exatamente o que as telas afirmam — que é o que este guarda existe para manter verdadeiro.
  *
- * `login` está aqui porque uma tela anunciava `theo login --rotate-credentials`, e as opções
+ * `login` está aqui porque uma tela anunciava `loopscale login --rotate-credentials`, e as opções
  * medidas são `--token/--team/--refresh-token/--expires-in/--device-flow`.
  */
 const OPCOES_CONHECIDAS: Record<string, Set<string>> = {
@@ -221,11 +221,11 @@ describe('B-132/B-133 — a tela não anuncia comando de CLI que não existe', (
    *
    * A PRIMEIRA versão deste guarda lia `src/routes/*.tsx` + `src/app.tsx` e casava apenas a forma
    * `cliCommand="…"`. Ela reportou VERDE enquanto `pages/settings/profile.tsx` mostrava
-   * `theo account delete` num bloco de código copiável — um dos comandos que o próprio docblock
+   * `loopscale account delete` num bloco de código copiável — um dos comandos que o próprio docblock
    * deste guarda diz não existir. A revisão pegou; um guarda que aprova por não olhar é pior que
    * nenhum, porque produz a sensação de cobertura.
    *
-   * O escopo agora é qualquer menção a `theo <comando>` em qualquer fonte de produção, em qualquer
+   * O escopo agora é qualquer menção a `loopscale <comando>` em qualquer fonte de produção, em qualquer
    * forma — atributo JSX, literal de template, propriedade de objeto. É onde a pessoa que lê a
    * tela encontra o comando, então é onde o guarda tem de olhar.
    */
@@ -256,9 +256,9 @@ describe('B-132/B-133 — a tela não anuncia comando de CLI que não existe', (
         // apagar a nota, que é a informação. Mesma dispensa do guarda de caminhos em
         // `docs-claims.test.ts`, pelo mesmo motivo.
         if (/nao ha comando|não há comando|is NOT a real|não existe|nao existe|inexistente|non-existent|does not exist|NAO e um comando|não é um comando|no CLI command yet/i.test(linha)) continue;
-        // The binary is `loopscale` (#530); `theo` stays matched so an old command in a comment
+        // The binary is `loopscale` (#530); `loopscale` stays matched so an old command in a comment
         // is still checked against the registered ones.
-        for (const m of linha.matchAll(/\b(theo|loopscale) ([a-z][a-z-]*)((?: --?[a-z][a-z-]*)*)/g)) {
+        for (const m of linha.matchAll(/\b(loopscale|loopscale) ([a-z][a-z-]*)((?: --?[a-z][a-z-]*)*)/g)) {
           achados.push({ arquivo: relative(SRC, f), comando: `${m[1]} ${m[2]}${m[3]}` });
         }
       }
@@ -302,16 +302,16 @@ describe('B-132/B-133 — a tela não anuncia comando de CLI que não existe', (
   it('DETECTA um comando inventado, exercitando o predicado', () => {
     // O auto-teste anterior só afirmava coisas sobre as CONSTANTES e nunca chamava o predicado —
     // substituir o corpo dele por `return false` deixava tudo verde. Este chama.
-    expect(ehValido('theo notify list')).toBe(false);
-    expect(ehValido('theo billing status')).toBe(false);
-    expect(ehValido('theo account delete')).toBe(false);
-    expect(ehValido('theo login --rotate-credentials')).toBe(false);
-    expect(ehValido('theo team delete')).toBe(false);
+    expect(ehValido('loopscale notify list')).toBe(false);
+    expect(ehValido('loopscale billing status')).toBe(false);
+    expect(ehValido('loopscale account delete')).toBe(false);
+    expect(ehValido('loopscale login --rotate-credentials')).toBe(false);
+    expect(ehValido('loopscale team delete')).toBe(false);
 
-    expect(ehValido('theo whoami')).toBe(true);
-    expect(ehValido('theo team list')).toBe(true);
-    expect(ehValido('theo deploy --project x')).toBe(true);
-    expect(ehValido('theo billing portal')).toBe(true);
+    expect(ehValido('loopscale whoami')).toBe(true);
+    expect(ehValido('loopscale team list')).toBe(true);
+    expect(ehValido('loopscale deploy --project x')).toBe(true);
+    expect(ehValido('loopscale billing portal')).toBe(true);
     expect(ehValido('loopscale whoami')).toBe(true);
     expect(ehValido('loopscale notify list')).toBe(false);
   });

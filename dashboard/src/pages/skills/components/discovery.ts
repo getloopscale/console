@@ -10,7 +10,7 @@
 /**
  * As pernas que o registro de fato emite.
  *
- * O vocabulário é `'vector' | 'keyword'` — declarado em `theo-skills`
+ * O vocabulário é `'vector' | 'keyword'` — declarado em `loopskills`
  * `packages/core/src/domain/retrievers/types.ts:79` e MEDIDO na resposta do app-dev em
  * 2026-08-04. Não é `'lexical'`: esse nome nunca existiu no contrato, e enquanto esta projeção o
  * usou, todo resultado casado por palavra caiu no fallback "origem não informada" — a tela

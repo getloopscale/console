@@ -22,7 +22,7 @@ describe('DocThemeToggle — global document theme', () => {
     render(<DocThemeToggle />);
     fireEvent.click(screen.getByRole('button', { name: /white/i }));
     expect(screen.getByRole('button', { name: /white/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(localStorage.getItem('theo:wiki:doc-theme')).toBe('white');
+    expect(localStorage.getItem('loopscale:wiki:doc-theme')).toBe('white');
   });
 
   it('two toggles stay in sync (shared global preference)', () => {

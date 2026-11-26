@@ -14,7 +14,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/lib/http/api';
 
 /**
- * Red Team theo-cloud#93 absorption (2026-06-27): retry guard.
+ * Red Team loop-console#93 absorption (2026-06-27): retry guard.
  *
  * The previous `retry: 1` blanket retried EVERYTHING — including 4xx
  * client errors like 404 (project not found) and 403 (forbidden), which

@@ -1,4 +1,4 @@
-import type { StatusKind } from '@usetheo/ui';
+import type { StatusKind } from '@getloopscale/ui';
 import type { RollbackRecordStatus } from '@/lib/api/types';
 
 /** How each rollback status reads and which status dot it takes. */

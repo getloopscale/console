@@ -2,8 +2,8 @@
 //
 // Canonical destructive-action confirmation dialog — a CENTERED modal.
 //
-// Was a re-export of `@usetheo/ui`'s ConfirmDialog, but that primitive is built on the
-// library's `Dialog`, which in @usetheo/ui@0.28.2 renders as a lateral SHEET (drawer)
+// Was a re-export of `@getloopscale/ui`'s ConfirmDialog, but that primitive is built on the
+// library's `Dialog`, which in @getloopscale/ui@0.28.2 renders as a lateral SHEET (drawer)
 // because `Dialog` and `Sheet` share one object and `Sheet.Content` clobbers
 // `Dialog.Content`. This local implementation is built on the local centered `Dialog`
 // (Radix) so every confirmation is a traditional centered modal. The public props match
@@ -14,7 +14,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Input } from '@usetheo/ui';
+import { Button, Input } from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 

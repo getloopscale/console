@@ -10,21 +10,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/getloopscale/loop-console/internal/promptly"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/promptly"
 )
 
 // Duble do cliente: cada metodo devolve o que o teste programou. Substitui a porta, nao o HTTP —
 // e por isso que a porta e declarada pelo consumidor (ISP).
 type promptlyFake struct {
-	corpo   json.RawMessage
-	err     error
-	limite  int                  // o limite que a rota REPASSOU (o oraculo do teto explicito)
-	proxima promptly.Continuacao // M13 — o sinal de continuacao que o servico emite por header RFC-5988
-	label   string               // o label que a rota repassou na promocao
-	body    json.RawMessage
-	filtro  promptly.CatalogoFiltro // M16 — o filtro que a rota REPASSOU
-	chamadas []string               // M20 — QUAIS leituras a rota pediu, em ordem
+	corpo    json.RawMessage
+	err      error
+	limite   int                  // o limite que a rota REPASSOU (o oraculo do teto explicito)
+	proxima  promptly.Continuacao // M13 — o sinal de continuacao que o servico emite por header RFC-5988
+	label    string               // o label que a rota repassou na promocao
+	body     json.RawMessage
+	filtro   promptly.CatalogoFiltro // M16 — o filtro que a rota REPASSOU
+	chamadas []string                // M20 — QUAIS leituras a rota pediu, em ordem
 }
 
 func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string, filtro promptly.CatalogoFiltro) (json.RawMessage, promptly.Continuacao, error) {
@@ -61,7 +61,6 @@ func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) 
 	f.chamadas = append(f.chamadas, "prompt")
 	return f.corpo, f.err
 }
-
 
 // M20 — o duble registra QUAL leitura foi pedida. Sem isso, um handler que chamasse `Prompt` em vez
 // de `PromptResolvido` passaria: os dois devolvem o mesmo corpo do duble, e o teste atestaria a

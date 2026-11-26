@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -16,7 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/serviceversions"
+	"github.com/getloopscale/loop-console/internal/serviceversions"
 )
 
 // fakeCollector stands in for the real fan-out so the handler contract is tested
@@ -37,10 +37,10 @@ func fourVariantReport(at time.Time) serviceversions.Report {
 	return serviceversions.Report{
 		CollectedAt: at,
 		Services: []serviceversions.ServiceStatus{
-			serviceversions.OK("theo-rag", "0.35.0", "2026-07-01T00:00:00Z", at),
-			serviceversions.Unreachable("theo-lens", "connection refused", at),
-			serviceversions.Timeout("theo-memory", at),
-			serviceversions.NotDeployed("theo-storage", at),
+			serviceversions.OK("looprag", "0.35.0", "2026-07-01T00:00:00Z", at),
+			serviceversions.Unreachable("looptrace", "connection refused", at),
+			serviceversions.Timeout("loopmem", at),
+			serviceversions.NotDeployed("loopstore", at),
 		},
 	}
 }
@@ -69,10 +69,10 @@ func TestServiceVersions_Get_returns_collector_report(t *testing.T) {
 		t.Fatal("collected_at missing — DoD bullet 5 requires the collection instant")
 	}
 	if len(body.Services) != 4 {
-		t.Fatalf("len(services) = %d, want 4 (theo-storage must be present as not_deployed, not omitted)", len(body.Services))
+		t.Fatalf("len(services) = %d, want 4 (loopstore must be present as not_deployed, not omitted)", len(body.Services))
 	}
 	if body.Services[3]["state"] != "not_deployed" {
-		t.Fatalf("theo-storage state = %v, want not_deployed", body.Services[3]["state"])
+		t.Fatalf("loopstore state = %v, want not_deployed", body.Services[3]["state"])
 	}
 }
 

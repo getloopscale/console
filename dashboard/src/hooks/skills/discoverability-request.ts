@@ -1,14 +1,14 @@
 /**
  * M34 — o corpo da consulta ao diagnóstico de descobribilidade.
  *
- * Existe fora do cliente HTTP porque o defeito da theo-skills#144 **era o corpo**, e enquanto ele
+ * Existe fora do cliente HTTP porque o defeito da loopskills#144 **era o corpo**, e enquanto ele
  * era montado inline dentro da função de fetch nenhum teste o alcançava.
  */
 
 /**
  * O estado da candidata. União discriminada, e não `hasEmbedding?: boolean`, porque **"não
  * publicada e com vetor" não existe** — vetor é propriedade de uma revisão, e um rascunho não tem
- * revisão. Espelha `EstadoDaRevisao` do domínio (`theo-skills`
+ * revisão. Espelha `EstadoDaRevisao` do domínio (`loopskills`
  * `packages/core/src/domain/discoverability.ts`).
  */
 export type EstadoDaCandidata =

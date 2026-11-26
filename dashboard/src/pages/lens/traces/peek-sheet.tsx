@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Sheet, Skeleton } from '@usetheo/ui';
+import { Sheet, Skeleton } from '@getloopscale/ui';
 
 import { shortId } from '@/lib/formatting/format';
 import { MetadataCard } from './metadata-card';
@@ -46,7 +46,7 @@ export function TracePeekSheet({ traceId, onClose }: { traceId: string | null; o
       }}
     >
       {/* The trace detail is a two-panel explorer (tree | detail + timeline) — it needs real width.
-          @usetheo/ui's Sheet.Content defaults to a narrow `max-w-md` (448px) that a Tailwind class
+          @getloopscale/ui's Sheet.Content defaults to a narrow `max-w-md` (448px) that a Tailwind class
           can't reliably override (tailwind-merge keeps its own arbitrary/standard width), so the width
           is set via inline style (highest specificity): a wide near-full-viewport overlay. */}
       <Sheet.Content

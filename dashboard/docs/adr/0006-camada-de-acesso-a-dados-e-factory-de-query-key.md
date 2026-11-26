@@ -1,7 +1,7 @@
 ---
 status: proposed
 date: 2026-08-06
-decision-makers: time do dashboard theo-cloud
+decision-makers: time do dashboard loop-console
 origem: tradeoff_decisions#16 · state_findings#1, #2, #13, #17, #19 · system_design_findings#12
 ---
 

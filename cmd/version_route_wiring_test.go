@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package main
 
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/version"
+	"github.com/getloopscale/loop-console/internal/version"
 )
 
 // M22 T5.3 — GET /v1/version must be registered, and registered OUTSIDE any auth middleware.

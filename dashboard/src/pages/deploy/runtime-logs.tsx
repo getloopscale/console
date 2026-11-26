@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { Button, Card, PageShell, Select } from '@usetheo/ui';
+import { Button, Card, PageShell, Select } from '@getloopscale/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useEnvironments } from '@/hooks/use-environments';

@@ -13,20 +13,20 @@ import (
 	"strings"
 )
 
-// DataClient is a per-tenant proxy to theo-rag's REST API for the theo-cloud dashboard
-// BFF. Mirrors internal/themory/client.go's Model B shape: it holds NO standing
+// DataClient is a per-tenant proxy to looprag's REST API for the loop-console dashboard
+// BFF. Mirrors internal/loopmem/client.go's Model B shape: it holds NO standing
 // credential — a keyResolver resolves the PER-TENANT Bearer per request from context
 // (the rag broker mints a key from the JWT-derived tenant). A resolver error FAILS
 // CLOSED (no request, no master fallback). M17 shipped the reads; M21 added the write
 // surface (create/delete collections + documents, ask) — the dashboard mints
-// rag:read+write+delete, and theo-rag's per-verb scope gates every verb.
+// rag:read+write+delete, and looprag's per-verb scope gates every verb.
 type DataClient struct {
 	baseURL     string
 	httpClient  *http.Client
 	keyResolver func(ctx context.Context) (string, error)
 }
 
-// NewDataClient constructs a rag DataClient. baseURL is theo-rag's REST root
+// NewDataClient constructs a rag DataClient. baseURL is looprag's REST root
 // (e.g. http://host.docker.internal:18082). httpClient may be nil (http.DefaultClient).
 func NewDataClient(baseURL string, httpClient *http.Client) *DataClient {
 	if httpClient == nil {
@@ -75,14 +75,14 @@ type AnalyticsResult struct {
 		Medium int `json:"medium"`
 		Low    int `json:"low"`
 	} `json:"confidence"`
-	// Scale is theo-rag rc.80+ per-collection observability. Pointer + omitempty so
+	// Scale is looprag rc.80+ per-collection observability. Pointer + omitempty so
 	// dashboard requests without a collection_id emit the M5 shape unchanged (backward-compat).
 	Scale *ScaleObservability `json:"scale,omitempty"`
 }
 
-// ScaleObservability is theo-rag rc.80 ROADMAP-v8 M7 per-collection scale block:
+// ScaleObservability is looprag rc.80 ROADMAP-v8 M7 per-collection scale block:
 // LLM extraction token cost, community count/level, corpus size. Wire shape mirrors
-// theo-rag's AnalyticsSummary.scale (packages/api/src/server/handlers/analytics.ts).
+// looprag's AnalyticsSummary.scale (packages/api/src/server/handlers/analytics.ts).
 type ScaleObservability struct {
 	CollectionID string           `json:"collection_id"`
 	Corpus       ScaleCorpus      `json:"corpus"`
@@ -98,7 +98,7 @@ type ScaleCorpus struct {
 }
 
 // ScaleCommunities is the graph-communities sub-block (total, max_level, per_level).
-// per_level is a level-keyed map (string keys — theo-rag emits `oz.record(oz.number())`).
+// per_level is a level-keyed map (string keys — looprag emits `oz.record(oz.number())`).
 type ScaleCommunities struct {
 	Total    int            `json:"total"`
 	MaxLevel int            `json:"max_level"`
@@ -130,7 +130,7 @@ func (c *DataClient) ListCollections(ctx context.Context, limit, offset int) (*C
 }
 
 // Analytics proxies GET /v1/analytics?collection_id&since with the per-tenant Bearer.
-// collectionID is the ROADMAP-v8 M7 opt-in: when non-empty theo-rag attaches a
+// collectionID is the ROADMAP-v8 M7 opt-in: when non-empty looprag attaches a
 // per-collection `scale` block to the response (extraction tokens, communities,
 // corpus size). An empty collectionID keeps the M5 summary shape (scale=nil,
 // backward-compat).
@@ -151,7 +151,7 @@ func (c *DataClient) Analytics(ctx context.Context, collectionID, since string) 
 
 // GraphView proxies GET /v1/collections/:id/graph — the persisted knowledge graph (top-N nodes
 // by degree + the edges among them) for the GraphRAG explorer (M10). Forwarded opaquely: the BFF
-// does not parse the graph, the dashboard renders it. The rag:read key gates it at theo-rag.
+// does not parse the graph, the dashboard renders it. The rag:read key gates it at looprag.
 func (c *DataClient) GraphView(ctx context.Context, collectionID, level, limit string) (json.RawMessage, error) {
 	q := url.Values{}
 	if level != "" {
@@ -209,7 +209,7 @@ type CreateCollectionInput struct {
 // AskInput is the POST /v1/answers body (query + collection).
 //
 // M9 — Strategy is the optional retrieval strategy the caller selects
-// (vector|keyword|hybrid|graph|global). Empty ⇒ theo-rag defaults to vector
+// (vector|keyword|hybrid|graph|global). Empty ⇒ looprag defaults to vector
 // (backward-compatible); graph + global (GraphRAG) fail-close to vector upstream
 // when the collection has no graph. `omitempty` so an unset strategy is not even
 // sent — the pre-M9 request shape is preserved byte-for-byte.
@@ -277,12 +277,12 @@ func (c *DataClient) DeleteCollection(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/collections/"+url.PathEscape(id), nil, nil, nil)
 }
 
-// IngestDocument proxies POST /v1/documents/raw (async — theo-rag returns 202 + a doc id).
+// IngestDocument proxies POST /v1/documents/raw (async — looprag returns 202 + a doc id).
 func (c *DataClient) IngestDocument(ctx context.Context, in IngestInput) (json.RawMessage, error) {
-	// theo-rag's POST /v1/documents/raw contract requires `content` (NOT `text`) and a
-	// non-empty `name` (see theo-rag documents.routes.ts). The dashboard→BFF body uses
-	// `text` (IngestInput); map it to theo-rag's wire shape here. Default an empty name
-	// so an unnamed upload does not 422 (theo-rag requires name).
+	// looprag's POST /v1/documents/raw contract requires `content` (NOT `text`) and a
+	// non-empty `name` (see looprag documents.routes.ts). The dashboard→BFF body uses
+	// `text` (IngestInput); map it to looprag's wire shape here. Default an empty name
+	// so an unnamed upload does not 422 (looprag requires name).
 	name := in.Name
 	if name == "" {
 		name = "untitled"
@@ -295,7 +295,7 @@ func (c *DataClient) IngestDocument(ctx context.Context, in IngestInput) (json.R
 	return out, nil
 }
 
-// ragRawIngestBody is theo-rag's POST /v1/documents/raw wire shape — `content`, not the
+// ragRawIngestBody is looprag's POST /v1/documents/raw wire shape — `content`, not the
 // dashboard-facing `text` (IngestInput). Kept separate so the two contracts never drift.
 type ragRawIngestBody struct {
 	CollectionID string `json:"collection_id"`
@@ -317,9 +317,9 @@ func (c *DataClient) Ask(ctx context.Context, in AskInput) (json.RawMessage, err
 	return out, nil
 }
 
-// --- Connectors (theo-cloud #191 — dashboard connectors surface) --------------
+// --- Connectors (loop-console #191 — dashboard connectors surface) --------------
 
-// Connection is the non-secret view of a connector connection (theo-rag presentConnection).
+// Connection is the non-secret view of a connector connection (looprag presentConnection).
 type Connection struct {
 	ID           string  `json:"id"`
 	WorkspaceID  string  `json:"workspace_id"`
@@ -350,9 +350,9 @@ func (c *DataClient) ListConnectors(ctx context.Context) (*ConnectionsResult, er
 
 // ConnectConnector proxies POST /v1/connectors/{provider}/connect (M8). The credential body
 // (refresh_token / token / static creds / crawler config, per provider) is forwarded OPAQUELY
-// — the BFF never inspects, transforms, or logs it (Rule 8); theo-rag encrypts it at rest and
+// — the BFF never inspects, transforms, or logs it (Rule 8); looprag encrypts it at rest and
 // never echoes it. `provider` is path-escaped defensively (the handler validates it against the
-// enum first). Returns theo-rag's non-secret Connection view.
+// enum first). Returns looprag's non-secret Connection view.
 func (c *DataClient) ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error) {
 	var out json.RawMessage
 	if err := c.do(ctx, http.MethodPost, "/v1/connectors/"+url.PathEscape(provider)+"/connect", nil, body, &out); err != nil {
@@ -361,7 +361,7 @@ func (c *DataClient) ConnectConnector(ctx context.Context, provider string, body
 	return out, nil
 }
 
-// SyncConnector proxies POST /v1/connectors/{id}/sync — enqueues a sync (theo-rag returns 202).
+// SyncConnector proxies POST /v1/connectors/{id}/sync — enqueues a sync (looprag returns 202).
 func (c *DataClient) SyncConnector(ctx context.Context, id string) (json.RawMessage, error) {
 	var out json.RawMessage
 	if err := c.do(ctx, http.MethodPost, "/v1/connectors/"+url.PathEscape(id)+"/sync", nil, nil, &out); err != nil {
@@ -370,7 +370,7 @@ func (c *DataClient) SyncConnector(ctx context.Context, id string) (json.RawMess
 	return out, nil
 }
 
-// DeleteConnector proxies DELETE /v1/connectors/{id} (theo-rag refuses with 409 while syncing).
+// DeleteConnector proxies DELETE /v1/connectors/{id} (looprag refuses with 409 while syncing).
 func (c *DataClient) DeleteConnector(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/connectors/"+url.PathEscape(id), nil, nil, nil)
 }
@@ -398,7 +398,7 @@ func (c *DataClient) GetChunk(ctx context.Context, id string) (json.RawMessage, 
 }
 
 // UpdateChunk proxies PATCH /v1/chunks/{id} (chunk-editor, rag:write). The body ({text}) is
-// forwarded opaquely; theo-rag re-embeds the chunk server-side.
+// forwarded opaquely; looprag re-embeds the chunk server-side.
 func (c *DataClient) UpdateChunk(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
 	var out json.RawMessage
 	if err := c.do(ctx, http.MethodPatch, "/v1/chunks/"+url.PathEscape(id), nil, body, &out); err != nil {
@@ -437,7 +437,7 @@ func (c *DataClient) CreateWikiPage(ctx context.Context, body json.RawMessage) (
 }
 
 // UpdateWikiPage proxies PUT /v1/wiki/pages/{id} (KB0 page lifecycle, rag:write). Body
-// {name?,content}; theo-rag re-parses the OKF frontmatter, re-embeds, and treats a changed
+// {name?,content}; looprag re-parses the OKF frontmatter, re-embeds, and treats a changed
 // frontmatter `path` as a rename/move.
 func (c *DataClient) UpdateWikiPage(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
 	var out json.RawMessage
@@ -538,14 +538,14 @@ func (c *DataClient) do(ctx context.Context, method, path string, q url.Values, 
 type UploadFileInput struct {
 	File         io.Reader // the file bytes (streamed via io.Pipe)
 	Filename     string
-	ContentType  string // MIME; theo-rag validates it against its supported set
+	ContentType  string // MIME; looprag validates it against its supported set
 	CollectionID string
 	Name         string // optional display name; defaults to the filename upstream
 	Mode         string // "fast" | "hi_res"; empty defaults to fast upstream
 }
 
 // uploadFilePart opens a multipart "file" part carrying the caller's declared MIME
-// so theo-rag's isSupportedMime(file.type) sees the real content type (multipart's
+// so looprag's isSupportedMime(file.type) sees the real content type (multipart's
 // CreateFormFile would hardcode application/octet-stream and break the check).
 func uploadFilePart(mw *multipart.Writer, filename, contentType string) (io.Writer, error) {
 	if contentType == "" {
@@ -557,7 +557,7 @@ func uploadFilePart(mw *multipart.Writer, filename, contentType string) (io.Writ
 	return mw.CreatePart(h)
 }
 
-// UploadDocumentFile proxies a multipart file upload to theo-rag's POST /v1/documents
+// UploadDocumentFile proxies a multipart file upload to looprag's POST /v1/documents
 // with the per-tenant Bearer. The file is streamed via io.Pipe so a large PDF is never
 // buffered whole. Upstream returns 202 + a document id (async ingest). Any upstream
 // >=400 surfaces as a typed error — never a silent success (Error Handling: fail-loud).

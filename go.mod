@@ -1,4 +1,4 @@
-module github.com/usetheoai/theo-cloud
+module github.com/getloopscale/loop-console
 
 go 1.26.10
 
@@ -56,6 +56,7 @@ require (
 )
 
 require (
+	github.com/getloopscale/contracts v0.6.0
 	github.com/go-openapi/jsonpointer v0.22.5 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -63,5 +64,4 @@ require (
 	github.com/oasdiff/yaml v0.1.0 // indirect
 	github.com/oasdiff/yaml3 v0.0.13 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
-	github.com/usetheoai/theo-contracts v0.5.0
 )

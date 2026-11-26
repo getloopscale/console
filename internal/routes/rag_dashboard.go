@@ -11,11 +11,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/rag"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/rag"
 )
 
-// RagDataClient is the theo-rag proxy the dashboard BFF depends on (DIP — a stub
+// RagDataClient is the looprag proxy the dashboard BFF depends on (DIP — a stub
 // satisfies it in tests). Satisfied by *rag.DataClient. M21 adds the write surface
 // (create/delete collections + documents, ask) alongside the M17 reads.
 type RagDataClient interface {
@@ -25,7 +25,7 @@ type RagDataClient interface {
 	CreateCollection(ctx context.Context, in rag.CreateCollectionInput) (*rag.Collection, error)
 	DeleteCollection(ctx context.Context, id string) error
 	IngestDocument(ctx context.Context, in rag.IngestInput) (json.RawMessage, error)
-	// M11 — file upload (PDF/office/CSV/image). Streamed multipart to theo-rag's async ingest.
+	// M11 — file upload (PDF/office/CSV/image). Streamed multipart to looprag's async ingest.
 	UploadDocumentFile(ctx context.Context, in rag.UploadFileInput) (json.RawMessage, error)
 	DeleteDocument(ctx context.Context, id string) error
 	Ask(ctx context.Context, in rag.AskInput) (json.RawMessage, error)
@@ -37,13 +37,13 @@ type RagDataClient interface {
 	// forwarded opaquely (never inspected/logged).
 	ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error)
 	// M10 — GraphRAG explorer reads: the persisted knowledge graph (nodes/edges) + communities
-	// (with report summary + members). Forwarded opaquely; rag:read gated at theo-rag.
+	// (with report summary + members). Forwarded opaquely; rag:read gated at looprag.
 	GraphView(ctx context.Context, collectionID, level, limit string) (json.RawMessage, error)
 	Communities(ctx context.Context, collectionID, level string) (json.RawMessage, error)
 	// M13 — the full report (title + full_content + findings) for a community. Forwarded opaquely.
 	CommunityReport(ctx context.Context, collectionID, communityKey, level string) (json.RawMessage, error)
 	// chunk-editor — list a document's chunks (read), read one chunk, and edit a chunk's text
-	// (theo-rag re-embeds server-side on write). Forwarded opaquely; rag:read / rag:write gated at theo-rag.
+	// (looprag re-embeds server-side on write). Forwarded opaquely; rag:read / rag:write gated at looprag.
 	ListDocumentChunks(ctx context.Context, documentID, cursor string) (json.RawMessage, error)
 	GetChunk(ctx context.Context, id string) (json.RawMessage, error)
 	UpdateChunk(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
@@ -58,9 +58,9 @@ type RagDataClient interface {
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
-// reach it; the injected data client proxies to theo-rag with a per-tenant key resolved
+// reach it; the injected data client proxies to looprag with a per-tenant key resolved
 // from the JWT tenant. M21 lifts the M17 read-only surface to read+write — the dashboard
-// session mints a rag:read+write+delete key; theo-rag's per-verb scope still gates every
+// session mints a rag:read+write+delete key; looprag's per-verb scope still gates every
 // write (the 6 data-plane invariants hold at the service).
 type RagDashboardHandler struct {
 	client RagDataClient
@@ -102,7 +102,7 @@ func (h *RagDashboardHandler) ListCollections(w http.ResponseWriter, r *http.Req
 }
 
 // Analytics serves GET /v1/dashboard/rag/analytics — the caller workspace's M5 summary,
-// via the per-tenant key (theo-rag gates /v1/analytics by rag:read since M17).
+// via the per-tenant key (looprag gates /v1/analytics by rag:read since M17).
 //
 // ROADMAP-v8 M7 — when ?collection_id= is present the response carries an extra
 // `scale` block (extraction tokens, communities, corpus size) for the selected
@@ -222,7 +222,7 @@ func (h *RagDashboardHandler) GetChunk(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateChunk serves PATCH /v1/dashboard/rag/chunks/{id} (chunk-editor, rag:write). Edits a
-// chunk's text; theo-rag re-embeds it server-side. The body ({text}) is forwarded opaquely.
+// chunk's text; looprag re-embeds it server-side. The body ({text}) is forwarded opaquely.
 func (h *RagDashboardHandler) UpdateChunk(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -291,7 +291,7 @@ func (h *RagDashboardHandler) authTenant(w http.ResponseWriter, r *http.Request)
 }
 
 // CreateCollection serves POST /v1/dashboard/rag/collections (M21). The per-tenant
-// rag:write key gates the write at theo-rag; the tenant comes from the JWT, never the body.
+// rag:write key gates the write at looprag; the tenant comes from the JWT, never the body.
 func (h *RagDashboardHandler) CreateCollection(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -343,9 +343,9 @@ func (h *RagDashboardHandler) ListConnectors(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, res)
 }
 
-// connectorProviders is theo-rag's provider enum (M8). The BFF validates the {provider} path
+// connectorProviders is looprag's provider enum (M8). The BFF validates the {provider} path
 // param against it (fail-fast 422) before proxying, so an unknown provider never reaches
-// theo-rag. Kept in lockstep with theo-rag's CONNECTOR_PROVIDERS (+ the Atlassian pair).
+// looprag. Kept in lockstep with looprag's CONNECTOR_PROVIDERS (+ the Atlassian pair).
 var connectorProviders = map[string]bool{
 	"google-drive": true, "dropbox": true, "gmail": true, "box": true, "zendesk": true,
 	"salesforce": true, "microsoft-365": true, "notion": true, "github": true, "s3": true,
@@ -354,7 +354,7 @@ var connectorProviders = map[string]bool{
 
 // ConnectConnector serves POST /v1/dashboard/rag/connectors/{provider}/connect (M8, rag:write).
 // The provider is validated against the enum; the credential body is forwarded OPAQUELY to
-// theo-rag (never inspected, transformed, or logged — Rule 8) which encrypts it and returns a
+// looprag (never inspected, transformed, or logged — Rule 8) which encrypts it and returns a
 // non-secret Connection. The body is bounded (64 KiB) to reject an oversized payload.
 func (h *RagDashboardHandler) ConnectConnector(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
@@ -381,7 +381,7 @@ func (h *RagDashboardHandler) ConnectConnector(w http.ResponseWriter, r *http.Re
 }
 
 // SyncConnector serves POST /v1/dashboard/rag/connectors/{id}/sync (#191, rag:write) —
-// enqueues a sync; passes through theo-rag's 202 body.
+// enqueues a sync; passes through looprag's 202 body.
 func (h *RagDashboardHandler) SyncConnector(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -419,7 +419,7 @@ func (h *RagDashboardHandler) DeleteConnector(w http.ResponseWriter, r *http.Req
 }
 
 // IngestDocument serves POST /v1/dashboard/rag/documents (M21, rag:write). Text ingest
-// is async at theo-rag (202); the raw upstream body (with the doc id + status) passes through.
+// is async at looprag (202); the raw upstream body (with the doc id + status) passes through.
 func (h *RagDashboardHandler) IngestDocument(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -439,12 +439,12 @@ func (h *RagDashboardHandler) IngestDocument(w http.ResponseWriter, r *http.Requ
 }
 
 // maxUploadBytes caps a single dashboard file upload at the BFF edge (DoS guard).
-// theo-rag enforces its own content limit (413); this is the outer bound so a runaway
+// looprag enforces its own content limit (413); this is the outer bound so a runaway
 // upload cannot exhaust the BFF before the upstream rejects it.
 const maxUploadBytes = 100 << 20 // 100 MiB
 
 // UploadDocumentFile serves POST /v1/dashboard/rag/documents/file (M11, rag:write). A
-// multipart file upload (PDF/office/CSV/image) is streamed to theo-rag's async ingest;
+// multipart file upload (PDF/office/CSV/image) is streamed to looprag's async ingest;
 // the raw upstream body (doc id + status) passes through (202). The file spills to a
 // temp file (FormFile) and is streamed out — never buffered whole in the BFF.
 func (h *RagDashboardHandler) UploadDocumentFile(w http.ResponseWriter, r *http.Request) {
@@ -500,8 +500,8 @@ func (h *RagDashboardHandler) DeleteDocument(w http.ResponseWriter, r *http.Requ
 // Ask serves POST /v1/dashboard/rag/answers (M21, rag:read). A query returns a cited answer;
 // the raw upstream answer body (answer + sources) passes through.
 
-// validAskStrategy reports whether s is one of theo-rag's retrieval strategies (M9 —
-// vector|keyword|hybrid|graph|global). Kept in lockstep with theo-rag's enum.
+// validAskStrategy reports whether s is one of looprag's retrieval strategies (M9 —
+// vector|keyword|hybrid|graph|global). Kept in lockstep with looprag's enum.
 func validAskStrategy(s string) bool {
 	switch s {
 	case "vector", "keyword", "hybrid", "graph", "global":
@@ -522,7 +522,7 @@ func (h *RagDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	}
 	// M9 — fail-fast on an unknown strategy at the boundary (error-handling.md): reject it
 	// here with a clear typed 422 rather than forwarding a bad value upstream. An empty
-	// strategy is valid (theo-rag defaults to vector).
+	// strategy is valid (looprag defaults to vector).
 	if in.Strategy != "" && !validAskStrategy(in.Strategy) {
 		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "strategy must be one of vector, keyword, hybrid, graph, global.")
 		return
@@ -615,7 +615,7 @@ func (h *RagDashboardHandler) GetWikiPage(w http.ResponseWriter, r *http.Request
 }
 
 // CreateWikiPage serves POST /v1/dashboard/rag/wiki/pages (Open Wiki, rag:write). Body
-// {collection_id,name,content}; theo-rag ingests + embeds the markdown page.
+// {collection_id,name,content}; looprag ingests + embeds the markdown page.
 func (h *RagDashboardHandler) CreateWikiPage(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -644,7 +644,7 @@ func (h *RagDashboardHandler) CreateWikiPage(w http.ResponseWriter, r *http.Requ
 }
 
 // UpdateWikiPage serves PUT /v1/dashboard/rag/wiki/pages/{id} (KB0 page lifecycle, rag:write).
-// Body {name?,content}; theo-rag re-parses the OKF frontmatter, re-embeds, and a changed
+// Body {name?,content}; looprag re-parses the OKF frontmatter, re-embeds, and a changed
 // frontmatter path is a rename/move.
 func (h *RagDashboardHandler) UpdateWikiPage(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {

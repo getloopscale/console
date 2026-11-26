@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { describe, it, expect } from 'vitest';
 import { BILLING_REDIRECT, DOCS_SITE, NavigationTarget } from './navigation-target';
@@ -33,7 +33,7 @@ describe('NavigationTarget.parse — the only way to obtain a target', () => {
   });
 
   it('refuses the userinfo trick that hides the real host', () => {
-    expect(NavigationTarget.parse('https://auth.usetheo.dev@evil.com/x')).toBeNull();
+    expect(NavigationTarget.parse('https://auth.getloopscale.com@evil.com/x')).toBeNull();
   });
 
   it('refuses empty and nullish input', () => {
@@ -49,7 +49,7 @@ describe('NavigationTarget.parse — the only way to obtain a target', () => {
   });
 
   it('accepts an allowlisted origin and preserves it verbatim', () => {
-    const raw = 'https://auth.usetheo.dev/self-service/recovery/browser';
+    const raw = 'https://auth.getloopscale.com/self-service/recovery/browser';
     const target = NavigationTarget.parse(raw);
     expect(target).not.toBeNull();
     expect(target!.value).toBe(raw);
@@ -92,10 +92,10 @@ describe('NavigationTarget.parse — the only way to obtain a target', () => {
     expect(NavigationTarget.parse('https://evil.example/x', BILLING_REDIRECT)).toBeNull();
   });
 
-  it('the docs policy admits the LoopScale docs site and no longer the old one (#521)', () => {
+  it('the docs policy admits the LoopScale docs site and no other host (#521)', () => {
     const docs = NavigationTarget.parse('https://docs.getloopscale.com/teams/create', DOCS_SITE);
     expect(docs?.value).toBe('https://docs.getloopscale.com/teams/create');
-    expect(NavigationTarget.parse('https://docs.usetheo.dev/teams/create', DOCS_SITE)).toBeNull();
+    expect(NavigationTarget.parse('https://docs.example.com/teams/create', DOCS_SITE)).toBeNull();
   });
 
   it('carries its proof: toString is the destination', () => {

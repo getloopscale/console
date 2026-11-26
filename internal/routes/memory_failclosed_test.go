@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Model B slice 2 / T5.1 — handler-level fail-closed: when the per-tenant key
 // cannot be resolved (broker mint failure surfaces as a client error), the
 // memory handler returns 5xx and NEVER serves data. Combined with the
 // client-level test (the data client makes no HTTP call on resolver error) and
-// the theo-memory provider enforcement (a ws-A key cannot read ws-B), this
+// the loopmem provider enforcement (a ws-A key cannot read ws-B), this
 // closes the confused-deputy: there is no path where a failed per-tenant
 // resolution silently degrades to a master-key (cross-tenant) read.
 package routes
@@ -19,19 +19,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/loopmem"
 )
 
 // brokerFailClient simulates the data client when the per-tenant key resolver
 // (broker) fails: every call returns a wrapped non-4xx error, exactly as
-// themory.Client.do() does when keyResolver returns an error.
+// loopmem.Client.do() does when keyResolver returns an error.
 type brokerFailClient struct {
 	TheMemoryClient
 }
 
-func (brokerFailClient) List(_ context.Context, _ string, _ themory.ListOptions) (*themory.ListResult, error) {
-	return nil, errors.New("themory: resolve per-tenant key: broker mint failed")
+func (brokerFailClient) List(_ context.Context, _ string, _ loopmem.ListOptions) (*loopmem.ListResult, error) {
+	return nil, errors.New("loopmem: resolve per-tenant key: broker mint failed")
 }
 
 func TestList_PerTenantKeyResolutionFailure_FailsClosed(t *testing.T) {

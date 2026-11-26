@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'https://auth-dev.usetheo.dev',
+  API_URL: 'https://auth-dev.getloopscale.com',
   AUTH_URL: '',
   ACCOUNTS_URL: '',
   OAUTH_URL: '',
@@ -24,7 +24,7 @@ vi.mock('@/pages/auth/kratos', async () => {
   };
 });
 
-// Red Team theo-cloud#54 closure: the recovery page now calls getSession()
+// Red Team loop-console#54 closure: the recovery page now calls getSession()
 // on mount to detect an active session and surface the explicit notice.
 // Tests default to `null` (no session) so the existing flow tests are
 // unaffected; the #54 test flips this to a truthy session.
@@ -40,7 +40,7 @@ function emailPhaseFlow() {
   return {
     id: 'rec-flow-1',
     ui: {
-      action: 'https://auth-dev.usetheo.dev/self-service/recovery?flow=rec-flow-1',
+      action: 'https://auth-dev.getloopscale.com/self-service/recovery?flow=rec-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-rec' } },
@@ -55,7 +55,7 @@ function codePhaseFlow() {
   return {
     id: 'rec-flow-1',
     ui: {
-      action: 'https://auth-dev.usetheo.dev/self-service/recovery?flow=rec-flow-1',
+      action: 'https://auth-dev.getloopscale.com/self-service/recovery?flow=rec-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-rec' } },
@@ -71,7 +71,7 @@ function passwordPhaseFlow() {
   return {
     id: 'set-flow-1',
     ui: {
-      action: 'https://auth-dev.usetheo.dev/self-service/settings?flow=set-flow-1',
+      action: 'https://auth-dev.getloopscale.com/self-service/settings?flow=set-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-set' } },
@@ -86,7 +86,7 @@ function passwordPhaseFlowWithError(errorText: string) {
   return {
     id: 'set-flow-1',
     ui: {
-      action: 'https://auth-dev.usetheo.dev/self-service/settings?flow=set-flow-1',
+      action: 'https://auth-dev.getloopscale.com/self-service/settings?flow=set-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-set' } },
@@ -138,7 +138,7 @@ describe('RecoveryPage', () => {
       expect(mockSubmitFlow).toHaveBeenCalledTimes(1);
     });
     const [action, method, body] = mockSubmitFlow.mock.calls[0];
-    expect(action).toBe('https://auth-dev.usetheo.dev/self-service/recovery?flow=rec-flow-1');
+    expect(action).toBe('https://auth-dev.getloopscale.com/self-service/recovery?flow=rec-flow-1');
     expect(method).toBe('POST');
     expect(body.email).toBe('user@example.com');
     expect(body.method).toBe('code');
@@ -273,10 +273,10 @@ describe('RecoveryPage', () => {
         id: 'browser_location_change_required',
         message: 'browser location change required',
         reason:
-          'In order to complete this flow please redirect the browser to: https://app-dev.usetheo.dev/settings?flow=set-flow-via-redirect',
+          'In order to complete this flow please redirect the browser to: https://app-dev.getloopscale.com/settings?flow=set-flow-via-redirect',
       },
       redirect_browser_to:
-        'https://app-dev.usetheo.dev/settings?flow=set-flow-via-redirect',
+        'https://app-dev.getloopscale.com/settings?flow=set-flow-via-redirect',
     });
     // getFlow for the settings flow ID extracted from redirect_browser_to
     mockGetFlow.mockResolvedValueOnce(passwordPhaseFlow());
@@ -592,7 +592,7 @@ describe('RecoveryPage', () => {
     expect(backLink.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
   });
 
-  // Red Team theo-cloud#54 closure: an authenticated visitor at /recovery
+  // Red Team loop-console#54 closure: an authenticated visitor at /recovery
   // MUST see an explicit "you're already signed in" notice instead of
   // being silently bounced to the dashboard by Kratos.
   it('shows explicit notice when an active session is detected (#54)', async () => {
@@ -610,7 +610,7 @@ describe('RecoveryPage', () => {
     ).toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#54 re-open: the bug is on the path WITHOUT a flow ID
+  // Red Team loop-console#54 re-open: the bug is on the path WITHOUT a flow ID
   // (the user clicks "Forgot password?" while signed in). The bootstrap
   // useEffect fires synchronously BEFORE getSession resolves and navigates
   // to the upstream identity-store flow — the notice never gets a chance to
@@ -645,7 +645,7 @@ describe('RecoveryPage', () => {
     });
   });
 
-  // Red Team theo-cloud#80 closure: the recovery code input MUST set
+  // Red Team loop-console#80 closure: the recovery code input MUST set
   // inputmode=numeric so mobile keyboards open the numeric pad, and
   // autocomplete=one-time-code so iOS / Android / Chrome offer the
   // OS-extracted SMS / email code as autofill. Both are tiny no-cost

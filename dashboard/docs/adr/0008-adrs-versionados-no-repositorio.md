@@ -1,7 +1,7 @@
 ---
 status: proposed
 date: 2026-08-06
-decision-makers: time do dashboard theo-cloud
+decision-makers: time do dashboard loop-console
 origem: tradeoff_decisions#19 · boundary_findings#16 · system_design_findings#14
 ---
 
@@ -39,7 +39,7 @@ sete, cabendo em duas paginas:
 
 1. Eixo de organizacao do codigo e regra de residencia (ADR-0001)
 2. Orcamento de LoC por arquivo (ADR-0002)
-3. Split `@usetheo/ui` vs `@theokit/ui` (ADR-0003)
+3. Split `@getloopscale/ui` vs `@getloopscale/loopzero-ui` (ADR-0003)
 4. Justificativa do service worker (ADR-0004)
 5. Politica do React Compiler (ADR-0005)
 6. Obrigatoriedade da factory de query key (ADR-0006)

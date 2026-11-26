@@ -1,8 +1,8 @@
-# M6 (full-chain-e2e) — the FIRST test stage in theo-cloud CI.
+# M6 (full-chain-e2e) — the FIRST test stage in loop-console CI.
 #
-# Brings up the hermetic Model-B stack (pg-cloud + engine migrations, pg-themory,
-# mock-openai, themory, kratos, theo-cloud) and runs the full e2e suite — including
-# the M6 full-chain test (real Kratos login -> JWT -> BFF -> broker -> themory ->
+# Brings up the hermetic Model-B stack (pg-cloud + engine migrations, pg-loopmem,
+# mock-openai, loopmem, kratos, loop-console) and runs the full e2e suite — including
+# the M6 full-chain test (real Kratos login -> JWT -> BFF -> broker -> loopmem ->
 # tenancy isolation). Mirrors `tests/e2e/run.sh` exactly (`make e2e`).
 #
 # NOTE: this workflow's FIRST real execution happens on push/PR — GitHub Actions
@@ -13,24 +13,24 @@ name: ci
 on:
   # Invocado por publish.yml como gate (workflow_call) e disparado direto num PR.
   #
-  # SEM `push:` e SEM `workflow_dispatch:`, de proposito. MEDIDO em 2026-07-30 (theo-memory, runs
+  # SEM `push:` e SEM `workflow_dispatch:`, de proposito. MEDIDO em 2026-07-30 (loopmem, runs
   # 30522117234 e 30522853797): um `workflow_call` callee NAO herda o `concurrency` do chamador —
   # ele mantem o PROPRIO grupo, avaliado no contexto do chamador. Como este arquivo declara
   # `test-e2e-${branch}` com cancel-in-progress, um run avulso e a chamada gateada caem no MESMO
   # grupo e um mata o outro; o run do publish termina `cancelled` e `images` vira `skipped` num
-  # commit verde. theo-lens sofreu o mesmo defeito (F-sec-2) e corrigiu deletando os gatilhos
-  # avulsos — theo-lens/.github/workflows/integration.yml:28-32.
+  # commit verde. looptrace sofreu o mesmo defeito (F-sec-2) e corrigiu deletando os gatilhos
+  # avulsos — looptrace/.github/workflows/integration.yml:28-32.
   #
   # A cobertura do commit de merge nao se perde: ela passa a vir do gate em publish.yml.
   workflow_call:
     secrets:
       GOMOD_TOKEN:
         required: true
-        description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
+        description: PAT com leitura no modulo privado contracts; um callee NAO herda secrets.
 permissions:
   contents: read
   packages: read # pull das imagens dos vizinhos no GHCR da org
-# Chaveado pela BRANCH, não por `github.ref` (mesma correção de theo-memory#129 e theo-rag).
+# Chaveado pela BRANCH, não por `github.ref` (mesma correção de loopmem#129 e looprag).
 # Um push em `develop` e o PR do MESMO commit carregam `github.ref` diferentes
 # (`refs/heads/develop` vs `refs/pull/N/merge`), caem em grupos distintos e AMBOS rodam.
 #
@@ -45,7 +45,7 @@ concurrency:
   # recentes de `ci` carregam event=pull_request com head_branch=develop. Um PR `develop -> main`
   # resolve `head.ref` para "develop" e cai em `test-e2e-develop`. O callee gateado, rodando sob um
   # push para develop, cai no MESMO grupo (a expressao e avaliada no contexto do CHAMADOR — medido
-  # nos runs 30522117234/30522853797 do theo-memory). Com cancel-in-progress, o PR de release
+  # nos runs 30522117234/30522853797 do loopmem). Com cancel-in-progress, o PR de release
   # cancela o gate em voo: `needs:` fica insatisfeito, `images` pula, e o commit de release publica
   # NADA — reportado como `cancelled`, ou seja, cinza em vez de vermelho.
   #
@@ -59,17 +59,17 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: 7a3419121bbdccf68abd21467ac6ebd8270984dc
+      LOOPSCALE_ENGINE_REF: dc73c0999908eebc30549eedc3208f4732d535c0
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
-      #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
-      #   theo-cloud/theo        (engine — its migrations are mounted by cloud-migrate)
-      #   theo-data/theo-memory  (themory source — run.sh builds its image)
-      - name: Checkout theo-cloud
+      #   loop-console/loop-console  (this repo — tests/e2e lives here)
+      #   loop-console/loopscale        (engine — its migrations are mounted by cloud-migrate)
+      #   loopscale-data/loopmem  (loopmem source — run.sh builds its image)
+      - name: Checkout loop-console
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          path: theo-cloud/theo-cloud
-      - name: Checkout theo (engine — migrations)
+          path: loop-console/loop-console
+      - name: Checkout loopscale (engine — migrations)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: getloopscale/loop-runtime
@@ -77,40 +77,39 @@ jobs:
           # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
           # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
           # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
-          ref: ${{ env.THEO_ENGINE_REF }}
+          ref: ${{ env.LOOPSCALE_ENGINE_REF }}
           # GITHUB_TOKEN is scoped to THIS repo; cross-repo private checkout needs a
-          # PAT with read access to getloopscale/loop-runtime (+ theo-memory, theo-contracts).
+          # PAT with read access to getloopscale/loop-runtime (+ loopmem, contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-cloud/theo
+          path: loop-console/loopscale
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version-file: theo-cloud/theo-cloud/go.mod
-          cache-dependency-path: theo-cloud/theo-cloud/go.sum
+          go-version-file: loop-console/loop-console/go.mod
+          cache-dependency-path: loop-console/loop-console/go.sum
 
-      # theo-contracts is a private module — let `go build` (run by make e2e) fetch
+      # contracts is a private module — let `go build` (run by make e2e) fetch
       # it over HTTPS with the PAT. NEVER printed; same mechanism as the Dockerfile.
-      - name: Configure private module access (theo-contracts)
+      - name: Configure private module access (contracts)
         run: |
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/getloopscale/".insteadOf "https://github.com/getloopscale/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
       # Fails fast, with the offending name and file, when the console names a table or role
-      # that the checked-out loopzero migrations do not create (#518). Cheaper to read than a
-      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPZERO_MIGRATIONS=1.
-      - name: Check console schema names against the loopzero migrations
-        working-directory: theo-cloud/theo-cloud
+      # that the checked-out loop-runtime migrations do not create (#518). Cheaper to read than a
+      # 500 from the stack, and it cannot skip here: REQUIRE_LOOP_RUNTIME_MIGRATIONS=1.
+      - name: Check console schema names against the loop-runtime migrations
+        working-directory: loop-console/loop-console
         env:
-          LOOPZERO_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
-          REQUIRE_LOOPZERO_MIGRATIONS: "1"
-        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopzeroMigrations' -count=1 -v
+          LOOP_RUNTIME_MIGRATIONS_DIR: ${{ github.workspace }}/loop-console/loopscale/api/internal/db/migrations
+          REQUIRE_LOOP_RUNTIME_MIGRATIONS: "1"
+        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopruntimeMigrations' -count=1 -v
 
       # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
-      # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
+      # pull de `loopmem` falha com `manifest unknown` — a MESMA referencia que resolve
       # localmente com um PAT. Permissao de PACKAGE no GHCR e por-package, nao herdada de
-      # `packages: read` no workflow: o package `themory` pertence ao theo-memory e nao lista
-      # o theo-cloud entre os repos com acesso.
+      # `packages: read` no workflow: o package `loopmem` pertence ao loopmem e nao lista
+      # o loop-console entre os repos com acesso.
       #
       # `manifest unknown` engana — sugere digest errado, quando o digest esta certo e o token
       # e que nao enxerga o package. Mesma familia dos outros erros de hoje: a mensagem
@@ -123,9 +122,9 @@ jobs:
           password: ${{ secrets.GOMOD_TOKEN }}
 
       - name: Run the full e2e suite (make e2e)
-        working-directory: theo-cloud/theo-cloud
+        working-directory: loop-console/loop-console
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+          GOPRIVATE: github.com/getloopscale/*
         run: |
           # As imagens dos vizinhos vem PINADAS POR DIGEST de `.github/e2e-images.env`, nao de
           # um checkout do repo deles. `run.sh` ja aceitava `*_IMAGE`; o mecanismo existia e
@@ -135,9 +134,9 @@ jobs:
 
       - name: Dump stack logs on failure
         if: failure()
-        working-directory: theo-cloud/theo-cloud
+        working-directory: loop-console/loop-console
         run: |
-          docker compose -p "${E2E_PROJECT:-theo-cloud-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml logs --tail=200 || true
+          docker compose -p "${E2E_PROJECT:-loop-console-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml logs --tail=200 || true
 
   # #113 — restores automated coverage of the edge ForwardAuth confused-deputy
   # (CWE-441) closure. Brings up the SAME hermetic stack PLUS the Traefik single
@@ -148,14 +147,14 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      THEO_ENGINE_REF: 7a3419121bbdccf68abd21467ac6ebd8270984dc
-      THEORAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
+      LOOPSCALE_ENGINE_REF: dc73c0999908eebc30549eedc3208f4732d535c0
+      LOOPRAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
-      - name: Checkout theo-cloud
+      - name: Checkout loop-console
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          path: theo-cloud/theo-cloud
-      - name: Checkout theo (engine — migrations)
+          path: loop-console/loop-console
+      - name: Checkout loopscale (engine — migrations)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: getloopscale/loop-runtime
@@ -163,43 +162,42 @@ jobs:
           # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
           # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
           # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
-          ref: ${{ env.THEO_ENGINE_REF }}
+          ref: ${{ env.LOOPSCALE_ENGINE_REF }}
           token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-cloud/theo
-      - name: Checkout theo-rag (migrations do rag-migrate)
+          path: loop-console/loopscale
+      - name: Checkout looprag (migrations do rag-migrate)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          # Diferente do theo-lens, que MIGRA NO BOOT, o theo-rag nao aplica o proprio
+          # Diferente do looptrace, que MIGRA NO BOOT, o looprag nao aplica o proprio
           # schema — o `rag-migrate` do e2e o semeia com `psql`. Sem este checkout o bind
           # aponta para um diretorio inexistente, zero migration e aplicada, o container
           # sai 0, e o defeito reaparece depois como 503 em /v1/admin/keys (#271).
-          repository: getloopscale/looprag
-          ref: ${{ env.THEORAG_REF }}
+          repository: getloopscale/loop-rag
+          ref: ${{ env.LOOPRAG_REF }}
           token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-cloud/theo-rag
+          path: loop-console/looprag
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version-file: theo-cloud/theo-cloud/go.mod
-          cache-dependency-path: theo-cloud/theo-cloud/go.sum
+          go-version-file: loop-console/loop-console/go.mod
+          cache-dependency-path: loop-console/loop-console/go.sum
 
-      - name: Configure private module access (theo-contracts)
+      - name: Configure private module access (contracts)
         run: |
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/getloopscale/".insteadOf "https://github.com/getloopscale/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
       # Fails fast, with the offending name and file, when the console names a table or role
-      # that the checked-out loopzero migrations do not create (#518). Cheaper to read than a
-      # 500 from the stack, and it cannot skip here: REQUIRE_LOOPZERO_MIGRATIONS=1.
-      - name: Check console schema names against the loopzero migrations
-        working-directory: theo-cloud/theo-cloud
+      # that the checked-out loop-runtime migrations do not create (#518). Cheaper to read than a
+      # 500 from the stack, and it cannot skip here: REQUIRE_LOOP_RUNTIME_MIGRATIONS=1.
+      - name: Check console schema names against the loop-runtime migrations
+        working-directory: loop-console/loop-console
         env:
-          LOOPZERO_MIGRATIONS_DIR: ${{ github.workspace }}/theo-cloud/theo/api/internal/db/migrations
-          REQUIRE_LOOPZERO_MIGRATIONS: "1"
-        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopzeroMigrations' -count=1 -v
+          LOOP_RUNTIME_MIGRATIONS_DIR: ${{ github.workspace }}/loop-console/loopscale/api/internal/db/migrations
+          REQUIRE_LOOP_RUNTIME_MIGRATIONS: "1"
+        run: go test ./internal/ci -run 'TestConsoleSchemaNamesExistInLoopruntimeMigrations' -count=1 -v
 
-      # This job builds THREE images from source (themory + theo-rag + theo-lens)
+      # This job builds THREE images from source (loopmem + looprag + looptrace)
       # on a PERSISTENT self-hosted runner, so images/layers/volumes accumulate
       # across runs. Run 30053242424 died mid-stack with `No space left on device`
       # — and because the runner could not even write its own diagnostic log, the
@@ -239,10 +237,10 @@ jobs:
           fi
 
       # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
-      # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
+      # pull de `loopmem` falha com `manifest unknown` — a MESMA referencia que resolve
       # localmente com um PAT. Permissao de PACKAGE no GHCR e por-package, nao herdada de
-      # `packages: read` no workflow: o package `themory` pertence ao theo-memory e nao lista
-      # o theo-cloud entre os repos com acesso.
+      # `packages: read` no workflow: o package `loopmem` pertence ao loopmem e nao lista
+      # o loop-console entre os repos com acesso.
       #
       # `manifest unknown` engana — sugere digest errado, quando o digest esta certo e o token
       # e que nao enxerga o package. Mesma familia dos outros erros de hoje: a mensagem
@@ -255,21 +253,21 @@ jobs:
           password: ${{ secrets.GOMOD_TOKEN }}
 
       - name: Run the edge ForwardAuth e2e (make e2e-edge)
-        working-directory: theo-cloud/theo-cloud
+        working-directory: loop-console/loop-console
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+          GOPRIVATE: github.com/getloopscale/*
           # Aponta o run.sh para o checkout vizinho EXPLICITAMENTE. Este comentario ja
           # existia descrevendo a correcao — e as variaveis nunca foram adicionadas, entao
           # o default continuou resolvendo para um caminho inexistente. O default tambem
-          # foi corrigido (`../theo-rag`, nao `../../theo-data/theo-rag`), de modo que os
+          # foi corrigido (`../looprag`, nao `../../loopscale-data/looprag`), de modo que os
           # dois layouts funcionem; esta linha e o cinto por cima do suspensorio.
-          THEORAG_DIR: ${{ github.workspace }}/theo-cloud/theo-rag
+          LOOPRAG_DIR: ${{ github.workspace }}/loop-console/looprag
         run: |
           set -a; . .github/e2e-images.env; set +a
           make e2e-edge
 
       - name: Dump stack logs on failure
         if: failure()
-        working-directory: theo-cloud/theo-cloud
+        working-directory: loop-console/loop-console
         run: |
-          docker compose -p "${E2E_PROJECT:-theo-cloud-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml -f tests/e2e/docker-compose.edge.e2e.yaml logs --tail=200 || true
+          docker compose -p "${E2E_PROJECT:-loop-console-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml -f tests/e2e/docker-compose.edge.e2e.yaml logs --tail=200 || true

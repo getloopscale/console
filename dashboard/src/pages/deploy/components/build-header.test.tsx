@@ -12,7 +12,7 @@ function makeBuild(overrides: Partial<Build> = {}): Build {
     environment: 'production',
     status: 'succeeded',
     commit_sha: '1234567890abcdef1234567890abcdef12345678',
-    created_by: 'paulo@theo.test',
+    created_by: 'paulo@loopscale.test',
     created_at: '2026-06-06T00:00:00Z',
     started_at: '2026-06-06T00:00:00Z',
     finished_at: '2026-06-06T00:02:00Z',

@@ -1,7 +1,7 @@
 /**
- * usetheoai/theo#477 step 3 — the dashboard holds NO token.
+ * getloopscale/loopscale#477 step 3 — the dashboard holds NO token.
  *
- * theo-cloud is the dashboard's Backend for Frontend: the browser keeps only the Kratos session
+ * loop-console is the dashboard's Backend for Frontend: the browser keeps only the Kratos session
  * cookie, and every call is authenticated from it server-side. This spec checks the browser end
  * of that contract in a real engine: after walking a few screens, nothing token-shaped sits in
  * web storage, no request asks for the old HS256 exchange, and no request carries a bearer or a
@@ -17,7 +17,7 @@ import { expect, test } from '@playwright/test';
 
 const JWT_SHAPE = /eyJ[\w-]{8,}\.[\w-]{8,}\./;
 
-test.describe('the dashboard holds no token (usetheoai/theo#477)', () => {
+test.describe('the dashboard holds no token (getloopscale/loopscale#477)', () => {
   test('walking the dashboard stores no token and sends none', async ({ page }) => {
     const offending: string[] = [];
     page.on('request', (req) => {

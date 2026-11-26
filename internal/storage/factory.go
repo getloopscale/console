@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package storage
 
@@ -9,7 +9,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/storage/s3x"
+	"github.com/getloopscale/loop-console/internal/storage/s3x"
 )
 
 // BackendConfig is the subset of the service config the storage factory needs

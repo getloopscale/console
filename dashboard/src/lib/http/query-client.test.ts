@@ -30,7 +30,7 @@ describe('queryClient', () => {
     spy.mockRestore();
   });
 
-  // Red Team theo-cloud#93 absorption (2026-06-27): retry guard
+  // Red Team loop-console#93 absorption (2026-06-27): retry guard
   // regression-protectors. Cover the FAANG default — 4xx never retries,
   // 5xx + network retry once.
   describe('retryGuard (#93)', () => {

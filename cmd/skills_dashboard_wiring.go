@@ -12,7 +12,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // skillsDashMinter é a porta que a fiação consome do broker (ISP): apenas a cunhagem escopada.
@@ -97,7 +97,7 @@ func newSkillsPromotionKeyResolver(minter skillsDashMinter) func(ctx context.Con
 // exigindo confirmação com frase digitada, sob o `DESIGN.md` §16.
 //
 // É também a razão pela qual a VISIBILIDADE ficou fora da tela: lá a regra é sobre o papel de
-// quem age, e ela não sobrevive a uma credencial igual para todos. Ver ADR 0004 do theo-skills.
+// quem age, e ela não sobrevive a uma credencial igual para todos. Ver ADR 0004 do loopskills.
 func newSkillsAuthoringKeyResolver(minter skillsDashMinter) func(ctx context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {
 		u := auth.GetUser(ctx)

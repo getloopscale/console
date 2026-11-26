@@ -1,4 +1,4 @@
-# Taskfile.yml — theo-cloud repo
+# Taskfile.yml — loop-console repo
 #
 # T2.4 of plan canonical-tests-rewrite-v2 v1.0 per ADR-2026-06-17-T3.
 # Closes F-001 BLOCKER from audit 2026-06-17-canonical-tests-deep-review:
@@ -61,7 +61,7 @@ tasks:
   test:contract:
     desc: |
       T2.5 of plan canonical-tests-rewrite-v2 — Pact-go consumer contract
-      verification for theo-data themory client (stub until Phase 2).
+      verification for loopscale-data loopmem client (stub until Phase 2).
     cmds:
       - |
         if [ -d internal/contract ]; then

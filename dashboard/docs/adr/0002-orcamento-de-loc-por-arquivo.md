@@ -1,7 +1,7 @@
 ---
 status: proposed
 date: 2026-08-06
-decision-makers: time do dashboard theo-cloud
+decision-makers: time do dashboard loop-console
 origem: tradeoff_decisions#2 · boundary_findings#15, #16 · system_design_findings#2
 ---
 
@@ -17,7 +17,7 @@ Tres modulos de producao justificam a propria estrutura invocando um orcamento d
 - `src/pages/use-workspace-selection.ts:12` — *"Extracted from workspace.tsx to keep that file under the LoC budget"*
 
 **O documento nao existe** (medido): nao ha `architecture.md` em `dashboard/`, nem em
-`theo-cloud/docs/architecture/` (que contem apenas `index.md` e `mcp-broker.md`), nem em
+`loop-console/docs/architecture/` (que contem apenas `index.md` e `mcp-broker.md`), nem em
 `.claude/knowledge-base/architecture/`. O unico `architecture.md` do workspace e
 `.claude/rules/architecture.md`, regra generica do plugin, que nao contem a string "500".
 

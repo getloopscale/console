@@ -3,7 +3,7 @@ import { BookmarkPlus, Trash2 } from 'lucide-react';
 import {
   Button,
   Input,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { ListTruncationNotice } from '@/components/ui/list-truncation-notice';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';

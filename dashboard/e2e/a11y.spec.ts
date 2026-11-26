@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M12 T2.1 (plan m12-dashboard-validation) — accessibility assertions by REAL DOM
 // + axe-core scan, replacing the engine's `dev-public-dashboard-*.sh` bundle-grep

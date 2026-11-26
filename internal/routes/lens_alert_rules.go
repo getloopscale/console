@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -17,10 +17,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// LensAlertRulesHandler — theo-lens M53. A per-tenant CRUD for threshold alert rules on observability
+// LensAlertRulesHandler — looptrace M53. A per-tenant CRUD for threshold alert rules on observability
 // metrics. The background lens_alert_evaluator reads these rows, evaluates them per tenant, and on a
 // breach enqueues a webhook delivery (dispatched by the J-16 workspace_webhook_worker). Mirrors the M52
 // lens_saved_views isolation: every row scoped by (subject, tenant_id) from the Principal — never the
@@ -32,13 +32,13 @@ type LensAlertRulesHandler struct {
 }
 
 // MonitorOwnershipVerifier answers "does this guard exist AND belong to this tenant?" for the create
-// path. There is no FK on monitor_id — guards live in theo-lens — so this single check is the ONLY
+// path. There is no FK on monitor_id — guards live in looptrace — so this single check is the ONLY
 // create-time guarantee, and it is doing both jobs: catching a typo, and stopping tenant A from
 // pointing a rule at tenant B's guard.
 //
 // Returned error semantics are deliberately split (M135, SRE condition 6): ErrMonitorNotOwned is a
 // DEFINITIVE answer and rejects the create; any other error is transport and the create proceeds,
-// because importing theo-lens's availability into theo-cloud's write path trades a rare typo for a
+// because importing looptrace's availability into loop-console's write path trades a rare typo for a
 // common outage.
 type MonitorOwnershipVerifier func(ctx context.Context, tenantID, monitorID string) error
 
@@ -61,7 +61,7 @@ var validAlertMetrics = map[string]bool{"error_rate": true, "cost": true, "p95_l
 	MetricMonitorBreach: true, MetricPromptResolutions: true}
 
 // MetricPromptResolutions is the STORED metric value of a prompt-scoped rule (migration 000060).
-// theo-promptly M21 DoD-5: the rule watches ONE prompt's usage, not the workspace aggregate.
+// loopprompt M21 DoD-5: the rule watches ONE prompt's usage, not the workspace aggregate.
 const MetricPromptResolutions = "prompt_resolutions"
 
 // promptPairingRejected reports whether the (metric, promptName) pair is one of the two states the
@@ -85,7 +85,7 @@ const MetricMonitorBreach = "monitor_breach"
 
 var validAlertComparators = map[string]bool{"gt": true, "gte": true, "lt": true, "lte": true}
 
-// The 4 windows that map to theo-lens's observability range presets (1h/24h/7d/30d). The evaluator
+// The 4 windows that map to looptrace's observability range presets (1h/24h/7d/30d). The evaluator
 // coarsens to the nearest range, so accepting only these keeps the rule's stated window honest.
 var validAlertWindows = map[int]bool{3600: true, 86400: true, 604800: true, 2592000: true}
 
@@ -259,7 +259,7 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		// Deprecated (M136): accepted for one release so a client written against the
 		// previous shape is not broken by the rename. monitor_id wins when both are sent.
 		GuardID string `json:"guard_id"`
-		// M21 (theo-promptly): the prompt a prompt-scoped rule watches.
+		// M21 (loopprompt): the prompt a prompt-scoped rule watches.
 		PromptName string `json:"prompt_name"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -326,7 +326,7 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	// Ownership check (isolation keystone): the target webhook MUST belong to THIS tenant + be active.
 	// The FK enforces existence only — without this a rule could POST this tenant's alerts to another
-	// tenant's endpoint (theo-data invariant #3: scope by the resolved Principal, never the body).
+	// tenant's endpoint (loopscale-data invariant #3: scope by the resolved Principal, never the body).
 	var one int
 	err = h.db.QueryRowContext(r.Context(),
 		`SELECT 1 FROM workspace_webhooks WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`,
@@ -355,7 +355,7 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadRequest, "INVALID_MONITOR", "monitor_id must be one of your monitors.")
 				return
 			}
-			// Transport failure: accept and let the evaluator carry it. Do NOT import theo-lens's
+			// Transport failure: accept and let the evaluator carry it. Do NOT import looptrace's
 			// availability into this write path.
 			h.logger.Warn("lens alert rules create: guard verify unavailable — accepting", "error", verr)
 		}

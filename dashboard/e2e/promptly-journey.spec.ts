@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M25 — a jornada de operar prompts, ponta a ponta PELA TELA.
 //
@@ -21,7 +21,7 @@
 //
 // HONESTIDADE SOBRE O ESCOPO: roda hermético contra o Vite local com `VITE_USE_MOCKS=true`, como
 // todo e2e deste repositório. Prova a JORNADA DA INTERFACE contra o contrato medido do
-// `theo-promptly` — não prova que o serviço implantado devolve estes corpos, nem que um agente em
+// `loopprompt` — não prova que o serviço implantado devolve estes corpos, nem que um agente em
 // execução passa a resolver a revisão promovida. Essa metade se verifica contra o ambiente real
 // e se registra como evidência; afirmá-la aqui seria teatro.
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -30,7 +30,7 @@ var flowIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-
 // T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 (EC-4 + EC-13).
 //
 // RegisterProxyHandler is the response-shape unifier middleware for the
-// self-service registration flow. It closes Red Team theo-cloud#43
+// self-service registration flow. It closes Red Team loop-console#43
 // (account-existence enumeration via response shape divergence) by ALWAYS
 // returning the universal:
 //

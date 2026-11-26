@@ -64,31 +64,31 @@ describe('purga de cache no logout (B-055/B-074)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('apaga os caches de DADOS', async () => {
-    const fake = instalarCaches(['theo-api', 'theo-assets', 'theo-config']);
+    const fake = instalarCaches(['loop-runtime-api', 'loopscale-assets', 'loopscale-config']);
     await purgarCachesDeDados();
 
-    // `theo-api` guarda resposta de `/api/v1/*` — dado do tenant. É o que não
+    // `loop-runtime-api` guarda resposta de `/api/v1/*` — dado do tenant. É o que não
     // pode sobreviver a uma troca de sessão.
-    expect(fake.deletadas).toContain('theo-api');
+    expect(fake.deletadas).toContain('loop-runtime-api');
   });
 
   it('NÃO apaga os caches de asset — eles não têm dono', async () => {
-    const fake = instalarCaches(['theo-api', 'theo-assets', 'theo-config']);
+    const fake = instalarCaches(['loop-runtime-api', 'loopscale-assets', 'loopscale-config']);
     await purgarCachesDeDados();
 
     // JS, CSS e fontes são idênticos para todo mundo e caros de rebaixar. Apagar
     // tudo transformaria cada logout numa recarga fria — custo real, para zero
     // de segurança, e é o tipo de excesso que faz alguém desligar a limpeza.
-    expect(fake.deletadas).not.toContain('theo-assets');
+    expect(fake.deletadas).not.toContain('loopscale-assets');
   });
 
   it('apaga cache de dado mesmo com nome versionado pelo Workbox', async () => {
-    const fake = instalarCaches(['theo-api', 'workbox-precache-v2-https://app/', 'theo-api-v3']);
+    const fake = instalarCaches(['loop-runtime-api', 'workbox-precache-v2-https://app/', 'loop-runtime-api-v3']);
     await purgarCachesDeDados();
 
     // O Workbox versiona nomes de cache. Casar por igualdade exata deixaria um
     // cache renomeado sobreviver ao logout — silenciosamente, que é o pior modo.
-    expect(fake.deletadas).toContain('theo-api-v3');
+    expect(fake.deletadas).toContain('loop-runtime-api-v3');
   });
 
   it('sem a API de Cache, não lança — logout NUNCA é bloqueado', async () => {
@@ -106,9 +106,9 @@ describe('purga de cache no logout (B-055/B-074)', () => {
   it('uma falha ao apagar não impede as outras nem propaga', async () => {
     const deletadas: string[] = [];
     vi.stubGlobal('caches', {
-      keys: () => Promise.resolve(['theo-api', 'theo-api-v3']),
+      keys: () => Promise.resolve(['loop-runtime-api', 'loop-runtime-api-v3']),
       delete: (nome: string) => {
-        if (nome === 'theo-api') return Promise.reject(new Error('bloqueado'));
+        if (nome === 'loop-runtime-api') return Promise.reject(new Error('bloqueado'));
         deletadas.push(nome);
         return Promise.resolve(true);
       },
@@ -121,13 +121,13 @@ describe('purga de cache no logout (B-055/B-074)', () => {
     await expect(purgarCachesDeDados()).resolves.toBeDefined();
     // Uma falha parcial ainda é melhor que nenhuma limpeza, e travar o logout
     // por causa dela seria trocar um risco por um pior.
-    expect(deletadas).toContain('theo-api-v3');
+    expect(deletadas).toContain('loop-runtime-api-v3');
   });
 
   it('a lista de caches de dados é a mesma do vite.config', () => {
     // Se alguém acrescentar um `runtimeCaching` de dado sem incluí-lo aqui, o
     // cache novo sobrevive ao logout — e a única pista seria este teste.
-    expect(CACHES_DE_DADOS).toContain('theo-api');
+    expect(CACHES_DE_DADOS).toContain('loop-runtime-api');
   });
 });
 
@@ -137,19 +137,19 @@ describe('B-170 — a purga relata o que sobreviveu', () => {
     // catch externo era vazio: um cache de dados de tenant sobrevivendo ao logout produzia zero
     // sinal. Numa aplicação multi-tenant essa é a falha que mais custa.
     vi.stubGlobal('caches', {
-      keys: () => Promise.resolve(['theo-api-v1', 'theo-static-v1']),
-      delete: (n: string) => Promise.resolve(n !== 'theo-api-v1'),
+      keys: () => Promise.resolve(['loop-runtime-api-v1', 'loopscale-static-v1']),
+      delete: (n: string) => Promise.resolve(n !== 'loop-runtime-api-v1'),
     });
 
     const r = await purgarCachesDeDados();
 
-    expect(r.sobreviventes).toEqual(['theo-api-v1']);
+    expect(r.sobreviventes).toEqual(['loop-runtime-api-v1']);
     expect(r.indisponivel).toBe(false);
   });
 
   it('não relata sobreviventes quando tudo foi apagado', async () => {
     vi.stubGlobal('caches', {
-      keys: () => Promise.resolve(['theo-api-v1']),
+      keys: () => Promise.resolve(['loop-runtime-api-v1']),
       delete: () => Promise.resolve(true),
     });
 

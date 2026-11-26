@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-08-07
-decision-makers: time do dashboard theo-cloud
+decision-makers: time do dashboard loop-console
 origem: B-046 (backlog), remedido em 2026-08-07 durante /to-plan
 ---
 

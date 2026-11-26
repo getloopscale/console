@@ -1,13 +1,13 @@
-# theo-cloud ↔ TheMemory — end-to-end harness
+# loop-console ↔ TheMemory — end-to-end harness
 
 Boots the **full real path** a customer traverses and exercises the gateway's
 `/v1/memory/*` endpoints against the **real** TheMemory server — no external
 network, no API keys, no cost.
 
 ```
-go test (customer)  --theo_live_* bearer-->  theo-cloud (gateway)
-     --master bearer + subject-in-path-->    themory (TheMemory REST) --> pgvector
-themory --OPENAI_BASE_URL--> mock-openai (hermetic LLM + embeddings)
+go test (customer)  --theo_live_* bearer-->  loop-console (gateway)
+     --master bearer + subject-in-path-->    loopmem (TheMemory REST) --> pgvector
+loopmem --OPENAI_BASE_URL--> mock-openai (hermetic LLM + embeddings)
 ```
 
 ## Run it
@@ -22,7 +22,7 @@ make e2e-logs     # tail the stack logs
 ```
 
 Requires `docker`, `docker compose`, and `go`. The sibling TheMemory repo is
-expected at `../theo-memory` (override with `THEMORY_DIR=/path`).
+expected at `../loopmem` (override with `LOOPMEM_DIR=/path`).
 First run builds the TheMemory image (slow; cached afterwards).
 
 ## What it proves
@@ -40,10 +40,10 @@ asserts through the gateway:
 
 | File | Role |
 |---|---|
-| `docker-compose.e2e.yaml` | `pg-themory` (pgvector), `pg-cloud` (postgres) + `cloud-migrate` (engine REAL migrations → full account-tenancy schema), `mock-openai`, `themory`, `kratos` (+ `kratos-migrate`), `theo-cloud` |
+| `docker-compose.e2e.yaml` | `pg-loopmem` (pgvector), `pg-cloud` (postgres) + `cloud-migrate` (engine REAL migrations → full account-tenancy schema), `mock-openai`, `loopmem`, `kratos` (+ `kratos-migrate`), `loop-console` |
 | `mock-openai/` | hermetic OpenAI-compatible server (`/v1/chat/completions` extraction + `/v1/embeddings`, honors `encoding_format=base64`) |
 | `sql/` | initdb (superuser): extensions the migrations assume + the `kratos` database. The cloud schema itself comes from `cloud-migrate` (the engine's golang-migrate migrations — drift-free, M6) |
-| `runtime.Dockerfile` | wraps the host-built static Go binaries (theo-cloud, mock-openai) |
+| `runtime.Dockerfile` | wraps the host-built static Go binaries (loop-console, mock-openai) |
 | `run.sh` | the orchestrator `make e2e` calls |
 | `memory_e2e_test.go` | the Go test (build tag `e2e`) |
 
@@ -52,7 +52,7 @@ asserts through the gateway:
 - `mock-openai` honors `encoding_format=base64` — the official OpenAI SDK
   requests base64 by default; a mock that returns a raw float array makes the
   SDK mis-decode the bytes (the 1536→384 dimension bug).
-- The TheMemory image runs with `THEOMEM_EMBEDDER=openai` pointed at the mock
+- The TheMemory image runs with `LOOPSCALEMEM_EMBEDDER=openai` pointed at the mock
   (1536-dim) so no model download is needed at runtime.
 - A host port already taken (e.g. another stack on `55432`) is resolved by
   exporting the matching `E2E_*_PORT` (e.g. `E2E_PG_CLOUD_PORT=55442`).
@@ -64,20 +64,20 @@ with ZERO mocks and ZERO synthetic seeds:
 
 ```
 real Kratos login (pre-verified identity, headless API flow)
-  → POST /v1/auth/session/token   (Kratos cookie → theo_session_* JWT)
+  → POST /v1/auth/session/token   (Kratos cookie → loopscale_session_* JWT)
     → POST /v1/dashboard/memory/{remember,recall}   (session-JWT chain)
-      → the REAL Model-B broker mints a per-tenant key → REAL themory
+      → the REAL Model-B broker mints a per-tenant key → REAL loopmem
 ```
 
 - `TestFullChainE2E_RealLoginToMemory` — the chain returns the written content.
 - `TestFullChainE2E_CrossTenantIsolationRealChain` — tenant-A's real session
   cannot read tenant-B's memory; each reads its own. This replaces the
   `captureMinter` STUB the M1/M3 isolation e2e used — isolation is now proven on
-  the fully-real broker → themory path.
+  the fully-real broker → loopmem path.
 
 **What this does NOT cover (don't over-read the green):**
 
-- **The engine project-cap (M4/M5).** The `theo` engine is not in this stack (nor
+- **The engine project-cap (M4/M5).** The `loopscale` engine is not in this stack (nor
   in the dev compose); the BFF's `/engine/*` proxy has no upstream here. The
   per-Account project cap is proven at the **engine layer** (M5 integration, 7
   `-race` scenarios), not through this chain. (ADR-M6-3.)
@@ -109,13 +109,13 @@ fail-closed-denies an unauthenticated `/v1/memory`, then runs **only**
 
 ```
 go test (customer) --theo_live_* bearer--> Traefik :8090 /v1/memory/*
-   --ForwardAuth--> theo-cloud /internal/authz/forward (mints per-tenant key,
+   --ForwardAuth--> loop-console /internal/authz/forward (mints per-tenant key,
                     Del-then-set Authorization strips the client key, D3)
-   --memory-rewrite--> themory:8080 DIRECT (ADR D7) --> pgvector
+   --memory-rewrite--> loopmem:8080 DIRECT (ADR D7) --> pgvector
 ```
 
 This proves cross-tenant isolation END-TO-END through the real edge mint +
-rewrite + direct-to-themory path (CWE-441 closure). A second `e2e-edge` job in
+rewrite + direct-to-loopmem path (CWE-441 closure). A second `e2e-edge` job in
 `.github/workflows/test-e2e.yml` runs it in CI.
 
 **Out of scope:** the unified SPA/Kratos/BFF edge tests (`edge_unify_e2e_test.go`,

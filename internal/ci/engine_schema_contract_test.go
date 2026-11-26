@@ -3,8 +3,8 @@ package ci
 // The console and the engine share one Postgres database, and the engine owns its schema:
 // the e2e mounts `getloopscale/loop-runtime` `api/internal/db/migrations` and applies them as is.
 // No compiler relates a table name in a Go string here to a CREATE TABLE over there, so a
-// rename on one side (the 2026-11-20 rewrite turned `theo_api_keys` into `loopzero_api_keys`
-// and the role `theo_cloud` into `loopzero_cloud`) leaves the console querying a relation
+// rename on one side (the 2026-11-20 rewrite turned `loopscale_api_keys` into `loop_runtime_api_keys`
+// and the role `loop_console` into `loop_console`) leaves the console querying a relation
 // that does not exist (#518). These tests make that drift fail before a request does.
 
 import (
@@ -23,16 +23,16 @@ const (
 	e2eImagesEnvPath  = "../../.github/e2e-images.env"
 	engineRepository  = "getloopscale/loop-runtime"
 	repoRoot          = "../.."
-	// Sibling layout the e2e jobs check out: theo-cloud/theo-cloud (this repo) next to
-	// theo-cloud/theo (the engine). From internal/ci that is three levels up.
-	defaultMigrationsDir = "../../../theo/api/internal/db/migrations"
+	// Sibling layout the e2e jobs check out: loop-console/loop-console (this repo) next to
+	// loop-console/loopscale (the engine). From internal/ci that is three levels up.
+	defaultMigrationsDir = "../../../loopscale/api/internal/db/migrations"
 )
 
 var (
 	fullSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
-	envFilePin  = regexp.MustCompile(`(?m)^THEO_ENGINE_REF=(\S+)$`)
-	workflowPin = regexp.MustCompile(`(?m)^\s*THEO_ENGINE_REF:\s*(\S+)`)
+	envFilePin  = regexp.MustCompile(`(?m)^LOOPSCALE_ENGINE_REF=(\S+)$`)
+	workflowPin = regexp.MustCompile(`(?m)^\s*LOOPSCALE_ENGINE_REF:\s*(\S+)`)
 	repoLine    = regexp.MustCompile(`(?m)^\s*repository:\s*(\S+)`)
 
 	createdTable = regexp.MustCompile(`(?i)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?`)
@@ -42,7 +42,7 @@ var (
 	// Only engine-namespaced names are checked. Generic words after FROM or UPDATE show up
 	// in comments and log text, and `users` or `tenants` are not part of the rename. The
 	// keyword is matched against the text right before each name (input is lower-cased).
-	engineName   = regexp.MustCompile(`(theo|loopzero)_[a-z0-9_]*`)
+	engineName   = regexp.MustCompile(`(loopscale|loop-runtime)_[a-z0-9_]*`)
 	tableKeyword = regexp.MustCompile(`(?:^|[^.a-z0-9_])(?:from|into|update|join|table)\s+$`)
 	roleKeyword  = regexp.MustCompile(`(?:create\s+role\s+|(?:^|[^a-z0-9_])to\s+|postgres://)$`)
 )
@@ -53,7 +53,7 @@ type engineNameRef struct {
 	qualified bool   // followed by '.', so it names a schema
 }
 
-// engineNameRefs finds every theo_* or loopzero_* identifier that starts a word.
+// engineNameRefs finds every loopscale_* or loop_runtime_* identifier that starts a word.
 func engineNameRefs(body string) []engineNameRef {
 	var refs []engineNameRef
 	for _, loc := range engineName.FindAllStringIndex(body, -1) {
@@ -81,25 +81,25 @@ func isIdentByte(b byte) bool {
 // Every engine checkout pins the same full SHA, read from one versioned file, and names the
 // repository where the engine lives now. Before #518 `ci.yml` and `.github/e2e-images.env`
 // carried two different SHAs of `getloopscale/engine`, and both vanished with the rewrite.
-func TestEngineCheckoutPinsAgreeAndNameLoopzero(t *testing.T) {
+func TestEngineCheckoutPinsAgreeAndNameLoopruntime(t *testing.T) {
 	env := read(t, e2eImagesEnvPath)
 	m := envFilePin.FindStringSubmatch(env)
 	if m == nil {
-		t.Fatalf("%s declares no THEO_ENGINE_REF", e2eImagesEnvPath)
+		t.Fatalf("%s declares no LOOPSCALE_ENGINE_REF", e2eImagesEnvPath)
 	}
 	pin := m[1]
 	if !fullSHA.MatchString(pin) {
-		t.Fatalf("%s: THEO_ENGINE_REF=%q is not a full commit SHA", e2eImagesEnvPath, pin)
+		t.Fatalf("%s: LOOPSCALE_ENGINE_REF=%q is not a full commit SHA", e2eImagesEnvPath, pin)
 	}
 
 	ci := read(t, ciWorkflowPath)
 	pins := workflowPin.FindAllStringSubmatch(ci, -1)
 	if len(pins) == 0 {
-		t.Fatalf("%s declares no THEO_ENGINE_REF; the e2e jobs need the engine pin", ciWorkflowPath)
+		t.Fatalf("%s declares no LOOPSCALE_ENGINE_REF; the e2e jobs need the engine pin", ciWorkflowPath)
 	}
 	for _, p := range pins {
 		if p[1] != pin {
-			t.Errorf("%s pins THEO_ENGINE_REF=%s but %s pins %s; they must move together",
+			t.Errorf("%s pins LOOPSCALE_ENGINE_REF=%s but %s pins %s; they must move together",
 				ciWorkflowPath, p[1], e2eImagesEnvPath, pin)
 		}
 	}
@@ -113,28 +113,28 @@ func TestEngineCheckoutPinsAgreeAndNameLoopzero(t *testing.T) {
 			t.Errorf("%s has no checkout of %s", path, engineRepository)
 		}
 		for _, r := range repoLine.FindAllStringSubmatch(body, -1) {
-			if strings.HasSuffix(r[1], "/engine") || strings.HasSuffix(r[1], "/theo") {
+			if strings.HasSuffix(r[1], "/engine") || strings.HasSuffix(r[1], "/loopscale") {
 				t.Errorf("%s checks out %s; the engine is %s", path, r[1], engineRepository)
 			}
 		}
 	}
 }
 
-// Every engine-namespaced table or role the console names must be one the loopzero
-// migrations create. Needs a loopzero checkout: LOOPZERO_MIGRATIONS_DIR, or the sibling
-// layout the e2e jobs use. The e2e jobs set REQUIRE_LOOPZERO_MIGRATIONS=1 so a missing
+// Every engine-namespaced table or role the console names must be one the loop-runtime
+// migrations create. Needs a loop-runtime checkout: LOOP_RUNTIME_MIGRATIONS_DIR, or the sibling
+// layout the e2e jobs use. The e2e jobs set REQUIRE_LOOP_RUNTIME_MIGRATIONS=1 so a missing
 // checkout fails instead of skipping.
-func TestConsoleSchemaNamesExistInLoopzeroMigrations(t *testing.T) {
-	dir := os.Getenv("LOOPZERO_MIGRATIONS_DIR")
+func TestConsoleSchemaNamesExistInLoopruntimeMigrations(t *testing.T) {
+	dir := os.Getenv("LOOP_RUNTIME_MIGRATIONS_DIR")
 	if dir == "" {
 		dir = defaultMigrationsDir
 	}
 	ups, _ := filepath.Glob(filepath.Join(dir, "*.up.sql"))
 	if len(ups) == 0 {
-		if os.Getenv("REQUIRE_LOOPZERO_MIGRATIONS") == "1" {
-			t.Fatalf("no *.up.sql under %s; check out %s or set LOOPZERO_MIGRATIONS_DIR", dir, engineRepository)
+		if os.Getenv("REQUIRE_LOOP_RUNTIME_MIGRATIONS") == "1" {
+			t.Fatalf("no *.up.sql under %s; check out %s or set LOOP_RUNTIME_MIGRATIONS_DIR", dir, engineRepository)
 		}
-		t.Skipf("no loopzero migrations under %s; set LOOPZERO_MIGRATIONS_DIR to run this check", dir)
+		t.Skipf("no loop-runtime migrations under %s; set LOOP_RUNTIME_MIGRATIONS_DIR to run this check", dir)
 	}
 
 	tables, roles := map[string]bool{}, map[string]bool{}

@@ -103,7 +103,7 @@ describe('AppSidebar', () => {
 
   it('M26 — a capacidade Skills está na raiz e leva ao submenu por CLIQUE', () => {
     // A peça 1. Até este milestone o único item chamado "Skills" no menu inteiro era o de
-    // `/memory/skills`, que é do theo-memory: quem procurava o registro chegava no produto
+    // `/memory/skills`, que é do loopmem: quem procurava o registro chegava no produto
     // errado, sem erro algum. Aqui a asserção é sobre a RAIZ, porque é dali que o usuário parte.
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/'] });
 

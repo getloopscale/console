@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, memo} from 'react';
 import { Download, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
-import { Badge, Button, Input } from '@usetheo/ui';
+import { Badge, Button, Input } from '@getloopscale/ui';
 import { triggerLogDownload } from '@/pages/deploy/export/log-download';
 import type { LogLine, LogLevel } from '@/lib/api/types';
 import { parseAnsi } from '@/pages/deploy/components/ansi';

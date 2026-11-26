@@ -88,7 +88,7 @@ export function useDeploymentsListStream(
 
   // LIVE bug caught 2026-06-06 J-17 dogfood: same /engine/ prefix
   // requirement as use-deployment-stream. Caddy + cloud BFF only routes
-  // /engine/* to theo-api.
+  // /engine/* to loop-runtime-api.
   const streamPath = projectName
     ? `/engine/api/v1/projects/${encodeURIComponent(projectName)}/builds/stream`
     : null;

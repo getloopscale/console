@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// usetheoai/theo#477 step 2 — the consent handler is where every Hydra token
+// getloopscale/loopscale#477 step 2 — the consent handler is where every Hydra token
 // gets its identity claims and its audience. These tests pin four behaviours:
 //
 //   - the token carries account_id (it is a cross-account guard, not a label);
@@ -26,15 +26,15 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/consent"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/consent"
 )
 
 const (
 	identityTestSubject = "kratos-user-477"
 	identityTestTenant  = "tn-477"
 	identityTestAccount = "acct-477"
-	mcpMemoryResource   = "https://mcp.usetheo.dev/memory"
+	mcpMemoryResource   = "https://mcp.getloopscale.com/memory"
 )
 
 // oryConsentMock serves the Hydra admin consent endpoints and the Kratos admin
@@ -131,7 +131,7 @@ func tenantDB(t *testing.T, err error) *auth.TenantProvisioner {
 
 func newIdentityConsentHandler(srvURL string, prov *auth.TenantProvisioner, policy consent.Policy) *consent.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	hydra := auth.NewHydraClient(srvURL, srvURL, "theo-cli")
+	hydra := auth.NewHydraClient(srvURL, srvURL, "loopscale-cli")
 	return consent.NewHandler(hydra, prov, srvURL, srvURL, srvURL, logger).WithPolicy(policy)
 }
 
@@ -168,17 +168,17 @@ func grantedAudience(t *testing.T, accept map[string]interface{}) []string {
 }
 
 func authorizeURL(resources ...string) string {
-	q := url.Values{"client_id": {"theo-cli"}, "response_type": {"code"}}
+	q := url.Values{"client_id": {"loopscale-cli"}, "response_type": {"code"}}
 	for _, r := range resources {
 		q.Add("resource", r)
 	}
-	return "https://auth.usetheo.dev/oauth2/auth?" + q.Encode()
+	return "https://auth.getloopscale.com/oauth2/auth?" + q.Encode()
 }
 
-var defaultPolicy = consent.Policy{FirstPartyClients: []string{"theo-cli"}}
+var defaultPolicy = consent.Policy{FirstPartyClients: []string{"loopscale-cli"}}
 
 func TestConsent_AccessTokenCarriesAccountID(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-cli", requestURL: authorizeURL()}
+	m := &oryConsentMock{clientID: "loopscale-cli", requestURL: authorizeURL()}
 	srv := m.server(t)
 	defer srv.Close()
 
@@ -197,7 +197,7 @@ func TestConsent_AccessTokenCarriesAccountID(t *testing.T) {
 }
 
 func TestConsent_RejectedWhenTenantProvisioningFails(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-cli", requestURL: authorizeURL()}
+	m := &oryConsentMock{clientID: "loopscale-cli", requestURL: authorizeURL()}
 	srv := m.server(t)
 	defer srv.Close()
 
@@ -218,7 +218,7 @@ func TestConsent_RejectedWhenTenantProvisioningFails(t *testing.T) {
 }
 
 func TestConsent_RejectedWhenIdentityLookupFails(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-cli", requestURL: authorizeURL(), identityStatus: http.StatusInternalServerError}
+	m := &oryConsentMock{clientID: "loopscale-cli", requestURL: authorizeURL(), identityStatus: http.StatusInternalServerError}
 	srv := m.server(t)
 	defer srv.Close()
 
@@ -241,10 +241,10 @@ func TestConsent_RejectedWhenIdentityLookupFails(t *testing.T) {
 }
 
 func TestConsent_AdmitsEveryAllowlistedFirstPartyClient(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-dashboard", requestURL: authorizeURL()}
+	m := &oryConsentMock{clientID: "loopscale-dashboard", requestURL: authorizeURL()}
 	srv := m.server(t)
 	defer srv.Close()
-	policy := consent.Policy{FirstPartyClients: []string{"theo-cli", "theo-dashboard"}}
+	policy := consent.Policy{FirstPartyClients: []string{"loopscale-cli", "loopscale-dashboard"}}
 
 	rec := runConsent(newIdentityConsentHandler(srv.URL, tenantDB(t, nil), policy))
 
@@ -254,12 +254,12 @@ func TestConsent_AdmitsEveryAllowlistedFirstPartyClient(t *testing.T) {
 }
 
 func TestConsent_RefusesClientOutsideAllowlist(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-cli", requestURL: authorizeURL()}
+	m := &oryConsentMock{clientID: "loopscale-cli", requestURL: authorizeURL()}
 	srv := m.server(t)
 	defer srv.Close()
-	// theo-cli is the Hydra client this service owns, but the allowlist is the
+	// loopscale-cli is the Hydra client this service owns, but the allowlist is the
 	// only source of first-party trust: a policy that omits it must refuse it.
-	policy := consent.Policy{FirstPartyClients: []string{"theo-dashboard"}}
+	policy := consent.Policy{FirstPartyClients: []string{"loopscale-dashboard"}}
 
 	rec := runConsent(newIdentityConsentHandler(srv.URL, tenantDB(t, nil), policy))
 
@@ -272,10 +272,10 @@ func TestConsent_RefusesClientOutsideAllowlist(t *testing.T) {
 }
 
 func TestConsent_GrantsAllowlistedResourceAsAudience(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-cli", requestURL: authorizeURL(mcpMemoryResource)}
+	m := &oryConsentMock{clientID: "loopscale-cli", requestURL: authorizeURL(mcpMemoryResource)}
 	srv := m.server(t)
 	defer srv.Close()
-	policy := consent.Policy{FirstPartyClients: []string{"theo-cli"}, AllowedResources: []string{mcpMemoryResource}}
+	policy := consent.Policy{FirstPartyClients: []string{"loopscale-cli"}, AllowedResources: []string{mcpMemoryResource}}
 
 	runConsent(newIdentityConsentHandler(srv.URL, tenantDB(t, nil), policy))
 
@@ -285,23 +285,23 @@ func TestConsent_GrantsAllowlistedResourceAsAudience(t *testing.T) {
 }
 
 func TestConsent_IgnoresResourceOutsideAllowlist(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-cli", requestURL: authorizeURL("https://attacker.example/mcp")}
+	m := &oryConsentMock{clientID: "loopscale-cli", requestURL: authorizeURL("https://attacker.example/mcp")}
 	srv := m.server(t)
 	defer srv.Close()
-	policy := consent.Policy{FirstPartyClients: []string{"theo-cli"}, AllowedResources: []string{mcpMemoryResource}}
+	policy := consent.Policy{FirstPartyClients: []string{"loopscale-cli"}, AllowedResources: []string{mcpMemoryResource}}
 
 	runConsent(newIdentityConsentHandler(srv.URL, tenantDB(t, nil), policy))
 
-	if got, want := grantedAudience(t, m.accepted()), []string{"theo-cloud", "theo-engine"}; !reflect.DeepEqual(got, want) {
+	if got, want := grantedAudience(t, m.accepted()), []string{"loop-console", "loop-runtime-engine"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("granted audience = %v, want the default %v", got, want)
 	}
 }
 
 func TestConsent_GrantsOnlyTheAllowlistedResourcesOfAMixedRequest(t *testing.T) {
-	m := &oryConsentMock{clientID: "theo-cli", requestURL: authorizeURL("https://attacker.example/mcp", mcpMemoryResource)}
+	m := &oryConsentMock{clientID: "loopscale-cli", requestURL: authorizeURL("https://attacker.example/mcp", mcpMemoryResource)}
 	srv := m.server(t)
 	defer srv.Close()
-	policy := consent.Policy{FirstPartyClients: []string{"theo-cli"}, AllowedResources: []string{mcpMemoryResource}}
+	policy := consent.Policy{FirstPartyClients: []string{"loopscale-cli"}, AllowedResources: []string{mcpMemoryResource}}
 
 	runConsent(newIdentityConsentHandler(srv.URL, tenantDB(t, nil), policy))
 

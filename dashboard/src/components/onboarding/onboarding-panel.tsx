@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, ChevronDown, Rocket, X } from 'lucide-react';
-import { Button, CopyButton } from '@usetheo/ui';
+import { Button, CopyButton } from '@getloopscale/ui';
 import { useOnboardingState } from '@/hooks/use-onboarding-state';
 import { reportEvent } from '@/lib/telemetry/rum';
 
@@ -22,7 +22,7 @@ import { reportEvent } from '@/lib/telemetry/rum';
  * - ❌ Tiny sidebar widget that competes with nav
  * - ❌ Persistent always-expanded panel (blocks content)
  *
- * EC-17: CopyButton from @usetheo/ui handles clipboard fallback (HTTPS vs HTTP).
+ * EC-17: CopyButton from @getloopscale/ui handles clipboard fallback (HTTPS vs HTTP).
  */
 
 interface ChecklistStep {
@@ -38,7 +38,7 @@ const STEPS: ChecklistStep[] = [
     key: 'cli_installed',
     title: 'Install the LoopScale CLI',
     description: 'The CLI is your primary tool. Dashboard is for status + history.',
-    cliCommand: 'npm install -g @getloopscale/cli',
+    cliCommand: 'npm install -g @getloopscale/loop-cli',
   },
   {
     key: 'logged_in',
@@ -50,9 +50,9 @@ const STEPS: ChecklistStep[] = [
     key: 'project_initialized',
     title: 'Initialize your first project',
     description: 'Connect a repo or start from a starter template.',
-    // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `theo init` is NOT a real
-    // subcommand in @usetheo/cli@0.3.1. Replaced with the canonical
-    // `theo project create my-app` per the CLI's actual surface.
+    // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `loopscale init` is NOT a real
+    // subcommand in @getloopscale/loop-cli@0.3.1. Replaced with the canonical
+    // `loopscale project create my-app` per the CLI's actual surface.
     cliCommand: 'loopscale project create my-app',
   },
   {
@@ -88,7 +88,7 @@ export function OnboardingPanel() {
         type="button"
         onClick={() => setExpanded(true)}
         className="fixed bottom-6 right-6 z-50 size-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform flex items-center justify-center group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        /* Red Team theo/theo#163 — WCAG 2.5.3 Label in Name: the collapsed
+        /* Red Team loopscale/loopscale#163 — WCAG 2.5.3 Label in Name: the collapsed
          * FAB renders only an icon + the badge "{completed}/{total}" as
          * visible text (the "Get your app live" heading is only shown in the
          * expanded panel). Accessible name must lead with the badge visible
@@ -156,7 +156,7 @@ export function OnboardingPanel() {
         </div>
 
         {/* Larger progress bar — prominent visual.
-            Red Team theo-cloud#81 closure: promote the outer track to
+            Red Team loop-console#81 closure: promote the outer track to
             role=progressbar with aria-valuenow/min/max so assistive
             tech announces the percentage as a progress indicator
             (consistent with the billing usage meters). The inner bar

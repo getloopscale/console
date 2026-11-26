@@ -7,7 +7,7 @@ import {
   Input,
   Label,
   useToast,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { ApiError } from '@/lib/http/api';

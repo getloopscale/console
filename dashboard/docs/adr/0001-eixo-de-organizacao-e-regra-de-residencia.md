@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-08-06
 revised: 2026-08-07
-decision-makers: dono do projeto theo-cloud
+decision-makers: dono do projeto loop-console
 consulted: auditoria loop-system-design (fase 2, fase 5); revisão de promoção do PR #469
 origem: tradeoff_decisions#1 · boundary_findings#5, #7, #10, #13 · system_design_findings#1
 supersedes: a versão `proposed` de 2026-08-06, que decidia `src/features/<domínio>/` com roteamento fatiado por feature

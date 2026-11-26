@@ -1,9 +1,9 @@
 /**
- * M51 — pure mappers from theo-lens's observability series (already bucketed server-side) to
+ * M51 — pure mappers from looptrace's observability series (already bucketed server-side) to
  * `MetricTrendChart` series. Deterministic + unit-tested (no DOM). The by-model pivot collapses
  * high-cardinality models into an "Others" series (opik convergence) so the line count stays legible.
  */
-import type {PercentileBucket, TrendSeries} from '@usetheo/ui';
+import type {PercentileBucket, TrendSeries} from '@getloopscale/ui';
 import type { ScoreBucket } from '@/hooks/lens/use-evaluator-scores';
 // B-244 — as formas dos buckets moram com os ENDPOINTS que as devolvem. Esta aritmética consome.
 import type {
@@ -115,14 +115,14 @@ export function costByModelSeries(rows: ModelBucket[], topN = 5): TrendSeries[] 
 
 /**
  * Tokens by model: one series per model over the shared bucket axis, summing `totalTokens`.
- * The tokens trend must plot tokens — NOT cost (issue usetheodev/theo-cloud#178, where the
+ * The tokens trend must plot tokens — NOT cost (issue getloopscale/loop-console#178, where the
  * "Tokens by model" widget routed through `costByModelSeries` and plotted dollars).
  */
 export function tokensByModelSeries(rows: ModelBucket[], topN = 5): TrendSeries[] {
   return byModelSeries(rows, (r) => r.totalTokens, topN);
 }
 
-/** One `(period, evaluator)` cell of the M90 score time-series (mirrors theo-lens's `ScoreBucket`). */
+/** One `(period, evaluator)` cell of the M90 score time-series (mirrors looptrace's `ScoreBucket`). */
 // B-244 — a forma do bucket passou a morar com o ENDPOINT que a devolve
 // (`hooks/lens/use-evaluator-scores.ts`). Esta aritmética é consumidora dela, não dona: cinco
 // módulos leem `ScoreBucket`, e com a forma junto do endpoint o próximo campo do backend alcança
@@ -150,11 +150,11 @@ export function scoresToSeries(buckets: ScoreBucket[], topN = 6): TrendSeries[] 
   // Um mapa por avaliador, e depois o eixo INTEIRO — não só os períodos em que ele pontuou.
   //
   // A versão anterior fazia `push` só onde havia balde, e o resultado era uma série mais CURTA com
-  // `x` que saltava. O `seriesPath` do `@usetheo/ui` quebra a linha onde encontra um `y`
+  // `x` que saltava. O `seriesPath` do `@getloopscale/ui` quebra a linha onde encontra um `y`
   // não-finito, e uma entrada ausente ele nunca vê — então a linha era desenhada por cima do
   // período sem amostra, afirmando continuidade que o dado não tem. O docstring desta função
   // sempre disse o contrário ("a gap, never a fabricated 0"), e o teste ao lado codificava a
-  // omissão. `usetheoai/theo-cloud#395`.
+  // omissão. `getloopscale/loop-console#395`.
   //
   // `NaN` e não `0`: uma média sobre zero amostras é **indefinida**, não zero. É a distinção que o
   // próprio produto já aplica nos KPIs — contagem aceita zero honesto, taxa não (`widgets.ts`).

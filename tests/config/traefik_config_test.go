@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // platform-api-gateway-edge-slice1 (M6) T1.1/T1.2 — config-shape gates for the
 // Traefik dev edge. These assert the load-bearing structure of the static +
-// dynamic config (ForwardAuth wiring, capability-namespace rewrite, themory-direct
+// dynamic config (ForwardAuth wiring, capability-namespace rewrite, loopmem-direct
 // upstream per ADR D7, and tracing-OFF per D4) so the config cannot silently drift
 // away from the code contract. The end-to-end behavior is proven by the e2e (T2.1).
 
@@ -17,7 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // routerHeaderRe matches a router key at the 4-space indent under `http.routers:`
@@ -89,10 +89,10 @@ func TestTraefikDynamicConfig_HasForwardAuthOnMemoryRoute(t *testing.T) {
 	cfg := readConfig(t, "dynamic.yml")
 
 	mustContain(t, cfg, "PathPrefix(`/v1/memory`)", "router fronts the /v1/memory capability namespace")
-	mustContain(t, cfg, "forwardAuth", "authZ is delegated to the theo-cloud ForwardAuth endpoint")
+	mustContain(t, cfg, "forwardAuth", "authZ is delegated to the loop-console ForwardAuth endpoint")
 	// The ForwardAuth address MUST point at the exact internal path the code
 	// registers — guards against drift between routes.AuthzForwardPath and the config.
-	mustContain(t, cfg, "http://theo-cloud:13002"+routes.AuthzForwardPath,
+	mustContain(t, cfg, "http://loop-console:13002"+routes.AuthzForwardPath,
 		"forwardAuth.address matches routes.AuthzForwardPath")
 	mustContain(t, cfg, "authResponseHeaders", "the minted Authorization is copied upstream (Del-then-set = D3 strip)")
 	mustContain(t, cfg, `"Authorization"`, "authResponseHeaders lists Authorization")
@@ -101,16 +101,16 @@ func TestTraefikDynamicConfig_HasForwardAuthOnMemoryRoute(t *testing.T) {
 func TestTraefikDynamicConfig_RewritesNamespaceToThemoryDirect(t *testing.T) {
 	cfg := readConfig(t, "dynamic.yml")
 
-	mustContain(t, cfg, "replacePathRegex", "capability namespace is rewritten to themory's native path")
+	mustContain(t, cfg, "replacePathRegex", "capability namespace is rewritten to loopmem's native path")
 	mustContain(t, cfg, "^/v1/memory/(.*)", "rewrite source is the /v1/memory namespace")
-	mustContain(t, cfg, "/v1/$1", "rewrite target is themory's /v1/* path")
-	// ADR D7: the CAPABILITY data upstream is theo-memory DIRECTLY, never the BFF.
-	// (slice-3a: the BFF url http://theo-cloud:13002 now legitimately appears as the
+	mustContain(t, cfg, "/v1/$1", "rewrite target is loopmem's /v1/* path")
+	// ADR D7: the CAPABILITY data upstream is loopmem DIRECTLY, never the BFF.
+	// (slice-3a: the BFF url http://loop-console:13002 now legitimately appears as the
 	// `bff` router's own upstream for /v1/* non-capability traffic — D7 is about the
 	// /v1/memory capability route, not a blanket ban on the BFF url.)
-	mustContain(t, cfg, "http://themory:8080", "capability upstream is theo-memory REST direct (ADR D7)")
+	mustContain(t, cfg, "http://loopmem:8080", "capability upstream is loopmem REST direct (ADR D7)")
 	if memoryRouteTargetsBff(cfg) {
-		t.Error("D7 violation: the /v1/memory capability must route to themory, NOT theo-cloud's BFF (double-auth)")
+		t.Error("D7 violation: the /v1/memory capability must route to loopmem, NOT loop-console's BFF (double-auth)")
 	}
 }
 
@@ -125,7 +125,7 @@ func memoryRouteTargetsBff(cfg string) bool {
 		}
 		if in && strings.HasPrefix(strings.TrimSpace(ln), "service:") {
 			svc := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(ln), "service:"))
-			return svc == "theo-cloud-bff" || svc == "bff"
+			return svc == "loop-console-bff" || svc == "bff"
 		}
 	}
 	return false
@@ -155,13 +155,13 @@ func routerBlock(cfg, router string) string {
 }
 
 func TestTraefikDynamicConfig_GatewaySubpathsReachBffNotThemory(t *testing.T) {
-	// theo-workspace#7: theo-cloud's customer-facing /v1/memory/{skills,exports,webhooks}
+	// loopscale-workspace#7: loop-console's customer-facing /v1/memory/{skills,exports,webhooks}
 	// mount (RequireScope on theo_live_*) was shadowed by memory-edge (priority 100),
-	// which rewrites /v1/memory/* to themory's native path → 404 for these gateway-owned
+	// which rewrites /v1/memory/* to loopmem's native path → 404 for these gateway-owned
 	// routes. A dedicated higher-priority router must front them to the BFF, with:
-	//   - NO memory-rewrite (theo-cloud owns the /v1/memory/* path verbatim), and
+	//   - NO memory-rewrite (loop-console owns the /v1/memory/* path verbatim), and
 	//   - NO forward-auth (the customer theo_live_* must reach RequireScope intact;
-	//     forward-auth swaps it for a themory-minted key pg-cloud cannot resolve → 401).
+	//     forward-auth swaps it for a loopmem-minted key pg-cloud cannot resolve → 401).
 	cfg := readConfig(t, "dynamic.yml")
 
 	for _, p := range []string{"/v1/memory/skills", "/v1/memory/exports", "/v1/memory/webhooks"} {
@@ -170,14 +170,14 @@ func TestTraefikDynamicConfig_GatewaySubpathsReachBffNotThemory(t *testing.T) {
 	gw := routerPriority(t, cfg, "memory-gateway-edge")
 	mem := routerPriority(t, cfg, "memory-edge")
 	if gw <= mem {
-		t.Errorf("memory-gateway-edge(%d) must out-rank memory-edge(%d) so the gateway paths are not shadowed → themory 404", gw, mem)
+		t.Errorf("memory-gateway-edge(%d) must out-rank memory-edge(%d) so the gateway paths are not shadowed → loopmem 404", gw, mem)
 	}
 	block := routerBlock(cfg, "memory-gateway-edge")
-	if !strings.Contains(block, "theo-cloud-bff") {
-		t.Error("memory-gateway-edge must route to theo-cloud-bff (the gateway owns these paths)")
+	if !strings.Contains(block, "loop-console-bff") {
+		t.Error("memory-gateway-edge must route to loop-console-bff (the gateway owns these paths)")
 	}
 	if strings.Contains(block, "memory-rewrite") {
-		t.Error("memory-gateway-edge must NOT apply memory-rewrite — theo-cloud owns /v1/memory/* verbatim")
+		t.Error("memory-gateway-edge must NOT apply memory-rewrite — loop-console owns /v1/memory/* verbatim")
 	}
 	if strings.Contains(block, "forward-auth") {
 		t.Error("memory-gateway-edge must NOT apply forward-auth — the customer theo_live_* key must reach RequireScope intact")
@@ -210,7 +210,7 @@ func TestTraefikDynamicConfig_HasBffRouter(t *testing.T) {
 	cfg := readConfig(t, "dynamic.yml")
 	mustContain(t, cfg, "PathPrefix(`/v1`)", "bff router fronts the cloud-API /v1 surface")
 	mustContain(t, cfg, "PathPrefix(`/engine`)", "bff router fronts the /engine proxy")
-	mustContain(t, cfg, "http://theo-cloud:13002", "bff upstream is the theo-cloud cloud-API")
+	mustContain(t, cfg, "http://loop-console:13002", "bff upstream is the loop-console cloud-API")
 }
 
 func TestTraefikDynamicConfig_HasSpaCatchAll(t *testing.T) {
@@ -319,5 +319,5 @@ func TestTraefikDynamicConfig_MemoryPrefixBoundary(t *testing.T) {
 	// cannot silently change: the rule is the bare prefix and the rewrite is slash-gated.
 	cfg := readConfig(t, "dynamic.yml")
 	mustContain(t, cfg, "PathPrefix(`/v1/memory`)", "memory route uses the bare-prefix rule (M6 carryover)")
-	mustContain(t, cfg, "^/v1/memory/(.*)", "rewrite is slash-gated: /v1/memoryfoo is forwarded unrewritten (themory 404s — harmless)")
+	mustContain(t, cfg, "^/v1/memory/(.*)", "rewrite is slash-gated: /v1/memoryfoo is forwarded unrewritten (loopmem 404s — harmless)")
 }

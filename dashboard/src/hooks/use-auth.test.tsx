@@ -35,13 +35,13 @@ function wrapper({ children }: { children: ReactNode }) {
   return <MemoryRouter>{children}</MemoryRouter>;
 }
 
-describe('useRequireAuth — one session check, no token (usetheoai/theo#477)', () => {
+describe('useRequireAuth — one session check, no token (getloopscale/loopscale#477)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSessionDefinitivelyExpired.mockReturnValue(false);
   });
 
-  // Red Team theo-cloud#50 asked for ONE round trip before the shell paints. With the BFF there is
+  // Red Team loop-console#50 asked for ONE round trip before the shell paints. With the BFF there is
   // exactly one: the session probe. There is no second, deferred token exchange to wait for.
   it('resolves the session from a single session check', async () => {
     mockGetSession.mockResolvedValue({

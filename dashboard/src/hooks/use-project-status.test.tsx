@@ -32,7 +32,7 @@ function makeWrapper() {
   );
 }
 
-describe('useProjectStatus — Red Team theo-cloud#96 closure', () => {
+describe('useProjectStatus — Red Team loop-console#96 closure', () => {
   // Pre-fix: cloudFetch's default `T | null` path turned a 404 into a
   // resolved null, which TanStack Query then retried 3-5 times because
   // the original failure was opaque. The Network panel showed 5 sequential

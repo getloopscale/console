@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -10,9 +10,9 @@ import "net/http"
 // contract with the engine: a name the engine does not read is an anonymous
 // call, which it rejects with 401 "Invalid service authentication".
 const (
-	EngineUserIDHeader = "X-LoopZero-User-ID"
-	EngineTenantHeader = "X-LoopZero-Tenant"
-	EngineEmailHeader  = "X-LoopZero-Email"
+	EngineUserIDHeader = "X-Loop-Runtime-User-ID"
+	EngineTenantHeader = "X-Loop-Runtime-Tenant"
+	EngineEmailHeader  = "X-Loop-Runtime-Email"
 )
 
 // SetEngineIdentity writes the caller's identity onto a request bound for the

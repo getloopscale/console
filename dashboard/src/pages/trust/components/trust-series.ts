@@ -18,7 +18,7 @@ export type {
   ConversationPayload,
 };
 /**
- * M23 — projeções puras do payload do theo-trust para o que a tela desenha.
+ * M23 — projeções puras do payload do loopguardrails para o que a tela desenha.
  *
  * Vive separado da página, sem React e sem I/O, pelo mesmo motivo de `lens-series.ts`: a aritmética
  * de um painel é onde os erros silenciosos moram (divisão por zero virando `NaN`, campo ausente
@@ -190,7 +190,7 @@ export function unenforcedCount(coverage: readonly PolicyCoverage[]): number {
   return coverage.filter((c) => !c.enforced).length;
 }
 
-/** Uma mensagem da conversa, como o theo-trust a devolve (já redigida do lado do serviço). */
+/** Uma mensagem da conversa, como o loopguardrails a devolve (já redigida do lado do serviço). */
 /**
  * As violações de uma política só — o filtro que o link "Revisar e bloquear" promete.
  *

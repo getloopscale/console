@@ -1,7 +1,7 @@
 import { Loader2, XCircle } from 'lucide-react';
 import {
   Button,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useCancelBuild } from '@/hooks/mutations/use-cancel-build';
@@ -10,7 +10,7 @@ import type { Build } from '@/lib/api/types';
 /**
  * CancelBuildDialog — Plan J-17 T6.2.
  *
- * Confirmation dialog for `theo build cancel`. The previous BuildHeader
+ * Confirmation dialog for `loopscale build cancel`. The previous BuildHeader
  * stub fired Cancel on the very first click, which doesn't match the
  * Vercel-grade safety bar — a deploy in flight can be days of compile
  * time on a Pro plan and accidental cancels are expensive. This dialog

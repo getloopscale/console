@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -21,7 +21,7 @@ var scopeLiteral = regexp.MustCompile(`^[a-z]+:[a-z-]+$`)
 // roteando, ForwardAuth ligado, broker cunhando chave por tenant — e nenhum cliente
 // consegue alcançá-la, porque o escopo que a borda EXIGE não é emitível pelo cunhador.
 // Cada camada parece correta isolada e nada fica vermelho. Ocorrências medidas:
-// theo-rag (#168), theo-trust (2026-07-31) e theo-promptly (2026-08-01) — este último
+// looprag (#168), loopguardrails (2026-07-31) e loopprompt (2026-08-01) — este último
 // deixou o produto inteiro inutilizável em app-dev, com 403 SCOPE_REQUIRED.
 //
 // POR QUE ESTE TESTE É DIFERENTE DOS ANTERIORES. `api_keys_trust_scope_test.go` fixa uma

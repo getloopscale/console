@@ -19,7 +19,7 @@ import { spendByModel } from './spend';
  *
  * ## O caveat que não pode sumir
  *
- * O theo-lens conhece spans cujo modelo não tem preço na tabela. Um total que os ignora em
+ * O looptrace conhece spans cujo modelo não tem preço na tabela. Um total que os ignora em
  * silêncio é um total menor que a verdade, apresentado como a verdade. A página de consumo por
  * usuário já mostra `unpricedSpans` por esse motivo, e esta função devolve a contagem para que a
  * tela não possa esquecer.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/metrics"
 )
 
 // TelemetryHandler accepts beacon-style POSTs from the dashboard and emits
@@ -60,7 +60,7 @@ const telemetryMaxBodyBytes = 64 * 1024
 // Plan 2026-06-05-dashboard-journey-j05-device-success T3.1 D4:
 // for `events` category, the payload is inspected for
 // `event=device_success_viewed` to increment
-// `theo_device_flow_browser_success_total`. The increment is the LAST
+// `loopscale_device_flow_browser_success_total`. The increment is the LAST
 // step before 202 — rejected requests (oversize / bad JSON) NEVER
 // increment (EC-3 ordering invariant).
 func (h *TelemetryHandler) makeHandler(eventCategory string) http.HandlerFunc {

@@ -5,16 +5,16 @@ package ci
 // Two measured facts shape what these tests assert.
 //
 // 1. A `workflow_call` callee does NOT inherit the caller's `concurrency` group. It keeps its own,
-//    evaluated in the caller's context. Measured 2026-07-30 on theo-memory, runs 30522117234 and
+//    evaluated in the caller's context. Measured 2026-07-30 on loopmem, runs 30522117234 and
 //    30522853797: a standalone run of the callee landed in the same group as the gated call and
-//    cancelled it mid-checkout; the caller finished `cancelled` with `image` skipped. theo-lens hit
+//    cancelled it mid-checkout; the caller finished `cancelled` with `image` skipped. looptrace hit
 //    the same defect and fixed it by deleting the standalone triggers
-//    (theo-lens/.github/workflows/integration.yml:28-32).
+//    (looptrace/.github/workflows/integration.yml:28-32).
 //
 //    Only `ci.yml` declares a `concurrency` block, so only `ci.yml` can collide with itself.
 //
 // 2. A callee does NOT inherit secrets either. All three consume `secrets.GOMOD_TOKEN` to fetch the
-//    private theo-contracts module, so each must declare it under `workflow_call.secrets` or every
+//    private contracts module, so each must declare it under `workflow_call.secrets` or every
 //    gate dies at `go mod download`. `secrets: inherit` is banned in this repo
 //    (publish.yml:69-71 — semgrep flags `secrets-inherit`).
 
@@ -98,7 +98,7 @@ func TestGateTriggerSurfaceMatchesTheMeasuredDesign(t *testing.T) {
 		}
 
 		// workflow_dispatch is a standalone trigger too — it is the collider that survived in
-		// theo-memory and produced both measured cancellations.
+		// loopmem and produced both measured cancellations.
 		if _, hasDispatch := wf.On["workflow_dispatch"]; hasDispatch && !g.keepPush {
 			t.Errorf("%s: `workflow_dispatch:` is a standalone trigger and collides with the gated "+
 				"call in the callee's own concurrency group", g.file)
@@ -173,7 +173,7 @@ func TestGatesDeclareTheSecretsTheyConsume(t *testing.T) {
 //
 // The key must therefore carry something that differs between the two. `github.event_name` is used
 // because the mechanism is MEASURED: a callee evaluates its group expression in the CALLER's
-// context (theo-memory runs 30522117234 / 30522853797, where `github.ref_name` resolved to the
+// context (loopmem runs 30522117234 / 30522853797, where `github.ref_name` resolved to the
 // caller's branch). A standalone PR run sees `pull_request`; the gated callee under a push sees
 // `push`.
 func TestGateConcurrencyGroupCannotCollideWithAStandaloneRun(t *testing.T) {

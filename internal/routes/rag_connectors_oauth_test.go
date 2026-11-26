@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // authed sets a Bearer-JWT tenant on the request context — used by ListOAuthProviders (a Bearer API
@@ -55,8 +55,8 @@ func okResolver(_ *http.Request) (accountID, tenantID string, ok bool) { return 
 func noResolver(_ *http.Request) (accountID, tenantID string, ok bool) { return "", "", false }
 
 const (
-	testLoginURL     = "https://app-dev.usetheo.dev/login"
-	testDashboardURL = "https://app-dev.usetheo.dev"
+	testLoginURL     = "https://app-dev.getloopscale.com/login"
+	testDashboardURL = "https://app-dev.getloopscale.com"
 )
 
 func newOAuthBroker(ex TokenExchanger, cp connectPoster) *RagConnectorsOAuthHandler {
@@ -68,7 +68,7 @@ func newOAuthBrokerR(ex TokenExchanger, cp connectPoster, resolve SessionTenantR
 		"google-drive": {AuthorizeURL: "https://accounts.google.com/o/oauth2/v2/auth", TokenURL: "https://oauth2.googleapis.com/token", ClientID: "cid-123", Scopes: "drive.readonly"},
 	}
 	return NewRagConnectorsOAuthHandler(providers, cp, ex, resolve,
-		"https://cloud-dev.usetheo.dev/v1/rag-connect", testDashboardURL, testLoginURL, "",
+		"https://cloud-dev.getloopscale.com/v1/rag-connect", testDashboardURL, testLoginURL, "",
 		slog.New(slog.NewTextHandler(io.Discard, nil))).WithInsecureCookieForTests()
 }
 
@@ -229,7 +229,7 @@ func TestRagConnectorsOAuth_ListProviders_ReturnsConfiguredSorted(t *testing.T) 
 		"salesforce":   {}, // no ClientID → not registered → MUST be omitted
 	}
 	h := NewRagConnectorsOAuthHandler(providers, &stubConnectPoster{}, &stubExchanger{}, okResolver,
-		"https://cloud-dev.usetheo.dev/v1/rag-connect", testDashboardURL, testLoginURL, "",
+		"https://cloud-dev.getloopscale.com/v1/rag-connect", testDashboardURL, testLoginURL, "",
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	w := httptest.NewRecorder()
 	h.ListOAuthProviders(w, authed(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors/providers", nil)))
@@ -263,11 +263,11 @@ func TestRagConnectorsOAuth_ListProviders_Unauthed_401(t *testing.T) {
 // the well-known defaults stand.
 func TestLoadOAuthConnectorsFromEnv_URLOverride(t *testing.T) {
 	env := map[string]string{
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID":     "cid",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_SECRET": "sec",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_AUTHORIZE_URL": "https://hydra.internal/oauth2/auth",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_TOKEN_URL":     "https://hydra.internal/oauth2/token",
-		"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_SCOPES":        "offline_access",
+		"LOOP_RUNTIME_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID":     "cid",
+		"LOOP_RUNTIME_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_SECRET": "sec",
+		"LOOP_RUNTIME_RAG_OAUTH_GOOGLE_DRIVE_AUTHORIZE_URL": "https://hydra.internal/oauth2/auth",
+		"LOOP_RUNTIME_RAG_OAUTH_GOOGLE_DRIVE_TOKEN_URL":     "https://hydra.internal/oauth2/token",
+		"LOOP_RUNTIME_RAG_OAUTH_GOOGLE_DRIVE_SCOPES":        "offline_access",
 	}
 	cfgs, secrets := LoadOAuthConnectorsFromEnv(func(k string) string { return env[k] })
 	c, ok := cfgs["google-drive"]
@@ -284,7 +284,7 @@ func TestLoadOAuthConnectorsFromEnv_URLOverride(t *testing.T) {
 
 // Without the URL-override envs, the well-known defaults are preserved.
 func TestLoadOAuthConnectorsFromEnv_DefaultsWhenNoOverride(t *testing.T) {
-	env := map[string]string{"LOOPZERO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID": "cid"}
+	env := map[string]string{"LOOP_RUNTIME_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID": "cid"}
 	cfgs, _ := LoadOAuthConnectorsFromEnv(func(k string) string { return env[k] })
 	c := cfgs["google-drive"]
 	if c.AuthorizeURL != "https://accounts.google.com/o/oauth2/v2/auth" || c.TokenURL != "https://oauth2.googleapis.com/token" {

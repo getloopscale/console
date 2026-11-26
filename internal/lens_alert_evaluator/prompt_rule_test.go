@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
@@ -13,7 +13,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
-// theo-promptly M21 DoD-5 — a regra escopada a prompt dentro do avaliador que já existe.
+// loopprompt M21 DoD-5 — a regra escopada a prompt dentro do avaliador que já existe.
 //
 // Segue o precedente do M135 (`processGuardRule`): quando o agregado do workspace não sabe
 // responder a pergunta, entra um FETCHER novo — não um case novo de métrica sobre a série errada.
@@ -94,7 +94,7 @@ func TestFalhaDeLeituraDoAgregadoDePromptNaoDisparaNemCongelaOutrasRegras(t *tes
 	defer func() { _ = db.Close() }()
 
 	fetchPrompt := func(context.Context, string, string, int) (json.RawMessage, error) {
-		return nil, errors.New("theo-lens fora do ar")
+		return nil, errors.New("looptrace fora do ar")
 	}
 	e := New(db, nil, nil, fetchPrompt, nil)
 

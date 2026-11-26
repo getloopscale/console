@@ -93,7 +93,7 @@ describe('ProfilePage', () => {
     expect(screen.getByText(/This will permanently delete your account/i)).toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#79 closure: the /profile page used to jump h1
+  // Red Team loop-console#79 closure: the /profile page used to jump h1
   // ("Profile") → h3 ("Account"), skipping h2. The Card.Title default of
   // h3 was promoted to h2 via asChild so the heading outline reads
   // unbroken to screen readers.
@@ -107,7 +107,7 @@ describe('ProfilePage', () => {
     expect(levels).toContain(2);
   });
 
-  // Red Team theo-cloud#71 closure: a 20 000-char display name made
+  // Red Team loop-console#71 closure: a 20 000-char display name made
   // document.body.scrollWidth balloon to 179 512px (vs viewport 1850px).
   // The fix is structural — the name <p> MUST carry max-width + overflowWrap
   // so a runaway string can never blow out the page layout regardless of

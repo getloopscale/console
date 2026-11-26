@@ -1,7 +1,7 @@
 import type { ElementType } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { MENUS } from '@/components/layout/app-sidebar-menus';
 import { useCloudApi } from '@/hooks/use-api';
 import { formatNumber } from '@/lib/formatting/format';

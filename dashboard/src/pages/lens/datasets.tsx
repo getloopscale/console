@@ -22,7 +22,7 @@ import {
   Label,
   PageShell,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
@@ -34,8 +34,8 @@ import { TracePeekSheet } from './traces/peek-sheet';
 
 /**
  * M44 — /lens/datasets. List / create datasets and remove items via the read+write lens
- * management BFF (`/v1/dashboard/lens/datasets`). Mirrors the theo-rag collections page. The
- * BFF passes theo-lens's shape through verbatim, so the types match theo-lens: datasets carry
+ * management BFF (`/v1/dashboard/lens/datasets`). Mirrors the looprag collections page. The
+ * BFF passes looptrace's shape through verbatim, so the types match looptrace: datasets carry
  * {id,name,createdAt,itemCount}; the detail carries {items:[{traceId}]}.
  */
 

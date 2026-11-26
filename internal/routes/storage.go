@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -15,10 +15,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/metrics"
-	"github.com/usetheoai/theo-cloud/internal/storage"
-	"github.com/usetheoai/theo-cloud/internal/storage/share"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/storage"
+	"github.com/getloopscale/loop-console/internal/storage/share"
 )
 
 // StorageService is the subset of *storage.Service the HTTP handlers depend on

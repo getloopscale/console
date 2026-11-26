@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// UpstreamError e uma recusa do theo-promptly que precisa CHEGAR ao operador.
+// UpstreamError e uma recusa do loopprompt que precisa CHEGAR ao operador.
 //
 // Porte do padrao ja provado em `internal/trust/upstream_error.go` e `internal/skills`. Nao e
 // generalizacao especulativa: este produto recusa por razoes do CLIENTE que so ele pode corrigir —
@@ -17,10 +17,10 @@ import (
 // A alternativa que parece bastar e nao basta: `fmt.Errorf("upstream %d: %s", status, corpo)`. A
 // informacao fica visivel no log e PERDIDA para o codigo — quem recebe a string nao consegue
 // separar de volta o codigo do texto, e responde generico. Foi exatamente esse o defeito medido na
-// referencia (`internal/trust/data_client.go:144`, `theo-cloud#358`): portar o arquivo de la
+// referencia (`internal/trust/data_client.go:144`, `loop-console#358`): portar o arquivo de la
 // portaria o defeito junto com o padrao.
 type UpstreamError struct {
-	// Status e o codigo HTTP que o theo-promptly devolveu.
+	// Status e o codigo HTTP que o loopprompt devolveu.
 	Status int
 	// Body e o corpo do upstream, intacto. Carrega `{error, message, ...}` quando tipado.
 	Body json.RawMessage

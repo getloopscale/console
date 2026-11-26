@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
 import { ArrowLeft, CheckCircle2, Play, RefreshCw } from 'lucide-react';
-import { Button, Card, PageShell, Table } from '@usetheo/ui';
+import { Button, Card, PageShell, Table } from '@getloopscale/ui';
 import { estadoDaLista } from '@/lib/list-state';
 import { noDeploysYet } from '@/pages/deploy/empty-states';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
@@ -145,7 +145,7 @@ export function DeploymentsPage() {
   // is RUNNING — the banner would otherwise lie that the in-flight commit
   // is already serving traffic.
   const { status: prodStatus } = useProjectStatus(name);
-  // Red Team theo-cloud#121 (P0 eixo 2 — UI honesty): pre-fix `isActive`
+  // Red Team loop-console#121 (P0 eixo 2 — UI honesty): pre-fix `isActive`
   // compared the global production active_release.build_id against
   // every row regardless of the row's env. When production's active
   // release was PROMOTED from a preview build, both env_targets carry

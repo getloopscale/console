@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
 # EDGE overlay for the hermetic e2e stack (issue #113). Adds the Traefik single
 # edge (:8090) on top of docker-compose.e2e.yaml so the edge ForwardAuth
@@ -14,11 +14,11 @@
 # scope for the ForwardAuth coverage gap this overlay closes.
 
 services:
-  # M18 (KEYSTONE) — the hermetic rag ForwardAuth proof. A REAL theo-rag container
+  # M18 (KEYSTONE) — the hermetic rag ForwardAuth proof. A REAL looprag container
   # (built from the sibling checkout, pinned M11/M12/M13) + its pgvector DB + a
-  # one-shot migrate that applies theo-rag's drizzle SQLs. Mirrors the themory service.
+  # one-shot migrate that applies looprag's drizzle SQLs. Mirrors the loopmem service.
   pg-rag:
-    image: ankane/pgvector:v0.5.1   # theo-rag's 0000 migration uses the `vector` type + HNSW index
+    image: ankane/pgvector:v0.5.1   # looprag's 0000 migration uses the `vector` type + HNSW index
     environment:
       POSTGRES_USER: therag
       POSTGRES_PASSWORD: therag
@@ -35,22 +35,22 @@ services:
       timeout: 3s
       retries: 20
 
-  # One-shot: theo-rag's own migrate command, from the same image the API runs (theo#474).
+  # One-shot: looprag's own migrate command, from the same image the API runs (loopscale#474).
   # It applies the pending migrations under an advisory lock, installs the pg-boss schema
   # and grants rag_app / rag_worker. This replaces the psql loop over the drizzle SQLs,
   # which never granted the application roles. `rag` waits for it to exit 0.
   rag-migrate:
-    image: ${THEORAG_IMAGE:-theo-rag-e2e:latest}
+    image: ${LOOPRAG_IMAGE:-looprag-e2e:latest}
     depends_on:
       pg-rag:
         condition: service_healthy
     working_dir: /app/packages/api
     environment:
-      THEORAG_MIGRATE_PG_URI: postgres://therag:therag@pg-rag:5432/therag
+      LOOPRAG_MIGRATE_PG_URI: postgres://therag:therag@pg-rag:5432/therag
     command: ["node_modules/.bin/tsx", "src/migrate.ts"]
 
   rag:
-    image: ${THEORAG_IMAGE:-theo-rag-e2e:latest}   # built from the sibling checkout (D1)
+    image: ${LOOPRAG_IMAGE:-looprag-e2e:latest}   # built from the sibling checkout (D1)
     depends_on:
       rag-migrate:
         condition: service_completed_successfully
@@ -59,13 +59,13 @@ services:
     environment:
       PORT: "8080"
       # The API refuses a superuser or BYPASSRLS role (RLS, migration 0027).
-      THEORAG_PG_URI: postgres://rag_app:rag_app@pg-rag:5432/therag
-      THEORAG_ADMIN_BOOTSTRAP_TOKEN: ${THEORAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
+      LOOPRAG_PG_URI: postgres://rag_app:rag_app@pg-rag:5432/therag
+      LOOPRAG_ADMIN_BOOTSTRAP_TOKEN: ${LOOPRAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
       # M13 fail-closed — the direct-to-service no-key → 401 proof (D4). Without it a
       # no-key direct request would resolve a dev-mode owner Principal (not a 401).
-      THEORAG_REQUIRE_CREDENTIAL: "true"
+      LOOPRAG_REQUIRE_CREDENTIAL: "true"
       # Hermetic embedder — collections CRUD never embeds, but point at mock-openai so
-      # boot is identical to themory (no real key/network).
+      # boot is identical to loopmem (no real key/network).
       OPENAI_API_KEY: dummy-key-for-mock
       OPENAI_BASE_URL: http://mock-openai:11434/v1
     ports:
@@ -77,41 +77,41 @@ services:
       retries: 30
       start_period: 3s
 
-  # M40 (KEYSTONE) — the hermetic lens ForwardAuth proof. A REAL theo-lens container
+  # M40 (KEYSTONE) — the hermetic lens ForwardAuth proof. A REAL looptrace container
   # (built from the sibling checkout, pinned M22/M37) + its plain Postgres. Unlike rag,
-  # theo-lens MIGRATES ON BOOT (index.ts "migrate-then-wire"), so there is NO lens-migrate
+  # looptrace MIGRATES ON BOOT (index.ts "migrate-then-wire"), so there is NO lens-migrate
   # one-shot — the container self-migrates once pg-lens is healthy. Plain postgres (no
-  # pgvector — theo-lens uses no vector type), so no extensions step.
+  # pgvector — looptrace uses no vector type), so no extensions step.
   pg-lens:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: theolens
-      POSTGRES_PASSWORD: theolens
-      POSTGRES_DB: theolens
+      POSTGRES_USER: loopscalelens
+      POSTGRES_PASSWORD: loopscalelens
+      POSTGRES_DB: loopscalelens
     ports:
       - "${E2E_PG_LENS_PORT:-55436}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U theolens -d theolens"]
+      test: ["CMD-SHELL", "pg_isready -U loopscalelens -d loopscalelens"]
       interval: 3s
       timeout: 3s
       retries: 20
 
   lens:
-    image: ${THELENS_IMAGE:-theo-lens-e2e:latest}   # built from the sibling checkout (pinned source)
+    image: ${LOOPTRACE_IMAGE:-looptrace-e2e:latest}   # built from the sibling checkout (pinned source)
     depends_on:
       pg-lens:
         condition: service_healthy
     environment:
-      THEOLENS_PORT: "8080"
-      THEOLENS_PG_URI: postgres://theolens:theolens@pg-lens:5432/theolens
-      THEOLENS_PLATFORM_ADMIN_BOOTSTRAP: ${THELENS_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}
+      LOOPSCALELENS_PORT: "8080"
+      LOOPSCALELENS_PG_URI: postgres://loopscalelens:loopscalelens@pg-lens:5432/loopscalelens
+      LOOPSCALELENS_PLATFORM_ADMIN_BOOTSTRAP: ${LOOPTRACE_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}
       # M13 fail-closed — the direct-to-service no-key → 401 proof. Without it a no-key
       # direct request would resolve a dev-mode owner Principal (not a 401).
-      THEOLENS_REQUIRE_CREDENTIAL: "true"
+      LOOPSCALELENS_REQUIRE_CREDENTIAL: "true"
     ports:
       - "${E2E_LENS_PORT:-18084}:8080"
     healthcheck:
-      # theo-lens has no dedicated health route AND every /v1/* is scope-gated (M22), so
+      # looptrace has no dedicated health route AND every /v1/* is scope-gated (M22), so
       # an un-keyed /v1/datasets answering 401 proves the server is up + fail-closed.
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/v1/datasets').then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"]
       interval: 3s
@@ -119,10 +119,10 @@ services:
       retries: 30
       start_period: 3s
 
-  # theo-cloud override: wire the rag broker (M14) + the lens broker (M38) so
+  # loop-console override: wire the rag broker (M14) + the lens broker (M38) so
   # /internal/authz/forward-rag AND /internal/authz/forward-lens are mounted.
   # {RAG,LENS}_PLATFORM_ADMIN_KEY are minted at setup by run.sh and injected on recreate.
-  theo-cloud:
+  loop-console:
     environment:
       RAG_BASE_URL: http://rag:8080
       RAG_PLATFORM_ADMIN_KEY: ${RAG_PLATFORM_ADMIN_KEY:-}
@@ -132,9 +132,9 @@ services:
   traefik:
     image: traefik:v3.3
     depends_on:
-      themory:
+      loopmem:
         condition: service_healthy
-      theo-cloud:
+      loop-console:
         condition: service_healthy
       rag:
         condition: service_healthy

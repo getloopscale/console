@@ -6,8 +6,8 @@ Target: dashboard/ · 36 findings · 64 files inspected
 |---|---|---|---|
 | 1 | high | `src/pages/auth/recovery.tsx:21` | recovery.tsx ignores the ACCOUNTS_URL runtime config the sibling auth module honors |
 | 3 | high | `nginx-security-headers.conf:31` | The shipped response-header CSP is strictly narrower than the meta CSP, silently revoking six allowances index.html documents as required |
-| 5 | high | `src/routes/settings-routes.tsx:51` | Placeholder screens advertise theo CLI commands that do not exist (settings domain) |
-| 8 | high | `src/routes/profile-routes.tsx:32` | Placeholder screens advertise theo CLI commands that do not exist (profile domain) |
+| 5 | high | `src/routes/settings-routes.tsx:51` | Placeholder screens advertise loopscale CLI commands that do not exist (settings domain) |
+| 8 | high | `src/routes/profile-routes.tsx:32` | Placeholder screens advertise loopscale CLI commands that do not exist (profile domain) |
 | 9 | high | `src/pages/overview/overview.tsx:154` | Overview project cards display a hardcoded deploy branch of main for every project |
 | 2 | medium | `src/lib/http/config.ts:9` | ENGINE_URL runtime config key is plumbed through four layers and read by no production code |
 | 4 | medium | `TESTING.md:174` | TESTING.md documents the tree-shake gate as a grep that was proven to be a tautology |
@@ -19,7 +19,7 @@ Target: dashboard/ · 36 findings · 64 files inspected
 | 13 | medium | `src/pages/settings/billing.tsx:380` | Billing upgrade CTAs hardcode prices and quotas that the API already exposes |
 | 15 | medium | `docs/architecture.md:99` | docs/architecture.md presents stale measurements as current fact (app.tsx 757 LoC, promptly/detail.tsx 916 LoC, 28 component subfolders) |
 | 20 | medium | `DESIGN.md:56` | DESIGN.md mandates <EnvironmentBadge> on every environment-scoped screen; the component does not exist |
-| 30 | medium | `.llms.txt:10` | .llms.txt at the dashboard root documents a different @usetheo/ui version and contradicts the repo lint ban on raw Alert |
+| 30 | medium | `.llms.txt:10` | .llms.txt at the dashboard root documents a different @getloopscale/ui version and contradicts the repo lint ban on raw Alert |
 | 14 | low | `src/components/layout/app-sidebar.tsx:42` | Stale TODO in app-sidebar doc comment describes a hard-coded plan tier the file no longer renders |
 | 16 | low | `docs/architecture.md:112` | docs/architecture.md says eight ADRs await acceptance; there are 14 ADRs, 8 already accepted |
 | 17 | low | `docs/architecture.md:16` | docs/architecture.md cites system-design-output/final_report.md as the provenance of every number; the path does not exist |
@@ -47,7 +47,7 @@ Target: dashboard/ · 36 findings · 64 files inspected
 
 **Location:** `src/pages/auth/recovery.tsx:21`
 
-src/lib/http/config.ts exports ACCOUNTS_URL (line 36) as a first-class runtime config key, populated by docker-entrypoint.sh:41 and declared in the TheoConfig interface. src/pages/auth/kratos.ts:8 consumes it correctly with an explicit documented rationale at kratos.ts:5-6: "Prefer dedicated ACCOUNTS_URL (Kratos may live at accounts.theo.dev in prod while API lives at api.theo.dev). Falls back to API_URL for same-origin dev." src/pages/auth/recovery.tsx:21 declares a LOCAL const with the SAME NAME shadowing that intent, assigned unconditionally from API_URL. Because the shadowed name is identical, the divergence is invisible at the two call sites (recovery.tsx:202 and recovery.tsx:392) that read it. Both sites do a full-page window.location.href navigation, so the failure is not a recoverable fetch error: in the exact deployment topology ACCOUNTS_URL exists to describe (Kratos on a separate origin), password recovery navigates the browser to the API origin instead of the accounts origin. Span: recovery.tsx:21 (declaration), :202 and :392 (uses).
+src/lib/http/config.ts exports ACCOUNTS_URL (line 36) as a first-class runtime config key, populated by docker-entrypoint.sh:41 and declared in the LoopScaleConfig interface. src/pages/auth/kratos.ts:8 consumes it correctly with an explicit documented rationale at kratos.ts:5-6: "Prefer dedicated ACCOUNTS_URL (Kratos may live at accounts.loopscale.dev in prod while API lives at api.loopscale.dev). Falls back to API_URL for same-origin dev." src/pages/auth/recovery.tsx:21 declares a LOCAL const with the SAME NAME shadowing that intent, assigned unconditionally from API_URL. Because the shadowed name is identical, the divergence is invisible at the two call sites (recovery.tsx:202 and recovery.tsx:392) that read it. Both sites do a full-page window.location.href navigation, so the failure is not a recoverable fetch error: in the exact deployment topology ACCOUNTS_URL exists to describe (Kratos on a separate origin), password recovery navigates the browser to the API origin instead of the accounts origin. Span: recovery.tsx:21 (declaration), :202 and :392 (uses).
 
 **Evidence**
 
@@ -61,47 +61,47 @@ Replace recovery.tsx:19-21 with the kratos.ts form (import ACCOUNTS_URL as CONFI
 
 **Location:** `nginx-security-headers.conf:31`
 
-The app ships TWO Content-Security-Policies: a <meta> policy baked into index.html:52 and a response-header policy from nginx-security-headers.conf:31 (included at five locations in nginx.conf). Per the CSP spec, when multiple policies are delivered a resource must be permitted by ALL of them — the effective policy is the intersection, i.e. the narrower header wins on every directive where they disagree. They disagree on six: (1) connect-src — meta allows auth-dev.usetheo.dev, cloud-dev.usetheo.dev, storage.usetheo.dev, storage-dev.usetheo.dev, checkout.stripe.com, *.stripe.com, ws:, wss:; the header allows only self + auth.usetheo.dev + cloud.usetheo.dev. (2) form-action — meta allows auth-dev.usetheo.dev; the header does not. (3) img-src — meta allows blob: and https:; the header allows only self + data:. (4) style-src — meta allows fonts.googleapis.com; the header does not. (5) font-src — meta allows data: and fonts.gstatic.com; the header allows only self. (6) script-src matches (both self), so the one directive the guard test covers is the one directive that cannot drift. index.html is not silent about the intent behind the entries the header revokes: lines 23-28 state data:/blob:/https: in img-src cover avatars, base64 favicons, S3 assets, lines 41-46 state connect-src includes auth.usetheo.dev because the init flow GET XHR reads the flow JSON and cloud.usetheo.dev needed for post-login /v1/auth/session/token JWT exchange, and lines 48-51 state CSP extended to allow auth-dev.usetheo.dev + cloud-dev.usetheo.dev so the dashboard hosted at app-dev.usetheo.dev can complete the same flows against the dev-public Kratos/cloud. app-dev.usetheo.dev is this project declared live target (.claude/rules/live-target.txt), so the header policy blocks the auth flow on the one environment the project measures against. Related: the Dockerfile:7-8 claims config is injected at runtime, making the image environment-independent (same commit = same artifact), yet both policies hardcode environment hostnames at image-build time, so the image is not in fact environment-independent for any origin outside the baked allowlists.
+The app ships TWO Content-Security-Policies: a <meta> policy baked into index.html:52 and a response-header policy from nginx-security-headers.conf:31 (included at five locations in nginx.conf). Per the CSP spec, when multiple policies are delivered a resource must be permitted by ALL of them — the effective policy is the intersection, i.e. the narrower header wins on every directive where they disagree. They disagree on six: (1) connect-src — meta allows auth-dev.getloopscale.com, cloud-dev.getloopscale.com, storage.getloopscale.com, storage-dev.getloopscale.com, checkout.stripe.com, *.stripe.com, ws:, wss:; the header allows only self + auth.getloopscale.com + cloud.getloopscale.com. (2) form-action — meta allows auth-dev.getloopscale.com; the header does not. (3) img-src — meta allows blob: and https:; the header allows only self + data:. (4) style-src — meta allows fonts.googleapis.com; the header does not. (5) font-src — meta allows data: and fonts.gstatic.com; the header allows only self. (6) script-src matches (both self), so the one directive the guard test covers is the one directive that cannot drift. index.html is not silent about the intent behind the entries the header revokes: lines 23-28 state data:/blob:/https: in img-src cover avatars, base64 favicons, S3 assets, lines 41-46 state connect-src includes auth.getloopscale.com because the init flow GET XHR reads the flow JSON and cloud.getloopscale.com needed for post-login /v1/auth/session/token JWT exchange, and lines 48-51 state CSP extended to allow auth-dev.getloopscale.com + cloud-dev.getloopscale.com so the dashboard hosted at app-dev.getloopscale.com can complete the same flows against the dev-public Kratos/cloud. app-dev.getloopscale.com is this project declared live target (.claude/rules/live-target.txt), so the header policy blocks the auth flow on the one environment the project measures against. Related: the Dockerfile:7-8 claims config is injected at runtime, making the image environment-independent (same commit = same artifact), yet both policies hardcode environment hostnames at image-build time, so the image is not in fact environment-independent for any origin outside the baked allowlists.
 
 **Evidence**
 
-> nginx-security-headers.conf:31 — add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://auth.usetheo.dev https://cloud.usetheo.dev; ..." always;  ||  index.html:52 — <meta http-equiv="Content-Security-Policy" content="... img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev https://storage.usetheo.dev https://storage-dev.usetheo.dev; ..." />  ||  nginx.conf:13,51,71,78,86 — include /etc/nginx/security-headers.conf;  ||  src/build/csp.test.ts asserts only that script-src lacks 'unsafe-inline' in index.html and dist/index.html — it never compares the two policies, so the drift is unguarded.
+> nginx-security-headers.conf:31 — add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://auth.getloopscale.com https://cloud.getloopscale.com; ..." always;  ||  index.html:52 — <meta http-equiv="Content-Security-Policy" content="... img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.getloopscale.com https://auth-dev.getloopscale.com https://cloud.getloopscale.com https://cloud-dev.getloopscale.com https://storage.getloopscale.com https://storage-dev.getloopscale.com; ..." />  ||  nginx.conf:13,51,71,78,86 — include /etc/nginx/security-headers.conf;  ||  src/build/csp.test.ts asserts only that script-src lacks 'unsafe-inline' in index.html and dist/index.html — it never compares the two policies, so the drift is unguarded.
 
 **Remediation**
 
 Derive both policies from one source of truth (generate the nginx snippet from the same directive list the meta uses, or drop the meta and keep only the header) and extend src/build/csp.test.ts to assert directive-by-directive that the header policy is not narrower than the meta. Why: two hand-maintained copies of a security policy diverge silently, and the intersection semantics mean the divergence surfaces as unexplained runtime blocking rather than as a build error.
 
-### [5] HIGH — Placeholder screens advertise theo CLI commands that do not exist (settings domain)
+### [5] HIGH — Placeholder screens advertise loopscale CLI commands that do not exist (settings domain)
 
 **Location:** `src/routes/settings-routes.tsx:51`
 
-SubPagePlaceholder renders the copy "Use the CLI below to do this today" plus a copyable CodeBlock with the cliCommand prop. In src/routes/settings-routes.tsx three of the four placeholder routes pass commands that are NOT registered in the theo CLI (verified against theo-platform/theo-cli): (a) /settings/billing offers `theo billing status` — the billing command registers only the `portal` subcommand plus a bare default action (theo-cli/src/register/infra.ts:338-395), there is no `status` subcommand; (b) /settings/notifications offers `theo notify list` — `notify` is not a top-level command (registered set: audit, auth, billing, build, cancel, connect, deploy, disconnect, doctor, domain, env, login, logout, logs, preview, project, promote, rollback, scale, secret, status, storage, team, validate, whoami); (c) /settings/danger offers `theo team delete --confirm` — the team command registers list/add/remove/role/switch only (theo-cli/src/register/team.ts:17-148), no delete. Only /settings/members (`theo team list`) is real. The escape hatch IS the honesty of the placeholder pattern: a user who copies the command gets an unknown-command error, strictly worse than the blank page the pattern was built to avoid. The same convention gets it right elsewhere — src/app.tsx:180-186 deliberately omits cliCommand for /databases, commenting that inventing one would be "mentir de forma mais convincente que a ausencia".
+SubPagePlaceholder renders the copy "Use the CLI below to do this today" plus a copyable CodeBlock with the cliCommand prop. In src/routes/settings-routes.tsx three of the four placeholder routes pass commands that are NOT registered in the loopscale CLI (verified against loopscale-platform/loopscale-cli): (a) /settings/billing offers `loopscale billing status` — the billing command registers only the `portal` subcommand plus a bare default action (loopscale-cli/src/register/infra.ts:338-395), there is no `status` subcommand; (b) /settings/notifications offers `loopscale notify list` — `notify` is not a top-level command (registered set: audit, auth, billing, build, cancel, connect, deploy, disconnect, doctor, domain, env, login, logout, logs, preview, project, promote, rollback, scale, secret, status, storage, team, validate, whoami); (c) /settings/danger offers `loopscale team delete --confirm` — the team command registers list/add/remove/role/switch only (loopscale-cli/src/register/team.ts:17-148), no delete. Only /settings/members (`loopscale team list`) is real. The escape hatch IS the honesty of the placeholder pattern: a user who copies the command gets an unknown-command error, strictly worse than the blank page the pattern was built to avoid. The same convention gets it right elsewhere — src/app.tsx:180-186 deliberately omits cliCommand for /databases, commenting that inventing one would be "mentir de forma mais convincente que a ausencia".
 
 **Evidence**
 
-> src/routes/settings-routes.tsx:51  cliCommand="theo billing status"
-> src/routes/settings-routes.tsx:89  cliCommand="theo notify list"
-> src/routes/settings-routes.tsx:106 cliCommand="theo team delete --confirm"
+> src/routes/settings-routes.tsx:51  cliCommand="loopscale billing status"
+> src/routes/settings-routes.tsx:89  cliCommand="loopscale notify list"
+> src/routes/settings-routes.tsx:106 cliCommand="loopscale team delete --confirm"
 > src/pages/sub-page-placeholder.tsx:49 description="This screen is part of the navigation but the full UI is still being built. Use the CLI below to do this today."
-> theo-cli/src/register/team.ts:17,21,51,82,112,148 -> team | list | add | remove | role | switch (no delete)
+> loopscale-cli/src/register/team.ts:17,21,51,82,112,148 -> team | list | add | remove | role | switch (no delete)
 
 **Remediation**
 
-Either drop cliCommand for these three routes (the /databases precedent in src/app.tsx:180 is the governed answer), or replace each with a command that exists. Add a guard to placeholder-honesty.test.ts asserting every cliCommand names a command registered by theo-cli, so a fabricated escape hatch fails the suite the way a fabricated route already does.
+Either drop cliCommand for these three routes (the /databases precedent in src/app.tsx:180 is the governed answer), or replace each with a command that exists. Add a guard to placeholder-honesty.test.ts asserting every cliCommand names a command registered by loopscale-cli, so a fabricated escape hatch fails the suite the way a fabricated route already does.
 
-### [8] HIGH — Placeholder screens advertise theo CLI commands that do not exist (profile domain)
+### [8] HIGH — Placeholder screens advertise loopscale CLI commands that do not exist (profile domain)
 
 **Location:** `src/routes/profile-routes.tsx:32`
 
-Same defect class as the settings domain, but here ALL THREE placeholder routes fabricate their CLI escape hatch. /profile/security offers `theo login --rotate-credentials` — the login command registers --token, --team, --refresh-token, --expires-in, --device-flow (theo-cli/src/register/auth.ts:21-36); there is no --rotate-credentials flag, and commander will reject the unknown option. /profile/sessions offers `theo session list` and /profile/danger offers `theo account delete --confirm` — neither `session` nor `account` is a registered top-level theo command. The screen tells the user this is what they can do TODAY from the terminal; every one of these three fails at the shell. Verified against theo-platform/theo-cli by enumerating program.command(...) across src/register/*.ts.
+Same defect class as the settings domain, but here ALL THREE placeholder routes fabricate their CLI escape hatch. /profile/security offers `loopscale login --rotate-credentials` — the login command registers --token, --team, --refresh-token, --expires-in, --device-flow (loopscale-cli/src/register/auth.ts:21-36); there is no --rotate-credentials flag, and commander will reject the unknown option. /profile/sessions offers `loopscale session list` and /profile/danger offers `loopscale account delete --confirm` — neither `session` nor `account` is a registered top-level loopscale command. The screen tells the user this is what they can do TODAY from the terminal; every one of these three fails at the shell. Verified against loopscale-platform/loopscale-cli by enumerating program.command(...) across src/register/*.ts.
 
 **Evidence**
 
-> src/routes/profile-routes.tsx:32 cliCommand="theo login --rotate-credentials"
-> src/routes/profile-routes.tsx:49 cliCommand="theo session list"
-> src/routes/profile-routes.tsx:66 cliCommand="theo account delete --confirm"
-> theo-cli registered top-level commands: audit, auth, billing, build, cancel, connect, deploy, disconnect, doctor, domain, env, login, logout, logs, preview, project, promote, rollback, scale, secret, status, storage, team, validate, whoami — no session, no account
-> theo-cli/src/register/auth.ts:21-36 login options: --token, --team, --refresh-token, --expires-in, --device-flow
+> src/routes/profile-routes.tsx:32 cliCommand="loopscale login --rotate-credentials"
+> src/routes/profile-routes.tsx:49 cliCommand="loopscale session list"
+> src/routes/profile-routes.tsx:66 cliCommand="loopscale account delete --confirm"
+> loopscale-cli registered top-level commands: audit, auth, billing, build, cancel, connect, deploy, disconnect, doctor, domain, env, login, logout, logs, preview, project, promote, rollback, scale, secret, status, storage, team, validate, whoami — no session, no account
+> loopscale-cli/src/register/auth.ts:21-36 login options: --token, --team, --refresh-token, --expires-in, --device-flow
 
 **Remediation**
 
@@ -111,7 +111,7 @@ Drop cliCommand on all three profile placeholders (matching the governed /databa
 
 **Location:** `src/pages/overview/overview.tsx:154`
 
-The Overview screen maps each project into a ProjectCard with branch literally set to the string main. ProjectCard renders that value verbatim (node_modules/@usetheo/ui/dist/index.js:6040 renders project.branch), so a project whose deploy branch is develop, release, or anything else is shown to the user as main. This is not a loading or empty state — it is fabricated data presented with the same visual weight as the real fields next to it (name, commit, status). The in-code comment acknowledges it as a legacy placeholder pending wire exposure of deploy_branch, but nothing in the rendered UI signals uncertainty; there is no em-dash, no tooltip, no skeleton — the pattern the rest of this codebase uses for unknown values (see kpi-strip-status.tsx formatNullable, which renders an em-dash rather than pretending).
+The Overview screen maps each project into a ProjectCard with branch literally set to the string main. ProjectCard renders that value verbatim (node_modules/@getloopscale/ui/dist/index.js:6040 renders project.branch), so a project whose deploy branch is develop, release, or anything else is shown to the user as main. This is not a loading or empty state — it is fabricated data presented with the same visual weight as the real fields next to it (name, commit, status). The in-code comment acknowledges it as a legacy placeholder pending wire exposure of deploy_branch, but nothing in the rendered UI signals uncertainty; there is no em-dash, no tooltip, no skeleton — the pattern the rest of this codebase uses for unknown values (see kpi-strip-status.tsx formatNullable, which renders an em-dash rather than pretending).
 
 **Evidence**
 
@@ -120,7 +120,7 @@ The Overview screen maps each project into a ProjectCard with branch literally s
 >   // hardcoded 'main' is the legacy placeholder until
 >   // the wire payload exposes `deploy_branch` for the listing.
 >   branch: 'main',
-> node_modules/@usetheo/ui/dist/index.js:6040  project.branch  (rendered verbatim by ProjectCard)
+> node_modules/@getloopscale/ui/dist/index.js:6040  project.branch  (rendered verbatim by ProjectCard)
 
 **Remediation**
 
@@ -130,7 +130,7 @@ Until the projects summary payload exposes deploy_branch, render an honest unkno
 
 **Location:** `src/lib/http/config.ts:9`
 
-ENGINE_URL is declared in the TheoConfig interface (src/lib/http/config.ts:9), defaulted in getConfig (config.ts:23), written by the container entrypoint (docker-entrypoint.sh:39), validated by validate_url (docker-entrypoint.sh:32), shipped as a non-empty dev default (public/__config.js:4 — "/engine"), and mirrored in 8 test mock objects. It is never exported from config.ts and never read by any production module. The /engine prefix it appears to configure is instead HARDCODED at src/lib/http/api.ts:315 (cloudFetch(`/engine${path}`)). Two consequences beyond the dead key itself: (1) an operator reading docker-entrypoint.sh reasonably concludes VITE_ENGINE_URL is a supported deployment knob, sets it, and observes no effect; (2) the value the dev default uses ("/engine", a same-origin path) would be REJECTED by validate_url (docker-entrypoint.sh:15-21 accepts only http:// or https:// or empty), so the key is not merely dead but unusable in the shape its own default demonstrates.
+ENGINE_URL is declared in the LoopScaleConfig interface (src/lib/http/config.ts:9), defaulted in getConfig (config.ts:23), written by the container entrypoint (docker-entrypoint.sh:39), validated by validate_url (docker-entrypoint.sh:32), shipped as a non-empty dev default (public/__config.js:4 — "/engine"), and mirrored in 8 test mock objects. It is never exported from config.ts and never read by any production module. The /engine prefix it appears to configure is instead HARDCODED at src/lib/http/api.ts:315 (cloudFetch(`/engine${path}`)). Two consequences beyond the dead key itself: (1) an operator reading docker-entrypoint.sh reasonably concludes VITE_ENGINE_URL is a supported deployment knob, sets it, and observes no effect; (2) the value the dev default uses ("/engine", a same-origin path) would be REJECTED by validate_url (docker-entrypoint.sh:15-21 accepts only http:// or https:// or empty), so the key is not merely dead but unusable in the shape its own default demonstrates.
 
 **Evidence**
 
@@ -144,11 +144,11 @@ Either delete ENGINE_URL from the interface, the entrypoint, __config.js and the
 
 **Location:** `TESTING.md:174`
 
-TESTING.md:174-181 tells a new contributor that `npm run tree-shake-check` greps the production bundle for the string `lib/mocks` and fails if found. That check no longer exists: it was deleted precisely because it could never fail. scripts/check-mocks-tree-shaken.mjs opens with the post-mortem (B-067/B-068) and now asserts two string sentinels (`__theo_mocks_present_in_bundle__` and `choose_method`) instead. A contributor who trusts TESTING.md will believe the gate proves something the current gate proves differently, and — worse — could reinstate the grep as a `fix` if the sentinels ever look odd.
+TESTING.md:174-181 tells a new contributor that `npm run tree-shake-check` greps the production bundle for the string `lib/mocks` and fails if found. That check no longer exists: it was deleted precisely because it could never fail. scripts/check-mocks-tree-shaken.mjs opens with the post-mortem (B-067/B-068) and now asserts two string sentinels (`__loopscale_mocks_present_in_bundle__` and `choose_method`) instead. A contributor who trusts TESTING.md will believe the gate proves something the current gate proves differently, and — worse — could reinstate the grep as a `fix` if the sentinels ever look odd.
 
 **Evidence**
 
-> TESTING.md:174-181 — "The CI gate `npm run tree-shake-check` greps the prod bundle for `lib/mocks` strings" / "! grep -q 'lib/mocks' dist/assets/*.js"  ||  scripts/check-mocks-tree-shaken.mjs:7-16 — "O `tree-shake-check` anterior era: grep -q 'lib/mocks' dist/assets/*.js. Ele procurava o caminho do modulo, e o empacotador apaga caminhos. Medido em 2026-08-08: injetei `installAllMocks` em `main.tsx`, os mocks foram para o bundle de producao, e o check imprimiu PASS."  ||  scripts/check-mocks-tree-shaken.mjs:43-68 — MARCAS = [{marca: '__theo_mocks_present_in_bundle__'}, {marca: 'choose_method'}]
+> TESTING.md:174-181 — "The CI gate `npm run tree-shake-check` greps the prod bundle for `lib/mocks` strings" / "! grep -q 'lib/mocks' dist/assets/*.js"  ||  scripts/check-mocks-tree-shaken.mjs:7-16 — "O `tree-shake-check` anterior era: grep -q 'lib/mocks' dist/assets/*.js. Ele procurava o caminho do modulo, e o empacotador apaga caminhos. Medido em 2026-08-08: injetei `installAllMocks` em `main.tsx`, os mocks foram para o bundle de producao, e o check imprimiu PASS."  ||  scripts/check-mocks-tree-shaken.mjs:43-68 — MARCAS = [{marca: '__loopscale_mocks_present_in_bundle__'}, {marca: 'choose_method'}]
 
 **Remediation**
 
@@ -214,14 +214,14 @@ Update both DOGFOOD.md lines to cite the size-limit configuration as the single 
 
 **Location:** `src/components/layout/team-switcher.tsx:126`
 
-The TeamSwitcher dropdown ends with a Plus-icon item labelled Create team, which reads as the affordance that creates a team. Its onSelect calls the optional onCreateTeam prop when provided; the sole caller (src/components/layout/app-sidebar.tsx:142 renders <TeamSwitcher fallbackName={userName} />) does NOT pass it, so the default branch always runs in production and simply opens https://docs.usetheo.dev/teams/create in a new tab. The user clicks a create control and gets documentation. The code comment is honest about it ("directs to CLI until backend POST /v1/teams ships") but nothing in the UI is: no external-link icon, no coming-soon marker, no copy change — unlike the governed comingSoon convention this repo applies to every other unshipped surface (app-sidebar-menus.ts, placeholder-honesty.test.ts).
+The TeamSwitcher dropdown ends with a Plus-icon item labelled Create team, which reads as the affordance that creates a team. Its onSelect calls the optional onCreateTeam prop when provided; the sole caller (src/components/layout/app-sidebar.tsx:142 renders <TeamSwitcher fallbackName={userName} />) does NOT pass it, so the default branch always runs in production and simply opens https://docs.getloopscale.com/teams/create in a new tab. The user clicks a create control and gets documentation. The code comment is honest about it ("directs to CLI until backend POST /v1/teams ships") but nothing in the UI is: no external-link icon, no coming-soon marker, no copy change — unlike the governed comingSoon convention this repo applies to every other unshipped surface (app-sidebar-menus.ts, placeholder-honesty.test.ts).
 
 **Evidence**
 
 > src/components/layout/team-switcher.tsx:126-138
 >   <DropdownMenu.Item onSelect={() => { if (onCreateTeam) { onCreateTeam(); } else {
 >     // Default: directs to CLI until backend POST /v1/teams ships
->     window.open('https://docs.usetheo.dev/teams/create', '_blank');
+>     window.open('https://docs.getloopscale.com/teams/create', '_blank');
 >   } }}>
 >     <Plus className="size-4" aria-hidden="true" />
 >     <span>Create team</span>
@@ -279,19 +279,19 @@ DESIGN.md § 2.1 is a safety clause: every screen that operates on a specific en
 
 Either implement the composite and wire it into TopBar plus the action-button contexts, or downgrade § 2.1 from MUST to a recorded gap with an owner. Do not leave a MUST-level safety clause with zero implementation and no test.
 
-### [30] MEDIUM — .llms.txt at the dashboard root documents a different @usetheo/ui version and contradicts the repo lint ban on raw Alert
+### [30] MEDIUM — .llms.txt at the dashboard root documents a different @getloopscale/ui version and contradicts the repo lint ban on raw Alert
 
 **Location:** `.llms.txt:10`
 
-.llms.txt sits at the dashboard root and declares itself the factual ground truth an LLM should treat as non-negotiable contract. It is in fact the upstream @usetheo/ui library manifest for version 0.9.0-next.0, describing that package repo layout (src/components/primitives/**), its scripts (pnpm quality:gates, Ladle, Biome) and its component inventory — none of which exist in the dashboard. The dashboard installs @usetheo/ui ^0.35.1, a different release line, and DESIGN.md:93 also states 0.35.1. Concretely misleading: .llms.txt:96 and :106 present `Alert` as a shipped 0.9 primitive to use, while eslint.config.js bans importing `Alert` from @usetheo/ui outright because the raw component silently drops a children body (upstream #175) and routes consumers to @/components/ui/alert-guard. An agent primed by .llms.txt writes the exact import the repo lint rejects.
+.llms.txt sits at the dashboard root and declares itself the factual ground truth an LLM should treat as non-negotiable contract. It is in fact the upstream @getloopscale/ui library manifest for version 0.9.0-next.0, describing that package repo layout (src/components/primitives/**), its scripts (pnpm quality:gates, Ladle, Biome) and its component inventory — none of which exist in the dashboard. The dashboard installs @getloopscale/ui ^0.35.1, a different release line, and DESIGN.md:93 also states 0.35.1. Concretely misleading: .llms.txt:96 and :106 present `Alert` as a shipped 0.9 primitive to use, while eslint.config.js bans importing `Alert` from @getloopscale/ui outright because the raw component silently drops a children body (upstream #175) and routes consumers to @/components/ui/alert-guard. An agent primed by .llms.txt writes the exact import the repo lint rejects.
 
 **Evidence**
 
-> .llms.txt:10 — "**Current version:** `0.9.0-next.0` (npm dist-tag `next`; latest release line)" vs package.json:72 — "@usetheo/ui": "^0.35.1"  ||  .llms.txt:5 — "Treat the bullets below as non-negotiable contracts"  ||  .llms.txt:96 lists **`alert`** (NEW 0.9) among primitives to use  ||  eslint.config.js:42-44 — importNames: ['Alert'] ... "Import Alert from '@/components/ui/alert-guard' — the raw @usetheo/ui Alert silently drops a `children` body (#175)"  ||  .llms.txt:150-153 declares quality-gate command `pnpm quality:gates`, Ladle stories and Biome — none present in this repo (package.json uses vitest, storybook, eslint)
+> .llms.txt:10 — "**Current version:** `0.9.0-next.0` (npm dist-tag `next`; latest release line)" vs package.json:72 — "@getloopscale/ui": "^0.35.1"  ||  .llms.txt:5 — "Treat the bullets below as non-negotiable contracts"  ||  .llms.txt:96 lists **`alert`** (NEW 0.9) among primitives to use  ||  eslint.config.js:42-44 — importNames: ['Alert'] ... "Import Alert from '@/components/ui/alert-guard' — the raw @getloopscale/ui Alert silently drops a `children` body (#175)"  ||  .llms.txt:150-153 declares quality-gate command `pnpm quality:gates`, Ladle stories and Biome — none present in this repo (package.json uses vitest, storybook, eslint)
 
 **Remediation**
 
-Move the upstream manifest out of the dashboard root (or rename to something explicitly upstream, e.g. docs/vendor/usetheo-ui.llms.txt) and, if a dashboard .llms.txt is wanted, write one describing this repo. At minimum pin the version line to the version actually installed and add the alert-guard exception.
+Move the upstream manifest out of the dashboard root (or rename to something explicitly upstream, e.g. docs/vendor/loopscale-ui.llms.txt) and, if a dashboard .llms.txt is wanted, write one describing this repo. At minimum pin the version line to the version actually installed and add the alert-guard exception.
 
 ### [14] LOW — Stale TODO in app-sidebar doc comment describes a hard-coded plan tier the file no longer renders
 
@@ -329,11 +329,11 @@ Replace the count with a pointer to docs/adr/README.md (which already carries th
 
 **Location:** `docs/architecture.md:16`
 
-The document states twice that all its measurements come from the /loop-system-design audit whose report lives at system-design-output/final_report.md. No such path exists anywhere under theo-cloud (searched to depth 3, excluding node_modules). Since the doc explicitly grounds its authority on that report ("Nada aqui e estimativa"), none of its figures can be re-verified by a reader — which is how the stale numbers in the same file went unnoticed.
+The document states twice that all its measurements come from the /loop-system-design audit whose report lives at system-design-output/final_report.md. No such path exists anywhere under loop-console (searched to depth 3, excluding node_modules). Since the doc explicitly grounds its authority on that report ("Nada aqui e estimativa"), none of its figures can be re-verified by a reader — which is how the stale numbers in the same file went unnoticed.
 
 **Evidence**
 
-> docs/architecture.md:16 — "cujo relatorio esta em `system-design-output/final_report.md`"  ||  docs/architecture.md:123 — "Relatorio completo em `system-design-output/final_report.md`"  ||  `find /home/paulo/Projetos/theo/theo-platform/theo-cloud -maxdepth 3 -name system-design-output -not -path "*/node_modules/*"` returns nothing
+> docs/architecture.md:16 — "cujo relatorio esta em `system-design-output/final_report.md`"  ||  docs/architecture.md:123 — "Relatorio completo em `system-design-output/final_report.md`"  ||  `find /home/paulo/Projetos/loopscale/loopscale-platform/loop-console -maxdepth 3 -name system-design-output -not -path "*/node_modules/*"` returns nothing
 
 **Remediation**
 
@@ -424,11 +424,11 @@ Replace both routes with <Navigate to="/team" replace /> and <Navigate to="/bill
 
 **Location:** `DESIGN.md:809`
 
-The closing Cross-references block of the locked design contract routes the reader to the AS-IS audit, the remediation plan, the edge-case review and the C4 architecture docs. Three of the four paths do not exist under theo-cloud/.claude/knowledge-base (there is no audits/2026-05-25/ directory, no plan file matching 2026-05-25-dashboard-faang-*, and no architecture/ directory at all; a repo-wide search for *faang* returns nothing). Since DESIGN.md refers to the remediation plan by task id throughout (T1.4, T2.10, T3.5, T4.1, T4.6, T4.7), none of those task references can be resolved by anyone reading the document today.
+The closing Cross-references block of the locked design contract routes the reader to the AS-IS audit, the remediation plan, the edge-case review and the C4 architecture docs. Three of the four paths do not exist under loop-console/.claude/knowledge-base (there is no audits/2026-05-25/ directory, no plan file matching 2026-05-25-dashboard-faang-*, and no architecture/ directory at all; a repo-wide search for *faang* returns nothing). Since DESIGN.md refers to the remediation plan by task id throughout (T1.4, T2.10, T3.5, T4.1, T4.6, T4.7), none of those task references can be resolved by anyone reading the document today.
 
 **Evidence**
 
-> DESIGN.md:809-812 cites `.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-edge-cases.md`, `.claude/knowledge-base/architecture/dashboard/`  ||  `ls theo-cloud/.claude/knowledge-base/` = adrs audits backlog discoveries grills implementations plans reviews roadmap-runs (no architecture/)  ||  `ls .claude/knowledge-base/audits/2026-05-25/` = no such directory  ||  `find theo-cloud -name "*faang*" -not -path "*/node_modules/*"` returns nothing  ||  DOGFOOD.md:147-149 cites the same missing audit file
+> DESIGN.md:809-812 cites `.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-edge-cases.md`, `.claude/knowledge-base/architecture/dashboard/`  ||  `ls loop-console/.claude/knowledge-base/` = adrs audits backlog discoveries grills implementations plans reviews roadmap-runs (no architecture/)  ||  `ls .claude/knowledge-base/audits/2026-05-25/` = no such directory  ||  `find loop-console -name "*faang*" -not -path "*/node_modules/*"` returns nothing  ||  DOGFOOD.md:147-149 cites the same missing audit file
 
 **Remediation**
 
@@ -438,15 +438,15 @@ Either restore the referenced artifacts under .claude/knowledge-base/ or strip t
 
 **Location:** `DESIGN.md:93`
 
-DESIGN.md § 3 presents the two-package split as a measured fact dated 2026-08-08: @usetheo/ui imported by 183 files and @theokit/ui confined to 3 files / 4 symbols. Measured now: 231 files import @usetheo/ui and 8 TypeScript files reference @theokit/ui (main.tsx, test/render.tsx, lib/theme/theo-theme.ts, pages/settings/billing.tsx, pages/overview/overview.tsx plus three test files), i.e. 5 non-test modules. The narrative conclusion — that the surfaces are disjoint and there is nothing to consolidate — is not invalidated, but the containment claim for @theokit/ui is weaker than the doc states, and the doc gives no way to tell.
+DESIGN.md § 3 presents the two-package split as a measured fact dated 2026-08-08: @getloopscale/ui imported by 183 files and @getloopscale/loopzero-ui confined to 3 files / 4 symbols. Measured now: 231 files import @getloopscale/ui and 8 TypeScript files reference @getloopscale/loopzero-ui (main.tsx, test/render.tsx, lib/theme/loopscale-theme.ts, pages/settings/billing.tsx, pages/overview/overview.tsx plus three test files), i.e. 5 non-test modules. The narrative conclusion — that the surfaces are disjoint and there is nothing to consolidate — is not invalidated, but the containment claim for @getloopscale/loopzero-ui is weaker than the doc states, and the doc gives no way to tell.
 
 **Evidence**
 
-> DESIGN.md:93-94 — "| `@usetheo/ui` | `0.35.1` | components | 183 files import it |" / "| `@theokit/ui` | `1.3.2` | the theme ... | 3 files, 4 symbols |"  ||  `grep -rl "@usetheo/ui" src/ | wc -l` = 231  ||  `grep -rln "@theokit/ui" src/` = src/main.tsx, src/test/render.tsx, src/lib/theme/theo-theme.ts, src/pages/settings/billing.tsx, src/pages/overview/overview.tsx, src/index.primary-token.test.ts, src/pages/lens/traces.test.tsx, src/pages/lens/compare.test.tsx, src/pages/lens/traces/columns-toggle.test.tsx
+> DESIGN.md:93-94 — "| `@getloopscale/ui` | `0.35.1` | components | 183 files import it |" / "| `@getloopscale/loopzero-ui` | `1.3.2` | the theme ... | 3 files, 4 symbols |"  ||  `grep -rl "@getloopscale/ui" src/ | wc -l` = 231  ||  `grep -rln "@getloopscale/loopzero-ui" src/` = src/main.tsx, src/test/render.tsx, src/lib/theme/loopscale-theme.ts, src/pages/settings/billing.tsx, src/pages/overview/overview.tsx, src/index.primary-token.test.ts, src/pages/lens/traces.test.tsx, src/pages/lens/compare.test.tsx, src/pages/lens/traces/columns-toggle.test.tsx
 
 **Remediation**
 
-Turn the containment claim into an executable check (a test asserting the @theokit/ui importer set) rather than a number in prose; the doc already states the split is only defensible while the surface stays small.
+Turn the containment claim into an executable check (a test asserting the @getloopscale/loopzero-ui importer set) rather than a number in prose; the doc already states the split is only defensible while the surface stays small.
 
 ### [26] LOW — DESIGN.md file:line pointers into the source are stale (index.css, top-bar.tsx, settings.tsx/profile.tsx)
 
@@ -585,11 +585,11 @@ None.
 
 **Location:** `docs/adr/README.md:13`
 
-Cross-checked the accepted ADRs whose decisions are mechanically verifiable against current code and found no contradiction. ADR-0003 (theme has a single owner): src/lib/theme/theo-theme.ts exists and is imported by both src/main.tsx and src/test/render.tsx. ADR-0004 (service worker keeps asset rules, API cache leaves): vite.config.ts imports SW_RUNTIME_CACHING and BFF_NAVIGATION_DENYLIST from src/build/, keeping the denylist and the runtime-caching table in one place. ADR-0010 (nuqs for typed filters, useSearchParams for point reads — do not migrate): both remain in use (8 files with useQueryState, 31 with useSearchParams). ADR-0012 (React Compiler stays on): vite.config.ts:90 still registers babel-plugin-react-compiler. ADR-0014 (do not split lib/http/api.ts; rename logout to clearTokenAcrossTabs): api.ts is 456 lines, under the 500 budget, and exports clearTokenAcrossTabs at :282, consumed by lib/auth/session.ts:140. The architecture.md honesty table also holds: madge, dependency-cruiser and eslint-plugin-import are still absent from package.json, and eslint.config.js carries three no-restricted-imports blocks as claimed.
+Cross-checked the accepted ADRs whose decisions are mechanically verifiable against current code and found no contradiction. ADR-0003 (theme has a single owner): src/lib/theme/loopscale-theme.ts exists and is imported by both src/main.tsx and src/test/render.tsx. ADR-0004 (service worker keeps asset rules, API cache leaves): vite.config.ts imports SW_RUNTIME_CACHING and BFF_NAVIGATION_DENYLIST from src/build/, keeping the denylist and the runtime-caching table in one place. ADR-0010 (nuqs for typed filters, useSearchParams for point reads — do not migrate): both remain in use (8 files with useQueryState, 31 with useSearchParams). ADR-0012 (React Compiler stays on): vite.config.ts:90 still registers babel-plugin-react-compiler. ADR-0014 (do not split lib/http/api.ts; rename logout to clearTokenAcrossTabs): api.ts is 456 lines, under the 500 budget, and exports clearTokenAcrossTabs at :282, consumed by lib/auth/session.ts:140. The architecture.md honesty table also holds: madge, dependency-cruiser and eslint-plugin-import are still absent from package.json, and eslint.config.js carries three no-restricted-imports blocks as claimed.
 
 **Evidence**
 
-> src/lib/theme/theo-theme.ts present; imported at src/test/render.tsx:7 and by src/main.tsx  ||  vite.config.ts:15-16 imports BFF_NAVIGATION_DENYLIST and SW_RUNTIME_CACHING; :166-167 wires both  ||  `grep -rl useQueryState src/ | wc -l` = 8, `grep -rl useSearchParams src/ | wc -l` = 31  ||  vite.config.ts:90 — ["babel-plugin-react-compiler", {}]  ||  wc -l src/lib/http/api.ts = 456; src/lib/http/api.ts:282 export function clearTokenAcrossTabs(); src/lib/auth/session.ts:140-141 imports and calls it  ||  `grep -c "madge|eslint-plugin-import|dependency-cruiser" package.json` = 0; eslint.config.js:129,162,189 are the three no-restricted-imports blocks
+> src/lib/theme/loopscale-theme.ts present; imported at src/test/render.tsx:7 and by src/main.tsx  ||  vite.config.ts:15-16 imports BFF_NAVIGATION_DENYLIST and SW_RUNTIME_CACHING; :166-167 wires both  ||  `grep -rl useQueryState src/ | wc -l` = 8, `grep -rl useSearchParams src/ | wc -l` = 31  ||  vite.config.ts:90 — ["babel-plugin-react-compiler", {}]  ||  wc -l src/lib/http/api.ts = 456; src/lib/http/api.ts:282 export function clearTokenAcrossTabs(); src/lib/auth/session.ts:140-141 imports and calls it  ||  `grep -c "madge|eslint-plugin-import|dependency-cruiser" package.json` = 0; eslint.config.js:129,162,189 are the three no-restricted-imports blocks
 
 **Remediation**
 

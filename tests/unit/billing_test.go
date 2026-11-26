@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package unit
 
@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/billing"
+	"github.com/getloopscale/loop-console/internal/billing"
 )
 
 func TestVerifySignature_Valid(t *testing.T) {
@@ -54,7 +54,7 @@ func TestVerifySignature_MissingHeader(t *testing.T) {
 
 // T4.2 of plan 2026-05-29-dashboard-public-integration-canonicalization.
 // v1.1 EC-S2 — fail-closed contract: when STRIPE_WEBHOOK_SECRET is empty
-// (e.g., the optional theo-stripe-webhook Secret is absent in dev), the
+// (e.g., the optional loopscale-stripe-webhook Secret is absent in dev), the
 // webhook MUST reject all events, not accept them unsigned. Accepting
 // unsigned events lets any attacker forge `subscription.cancelled` or
 // `customer.deleted` events and disrupt billing state.

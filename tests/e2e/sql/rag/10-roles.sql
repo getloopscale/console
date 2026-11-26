@@ -1,6 +1,6 @@
--- Application roles theo-rag requires since migration 0027 (RLS): the API
+-- Application roles looprag requires since migration 0027 (RLS): the API
 -- refuses to serve as a superuser or BYPASSRLS role, and the migrate command
--- grants these roles but never creates them. Copied from theo-rag
+-- grants these roles but never creates them. Copied from looprag
 -- dev/postgres-roles.sql; keep the two in step when that file changes.
 DO $$
 BEGIN
