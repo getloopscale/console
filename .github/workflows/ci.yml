@@ -59,7 +59,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      LOOPSCALE_ENGINE_REF: bcc0bd66fffa199540259d2ec26cedde73e92765
+      LOOPSCALE_ENGINE_REF: dc73c0999908eebc30549eedc3208f4732d535c0
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
       #   loop-console/loop-console  (this repo — tests/e2e lives here)
@@ -147,7 +147,7 @@ jobs:
     timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
-      LOOPSCALE_ENGINE_REF: bcc0bd66fffa199540259d2ec26cedde73e92765
+      LOOPSCALE_ENGINE_REF: dc73c0999908eebc30549eedc3208f4732d535c0
       LOOPRAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
       - name: Checkout loop-console
