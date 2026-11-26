@@ -1,10 +1,10 @@
-import type { TraceSpan } from '@usetheo/ui';
+import type { TraceSpan } from '@getloopscale/ui';
 import { isSpanError } from '@/pages/lens/span-status';
 import type { TraceSpanNode } from './helpers';
 
 /**
- * M8 adoption — the boundary mapper from the theo-lens `TraceSpanNode` (OTLP-shaped: `spanId`,
- * `startTimeUnixNano`, `statusCode`) to the `@usetheo/ui` generic `TraceSpan` (`id`, `startTime`,
+ * M8 adoption — the boundary mapper from the looptrace `TraceSpanNode` (OTLP-shaped: `spanId`,
+ * `startTimeUnixNano`, `statusCode`) to the `@getloopscale/ui` generic `TraceSpan` (`id`, `startTime`,
  * `status`). The lib's trace-native components (SpanTree, SpanWaterfall, TraceTranscript, SpanGraph,
  * AttributesTable, IOCards, TraceCompare) consume `TraceSpan`; this is the single place the two shapes
  * meet. Pure + total: preserves the honest error signal via `isSpanError` (the OTLP status vocabulary

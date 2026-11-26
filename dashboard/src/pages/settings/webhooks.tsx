@@ -10,7 +10,7 @@ import {
   PageShell,
   Sheet,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import { deliveryStatusVariant } from '@/lib/webhooks/delivery';
@@ -50,7 +50,7 @@ import {
 // offered — subscribing to an event that never fires is dishonest (Rule 3).
 // The engine emits deploy.succeeded (release→ACTIVE) + deploy.failed (build
 // execution failure); build.* (the build outcome, distinct from the deploy
-// outcome) are NOT emitted yet — tracked in theo-cloud#153 (a taxonomy ADR
+// outcome) are NOT emitted yet — tracked in loop-console#153 (a taxonomy ADR
 // decides whether deploy.failed subsumes build.failed).
 const AVAILABLE_EVENTS = [
   { id: 'deploy.succeeded', label: 'deploy.succeeded' },

@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
  */
 export type DocTheme = 'system' | 'white';
 
-const KEY = 'theo:wiki:doc-theme';
+const KEY = 'loopscale:wiki:doc-theme';
 
 function read(): DocTheme {
   try {

@@ -1,4 +1,4 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import type { CatalogVerdict } from '../catalog-verdict';
 
 /**

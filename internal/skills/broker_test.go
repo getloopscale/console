@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // RED tests — Model B slice 2 / T2.1: the per-tenant credential broker.
 // Lazy cache-aside (LRU + TTL) with singleflight coalescing; FAILS CLOSED on a
@@ -177,7 +177,7 @@ func (m *wsCapturingMinter) MintKey(_ context.Context, workspaceID, _ string, _ 
 }
 
 // M1 T1.1 — accountID is threaded into the cache key but NEVER to the minter:
-// the minted key's workspace_id stays == tenantID (theo-memory isolation unit is
+// the minted key's workspace_id stays == tenantID (loopmem isolation unit is
 // the tenant, unchanged). This is the seam-preservation invariant (ADR-M1-3).
 func TestBroker_KeyForTenantScoped_ThreadsAccountID_WorkspaceStaysTenant(t *testing.T) {
 	m := &wsCapturingMinter{}

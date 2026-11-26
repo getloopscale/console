@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AttributesTable, Badge, Button, IOCards, TokenCostBreakdown } from '@usetheo/ui';
+import { AttributesTable, Badge, Button, IOCards, TokenCostBreakdown } from '@getloopscale/ui';
 import { ClipboardCheck } from 'lucide-react';
 
 import { useEnqueueForLabeling } from '@/hooks/lens/use-trace-actions';
@@ -13,7 +13,7 @@ import { toTraceSpan } from './to-trace-span';
 
 /**
  * Right pane — everything the user came for about ONE span (M8 adoption). The attribute panel and the
- * input/output rendering now come from `@usetheo/ui` (`AttributesTable` + `IOCards`); the lens-specific
+ * input/output rendering now come from `@getloopscale/ui` (`AttributesTable` + `IOCards`); the lens-specific
  * surfaces (machine evaluations, the Playground replay, the labeling-queue enqueue) stay here. The lens
  * `Markdown` (react-markdown + rehype-sanitize) is injected into `IOCards` via its `renderMarkdown` slot
  * — the sanitizer lives in the consumer (ADR D2), not the design system.
@@ -122,7 +122,7 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
       {hasAttrs ? (
         <section className="space-y-1">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Attributes</h3>
-          {/* M8 — the @usetheo/ui AttributesTable. `canReveal` stays fail-closed (false); the raw PII
+          {/* M8 — the @getloopscale/ui AttributesTable. `canReveal` stays fail-closed (false); the raw PII
               value never enters the DOM pre-reveal. `maskedKeys` reuses the lens `detectPii`. */}
           <AttributesTable
             attrs={toTraceSpan(span).attributes}

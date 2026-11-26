@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, XCircle } from 'lucide-react';
-import { Button, EmptyState, PageShell } from '@usetheo/ui';
+import { Button, EmptyState, PageShell } from '@getloopscale/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { useToast } from '@usetheo/ui';
+import { useToast } from '@getloopscale/ui';
 
 import { cloudFetch } from '@/lib/http/api';
 import type { StorageFile } from './helpers';

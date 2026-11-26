@@ -15,7 +15,7 @@
  *
  * ## O caveat que não pode sumir
  *
- * O theo-lens conhece spans cujo modelo não tem preço na tabela, e um total que os ignora em
+ * O looptrace conhece spans cujo modelo não tem preço na tabela, e um total que os ignora em
  * silêncio é menor que a verdade apresentado como a verdade. `unpricedSpans` sai daqui para que
  * esquecê-lo na tela exija uma decisão em vez de um descuido.
  */

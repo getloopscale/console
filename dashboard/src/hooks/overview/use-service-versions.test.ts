@@ -19,15 +19,15 @@ const absent = (name: string): ServiceStatus => ({ name, state: 'not_deployed', 
 
 describe('aggregateState', () => {
   it('returns degraded when any service is unreachable', () => {
-    expect(aggregateState([ok('theo-rag', '0.35.0'), down('theo-lens'), absent('theo-storage')])).toBe('degraded');
+    expect(aggregateState([ok('looprag', '0.35.0'), down('looptrace'), absent('loopstore')])).toBe('degraded');
   });
 
   it('returns degraded when any service timed out', () => {
-    expect(aggregateState([ok('theo-rag', '0.35.0'), late('theo-lens')])).toBe('degraded');
+    expect(aggregateState([ok('looprag', '0.35.0'), late('looptrace')])).toBe('degraded');
   });
 
   it('ignores not_deployed so an absent service does not pin the dot to amber', () => {
-    expect(aggregateState([ok('theo-rag', '0.35.0'), absent('theo-storage')])).toBe('operational');
+    expect(aggregateState([ok('looprag', '0.35.0'), absent('loopstore')])).toBe('operational');
   });
 
   it('returns unknown for an empty or missing list', () => {
@@ -37,23 +37,23 @@ describe('aggregateState', () => {
 
   // D9 / EC-1 — the two direct paths to 'operational' that a blocklist leaves open.
   it('returns unknown when every service is not_deployed, instead of claiming health nobody measured', () => {
-    expect(aggregateState([absent('theo-storage'), absent('theo-rag')])).toBe('unknown');
+    expect(aggregateState([absent('loopstore'), absent('looprag')])).toBe('unknown');
   });
 
   it('returns degraded for a state outside the union, because the payload comes from the wire', () => {
-    const alien = { name: 'theo-lens', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
-    expect(aggregateState([ok('theo-rag', '0.35.0'), alien])).toBe('degraded');
+    const alien = { name: 'looptrace', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
+    expect(aggregateState([ok('looprag', '0.35.0'), alien])).toBe('degraded');
   });
 });
 
 describe('describeStatus', () => {
   it('counts every state in the accessible label, including not_deployed', () => {
-    expect(describeStatus([ok('theo-rag', '0.35.0'), down('theo-lens'), absent('theo-storage')]))
+    expect(describeStatus([ok('looprag', '0.35.0'), down('looptrace'), absent('loopstore')]))
       .toBe('System status: 1 operational, 1 unreachable, 1 not configured, 0 without provenance');
   });
 
   it('counts a timeout as unreachable so the label never undercounts a failure', () => {
-    expect(describeStatus([late('theo-lens'), absent('theo-storage')]))
+    expect(describeStatus([late('looptrace'), absent('loopstore')]))
       .toBe('System status: 0 operational, 1 unreachable, 1 not configured, 0 without provenance');
   });
 
@@ -62,15 +62,15 @@ describe('describeStatus', () => {
   // sentence assistive technology reads announced an all-clear. The lie the
   // milestone removed from the visual channel had simply moved into the AT one.
   it('accounts for a state outside the union, so the dot and the label cannot disagree', () => {
-    const alien = { name: 'theo-lens', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
-    expect(describeStatus([ok('theo-rag', '0.35.0'), alien]))
+    const alien = { name: 'looptrace', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
+    expect(describeStatus([ok('looprag', '0.35.0'), alien]))
       .toBe('System status: 1 operational, 0 unreachable, 0 not configured, 0 without provenance, 1 unknown');
   });
 
   // The counts are a census, not a sample: whatever the wire sends, they add up.
   it('always sums to the number of services reported', () => {
-    const alien = { name: 'theo-lens', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
-    const services = [ok('theo-rag', '0.35.0'), down('theo-memory'), absent('theo-storage'), alien];
+    const alien = { name: 'looptrace', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
+    const services = [ok('looprag', '0.35.0'), down('loopmem'), absent('loopstore'), alien];
     const total = [...describeStatus(services).matchAll(/(\d+)\s/g)].reduce((sum, m) => sum + Number(m[1]), 0);
     expect(total).toBe(services.length);
   });
@@ -78,7 +78,7 @@ describe('describeStatus', () => {
 
 describe('the ServiceStatus union', () => {
   it('does not expose version on a failure variant', () => {
-    const s: ServiceStatus = down('theo-lens');
+    const s: ServiceStatus = down('looptrace');
     // @ts-expect-error — D3: `version` only exists on the `ok` variant. If this line
     // ever compiles, the type went back to allowing the lie and typecheck fails here
     // with "Unused '@ts-expect-error' directive".
@@ -120,8 +120,8 @@ describe('aggregateState — unauthorized nao e degradacao (#345)', () => {
   it('nao reporta degraded quando o probe apenas nao foi autorizado', () => {
     expect(
       aggregateState([
-        { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
-        { name: 'theo-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
+        { name: 'looptrace', state: 'ok', checked_at: at, version: '1.0.0' },
+        { name: 'loop-runtime-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
       ]),
     ).toBe('operational');
   });
@@ -129,16 +129,16 @@ describe('aggregateState — unauthorized nao e degradacao (#345)', () => {
   it('AINDA reporta degraded quando uma dependencia real esta fora', () => {
     expect(
       aggregateState([
-        { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
-        { name: 'theo-api', state: 'unreachable', checked_at: at, reason: 'http 502' },
+        { name: 'looptrace', state: 'ok', checked_at: at, version: '1.0.0' },
+        { name: 'loop-runtime-api', state: 'unreachable', checked_at: at, reason: 'http 502' },
       ]),
     ).toBe('degraded');
   });
 
   it('conta o nao-medido no censo do label, para nao sumir', () => {
     const label = describeStatus([
-      { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
-      { name: 'theo-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
+      { name: 'looptrace', state: 'ok', checked_at: at, version: '1.0.0' },
+      { name: 'loop-runtime-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
     ]);
     expect(label).toContain('1 unknown');
   });
@@ -156,20 +156,20 @@ describe('no_provenance', () => {
   // garantido fazendo a linha self AFIRMAR `ok` com versao "dev" — verde sobre uma
   // medicao que nao houve. Agora e garantido aqui, sem a afirmacao falsa.
   it('does not drag the aggregate down — the target answered', () => {
-    expect(aggregateState([ok('theo-memory', '1.0.0'), noProv('theo-rag')])).toBe('operational');
+    expect(aggregateState([ok('loopmem', '1.0.0'), noProv('looprag')])).toBe('operational');
   });
 
   // Controle negativo: nao-degradar NAO e' o mesmo que sustentar o verde sozinho. Sem
   // isto, `no_provenance` viraria um passe-livre que declara a frota saudavel quando
   // nenhum alvo reportou versao alguma.
   it('never claims operational on its own', () => {
-    expect(aggregateState([noProv('theo-rag')])).not.toBe('operational');
+    expect(aggregateState([noProv('looprag')])).not.toBe('operational');
   });
 
   // O censo do aria-label conta o bucket: um estado invisivel para tecnologia assistiva
   // e' a mesma mentira relocada para o canal que o leitor nao consegue conferir olhando.
   it('is counted in the accessible census', () => {
-    expect(describeStatus([ok('theo-memory', '1.0.0'), noProv('theo-rag')]))
+    expect(describeStatus([ok('loopmem', '1.0.0'), noProv('looprag')]))
       .toBe('System status: 1 operational, 0 unreachable, 0 not configured, 1 without provenance');
   });
 });

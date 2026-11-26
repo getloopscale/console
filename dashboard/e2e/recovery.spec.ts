@@ -27,7 +27,7 @@ test.describe('J-04 Recovery — dogfood Cenários B + F (DOM-driven)', () => {
    *
    * Os três casos falhavam procurando o campo de e-mail. Não era defeito de produto: com uma
    * sessão ativa, `/recovery` mostra de propósito *"You're already signed in"* e dois botões, e
-   * essa tela existe por um achado de Red Team (`theo-cloud#54`) — antes havia um desvio
+   * essa tela existe por um achado de Red Team (`loop-console#54`) — antes havia um desvio
    * silencioso para `/`, que fazia o "Forgot password?" parecer quebrado. O dublê autentica por
    * padrão, então o teste pedia o formulário de recuperação a uma tela que, corretamente, não o
    * oferece.

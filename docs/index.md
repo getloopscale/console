@@ -2,9 +2,9 @@
 okf_version: "0.2"
 ---
 
-# theo-cloud knowledge
+# loop-console knowledge
 
-The repo-local knowledge an agent needs to reason about `theo-cloud` — the commercial
+The repo-local knowledge an agent needs to reason about `loop-console` — the commercial
 cloud-API (Go) and dashboard (React/TSX). Governance mandates, product surfaces, the
 architecture of the seams this repo owns, roadmaps in flight, operator runbooks, the
 meeting records that lock contracts, and release history.

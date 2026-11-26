@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { AlertTriangle, type LucideIcon } from 'lucide-react';
 
@@ -33,7 +33,7 @@ export interface EmptyStateCopy {
  *
  * CORREÇÃO (2026-08-11, B-167). Este bloco afirmava que `PageShell` "não aceita `error`", e essa
  * era a justificativa inteira para escrever uma função em vez de usar o componente. **É falso.**
- * O `@usetheo/ui@0.35.1` instalado declara `error?: { message; onRetry?; docsHref? }`, documenta
+ * O `@getloopscale/ui@0.35.1` instalado declara `error?: { message; onRetry?; docsHref? }`, documenta
  * a precedência `loading > error > empty`, o ramo de fato renderiza, e
  * `pages/lens/labeling-queue.tsx` já o usa.
  *

@@ -4,7 +4,7 @@ import { buildTracesUrl, spanAttrQuery } from '../lens/traces/build-url';
 /**
  * M23 — o caminho da aba de um prompt até as resoluções individuais dele.
  *
- * Nada aqui constrói um explorador: o do `theo-lens` já existe, já lê `span_query` da URL
+ * Nada aqui constrói um explorador: o do `looptrace` já existe, já lê `span_query` da URL
  * (`pages/lens/traces.tsx`) e já tem um índice parcial sobre `attributes->>'prompt.id'` criado no
  * M15 exatamente para este acesso. Este módulo só monta o endereço.
  *
@@ -17,7 +17,7 @@ import { buildTracesUrl, spanAttrQuery } from '../lens/traces/build-url';
 // `buildTracesUrl`/`spanAttrQuery`. Este modulo mantem apenas o que e decisao do
 // PROMPTLY: qual atributo filtrar e com quais colunas chegar.
 
-/** A chave do atributo que o `theo-promptly` carimba no span — leva o NOME do prompt, não um id. */
+/** A chave do atributo que o `loopprompt` carimba no span — leva o NOME do prompt, não um id. */
 const ATRIBUTO_DO_PROMPT = 'prompt.id';
 
 /**
@@ -28,8 +28,8 @@ const ATRIBUTO_DO_PROMPT = 'prompt.id';
  * `latency` fica: a duração da resolução é informação real (medido: 1–17 ms).
  *
  * `model` também some, desde o M23. A primeira versão a deixava visível e vazia, sob a justificativa
- * de que ampliar `TOGGLEABLE_COLUMNS` "seria mudar a tela do `theo-lens`, que tem roadmap próprio".
- * **A premissa era falsa** — `view-encoding.ts` vive neste mesmo dashboard; o `theo-lens` é o
+ * de que ampliar `TOGGLEABLE_COLUMNS` "seria mudar a tela do `looptrace`, que tem roadmap próprio".
+ * **A premissa era falsa** — `view-encoding.ts` vive neste mesmo dashboard; o `looptrace` é o
  * serviço, e toda tela do ecossistema nasce aqui. A `/acceptance` pegou.
  */
 const RESOLUTION_COLUMNS: ColumnState = {
@@ -38,7 +38,7 @@ const RESOLUTION_COLUMNS: ColumnState = {
 };
 
 /**
- * Endereço do explorador do `theo-lens`, filtrado nas resoluções de UM prompt.
+ * Endereço do explorador do `looptrace`, filtrado nas resoluções de UM prompt.
  *
  * Devolve `null` quando não há prompt — e essa é a correção de um defeito que a primeira versão
  * introduziu. Ela **lançava**, e o único chamador a invoca dentro do JSX: um `throw` durante o

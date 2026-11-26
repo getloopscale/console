@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package billing
 
@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"time"
 
-	planpkg "github.com/usetheoai/theo-contracts/plan"
+	planpkg "github.com/getloopscale/contracts/plan"
 )
 
 // T1.9 of plans/2026-05-12-launch-readiness-waves-plan.md (v1.4).
@@ -77,12 +77,12 @@ func (a *CostAggregator) WithClock(now func() time.Time) *CostAggregator {
 }
 
 // promQueries maps each canonical cost metric to its PromQL query. The
-// queries assume `theo_*` instrumentation already in place (see CLAUDE.md
+// queries assume `loopscale_*` instrumentation already in place (see CLAUDE.md
 // observability section).
 var promQueries = map[planpkg.CostMetric]string{
-	planpkg.MetricEgressBytes:  `sum by (tenant) (theo_egress_bytes_total)`,
-	planpkg.MetricDOCRPulls:    `sum by (tenant) (theo_docr_pulls_total)`,
-	planpkg.MetricBuildMinutes: `sum by (tenant) (rate(theo_build_duration_seconds_sum[5m]) * 60)`,
+	planpkg.MetricEgressBytes:  `sum by (tenant) (loopscale_egress_bytes_total)`,
+	planpkg.MetricDOCRPulls:    `sum by (tenant) (loopscale_docr_pulls_total)`,
+	planpkg.MetricBuildMinutes: `sum by (tenant) (rate(loopscale_build_duration_seconds_sum[5m]) * 60)`,
 }
 
 // Tick runs one aggregation pass: queries Prometheus, computes deltas,

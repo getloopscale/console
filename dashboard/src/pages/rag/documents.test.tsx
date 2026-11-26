@@ -23,7 +23,7 @@ describe('RagDocumentsPage (/rag/documents)', () => {
     render(<RagDocumentsPage />);
     // before selecting → prompt
     expect(await screen.findByText(/pick a collection/i)).toBeInTheDocument();
-    // M23: the collection picker is now the @usetheo/ui Select (Radix) — open the
+    // M23: the collection picker is now the @getloopscale/ui Select (Radix) — open the
     // trigger (role combobox), then click the option in the portal.
     await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
     await userEvent.click(await screen.findByRole('option', { name: 'docs' }));

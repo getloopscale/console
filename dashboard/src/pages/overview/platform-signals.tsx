@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { useCloudApi } from '@/hooks/use-api';
 import { useTrustEnforcement } from '@/hooks/trust/use-trust';
 import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';

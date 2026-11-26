@@ -248,12 +248,12 @@ describe('layout em colunas', () => {
 //
 // The page holds no hardcoded roster (it maps `data.services`), so the fifth row is a data change.
 // What is NOT free is the aggregate sentence and the git_sha boundary — both are asserted here.
-describe('M22 — theo-cloud on its own panel', () => {
+describe('M22 — loop-console on its own panel', () => {
   it('renders the gateway row alongside the data-plane services', async () => {
     stubVersions({
       collected_at: at,
       services: [
-        { name: 'theo-cloud', state: 'ok', checked_at: at, version: '0.71.0', built_at: at },
+        { name: 'loop-console', state: 'ok', checked_at: at, version: '0.71.0', built_at: at },
         { name: 'loopmem', state: 'ok', checked_at: at, version: '1.2.3' },
         { name: 'looprag', state: 'unreachable', checked_at: at, reason: 'connection_refused' },
       ],
@@ -261,7 +261,7 @@ describe('M22 — theo-cloud on its own panel', () => {
 
     render(<StatusPage />);
 
-    const row = await screen.findByRole('row', { name: /theo-cloud/ });
+    const row = await screen.findByRole('row', { name: /loop-console/ });
     expect(within(row).getByText('0.71.0')).toBeInTheDocument();
   });
 
@@ -273,7 +273,7 @@ describe('M22 — theo-cloud on its own panel', () => {
       collected_at: at,
       services: [
         {
-          name: 'theo-cloud',
+          name: 'loop-console',
           state: 'ok',
           checked_at: at,
           version: '0.71.0',
@@ -284,7 +284,7 @@ describe('M22 — theo-cloud on its own panel', () => {
     });
 
     const { container } = render(<StatusPage />);
-    await screen.findByRole('row', { name: /theo-cloud/ });
+    await screen.findByRole('row', { name: /loop-console/ });
 
     expect(container.textContent ?? '').not.toMatch(/[0-9a-f]{40}/);
   });

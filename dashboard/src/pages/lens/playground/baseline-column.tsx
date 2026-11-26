@@ -1,4 +1,4 @@
-import { Badge, Card } from '@usetheo/ui';
+import { Badge, Card } from '@getloopscale/ui';
 
 import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
 import type { TraceSpanNode } from '@/hooks/lens/trace-layout';

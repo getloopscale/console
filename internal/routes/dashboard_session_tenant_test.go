@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -13,11 +13,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/storage"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/storage"
 )
 
-// usetheoai/theo#477 step 3: a dashboard route authenticated by the session
+// getloopscale/loopscale#477 step 3: a dashboard route authenticated by the session
 // cookie serves the tenant the cookie's identity belongs to — so the cookie of
 // one tenant cannot reach an object of another, whatever the request names.
 

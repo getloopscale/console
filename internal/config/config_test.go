@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Per plan dashboard-memory-bff-server-side-key-vault v1.2 § T3.1.
 // Plus F-rev-5 fix-cycle absorption (2026-06-08): 4 promised but absent tests.
@@ -12,12 +12,12 @@ import (
 )
 
 func TestConfig_ParsesThemorySkipCapabilityCheck(t *testing.T) {
-	t.Setenv("THEMORY_SKIP_CAPABILITY_CHECK", "true")
+	t.Setenv("LOOPMEM_SKIP_CAPABILITY_CHECK", "true")
 	if cfg := Load(); !cfg.ThemorySkipCapabilityCheck {
 		t.Fatal("expected ThemorySkipCapabilityCheck=true when env is \"true\"")
 	}
 	// Any non-"true" value (incl. unset) must default to the safe false posture.
-	t.Setenv("THEMORY_SKIP_CAPABILITY_CHECK", "1")
+	t.Setenv("LOOPMEM_SKIP_CAPABILITY_CHECK", "1")
 	if cfg := Load(); cfg.ThemorySkipCapabilityCheck {
 		t.Fatal("expected ThemorySkipCapabilityCheck=false for non-\"true\" value")
 	}
@@ -25,8 +25,8 @@ func TestConfig_ParsesThemorySkipCapabilityCheck(t *testing.T) {
 
 // =========================================================================
 // Validate() fail-fast coverage — install-config-contract Slice 1 T4.1.
-// Gap: config.go documents THEMORY_API_KEY as "required when ThemoryBaseURL is
-// set in prod" but Validate() did not enforce it — the proxy would call theo-data
+// Gap: config.go documents LOOPMEM_API_KEY as "required when ThemoryBaseURL is
+// set in prod" but Validate() did not enforce it — the proxy would call loopscale-data
 // unauthenticated. These tests lock the fail-fast.
 // =========================================================================
 
@@ -37,7 +37,7 @@ func prodValidBaseline() Config {
 		HydraAdminURL:       "http://ory-hydra-admin:4445",
 		KratosPublicURL:     "https://kratos.example",
 		KratosAdminURL:      "http://ory-kratos-admin:80",
-		DatabaseURL:         "postgres://u:p@db:5432/theo",
+		DatabaseURL:         "postgres://u:p@db:5432/loopscale",
 		StripeAPIKey:        Secret("sk_live_x"),
 		StripeWebhookSecret: Secret("whsec_x"),
 		// #331: a fixture antiga era "0123456789..." — 10 caracteres distintos, o tipo de valor
@@ -48,32 +48,32 @@ func prodValidBaseline() Config {
 	}
 }
 
-func TestValidate_prod_requires_themory_api_key_when_themory_base_url_set(t *testing.T) {
+func TestValidate_prod_requires_loopmem_api_key_when_loopmem_base_url_set(t *testing.T) {
 	c := prodValidBaseline()
-	c.ThemoryBaseURL = "http://themory:3000"
+	c.ThemoryBaseURL = "http://loopmem:3000"
 	c.ThemoryAPIKey = Secret("")
 	if err := c.Validate(); err == nil {
-		t.Fatal("expected Validate() to fail when THEMORY_BASE_URL is set but THEMORY_API_KEY is empty in prod")
+		t.Fatal("expected Validate() to fail when LOOPMEM_BASE_URL is set but LOOPMEM_API_KEY is empty in prod")
 	}
 }
 
-func TestValidate_prod_passes_when_themory_fully_configured(t *testing.T) {
+func TestValidate_prod_passes_when_loopmem_fully_configured(t *testing.T) {
 	c := prodValidBaseline()
-	c.ThemoryBaseURL = "http://themory:3000"
+	c.ThemoryBaseURL = "http://loopmem:3000"
 	c.ThemoryAPIKey = Secret("master-bearer")
 	if err := c.Validate(); err != nil {
-		t.Fatalf("expected Validate() to pass when themory fully configured; got %v", err)
+		t.Fatalf("expected Validate() to pass when loopmem fully configured; got %v", err)
 	}
 }
 
-func TestValidate_prod_passes_when_themory_disabled(t *testing.T) {
-	c := prodValidBaseline() // ThemoryBaseURL empty → themory check must not fire
+func TestValidate_prod_passes_when_loopmem_disabled(t *testing.T) {
+	c := prodValidBaseline() // ThemoryBaseURL empty → loopmem check must not fire
 	if err := c.Validate(); err != nil {
-		t.Fatalf("expected Validate() to pass when themory disabled; got %v", err)
+		t.Fatalf("expected Validate() to pass when loopmem disabled; got %v", err)
 	}
 }
 
-// M11 (theo-promptly L2 broker): mirror the themory base-url ⇒ key invariant.
+// M11 (loopprompt L2 broker): mirror the loopmem base-url ⇒ key invariant.
 func TestValidate_prod_requires_promptly_key_when_promptly_base_url_set(t *testing.T) {
 	c := prodValidBaseline()
 	c.PromptlyBaseURL = "http://host.docker.internal:18083"
@@ -122,7 +122,7 @@ func TestValidate_prod_passes_when_promptly_disabled(t *testing.T) {
 // M14 edge-rag-broker — RAG_PLATFORM_ADMIN_KEY required in prod when RAG_BASE_URL set.
 func TestValidate_prod_requires_rag_admin_key_when_rag_base_url_set(t *testing.T) {
 	c := prodValidBaseline()
-	c.RagBaseURL = "http://theo-rag:8787"
+	c.RagBaseURL = "http://looprag:8787"
 	c.RagPlatformAdminKey = Secret("")
 	if err := c.Validate(); err == nil {
 		t.Fatal("expected Validate() to fail when RAG_BASE_URL is set but RAG_PLATFORM_ADMIN_KEY is empty in prod")
@@ -131,7 +131,7 @@ func TestValidate_prod_requires_rag_admin_key_when_rag_base_url_set(t *testing.T
 
 func TestValidate_prod_passes_when_rag_fully_configured(t *testing.T) {
 	c := prodValidBaseline()
-	c.RagBaseURL = "http://theo-rag:8787"
+	c.RagBaseURL = "http://looprag:8787"
 	c.RagPlatformAdminKey = Secret("rag_live_platform_admin")
 	if err := c.Validate(); err != nil {
 		t.Fatalf("expected Validate() to pass when rag fully configured; got %v", err)
@@ -148,11 +148,11 @@ func TestValidate_prod_passes_when_rag_disabled(t *testing.T) {
 // M14 — Load() reads RAG_BASE_URL / RAG_PLATFORM_ADMIN_KEY into the fields
 // (guards against an envOr key typo that struct-only Validate tests would miss).
 func TestLoad_RagFields(t *testing.T) {
-	t.Setenv("RAG_BASE_URL", "http://theo-rag:8787")
+	t.Setenv("RAG_BASE_URL", "http://looprag:8787")
 	t.Setenv("RAG_PLATFORM_ADMIN_KEY", "rag_live_platform_env")
 	c := Load()
-	if c.RagBaseURL != "http://theo-rag:8787" {
-		t.Errorf("RagBaseURL = %q, want http://theo-rag:8787 (RAG_BASE_URL not read)", c.RagBaseURL)
+	if c.RagBaseURL != "http://looprag:8787" {
+		t.Errorf("RagBaseURL = %q, want http://looprag:8787 (RAG_BASE_URL not read)", c.RagBaseURL)
 	}
 	if c.RagPlatformAdminKey.Value() != "rag_live_platform_env" {
 		t.Errorf("RagPlatformAdminKey = %q, want rag_live_platform_env (RAG_PLATFORM_ADMIN_KEY not read)", c.RagPlatformAdminKey.Value())
@@ -162,7 +162,7 @@ func TestLoad_RagFields(t *testing.T) {
 // M38 edge-lens-broker — LENS_PLATFORM_ADMIN_KEY required in prod when LENS_BASE_URL set.
 func TestValidate_prod_requires_lens_admin_key_when_lens_base_url_set(t *testing.T) {
 	c := prodValidBaseline()
-	c.LensBaseURL = "http://theo-lens:18082"
+	c.LensBaseURL = "http://looptrace:18082"
 	c.LensPlatformAdminKey = Secret("")
 	if err := c.Validate(); err == nil {
 		t.Fatal("expected Validate() to fail when LENS_BASE_URL is set but LENS_PLATFORM_ADMIN_KEY is empty in prod")
@@ -171,7 +171,7 @@ func TestValidate_prod_requires_lens_admin_key_when_lens_base_url_set(t *testing
 
 func TestValidate_prod_passes_when_lens_fully_configured(t *testing.T) {
 	c := prodValidBaseline()
-	c.LensBaseURL = "http://theo-lens:18082"
+	c.LensBaseURL = "http://looptrace:18082"
 	c.LensPlatformAdminKey = Secret("theo_live_platform_admin")
 	if err := c.Validate(); err != nil {
 		t.Fatalf("expected Validate() to pass when lens fully configured; got %v", err)
@@ -188,11 +188,11 @@ func TestValidate_prod_passes_when_lens_disabled(t *testing.T) {
 // M38 — Load() reads LENS_BASE_URL / LENS_PLATFORM_ADMIN_KEY into the fields
 // (guards against an envOr key typo that struct-only Validate tests would miss).
 func TestLoad_LensFields(t *testing.T) {
-	t.Setenv("LENS_BASE_URL", "http://theo-lens:18082")
+	t.Setenv("LENS_BASE_URL", "http://looptrace:18082")
 	t.Setenv("LENS_PLATFORM_ADMIN_KEY", "theo_live_platform_env")
 	c := Load()
-	if c.LensBaseURL != "http://theo-lens:18082" {
-		t.Errorf("LensBaseURL = %q, want http://theo-lens:18082 (LENS_BASE_URL not read)", c.LensBaseURL)
+	if c.LensBaseURL != "http://looptrace:18082" {
+		t.Errorf("LensBaseURL = %q, want http://looptrace:18082 (LENS_BASE_URL not read)", c.LensBaseURL)
 	}
 	if c.LensPlatformAdminKey.Value() != "theo_live_platform_env" {
 		t.Errorf("LensPlatformAdminKey = %q, want theo_live_platform_env (LENS_PLATFORM_ADMIN_KEY not read)", c.LensPlatformAdminKey.Value())
@@ -224,7 +224,7 @@ func TestValidateStorage_AllOrNone(t *testing.T) {
 	// all set with a >=32 char share secret → valid
 	full := base
 	full.StorageS3Endpoint = "http://minio:9000"
-	full.StorageS3Bucket = "theo-storage"
+	full.StorageS3Bucket = "loopstore"
 	full.StorageS3Region = "us-east-1"
 	full.StorageS3AccessKey = Secret("AK")
 	full.StorageS3SecretKey = Secret("SK")
@@ -247,7 +247,7 @@ func TestValidateStorage_AllOrNone(t *testing.T) {
 //
 // A cadeia foi verificada no codigo, nao suposta:
 //
-//   cmd/main.go:389  sessIssuer := theojwt.NewSessionTokenIssuer(cfg.SessionTokenSecret...)
+//   cmd/main.go:389  sessIssuer := loopscalejwt.NewSessionTokenIssuer(cfg.SessionTokenSecret...)
 //   cmd/main.go:415  requireJWT := auth.RequireJWT(jwtValidator, sessIssuer)   <- MESMO emissor valida
 //   cmd/main.go:1115 r.Route("/v1/api-keys", ...) { r.Use(requireJWT)
 //   cmd/main.go:1122   r.Post("/", apiKeysHandler.CreateKey)                   <- CUNHA credencial real
@@ -342,7 +342,7 @@ func TestValidate_enforces_minimum_length_outside_prod(t *testing.T) {
 // Sem este teste a correcao derrubaria toda maquina de dev que nao define a variavel — que e o
 // caso comum, e exatamente o modo de falha que o coordenador alertou para app-dev.
 func TestLoad_dev_without_the_env_var_still_boots(t *testing.T) {
-	t.Setenv("LOOPRUNTIME_ENV", "dev")
+	t.Setenv("LOOP_RUNTIME_ENV", "dev")
 	c := Load()
 	if err := checkSigningSecret("SESSION_TOKEN_SECRET", c.SessionTokenSecret.Value()); err != nil {
 		t.Fatalf("dev sem a variavel tem de subir; a guarda recusou o segredo sorteado: %v", err)

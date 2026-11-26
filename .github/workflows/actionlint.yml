@@ -1,6 +1,6 @@
 # O gate mais barato do repositorio, e o unico que pega uma classe inteira de defeito:
 # um workflow com YAML invalido NAO FALHA — ele simplesmente nao roda. Precedente medido
-# no theo-db (95 de 100 runs perdidos em silencio) e reproduzido no theo-lens, onde
+# no loopscale-db (95 de 100 runs perdidos em silencio) e reproduzido no looptrace, onde
 # `paths` + `paths-ignore` no mesmo evento matava o sdk-go no PARSE: jobs=0, sem log,
 # vermelho sem causa visivel.
 name: actionlint

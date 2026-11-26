@@ -9,7 +9,7 @@
 // É presentational puro: todo estado vive na página, toda validação vive em `alert-draft.ts`.
 // Nada aqui busca dado nem decide se o par métrica↔prompt é válido.
 
-import { Button, Input, Select } from '@usetheo/ui';
+import { Button, Input, Select } from '@getloopscale/ui';
 import { requiresPromptName } from '@/pages/lens/components/alert-draft';
 import type { AlertDraft } from '@/pages/lens/components/alert-draft';
 import type { AlertField } from '@/pages/lens/components/alert-draft';

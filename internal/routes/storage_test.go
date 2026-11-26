@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -16,10 +16,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/metrics"
-	"github.com/usetheoai/theo-cloud/internal/storage"
-	"github.com/usetheoai/theo-cloud/internal/storage/share"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/storage"
+	"github.com/getloopscale/loop-console/internal/storage/share"
 )
 
 // stubStorageService lets us drive each handler branch deterministically.
@@ -450,7 +450,7 @@ func TestStorageHandler_BulkDelete_MetricIncrements(t *testing.T) {
 	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{"paths":["a.txt"],"prefixes":["skills/"]}`)), "tn")
 	h.BulkDelete(httptest.NewRecorder(), r)
 	if got := metrics.ObjectsDeletedValue() - before; got != 4 {
-		t.Errorf("theo_storage_objects_deleted_total delta = %v, want 4 (1 path + 3 prefix)", got)
+		t.Errorf("loopscale_storage_objects_deleted_total delta = %v, want 4 (1 path + 3 prefix)", got)
 	}
 }
 
@@ -518,7 +518,7 @@ func TestPresignEndpoints_M2M3(t *testing.T) {
 	})
 }
 
-// TestStorageHandler_Upload_EncodedPathReachesServiceRaw — theo-cloud#195.
+// TestStorageHandler_Upload_EncodedPathReachesServiceRaw — loop-console#195.
 //
 // Mede, em vez de deduzir, QUAL forma do nome chega ao serviço. Isso importa porque a correção do #195
 // vive em `storage.ValidatePath`, e ela só fecha o buraco se a string que ela recebe for a que o caller

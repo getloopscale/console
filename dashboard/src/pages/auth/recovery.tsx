@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, Github, KeyRound } from 'lucide-react';
-import { Button, Card, Input } from '@usetheo/ui';
+import { Button, Card, Input } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { recoveryErrorMessage, SERVICE_UNAVAILABLE_MESSAGE } from '@/pages/auth/recovery-errors';
 import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
@@ -86,7 +86,7 @@ const recoveryBrowserUrl = () => `${ACCOUNTS_URL}/self-service/recovery/browser?
 export function RecoveryPage() {
   useSetPageTitle('Recover account');
   const [searchParams] = useSearchParams();
-  // Red Team theo-cloud#54 closure: when an authenticated user lands on
+  // Red Team loop-console#54 closure: when an authenticated user lands on
   // /recovery (e.g. clicked "Forgot password?" while still signed in),
   // do NOT let Kratos silently bounce them to the dashboard. Render an
   // explicit notice + a sign-out CTA so the user understands the redirect
@@ -141,7 +141,7 @@ export function RecoveryPage() {
     return () => clearInterval(id);
   }, [cooldownEndsAt]);
 
-  // Red Team theo-cloud#54 closure: detect an active session on mount;
+  // Red Team loop-console#54 closure: detect an active session on mount;
   // if present, surface a notice before kicking off the Kratos flow.
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +156,7 @@ export function RecoveryPage() {
 
   // D5 + D5b + EC-3 + EC-7: stale flow (410/404/any) triggers re-init; cascading
   // failure shows Reload Page fallback. Generic catch covers all error codes.
-  // Red Team theo-cloud#54 re-open: the bootstrap-to-Kratos-browser-flow path
+  // Red Team loop-console#54 re-open: the bootstrap-to-Kratos-browser-flow path
   // MUST wait for the session check (authNotice !== 'pending'). Without the
   // gate, an authenticated user lands here, the bootstrap fires synchronously
   // BEFORE getSession() resolves, and window.location.href navigates away —
@@ -248,7 +248,7 @@ export function RecoveryPage() {
       });
 
       // Kratos canonical behavior on code verified: HTTP 422 with
-      // `redirect_browser_to: https://app-dev.usetheo.dev/settings?flow=<new>`
+      // `redirect_browser_to: https://app-dev.getloopscale.com/settings?flow=<new>`
       // (canonical "browser_location_change_required" per ory-error-id header).
       // This means the recovery code was VALID — Kratos created a temporary
       // recovery session cookie and wants the browser to continue at the
@@ -380,7 +380,7 @@ export function RecoveryPage() {
 
   const isCooldownActive = cooldownEndsAt !== null && cooldownSeconds > 0;
 
-  // Red Team theo-cloud#54 closure: short-circuit the whole recovery
+  // Red Team loop-console#54 closure: short-circuit the whole recovery
   // flow when the visitor already has a session. The previous behavior
   // was a silent Kratos bounce to /, which made "Forgot password?"
   // look broken. Render an explicit notice + two CTAs (sign out OR
@@ -546,7 +546,7 @@ export function RecoveryPage() {
                     name="code"
                     size="lg"
                     type="text"
-                    // Red Team theo-cloud#80 closure: mobile keyboards open
+                    // Red Team loop-console#80 closure: mobile keyboards open
                     // the numeric pad via inputmode=numeric (better UX than
                     // type="number" which strips leading zeros + cancels
                     // the OS one-time-code autofill prompt). The "one-time-

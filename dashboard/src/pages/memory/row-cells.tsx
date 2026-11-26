@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 
 /**
  * Shared table-cell primitives for the Memory surfaces (UX pass 2026-07-22).

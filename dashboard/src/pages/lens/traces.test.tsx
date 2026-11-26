@@ -4,8 +4,8 @@ import { within, waitFor, render as rtlRender, type RenderResult } from '@testin
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { MemoryRouter } from 'react-router-dom';
-import { Toaster } from '@usetheo/ui';
-import { ThemeProvider, violetForge } from '@theokit/ui';
+import { Toaster } from '@getloopscale/ui';
+import { ThemeProvider, violetForge } from '@getloopscale/loopzero-ui';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { render, screen } from '@/test/render';
 
@@ -284,7 +284,7 @@ describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () =
     expect(bf({})).not.toContain('from=');
   });
 
-  it('forwards the advanced filters as theo-lens snake_case params (M52)', () => {
+  it('forwards the advanced filters as looptrace snake_case params (M52)', () => {
     const qs = bf({ costMin: '0.1', costMax: '5', tokensMin: '100', tokensMax: '9000', session: 'sess-x' });
     const p = new URLSearchParams(qs.slice(1));
     expect(p.get('min_cost_usd')).toBe('0.1');

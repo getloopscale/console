@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package deploy_event_enqueuer drains the deploy_events transactional outbox
 // (engine migration 000051) and fans each event out to the subscribed
@@ -7,7 +7,7 @@
 //
 // This is the CONSUMER half of the J-16 webhook-delivery pipeline (Option C,
 // MEET-2026-07-03-005): the engine emits generic deploy events on the release
-// tx; this loop (in theo-cloud) turns them into per-webhook deliveries that the
+// tx; this loop (in loop-console) turns them into per-webhook deliveries that the
 // delivery worker then dispatches. Keeping fan-out here — not in the engine —
 // preserves the decoupling invariant (the engine never references the webhook
 // tables).
@@ -24,7 +24,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/metrics"
 )
 
 const (

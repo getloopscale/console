@@ -1,6 +1,6 @@
 # Padronização de componentes, menus e modais — dashboard
 
-> Medido em 2026-08-09 contra `theo-cloud/dashboard` no estado de `develop`.
+> Medido em 2026-08-09 contra `loop-console/dashboard` no estado de `develop`.
 > Todo número aqui vem de um comando executado, não de leitura por amostragem.
 > Onde a medição **não** encontrou problema, o documento diz isso — um relatório que só
 > lista defeitos não permite saber o que já está certo.
@@ -69,9 +69,9 @@ className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in"
 Isto não é divergência de design com duas intenções diferentes. É duplicação.
 
 > **Correção de uma hipótese que eu tinha.** Presumi que `ui/dialog` fosse re-export do
-> design system `@usetheo/ui` e sofresse o bug de `Sheet` descrito no doc-comment de
+> design system `@getloopscale/ui` e sofresse o bug de `Sheet` descrito no doc-comment de
 > `app-modal`. Abri o arquivo: não é. Os dois são wrappers locais do mesmo Radix, e o bug
-> do `@usetheo/ui` **não** os afeta. A recomendação abaixo mudou por causa disso.
+> do `@getloopscale/ui` **não** os afeta. A recomendação abaixo mudou por causa disso.
 
 ### 1.3 O padrão já está declarado — e é violado pelos próprios componentes compartilhados
 

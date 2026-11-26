@@ -1,4 +1,4 @@
-/* @usetheo/ui canonical consumer entry (T-A.0 v1.2 + 2026-05-26 visual fix).
+/* @getloopscale/ui canonical consumer entry (T-A.0 v1.2 + 2026-05-26 visual fix).
  *
  * Imports ordered per CSS spec (@import MUST precede non-import rules):
  *   1. tailwindcss         — v4 core (preflight + utilities generator)
@@ -28,13 +28,18 @@
  *   - Scrollbar styled with theme --primary.
  */
 @import 'tailwindcss';
-/* @usetheo/ui@0.22 stopped shipping preset.css/components.css/fonts-cdn.css
+/* @getloopscale/ui@0.22 stopped shipping preset.css/components.css/fonts-cdn.css
  * (upstream regression #10 — migrated to a Tailwind-v4 utility model). We vendor
  * the canonical token layers from the design system's own Ladle preview and let
  * Tailwind scan the package's compiled components for the utility classes they use. */
-@import './vendor/usetheo-ui/tokens.css';
-@import './vendor/usetheo-ui/tokens-v4.css';
-@import './vendor/usetheo-ui/fonts-cdn.css';
+/* The theme provider of @getloopscale/loopzero-ui writes its variables inside `@layer theme`.
+ * A layered rule loses to any rule outside a layer, whatever its selector, so the token
+ * fallbacks are placed in the same layer: there the provider's
+ * `[data-theme][data-mode]` selector outranks `:root` and `.dark`, and the theme wins as
+ * it did when the provider wrote unlayered rules. */
+@import './vendor/loopscale-ui/tokens.css' layer(theme);
+@import './vendor/loopscale-ui/tokens-v4.css';
+@import './vendor/loopscale-ui/fonts-cdn.css';
 /* KB9 — Tailwind v4 typography engine. MUST come AFTER every @import: the CSS spec
  * requires @import to precede all non-import statements, so a @plugin placed between
  * `@import 'tailwindcss'` and the vendor `@import`s invalidates them and Tailwind stops
@@ -42,33 +47,33 @@
  * this @plugin the `prose`/`prose-invert` classes generate nothing; with it, the Notion
  * theme overrides in the `.prose` block below take effect. */
 @plugin "@tailwindcss/typography";
-@source '../node_modules/@usetheo/ui/dist';
+@source '../node_modules/@getloopscale/ui/dist';
 
 @custom-variant dark (&:is(.dark *));
 
 /* Density compacta (32px) — alinha o dashboard ao padrão de dimensão do Builder
-   (theo-studio): controles a 32px, não 36px. O TheoUIProvider aplica
-   data-density="comfortable" (--theo-control-h: 2.25rem = 36px) por default e não
+   (loopscale-studio): controles a 32px, não 36px. O LoopZeroUIProvider aplica
+   data-density="comfortable" (--loopscale-control-h: 2.25rem = 36px) por default e não
    expõe prop tipado; forçamos o modo `compact` do próprio design system
-   (--theo-control-h: 2rem = 32px, --theo-control-px: 0.75rem). Especificidade
+   (--loopscale-control-h: 2rem = 32px, --loopscale-control-px: 0.75rem). Especificidade
    html[data-density] (0,1,1) ganha de [data-density="comfortable"] (0,1,0). */
 html[data-density] {
-  --theo-control-h: 2rem;
-  --theo-control-px: 0.75rem;
+  --loopscale-control-h: 2rem;
+  --loopscale-control-px: 0.75rem;
 }
 
 @theme {
-  --color-theo-50: #e8f4f8;
-  --color-theo-100: #b8dfe8;
-  --color-theo-200: #88c9d8;
-  --color-theo-300: #58b3c8;
-  --color-theo-400: #389eb8;
-  --color-theo-500: #2a8a9e;
-  --color-theo-600: #1f6b7a;
-  --color-theo-700: #154d57;
-  --color-theo-800: #0c3038;
-  --color-theo-900: #04171c;
-  --color-theo-950: #020c0f;
+  --color-loopscale-50: #e8f4f8;
+  --color-loopscale-100: #b8dfe8;
+  --color-loopscale-200: #88c9d8;
+  --color-loopscale-300: #58b3c8;
+  --color-loopscale-400: #389eb8;
+  --color-loopscale-500: #2a8a9e;
+  --color-loopscale-600: #1f6b7a;
+  --color-loopscale-700: #154d57;
+  --color-loopscale-800: #0c3038;
+  --color-loopscale-900: #04171c;
+  --color-loopscale-950: #020c0f;
 
   --animate-slide-in: slide-in 0.4s ease-out;
   --animate-fade-in: fade-in 0.3s ease-out;
@@ -104,6 +109,7 @@ html[data-density] {
 }
 
 /* Motion tokens per DSS v1.1 § 10 + WCAG 2.3.3 reduced-motion compliance */
+@layer theme {
 :root {
   --motion-instant: 0ms;
   --motion-fast: 90ms;
@@ -115,31 +121,31 @@ html[data-density] {
 
   /* T1.1 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #19 (WCAG 2.4.11
    * Focus Appearance, contrast ≥ 3:1). Light-theme `--ring` was resolving to
-   * white-on-white (oklch(1 0 0)) at @usetheo/ui defaults, making the focus
+   * white-on-white (oklch(1 0 0)) at @getloopscale/ui defaults, making the focus
    * indicator invisible on auth pages. Canonical violet (HSL 260 80% 45%)
    * yields ~5:1 contrast vs card backgrounds — passes WCAG AA. Per ADR D2
    * (canonical violet over black/red; matches comment line 27 + brand). */
   --ring: 262 42% 49%;
 
-  /* Red Team theo/theo#163 — WCAG 1.4.3 (normal text contrast ≥ 4.5:1).
-   * @usetheo/ui default `--primary: oklch(0.628 0.225 296)` (~#995ffe)
+  /* Red Team loopscale/loopscale#163 — WCAG 1.4.3 (normal text contrast ≥ 4.5:1).
+   * @getloopscale/ui default `--primary: oklch(0.628 0.225 296)` (~#995ffe)
    * failed AA in two Lighthouse-detected surfaces:
    *   - white text on primary bg (buttons/CTAs) → 3.87:1
    *   - primary text on dark bg (project name span) → 4.37:1
    * Darkening to `oklch(0.50 0.16 296.97)` (~#7c47dc) raises white-on-primary
    * to ~5.1:1 (passes AA) while keeping the violet brand identity.
    * `--primary-deep` + `--primary-glow` are `oklch(from var(--primary) …)`
-   * derived tokens in @usetheo/ui/tokens.css, so they cascade the new
+   * derived tokens in @getloopscale/ui/tokens.css, so they cascade the new
    * base automatically.
    *
    * NOTE: dark-scope override lives in the `.dark { … }` block below —
-   * @usetheo/ui/tokens.css redeclares `--primary` under `.dark` (line 166),
+   * @getloopscale/ui/tokens.css redeclares `--primary` under `.dark` (line 166),
    * so a :root-only override is DEAD in the app's actual runtime theme.
    * Red Team #163 v1 caught this via getComputedStyle.
    *
    * B-034 — MEDIDO em 2026-08-06 no app BUILDADO (vite preview + Chrome headless,
    * getComputedStyle(document.documentElement)): o valor efetivo e
-   * `oklch(0.57 0.13 302)`, vindo do tema do TheoUIProvider (main.tsx), NAO daqui.
+   * `oklch(0.57 0.13 302)`, vindo do tema do LoopZeroUIProvider (main.tsx), NAO daqui.
    * O provider aplica no elemento, o que precede folha de estilo na cascata.
    *
    * Esta declaracao fica como FALLBACK pre-hidratacao — e o que pinta a tela entre
@@ -149,23 +155,26 @@ html[data-density] {
    * contraste, apenas produz dois roxos. */
   --primary: oklch(0.57 0.13 302);
 }
+}
 
-/* Red Team theo/theo#163 v2 — dark-mode fallback.
+/* Red Team loopscale/loopscale#163 v2 — dark-mode fallback.
  *
  * B-034 — o docblock anterior afirmava "This is the block the app actually uses
  * at runtime". MEDIDO em 2026-08-06 com `.dark` ATIVO no html: falso. O valor
- * computado e `oklch(0.57 0.13 302)`, do TheoUIProvider. Este bloco perde para
+ * computado e `oklch(0.57 0.13 302)`, do LoopZeroUIProvider. Este bloco perde para
  * o tema porque o provider aplica no elemento, nao via folha.
  *
  * Duas afirmacoes opostas coexistiam no repo — esta e a de main.tsx:91 ("o
  * index.css NAO tem efeito no primary") — e nenhum teste distinguia. A medicao
  * deu razao ao main.tsx. Mantido como fallback pre-hidratacao, alinhado ao valor
  * vencedor para que nao haja flash de cor divergente. */
+@layer theme {
 .dark {
   --primary: oklch(0.57 0.13 302);
 }
+}
 
-/* Red Team theo/theo#163 v2 — WCAG 1.4.3 escape for `text-primary` used
+/* Red Team loopscale/loopscale#163 v2 — WCAG 1.4.3 escape for `text-primary` used
  * as foreground text on dark surfaces (e.g. project-name `span.truncate`
  * flagged by Lighthouse @ 4.37:1). Route the tailwind utility to
  * `--primary-glow` (the design system's lighter derivative, l + 0.18 =
@@ -193,7 +202,7 @@ html[data-density] {
   }
 }
 
-/* CRITICAL base layer — replicates @usetheo/ui/styles.css @layer base so we
+/* CRITICAL base layer — replicates @getloopscale/ui/styles.css @layer base so we
  * inherit the same visual baseline as upstream consumers without taking the
  * full styles.css (which also pulls self-hosted fonts.css → font path resolve
  * issue per original comment). */
@@ -366,7 +375,7 @@ html[data-density] {
  * /projects (2026-06-08-dashboard-screens-review-fixes-plan.md v1.2).
  *
  * Why this block exists:
- *   `@usetheo/ui/components.css` ships precompiled Tailwind v4.3.0 output
+ *   `@getloopscale/ui/components.css` ships precompiled Tailwind v4.3.0 output
  *   which RE-DECLARES base utilities (including `.hidden { display: none }`)
  *   inside `@layer utilities`. Because the components.css import comes
  *   AFTER `@import 'tailwindcss'`, its `.hidden` rule lands LATER in source

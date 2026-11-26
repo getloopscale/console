@@ -28,7 +28,7 @@ func TestListInvoices_ParsesStripeListAndMaps(t *testing.T) {
 			"data": [
 				{
 					"id": "in_123",
-					"number": "THEO-0001",
+					"number": "LOOPSCALE-0001",
 					"total": 2900,
 					"currency": "usd",
 					"status": "paid",
@@ -73,8 +73,8 @@ func TestListInvoices_ParsesStripeListAndMaps(t *testing.T) {
 	if inv.ID != "in_123" {
 		t.Errorf("id = %q, want in_123", inv.ID)
 	}
-	if inv.Number != "THEO-0001" {
-		t.Errorf("number = %q, want THEO-0001", inv.Number)
+	if inv.Number != "LOOPSCALE-0001" {
+		t.Errorf("number = %q, want LOOPSCALE-0001", inv.Number)
 	}
 	// amount_minor from Stripe `total` as an INTEGER (never float).
 	if inv.AmountMinor != 2900 {

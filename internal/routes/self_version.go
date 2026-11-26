@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/serviceversions"
-	"github.com/usetheoai/theo-cloud/internal/version"
+	"github.com/getloopscale/loop-console/internal/serviceversions"
+	"github.com/getloopscale/loop-console/internal/version"
 )
 
 // selfReportingCollector puts the gateway itself on the panel the gateway serves.

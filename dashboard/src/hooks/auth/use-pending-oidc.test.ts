@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 
 import { usePendingOIDC } from './use-pending-oidc';
 
-// theo#140 — the defect this hook exists for: a provider click that lands BEFORE the login flow
+// loopscale#140 — the defect this hook exists for: a provider click that lands BEFORE the login flow
 // resolved used to be silently discarded. No error, no spinner, no navigation — the user saw the
 // page re-render and concluded the button was broken.
 //

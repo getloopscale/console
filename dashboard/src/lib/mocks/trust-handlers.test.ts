@@ -93,7 +93,7 @@ describe('the trust mock serves what the hooks ask for', () => {
   });
 
   it('is registered under both prefixes, bare and behind the gateway', () => {
-    // `window.__THEO_CONFIG__.API_URL` is empty in dev and `/api` behind the gateway. A route
+    // `window.__LOOPSCALE_CONFIG__.API_URL` is empty in dev and `/api` behind the gateway. A route
     // registered under one prefix works in one configuration and silently does not in the other.
     expect(matchRoute('GET', '/v1/dashboard/trust/policy-violations')).toBeTruthy();
     expect(matchRoute('GET', '/api/v1/dashboard/trust/policy-violations')).toBeTruthy();
@@ -124,7 +124,7 @@ describe('what the violations route answers', () => {
   });
 
   it('declares whether it truncated, as the contract requires', async () => {
-    // `theo-trust/openapi.yaml:365` makes `has_more` REQUIRED on this response — the discipline
+    // `loopguardrails/openapi.yaml:365` makes `has_more` REQUIRED on this response — the discipline
     // B-114/B-120 established, because a list that truncates in silence is read as complete. A mock
     // that omits it lets the screen be developed against a shape the service does not send.
     const matched = matchRoute('GET', '/v1/dashboard/trust/policy-violations');
@@ -153,7 +153,7 @@ describe('the catalogue carries the field coverage is matched on', () => {
     // neither — so the "blocked" column was structurally blind and every policy read as uncovered.
     //
     // `category` is REQUIRED (nullable) on the canonical entry — see
-    // `theo-trust/packages/guardrails-client/src/types.ts:10`. Omitting it is the mock diverging
+    // `loopguardrails/packages/guardrails-client/src/types.ts:10`. Omitting it is the mock diverging
     // from the contract, not a seed choice.
     const matched = matchRoute('GET', '/v1/dashboard/trust/validators');
     const res = await matched!.route.handler(

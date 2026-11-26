@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, Card, FormField, PageShell, Skeleton, Textarea } from '@usetheo/ui';
+import { Button, Card, FormField, PageShell, Skeleton, Textarea } from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';

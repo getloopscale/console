@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 //go:build integration
 
@@ -10,7 +10,7 @@
 // enforcement, exactly as production would (minus the HTTP layer). Run with:
 //
 //	STORAGE_TEST_DATABASE_URL=postgres://... \
-//	S3X_TEST_ENDPOINT=http://127.0.0.1:19000 S3X_TEST_BUCKET=theo-storage-itest \
+//	S3X_TEST_ENDPOINT=http://127.0.0.1:19000 S3X_TEST_BUCKET=loopstore-itest \
 //	S3X_TEST_ACCESS_KEY=... S3X_TEST_SECRET_KEY=... \
 //	go test -tags=integration ./internal/storage/ -run E2E
 package storage
@@ -26,7 +26,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/usetheoai/theo-cloud/internal/storage/s3x"
+	"github.com/getloopscale/loop-console/internal/storage/s3x"
 )
 
 type fixedTier struct{ tier string }

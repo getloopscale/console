@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package promptly
 
@@ -19,8 +19,8 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 )
 
-// M11 Risk-2 — cloud ↔ theo-promptly control-plane contract. The broker's
-// AdminClient is the CONSUMER of theo-promptly's POST /admin/keys; these tests
+// M11 Risk-2 — cloud ↔ loopprompt control-plane contract. The broker's
+// AdminClient is the CONSUMER of loopprompt's POST /admin/keys; these tests
 // drive the real admin_client (via the broker) against an httptest stub that
 // captures the request, then validate it against openapi/promptly.yaml with
 // openapi3filter. A drift in the request shape fails fast here, before prod.
@@ -90,7 +90,7 @@ func TestContract_MintRequestConformsToSpec(t *testing.T) {
 
 func TestContract_TenantIsolation(t *testing.T) {
 	// The broker mints distinct keys per tenant; the captured requests carry the
-	// distinct workspace_id so theo-promptly isolates the data downstream.
+	// distinct workspace_id so loopprompt isolates the data downstream.
 	var seen []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any

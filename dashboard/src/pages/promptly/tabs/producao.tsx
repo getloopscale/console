@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { linkToPromptTraces } from '../traces-link';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import type { UsageRow } from '@/pages/promptly/components/usage';
 import type { Dependente } from '@/pages/promptly/components/composicao';
@@ -115,7 +115,7 @@ export function ProductionTab({
           o outro para frente — avise-me quando mudar (M22). Ficam juntos porque respondem à mesma
           reação: o operador viu um número e quer agir sobre ele. */}
       <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-        {/* M23 — os spans de resolução já existiam, já indexados por prompt no `theo-lens`, e a
+        {/* M23 — os spans de resolução já existiam, já indexados por prompt no `looptrace`, e a
             única forma de chegar neles era digitar a URL.
 
             DUAS guardas, e nenhuma é zelo:

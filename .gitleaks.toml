@@ -1,4 +1,4 @@
-# Secret-scan config. Modelado no do theo-memory, cuja motivação foi um incidente real
+# Secret-scan config. Modelado no do loopmem, cuja motivação foi um incidente real
 # (#126 — duas chaves `theo_live_` verdadeiras chegaram ao histórico).
 #
 # DUAS DECISÕES QUE PARECEM FROUXAS E NÃO SÃO:
@@ -14,10 +14,10 @@
 #    `internal/routes/mcp_resolve_test.go` e `dev/README.md` — fixtures de teste e um
 #    exemplo de `curl` na documentação. Zero em código de produção. Um gate que grita sobre
 #    a própria documentação treina o time a ignorá-lo.
-title = "theo-cloud secret scan"
+title = "loop-console secret scan"
 
 [[rules]]
-id = "theo-live-api-key"
+id = "loopscale-live-api-key"
 description = "Chave theo_live_ hardcoded (a real é hex longo; fixtures usam sufixo legível)"
 # Uma chave real é `theo_live_` + segredo hex longo. As fixtures deste repo usam sufixos
 # legíveis (`theo_live_consumer`), então este regex nunca casa com elas — só um segredo

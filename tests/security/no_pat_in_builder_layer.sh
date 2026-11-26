@@ -11,7 +11,7 @@
 # The fix routes git's global config into a tmpfs mount, so the file never exists in a layer at all.
 set -euo pipefail
 
-IMG="${1:-theo-cloud:builder-residue-check}"
+IMG="${1:-loop-console:builder-residue-check}"
 SECRET="${2:-}"
 
 [ -n "$SECRET" ] || { echo "usage: $0 <image-tag> <path-to-gomod-token>"; exit 2; }

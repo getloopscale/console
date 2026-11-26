@@ -1,6 +1,6 @@
 # INTENCIONALMENTE VAZIO — este arquivo NAO e' um allowlist em uso.
 #
-# Ele existe porque o reusable compartilhado (`usetheoai/theo/.github/workflows/build-publish.yml`)
+# Ele existe porque o reusable compartilhado (`getloopscale/loopscale/.github/workflows/build-publish.yml`)
 # passa `trivyignores: .trivyignore` INCONDICIONALMENTE, e o trivy sai 1 em 17ms com
 # `cannot find ignorefile` quando o arquivo nao esta la. O efeito medido e' pior do que parece: o
 # scan NAO RODA, e o gate reporta falha de vulnerabilidade para uma varredura que nunca houve

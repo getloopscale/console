@@ -13,7 +13,7 @@ import {
   SeverityBadge,
   Skeleton,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { AlertCreateForm } from '@/pages/lens/components/alert-create-form';
@@ -103,7 +103,7 @@ const METRICS = [
   { value: 'cost', label: 'Cost (USD)' },
   { value: 'p95_latency', label: 'Latency p95 (ms)' },
   // M22 — a metrica escopada a UM prompt. As tres acima medem o workspace inteiro, e "o erro
-  // subiu" nao diz QUAL prompt piorou. Ver `usetheoai/theo-cloud#459`.
+  // subiu" nao diz QUAL prompt piorou. Ver `getloopscale/loop-console#459`.
   { value: METRICA_DE_PROMPT, label: 'Prompt resolutions' },
 ] as const;
 const COMPARATORS = [

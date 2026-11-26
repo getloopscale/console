@@ -74,10 +74,10 @@ func TestRagDataClient_CreateCollection_ProxiesBearerAndBody(t *testing.T) {
 	}
 }
 
-// M21 dogfood regression — IngestDocument MUST send theo-rag's `content` field (NOT the
-// dashboard-facing `text`) + a non-empty `name`, else theo-rag 422s "content must be a
+// M21 dogfood regression — IngestDocument MUST send looprag's `content` field (NOT the
+// dashboard-facing `text`) + a non-empty `name`, else looprag 422s "content must be a
 // string" and the dashboard upload journey breaks. Caught live 2026-07-03; the BFF
-// contract tests missed it because they stubbed the data client (never hit theo-rag's schema).
+// contract tests missed it because they stubbed the data client (never hit looprag's schema).
 func TestRagDataClient_IngestDocument_SendsContentField(t *testing.T) {
 	var gotPath string
 	var gotBody map[string]any
@@ -99,19 +99,19 @@ func TestRagDataClient_IngestDocument_SendsContentField(t *testing.T) {
 	if gotPath != "/v1/documents/raw" {
 		t.Fatalf("path = %q, want /v1/documents/raw", gotPath)
 	}
-	// the theo-rag contract field is `content`, not `text`
+	// the looprag contract field is `content`, not `text`
 	if gotBody["content"] != "hello world" {
-		t.Fatalf("body.content = %v, want \"hello world\" (theo-rag requires `content`, not `text`)", gotBody["content"])
+		t.Fatalf("body.content = %v, want \"hello world\" (looprag requires `content`, not `text`)", gotBody["content"])
 	}
 	if _, hasText := gotBody["text"]; hasText {
-		t.Fatalf("body must NOT contain `text` (theo-rag rejects it): %+v", gotBody)
+		t.Fatalf("body must NOT contain `text` (looprag rejects it): %+v", gotBody)
 	}
 	if gotBody["name"] != "doc-a" || gotBody["collection_id"] != "col_1" {
 		t.Fatalf("body name/collection_id mismatch: %+v", gotBody)
 	}
 }
 
-// An unnamed upload still satisfies theo-rag's required `name` (defaulted, no 422).
+// An unnamed upload still satisfies looprag's required `name` (defaulted, no 422).
 func TestRagDataClient_IngestDocument_DefaultsEmptyName(t *testing.T) {
 	var gotBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +128,7 @@ func TestRagDataClient_IngestDocument_DefaultsEmptyName(t *testing.T) {
 		t.Fatalf("IngestDocument: %v", err)
 	}
 	if gotBody["name"] == nil || gotBody["name"] == "" {
-		t.Fatalf("empty name must be defaulted (theo-rag requires a non-empty name): %+v", gotBody)
+		t.Fatalf("empty name must be defaulted (looprag requires a non-empty name): %+v", gotBody)
 	}
 }
 
@@ -189,8 +189,8 @@ func TestRagDataClient_Analytics_ProxiesBearer(t *testing.T) {
 }
 
 // v8-M7 scale-observability — Analytics forwards collection_id to /v1/analytics
-// AND decodes the per-collection `scale` block returned by theo-rag rc.80+.
-// theo-rag ONLY attaches `scale` when `?collection_id=` is present (backward-compat).
+// AND decodes the per-collection `scale` block returned by looprag rc.80+.
+// looprag ONLY attaches `scale` when `?collection_id=` is present (backward-compat).
 func TestRagDataClient_Analytics_ForwardsCollectionID_DecodesScale(t *testing.T) {
 	var gotCollectionID string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +219,7 @@ func TestRagDataClient_Analytics_ForwardsCollectionID_DecodesScale(t *testing.T)
 		t.Fatalf("Analytics: %v", err)
 	}
 	if gotCollectionID != "col_docs" {
-		t.Fatalf("theo-rag must receive ?collection_id=col_docs, got %q", gotCollectionID)
+		t.Fatalf("looprag must receive ?collection_id=col_docs, got %q", gotCollectionID)
 	}
 	if res.Scale == nil {
 		t.Fatal("Scale MUST be decoded when upstream returns it")
@@ -273,7 +273,7 @@ func TestRagDataClient_Non2xx_IsError(t *testing.T) {
 	}
 }
 
-// M11 T1.1 — the file-upload surface streams a multipart body to theo-rag's
+// M11 T1.1 — the file-upload surface streams a multipart body to looprag's
 // POST /v1/documents with the per-tenant Bearer, the `file` part (filename +
 // bytes), and the `collection_id` / `mode` form fields. RED before GREEN.
 func TestRagDataClient_UploadDocumentFile_StreamsMultipart(t *testing.T) {

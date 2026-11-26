@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 
 /**
  * M98 (D-H2) — the sanitized markdown wrapper, extracted from `io-cards` into its own module so a

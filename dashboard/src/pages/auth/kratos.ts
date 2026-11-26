@@ -2,8 +2,8 @@
 // All flows go through the public Kratos API (accounts.{domain}).
 // No internal terms (Kratos, Ory) are exposed to users.
 
-// Prefer dedicated ACCOUNTS_URL (Kratos may live at accounts.theo.dev in prod
-// while API lives at api.theo.dev). Falls back to API_URL for same-origin dev.
+// Prefer dedicated ACCOUNTS_URL (Kratos may live at accounts.loopscale.dev in prod
+// while API lives at api.loopscale.dev). Falls back to API_URL for same-origin dev.
 import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/http/config';
 export const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;
 
@@ -182,7 +182,7 @@ export function enrichKratosError(rawMessage: string, context: KratosErrorContex
     return "Choose a password that doesn't contain your email or username.";
   }
 
-  // Red Team theo-cloud#75 closure: the duplicate-account error from
+  // Red Team loop-console#75 closure: the duplicate-account error from
   // Kratos is "An account with the same identifier (email, phone,
   // username, ...) exists already." — but the /register form only
   // collects Name + Email + Password. Override the message with copy

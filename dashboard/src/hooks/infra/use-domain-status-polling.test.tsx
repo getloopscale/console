@@ -50,11 +50,11 @@ describe('useDomainStatusPolling (J-11 v1.1 T2.2)', () => {
   it('test_use_domain_status_polling_initial_load_fires_engineFetch', async () => {
     mockedEngineFetch.mockResolvedValue({
       id: 'd1',
-      domain: 'theo-test.example',
+      domain: 'loopscale-test.example',
       status: 'pending_verification',
       nameservers: ['ns1.x.cloudflare.com', 'ns2.x.cloudflare.com'],
     });
-    const { result } = renderHook(() => useDomainStatusPolling('theo-test.example'), {
+    const { result } = renderHook(() => useDomainStatusPolling('loopscale-test.example'), {
       wrapper: wrapper(),
     });
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -68,11 +68,11 @@ describe('useDomainStatusPolling (J-11 v1.1 T2.2)', () => {
     // Domain in Active status → isPolling = false.
     mockedEngineFetch.mockResolvedValue({
       id: 'd1',
-      domain: 'theo-test.example',
+      domain: 'loopscale-test.example',
       status: 'active',
       nameservers: ['ns1.x.cloudflare.com'],
     });
-    const { result } = renderHook(() => useDomainStatusPolling('theo-test.example'), {
+    const { result } = renderHook(() => useDomainStatusPolling('loopscale-test.example'), {
       wrapper: wrapper(),
     });
     await waitFor(() => expect(result.current.loading).toBe(false));

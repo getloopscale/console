@@ -10,7 +10,7 @@ import { isSafeRedirectUrl, SAFE_REDIRECT_ORIGINS } from './safe-redirect';
 describe('isSafeRedirectUrl — EC-2 OWASP A01 defense', () => {
   beforeEach(() => {
     vi.stubGlobal('window', {
-      location: { origin: 'https://app-dev.usetheo.dev' },
+      location: { origin: 'https://app-dev.getloopscale.com' },
     });
   });
 
@@ -35,24 +35,24 @@ describe('isSafeRedirectUrl — EC-2 OWASP A01 defense', () => {
   });
 
   it('accepts same-origin absolute URL', () => {
-    expect(isSafeRedirectUrl('https://app-dev.usetheo.dev/billing')).toBe(true);
+    expect(isSafeRedirectUrl('https://app-dev.getloopscale.com/billing')).toBe(true);
   });
 
   it('accepts canonical auth-dev host (Kratos public)', () => {
     expect(
       isSafeRedirectUrl(
-        'https://auth-dev.usetheo.dev/self-service/login/methods/oidc/callback/github',
+        'https://auth-dev.getloopscale.com/self-service/login/methods/oidc/callback/github',
       ),
     ).toBe(true);
   });
 
   it('accepts canonical prod hosts (future-ready)', () => {
-    expect(isSafeRedirectUrl('https://app.usetheo.dev/projects')).toBe(true);
-    expect(isSafeRedirectUrl('https://auth.usetheo.dev/self-service/recovery/browser')).toBe(true);
+    expect(isSafeRedirectUrl('https://app.getloopscale.com/projects')).toBe(true);
+    expect(isSafeRedirectUrl('https://auth.getloopscale.com/self-service/recovery/browser')).toBe(true);
   });
 
   it('rejects http: against canonical hosts (https-only allowlist)', () => {
-    expect(isSafeRedirectUrl('http://app-dev.usetheo.dev/billing')).toBe(false);
+    expect(isSafeRedirectUrl('http://app-dev.getloopscale.com/billing')).toBe(false);
   });
 
   it('rejects malformed URL', () => {
@@ -61,10 +61,10 @@ describe('isSafeRedirectUrl — EC-2 OWASP A01 defense', () => {
   });
 
   it('SAFE_REDIRECT_ORIGINS exports the allowlist for grep-auditability', () => {
-    expect(SAFE_REDIRECT_ORIGINS).toContain('https://auth-dev.usetheo.dev');
-    expect(SAFE_REDIRECT_ORIGINS).toContain('https://app-dev.usetheo.dev');
-    expect(SAFE_REDIRECT_ORIGINS).toContain('https://auth.usetheo.dev');
-    expect(SAFE_REDIRECT_ORIGINS).toContain('https://app.usetheo.dev');
+    expect(SAFE_REDIRECT_ORIGINS).toContain('https://auth-dev.getloopscale.com');
+    expect(SAFE_REDIRECT_ORIGINS).toContain('https://app-dev.getloopscale.com');
+    expect(SAFE_REDIRECT_ORIGINS).toContain('https://auth.getloopscale.com');
+    expect(SAFE_REDIRECT_ORIGINS).toContain('https://app.getloopscale.com');
   });
 });
 
@@ -103,7 +103,7 @@ describe('safe-redirect — caminhos relativos e as armadilhas ao lado deles', (
 
 describe('B-214 — o invariante da lista canônica', () => {
   it('toda origem canônica é https', () => {
-    // É este invariante que faz a comparação de origens rejeitar `http://auth-dev.usetheo.dev`
+    // É este invariante que faz a comparação de origens rejeitar `http://auth-dev.getloopscale.com`
     // sem nenhuma verificação de protocolo no predicado: a origem carrega o esquema. Uma entrada
     // http na lista abriria um destino em texto claro sem que nada no guarda reclamasse — então a
     // afirmação mora aqui, junto da lista, e não espalhada em `if`s redundantes.
@@ -113,7 +113,7 @@ describe('B-214 — o invariante da lista canônica', () => {
   });
 
   it('nenhuma entrada traz caminho, query ou barra final — origem é só esquema://host:porta', () => {
-    // `url.origin` nunca inclui caminho. Uma entrada como `https://auth.usetheo.dev/` jamais
+    // `url.origin` nunca inclui caminho. Uma entrada como `https://auth.getloopscale.com/` jamais
     // casaria, e o host ficaria silenciosamente fora do allowlist.
     for (const origem of SAFE_REDIRECT_ORIGINS) {
       expect(new URL(origem).origin, `${origem} não está na forma de origem`).toBe(origem);

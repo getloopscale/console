@@ -10,7 +10,7 @@ import {
   EmptyState,
   PageShell,
   type DataTableColumn,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
@@ -204,7 +204,7 @@ export function SkillVersionsPage() {
                   : 'The skill exists in the registry, but no version has been published, so there is nothing to promote to a channel. Publishing a version of an existing skill has no CLI command yet.'
               }
               // `action`, não `children`: é o slot que o componente de fato renderiza
-              // (`@usetheo/ui` — `EmptyStateProps.action?: ReactNode`). Passar children faz o
+              // (`@getloopscale/ui` — `EmptyStateProps.action?: ReactNode`). Passar children faz o
               // conteúdo sumir sem erro algum, e foi o que aconteceu na primeira tentativa.
               //
               // M31 asked for a copyable publish command prefilled with this id. B-132/B-133
@@ -217,7 +217,7 @@ export function SkillVersionsPage() {
                 failed ? undefined : (
                   <CodeBlock
                     caption="Publish the first version of this skill"
-                    /* B-132/B-133 — `theo skills` NAO e um comando registrado (medido
+                    /* B-132/B-133 — `loopscale skills` NAO e um comando registrado (medido
                        2026-08-11). O acervo de skills so tem superficie de API e de UI hoje. */
                     code={`# publishing a skill revision has no CLI command yet`}
                     terminal

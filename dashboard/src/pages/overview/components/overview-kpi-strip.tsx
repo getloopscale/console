@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { CreditCard, FolderKanban, Layers, Rocket } from 'lucide-react';
 
 import { useOverviewKPIs, type OverviewPlanPrice } from '@/hooks/overview/use-overview-kpis';

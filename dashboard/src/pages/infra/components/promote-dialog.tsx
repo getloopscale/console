@@ -3,7 +3,7 @@ import { ArrowRight, Loader2, Rocket } from 'lucide-react';
 import {
   Button,
   Label,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePromoteEnvironment } from '@/hooks/mutations/use-environments';

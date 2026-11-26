@@ -16,7 +16,7 @@ import {
   PageShell,
   Skeleton,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -26,7 +26,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 /**
  * M21 — /rag/collections. Create, list, and delete the workspace's RAG collections
  * via the read+write dashboard BFF (`/v1/dashboard/rag/collections`). Mirrors the
- * theo-memory dashboard's list + ConfirmDialog-delete pattern.
+ * loopmem dashboard's list + ConfirmDialog-delete pattern.
  */
 
 

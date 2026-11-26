@@ -128,14 +128,14 @@ export const MENUS: Record<string, MenuDefinition> = {
         ],
       },
       {
-        // The Theo data-plane capabilities (Memory / Knowledge Base / Observability), grouped under one
+        // The LoopScale data-plane capabilities (Memory / Knowledge Base / Observability), grouped under one
         // semantic header instead of three single-item groups whose title repeated the item
         // label. Each item drills into its own submenu (memory / rag / lens).
         title: 'Capabilities',
         items: [
           { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
           { label: 'Knowledge Base', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
-          // Databases — ANUNCIADA, nao entregue. `theo-db` existe como produto
+          // Databases — ANUNCIADA, nao entregue. `loopscale-db` existe como produto
           // (extensao PostgreSQL) e nao tem superficie alguma no dashboard: nem
           // rota, nem endpoint, nem comando de CLI que a tela pudesse oferecer.
           // Por isso o placeholder NAO sugere comando — inventar um seria pior
@@ -152,7 +152,7 @@ export const MENUS: Record<string, MenuDefinition> = {
           // alcança pela navegação: o serviço registrava violações que só apareciam por `curl`.
           { label: 'Trust', path: '/trust', icon: ShieldCheck, drillsInto: 'trust' },
           // M26 — PEÇA 1 de 3. A capacidade skills. Até aqui o único item chamado "Skills" no
-          // menu inteiro era o de `/memory/skills`, que é do theo-memory: quem procurava o
+          // menu inteiro era o de `/memory/skills`, que é do loopmem: quem procurava o
           // registro chegava no produto errado, sem erro algum. As outras duas peças são o
           // objeto `skills:` abaixo e a linha em `resolveActiveMenu` — as três, ou nenhuma.
           { label: 'Skills', path: '/skills', icon: Boxes, drillsInto: 'skills' },
@@ -376,7 +376,7 @@ export const MENUS: Record<string, MenuDefinition> = {
           // Plan 2 — Memory Insights. Plan 3 will add Exports + Webhooks
           // here without reflowing the root sidebar.
           { label: 'Entities', path: '/memory/entities', icon: Users },
-          // themory-graph-gateway-dashboard — entity relation graph view.
+          // loopmem-graph-gateway-dashboard — entity relation graph view.
           { label: 'Graph', path: '/memory/graph', icon: Share2 },
           // dashboard-phase2b-skills-browse — read-only Repo-tier skill library.
           { label: 'Skills', path: '/memory/skills', icon: Boxes },
@@ -453,7 +453,7 @@ export function resolveActiveMenu(pathname: string): ResolvedMenu {
   // M35 — `/bundles` pertence à capacidade Skills, embora o caminho não comece com `/skills`.
   // Sem esta linha o submenu não abre ao navegar para a distribuição, e a tela fica alcançável
   // apenas digitando a URL — que é exatamente o caminho que o usuário real não tem. Foi o defeito
-  // que o theo-trust levou três rodadas de validação para descobrir.
+  // que o loopguardrails levou três rodadas de validação para descobrir.
   if (pathname.startsWith('/bundles')) return { id: 'skills' };
   if (pathname.startsWith('/skills')) return { id: 'skills' };
   // M25 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu

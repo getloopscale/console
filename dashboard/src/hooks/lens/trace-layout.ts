@@ -242,8 +242,8 @@ export function spanCostUsd(node: TraceSpanNode): number {
 
 /**
  * A single span's OWN cost for per-span DISPLAY: `undefined` when the span has no individually-computed
- * cost (absent / non-numeric / ≤ 0), else the positive value. Mirror of `@usetheo/ui`'s `spanOwnCostUsd`
- * (M52 / theo-lens#71 Finding 3). Distinct from `spanCostUsd` (which collapses to 0 for honest `∑`
+ * cost (absent / non-numeric / ≤ 0), else the positive value. Mirror of `@getloopscale/ui`'s `spanOwnCostUsd`
+ * (M52 / looptrace#71 Finding 3). Distinct from `spanCostUsd` (which collapses to 0 for honest `∑`
  * badges): a per-span cost "exists or doesn't", so the absent case renders `—` (em-dash) instead of a
  * fabricated `$0.0000`. Cost is a trace-level aggregate — most spans have no cost of their own.
  */
@@ -262,7 +262,7 @@ export function spanOwnCostUsd(node: TraceSpanNode): number | undefined {
 }
 
 /**
- * theo-cloud#186 / M89 — the ONE predicate for "this span recorded a token count".
+ * loop-console#186 / M89 — the ONE predicate for "this span recorded a token count".
  *
  * Only BOTH halves absent means never-measured; one half recorded is a real (partial) measurement, and
  * a recorded 0 is a fact. It lives here, next to the span type, because three surfaces need the exact

@@ -1,13 +1,15 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const require_ = createRequire(import.meta.url);
 
 /**
  * Guardas de sunset para divida de UPSTREAM.
  *
- * Duas decisoes deste repositorio existem apenas porque um bug em `@usetheo/ui`
+ * Duas decisoes deste repositorio existem apenas porque um bug em `@getloopscale/ui`
  * ainda nao foi corrigido. Ambas sao corretas hoje e bem documentadas — e ambas
  * tem a mesma falha de projeto: nada avisa quando a razao delas deixa de existir.
  *
@@ -21,29 +23,31 @@ const require_ = createRequire(import.meta.url);
  */
 describe('divida de upstream — guardas de sunset', () => {
   /**
-   * B-085 — tokens CSS vendorizados em src/vendor/usetheo-ui/.
+   * B-085 — CSS tokens vendored in src/vendor/loopscale-ui/.
    *
-   * Existem porque @usetheo/ui@0.22 parou de publicar os specifiers CSS que
-   * src/index.css importava, quebrando o build de todo consumidor. A alternativa
-   * (downgrade de 8 versoes) quebraria as APIs de componente que o dashboard
-   * inteiro usa. O README do diretorio declara a condicao de saida: "quando
-   * @usetheo/ui publicar CSS exports de novo (fixes #10), delete".
+   * They were vendored when @getloopscale/ui stopped publishing its CSS files. The package
+   * publishes them again, and they now carry another palette: its `tokens.css` declares a
+   * different `--primary` from the one this dashboard ships. Importing the package's file
+   * would repaint the product, which is a design decision and not a cleanup.
+   *
+   * This guard fails on the day the two files agree. That day the vendored copy has no
+   * reason to exist: import the package's CSS in src/index.css and delete the directory.
    */
-  it('o vendor de tokens CSS ainda e necessario (senao: apague src/vendor/usetheo-ui)', () => {
-    let resolveu: boolean;
-    try {
-      require_.resolve('@usetheo/ui/preset.css');
-      resolveu = true;
-    } catch {
-      resolveu = false;
-    }
+  it('the vendored tokens still differ from the ones the package publishes', () => {
+    const primaryOf = (file: string): string[] =>
+      Array.from(readFileSync(file, 'utf-8').matchAll(/^\s*--primary:\s*([^;]+);/gm)).map((m) =>
+        m[1].replace(/\/\*.*$/, '').trim(),
+      );
+    const published = primaryOf(require_.resolve('@getloopscale/ui/tokens.css'));
+    const vendored = primaryOf(resolve(__dirname, '../vendor/loopscale-ui/tokens.css'));
 
+    expect(published.length).toBeGreaterThan(0);
+    expect(vendored.length).toBeGreaterThan(0);
     expect(
-      resolveu,
-      'ATENCAO: `@usetheo/ui/preset.css` voltou a resolver — upstream #10 foi corrigido.\n' +
-        'A razao de src/vendor/usetheo-ui/ existir acabou. Acao: importar os CSS do pacote\n' +
-        'em src/index.css, apagar src/vendor/usetheo-ui/ e este teste, e fechar B-085.',
-    ).toBe(false);
+      published,
+      'The package publishes the same `--primary` values as the vendored copy. Import its CSS in ' +
+        'src/index.css, delete src/vendor/loopscale-ui/ and this test.',
+    ).not.toEqual(vendored);
   });
 
   /**

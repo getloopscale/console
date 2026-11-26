@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -15,8 +15,8 @@ import (
 //
 // Bug shape pinned by this test (taken from the canonical drift the
 // /loop-code-review found 2026-06-11): a future refactor "simplifying"
-// the constructor by inlining a hardcoded `https://app-dev.usetheo.dev`
-// (or, worse, the pre-T2.1 mistyped `https://app.dev.usetheo.dev`)
+// the constructor by inlining a hardcoded `https://app-dev.getloopscale.com`
+// (or, worse, the pre-T2.1 mistyped `https://app.dev.getloopscale.com`)
 // would break self-hosted / GHES / alt-cell operators silently.
 //
 // Per ADR D5 EC-13: each pillar-(b) test pairs a POSITIVE assertion
@@ -45,18 +45,18 @@ func TestNewDeviceHandler_ReadsConfigSource_DashboardURL(t *testing.T) {
 	}
 
 	// Anti-assertion (ADR D5 EC-13): the pre-T2.1 misshaped literal
-	// `app.dev.usetheo.dev` (dot instead of hyphen — NOT a real DNS
+	// `app.dev.getloopscale.com` (dot instead of hyphen — NOT a real DNS
 	// name) MUST NOT appear when the operator injected a custom URL.
 	// A future bug that re-introduces a hardcoded fallback would
 	// regress THIS specific shape; the assertion catches it.
-	if strings.Contains(h.dashboardURL, "app.dev.usetheo.dev") {
+	if strings.Contains(h.dashboardURL, "app.dev.getloopscale.com") {
 		t.Errorf("dashboardURL regressed to the pre-T2.1 hardcoded literal: %q",
 			h.dashboardURL)
 	}
 	// Defense-in-depth: also reject the canonical default fallback.
 	// When the operator injected a custom URL, the canonical default
 	// MUST NOT leak through.
-	if strings.Contains(h.dashboardURL, "app-dev.usetheo.dev") {
+	if strings.Contains(h.dashboardURL, "app-dev.getloopscale.com") {
 		t.Errorf("dashboardURL regressed to the canonical default despite custom injection: %q",
 			h.dashboardURL)
 	}
@@ -64,10 +64,10 @@ func TestNewDeviceHandler_ReadsConfigSource_DashboardURL(t *testing.T) {
 
 // TestNewDeviceHandler_AcceptsCanonicalDefaultDashboardURL — companion
 // positive case. When the operator deliberately injects the canonical
-// `https://app-dev.usetheo.dev`, the test asserts the value is stored
+// `https://app-dev.getloopscale.com`, the test asserts the value is stored
 // verbatim AND the anti-assertion (no DOT pattern) holds.
 func TestNewDeviceHandler_AcceptsCanonicalDefaultDashboardURL(t *testing.T) {
-	const canonical = "https://app-dev.usetheo.dev"
+	const canonical = "https://app-dev.getloopscale.com"
 	h := NewDeviceHandler(nil, canonical)
 
 	if h.dashboardURL != canonical {
@@ -76,7 +76,7 @@ func TestNewDeviceHandler_AcceptsCanonicalDefaultDashboardURL(t *testing.T) {
 	}
 	// Anti-assertion: the dot-instead-of-hyphen pre-T2.1 literal MUST
 	// NOT appear even when the canonical hyphen-form is the input.
-	if strings.Contains(h.dashboardURL, "app.dev.usetheo.dev") {
+	if strings.Contains(h.dashboardURL, "app.dev.getloopscale.com") {
 		t.Errorf("canonical dashboardURL contains pre-T2.1 wrong pattern: %q",
 			h.dashboardURL)
 	}

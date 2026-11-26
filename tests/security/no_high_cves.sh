@@ -10,7 +10,7 @@
 # published image does not predict the gate's verdict.
 set -euo pipefail
 
-IMG="${1:-theo-cloud:cve-check}"
+IMG="${1:-loop-console:cve-check}"
 DOCKERFILE="${2:-Dockerfile}"
 
 command -v trivy >/dev/null || { echo "FAIL: trivy not installed — a scan that did not run is never clean"; exit 2; }

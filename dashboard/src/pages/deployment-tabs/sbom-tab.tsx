@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, FileText, Loader2 } from 'lucide-react';
-import { Badge, Button, Card, EmptyState } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState } from '@getloopscale/ui';
 import { fetchBuildSBOMFile, useBuildSBOM } from '@/hooks/deploy/use-build-artifacts';
 import { triggerBlobDownload } from '@/lib/export/download';
 import { formatDate } from '@/lib/formatting/format';

@@ -12,7 +12,7 @@ citação nova usa esta.
 |---|---|
 | `ADR-0001` | Eixo de organização e regra de residência |
 | `ADR-0002` | Orçamento de LoC por arquivo |
-| `ADR-0003` | Split `@usetheo/ui` e `@theokit/ui` |
+| `ADR-0003` | Split `@getloopscale/ui` e `@getloopscale/loopzero-ui` |
 | `ADR-0004` | Service worker: requisito ou remoção |
 | `ADR-0005` | Política de memoização com React Compiler |
 | `ADR-0006` | Camada de acesso a dados e factory de query-key |
@@ -42,7 +42,7 @@ Isso tem duas consequências que vale escrever:
    `ADR-0002`, que é sobre orçamento de LoC.
 2. **Os planos citados não estão mais no disco.** Verificado em 2026-08-07:
    `2026-06-08-dashboard-screens-review-fixes`, `2026-05-27-backend-frontend-integration`,
-   `2026-06-11-code-review-remediation` e `theo-memory-dashboard-full-integration`
+   `2026-06-11-code-review-remediation` e `loopmem-dashboard-full-integration`
    não existem em `.claude/knowledge-base/plans/`. Mesmo as 33 citações que
    nomeiam o plano não levam a lugar nenhum.
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -15,7 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/usetheoai/theo-cloud/internal/account"
+	"github.com/getloopscale/loop-console/internal/account"
 )
 
 // TenantProvisioner automatically creates a tenant for new users on first signup.

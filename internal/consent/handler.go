@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package consent implements the login/consent handlers that Ory Hydra
 // calls during OAuth2 authorization flows.
@@ -22,12 +22,12 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // expiredLinkHTML is the canonical error page rendered when the Hydra
 // login/consent challenge has expired, was already consumed, or is otherwise
-// unknown. Red Team theo-cloud#117 closure — replaces the previous silent
+// unknown. Red Team loop-console#117 closure — replaces the previous silent
 // empty-redirect (browser → /auth/login/ → 404 "Page not found") with an
 // honest message that tells the operator exactly what to do next.
 //
@@ -40,7 +40,7 @@ const expiredLinkHTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Login link expired — Theo</title>
+<title>Login link expired — LoopScale</title>
 <style>
   body { margin: 0; min-height: 100vh; background: #09090b; color: #fafafa;
          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -74,12 +74,12 @@ func renderExpiredLink(w http.ResponseWriter) {
 }
 
 // defaultAccessTokenAudience is granted when the client asked for no audience
-// and named no allowlisted resource: tokens that work against both theo-cloud
+// and named no allowlisted resource: tokens that work against both loop-console
 // and the engine, as every CLI token has so far.
-var defaultAccessTokenAudience = []string{"theo-cloud", "theo-engine"}
+var defaultAccessTokenAudience = []string{"loop-console", "loop-runtime-engine"}
 
 // Policy decides who consent auto-approves and which audiences it may grant
-// (usetheoai/theo#477, docs/decisions.md § Identity in the theo repository).
+// (getloopscale/loopscale#477, docs/decisions.md § Identity in the loopscale repository).
 type Policy struct {
 	// FirstPartyClients are the OAuth2 client ids whose consent is auto-approved.
 	// Every other client is refused. Empty refuses everything (fail closed).
@@ -212,7 +212,7 @@ func (h *Handler) LoginComplete(w http.ResponseWriter, r *http.Request) {
 	redirectTo, err := h.hydra.AcceptLogin(challenge, subject)
 	if err != nil {
 		if errors.Is(err, auth.ErrChallengeNotFound) {
-			// Red Team theo-cloud#117 closure: this is the canonical
+			// Red Team loop-console#117 closure: this is the canonical
 			// hit-path that surfaced the original "Page not found" bug.
 			// User finished Kratos sign-in, came back here, and Hydra
 			// had already expired/consumed the challenge → silent empty
@@ -277,7 +277,7 @@ func (h *Handler) getKratosSessionSubject(r *http.Request) (string, error) {
 // cancellation so the identity lookup and tenant provisioning are tied to the
 // consent request (MEDIUM-003).
 //
-// usetheoai/theo#477: any failure to resolve the tenant is returned wrapped in
+// getloopscale/loopscale#477: any failure to resolve the tenant is returned wrapped in
 // errNoTenant. It used to be non-fatal (MEET-2026-04-07-039 B5), issuing a
 // token without tenant_id that every API then refused.
 func (h *Handler) fetchIdentityClaims(ctx context.Context, subject string) (map[string]interface{}, error) {

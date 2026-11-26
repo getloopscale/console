@@ -19,7 +19,7 @@ type Collectable interface {
 
 // Refresh mantem o estado da frota atualizado SEM depender de requisicao.
 //
-// O PROBLEMA QUE ELE RESOLVE (theo-workspace#37). `Collect` so era disparado pelo
+// O PROBLEMA QUE ELE RESOLVE (loopscale-workspace#37). `Collect` so era disparado pelo
 // handler de `/v1/dashboard/status/versions`, que exige Bearer. Consequencia: a
 // metrica de frota — servida sem auth em `/metrics`, justamente para ser lida por
 // programa — so passava a refletir a realidade depois que um HUMANO AUTENTICADO

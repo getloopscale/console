@@ -9,7 +9,7 @@ import (
 
 // As coordenadas de imagem do e2e apontam para repositorios que EXISTEM.
 //
-// Em 2026-07-28 a imagem foi renomeada de `themory` para `theo-memory`. O
+// Em 2026-07-28 a imagem foi renomeada de `loopmem` para `loopmem`. O
 // `.github/e2e-images.env` continuou fixando um digest do repositorio ANTIGO, e
 // `e2e` + `e2e-edge` passaram a falhar com `manifest unknown` — rastreado como
 // #260, e por dias tratado como "CI vermelho pre-existente" em vez de como o
@@ -21,11 +21,11 @@ import (
 func TestE2EImages_naoReferenciamORepositorioRenomeado(t *testing.T) {
 	root := repoRoot(t)
 
-	// `themory` foi renomeado; qualquer ocorrencia como NOME DE REPOSITORIO e
+	// `loopmem` foi renomeado; qualquer ocorrencia como NOME DE REPOSITORIO e
 	// coordenada morta. O prefixo `ghcr.io/<org>/` e o que distingue de nomes de
 	// servico e de variavel de ambiente, que continuam legitimos.
-	dead := "/themory@"
-	deadTag := "/themory:"
+	dead := "/loopmem@"
+	deadTag := "/loopmem:"
 
 	for _, rel := range []string{
 		".github/e2e-images.env",
@@ -44,7 +44,7 @@ func TestE2EImages_naoReferenciamORepositorioRenomeado(t *testing.T) {
 				}
 				if strings.Contains(line, needle) {
 					t.Errorf("%s: coordenada morta %q\n  linha: %s\n"+
-						"  o repositorio foi renomeado para `theo-memory`; o antigo nao resolve",
+						"  o repositorio foi renomeado para `loopmem`; o antigo nao resolve",
 						rel, needle, strings.TrimSpace(line))
 				}
 			}

@@ -1,4 +1,4 @@
-// themory-graph-gateway-dashboard T2.1 acceptance + graph-viz-lib upgrade.
+// loopmem-graph-gateway-dashboard T2.1 acceptance + graph-viz-lib upgrade.
 // The view now renders react-force-graph-2d (canvas) instead of inline SVG, so
 // node/edge assertions move to (a) a pure unit test of `toGraphData` and (b) a
 // mocked ForceGraph2D that records the graphData it receives. The scope-tabs,
@@ -232,7 +232,7 @@ describe('GraphPage (/memory/graph)', () => {
     // which issues its OWN cloudFetch — so the single queued "Once" was consumed by whichever query
     // fired first, and the graph query got `undefined`. React Query rejects a queryFn that does not
     // return a promise, so the page rendered the error Alert and this test had been RED in develop.
-    // It went unnoticed because no workflow runs the dashboard suite at all (see theo-cloud#276).
+    // It went unnoticed because no workflow runs the dashboard suite at all (see loop-console#276).
     mockCloudFetch.mockImplementation((url: string) =>
       Promise.resolve(url.includes('/sessions') ? { sessions: [] } : { nodes: [], edges: [] }),
     );
@@ -278,7 +278,7 @@ describe('GraphPage (/memory/graph)', () => {
 });
 
 /**
- * theo-cloud#254 — the Graph tab was an illegible hairball in its DEFAULT state: 4423 nodes and
+ * loop-console#254 — the Graph tab was an illegible hairball in its DEFAULT state: 4423 nodes and
  * 2954 relations, 1266 of them (29%) unconnected, every connected node labelled unconditionally.
  *
  * Both mitigations already EXISTED as buttons; neither was on. The complaint is not that the screen

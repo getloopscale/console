@@ -14,7 +14,7 @@ import {
   Select,
   Skeleton,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
@@ -78,7 +78,7 @@ function connectErrorMessage(reason: string): string {
   return CONNECT_ERROR_MESSAGES[reason] ?? 'The connection didn’t complete. Please try again.';
 }
 
-// M12 — paste-credential (non-OAuth) providers + their fields, mirroring theo-rag's
+// M12 — paste-credential (non-OAuth) providers + their fields, mirroring looprag's
 // per-provider connect contract. `secret: true` masks the input; `optional: true` fields
 // may be blank. Adding a provider here is the only change needed to expose it.
 interface CredField {
@@ -155,7 +155,7 @@ export function RagConnectorsPage() {
   const remove = useDisconnectConnection();
 
   // M12 — connect a paste-credential (non-OAuth) source. The BFF proxies the body opaquely to
-  // theo-rag's POST /v1/connectors/{provider}/connect (credential encrypted at rest; never logged).
+  // looprag's POST /v1/connectors/{provider}/connect (credential encrypted at rest; never logged).
   const connectCredential = useConnectCredential();
   const submitCredential = () => {
     const body: Record<string, string> = { collection_id: collectionID };

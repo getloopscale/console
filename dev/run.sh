@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
 # Bring up the DEV stack for end-user validation (real apps, real LLM).
 # See dev/README.md. Invoked by `make dev-up`.
@@ -11,20 +11,20 @@ ROOT="$(cd "${DEV_DIR}/.." && pwd)"
 COMPOSE_FILE="${ROOT}/docker-compose.dev.yaml"
 BIN_DIR="${DEV_DIR}/bin"
 
-THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../theo-memory}"
-export THEMORY_MASTER_KEY="${THEMORY_MASTER_KEY:-dev-master-key}"
+LOOPMEM_DIR="${LOOPMEM_DIR:-${ROOT}/../loopmem}"
+export LOOPMEM_MASTER_KEY="${LOOPMEM_MASTER_KEY:-dev-master-key}"
 export DEV_ORIGIN_PORT="${DEV_ORIGIN_PORT:-8088}"
 
 log()  { printf '\033[1;36m[dev]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[dev] FAIL:\033[0m %s\n' "$*" >&2; }
 
-compose() { docker compose -p theo-cloud-dev -f "${COMPOSE_FILE}" "$@"; }
+compose() { docker compose -p loop-console-dev -f "${COMPOSE_FILE}" "$@"; }
 
 command -v docker >/dev/null || { fail "docker not found"; exit 1; }
 command -v go >/dev/null || { fail "go not found"; exit 1; }
 
 # --- LLM backend: hermetic mock by default; real provider when exported -------
-# NOTE: theo-memory/.env's OPENAI_API_KEY returns 401 (expired), so we do NOT
+# NOTE: loopmem/.env's OPENAI_API_KEY returns 401 (expired), so we do NOT
 # auto-load it. For REAL semantic recall, export a valid key before running:
 #   export OPENAI_API_KEY=sk-...                 # OpenAI
 #   # or OpenRouter:
@@ -36,31 +36,31 @@ else
   log "using hermetic mock LLM (deterministic; export OPENAI_API_KEY for real recall)."
 fi
 
-# --- themory image -----------------------------------------------------------
-# Default: REBUILD from the sibling theo-memory repo each run so the dev stack
-# always reflects theo-memory's current code (e.g. the entity /graph surface).
+# --- loopmem image -----------------------------------------------------------
+# Default: REBUILD from the sibling loopmem repo each run so the dev stack
+# always reflects loopmem's current code (e.g. the entity /graph surface).
 # Docker layer cache makes a no-change rebuild fast. Escapes:
-#   THEMORY_IMAGE=<tag>    use a specific prebuilt image (skip build entirely)
-#   THEMORY_SKIP_BUILD=1   reuse an existing themory-e2e:latest (no rebuild)
-if [[ -z "${THEMORY_IMAGE:-}" ]]; then
-  if [[ "${THEMORY_SKIP_BUILD:-}" == "1" ]] && docker image inspect themory-e2e:latest >/dev/null 2>&1; then
-    log "themory: reusing existing themory-e2e:latest (THEMORY_SKIP_BUILD=1)"
-  elif [[ -d "${THEMORY_DIR}" ]]; then
-    log "themory: rebuilding from ${THEMORY_DIR} (cached layers — fast when unchanged)…"
-    docker build -t themory-e2e:latest -f "${THEMORY_DIR}/Dockerfile" "${THEMORY_DIR}"
-  elif docker image inspect themory-e2e:latest >/dev/null 2>&1; then
-    log "themory: ${THEMORY_DIR} not found — reusing existing themory-e2e:latest"
+#   LOOPMEM_IMAGE=<tag>    use a specific prebuilt image (skip build entirely)
+#   LOOPMEM_SKIP_BUILD=1   reuse an existing loopmem-e2e:latest (no rebuild)
+if [[ -z "${LOOPMEM_IMAGE:-}" ]]; then
+  if [[ "${LOOPMEM_SKIP_BUILD:-}" == "1" ]] && docker image inspect loopmem-e2e:latest >/dev/null 2>&1; then
+    log "loopmem: reusing existing loopmem-e2e:latest (LOOPMEM_SKIP_BUILD=1)"
+  elif [[ -d "${LOOPMEM_DIR}" ]]; then
+    log "loopmem: rebuilding from ${LOOPMEM_DIR} (cached layers — fast when unchanged)…"
+    docker build -t loopmem-e2e:latest -f "${LOOPMEM_DIR}/Dockerfile" "${LOOPMEM_DIR}"
+  elif docker image inspect loopmem-e2e:latest >/dev/null 2>&1; then
+    log "loopmem: ${LOOPMEM_DIR} not found — reusing existing loopmem-e2e:latest"
   else
-    fail "themory image missing AND ${THEMORY_DIR} not found — set THEMORY_DIR or THEMORY_IMAGE"
+    fail "loopmem image missing AND ${LOOPMEM_DIR} not found — set LOOPMEM_DIR or LOOPMEM_IMAGE"
   fi
-  export THEMORY_IMAGE="themory-e2e:latest"
+  export LOOPMEM_IMAGE="loopmem-e2e:latest"
 fi
-log "themory image: ${THEMORY_IMAGE}"
+log "loopmem image: ${LOOPMEM_IMAGE}"
 
 # --- build the gateway binary (static; copied into the runtime image) --------
-log "building host binaries (theo-cloud gateway + mock-openai)…"
+log "building host binaries (loop-console gateway + mock-openai)…"
 mkdir -p "${BIN_DIR}"
-( cd "${ROOT}" && CGO_ENABLED=0 GOOS=linux go build -o "${BIN_DIR}/theo-cloud" ./cmd )
+( cd "${ROOT}" && CGO_ENABLED=0 GOOS=linux go build -o "${BIN_DIR}/loop-console" ./cmd )
 ( cd "${ROOT}" && CGO_ENABLED=0 GOOS=linux go build -o "${BIN_DIR}/mock-openai" ./tests/e2e/mock-openai )
 
 # --- boot backend --------------------------------------------------------------------
@@ -68,7 +68,7 @@ log "booting dev stack (waiting for health)…"
 if ! compose up -d --build --wait --wait-timeout 240; then
   fail "stack failed to become healthy — recent logs:"
   compose ps || true
-  compose logs --tail=60 themory theo-cloud kratos themory-mcp 2>/dev/null || true
+  compose logs --tail=60 loopmem loop-console kratos loopmem-mcp 2>/dev/null || true
   exit 1
 fi
 
@@ -77,21 +77,21 @@ log "backend stack healthy."
 # --- Model B platform-admin provisioning (platform-api-gateway M6) ------------
 # The credential broker (per-tenant data keys + the ForwardAuth edge) needs a
 # real `memory:platform-admin` theo_live_* key to mint with. Auto-provision it
-# from themory's bootstrap token so `make dev-up` (and the edge e2e) work out of
+# from loopmem's bootstrap token so `make dev-up` (and the edge e2e) work out of
 # the box — closing the gap the dev/README § Model B documented. Skipped if the
-# operator already exported THEMORY_PLATFORM_ADMIN_KEY.
-if [ -z "${THEMORY_PLATFORM_ADMIN_KEY:-}" ]; then
-  BOOTSTRAP="${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-dev-bootstrap-token-change-me-min-32-chars}"
-  THEMORY_HOST_PORT="${DEV_THEMORY_PORT:-18081}"
-  log "provisioning Model B platform-admin key via the themory bootstrap token…"
-  PA_KEY="$(curl -s -m 10 -X POST "http://localhost:${THEMORY_HOST_PORT}/v1/admin/keys" \
+# operator already exported LOOPMEM_PLATFORM_ADMIN_KEY.
+if [ -z "${LOOPMEM_PLATFORM_ADMIN_KEY:-}" ]; then
+  BOOTSTRAP="${LOOPMEM_ADMIN_BOOTSTRAP_TOKEN:-dev-bootstrap-token-change-me-min-32-chars}"
+  LOOPMEM_HOST_PORT="${DEV_LOOPMEM_PORT:-18081}"
+  log "provisioning Model B platform-admin key via the loopmem bootstrap token…"
+  PA_KEY="$(curl -s -m 10 -X POST "http://localhost:${LOOPMEM_HOST_PORT}/v1/admin/keys" \
     -H "Authorization: Bearer ${BOOTSTRAP}" -H "Content-Type: application/json" \
-    -d '{"name":"theo-cloud-platform-admin","scopes":["memory:platform-admin"]}' \
+    -d '{"name":"loop-console-platform-admin","scopes":["memory:platform-admin"]}' \
     2>/dev/null | grep -oE '"secret":"theo_live_[^"]+"' | sed 's/^"secret":"//; s/"$//')"
   if [ -n "${PA_KEY}" ]; then
-    export THEMORY_PLATFORM_ADMIN_KEY="${PA_KEY}"
+    export LOOPMEM_PLATFORM_ADMIN_KEY="${PA_KEY}"
     log "minted platform-admin key; recreating the gateway with it…"
-    compose up -d --no-deps theo-cloud
+    compose up -d --no-deps loop-console
     for _ in $(seq 1 20); do
       curl -fsS -o /dev/null "http://localhost:${DEV_GATEWAY_PORT:-13002}/health" 2>/dev/null && break
       sleep 2
@@ -126,11 +126,11 @@ ORIGIN="http://localhost:5173"
 log "dev stack is UP."
 cat <<EOF
 
-  ┌─ theo-cloud dev stack ──────────────────────────────────────────────┐
+  ┌─ loop-console dev stack ──────────────────────────────────────────────┐
   App (open this)         ${ORIGIN}        ← register a user on first run
   Login                   ${ORIGIN}/login
   Gateway API (direct)    http://localhost:${DEV_GATEWAY_PORT:-13002}
-  TheMemory REST (direct) http://localhost:${DEV_THEMORY_PORT:-18081}/v1/health
+  TheMemory REST (direct) http://localhost:${DEV_LOOPMEM_PORT:-18081}/v1/health
   Kratos (direct)         http://localhost:${DEV_KRATOS_PUBLIC_PORT:-14433}
   MCP (OpenMemory SSE)    http://localhost:${DEV_MCP_PORT:-8765}/{client}/sse/{user}
   Stop:  make dev-down     Logs: make dev-logs  (vite log: dev/.vite.log)

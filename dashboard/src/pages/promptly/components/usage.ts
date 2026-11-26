@@ -17,7 +17,7 @@
  * DoD-3 deste milestone existe por causa disso.
  */
 
-/** Uma linha do agregado do `theo-lens`, como ele a devolve. */
+/** Uma linha do agregado do `looptrace`, como ele a devolve. */
 interface AggregateRow {
   readonly revision: number;
   readonly resolutions: number;
@@ -51,7 +51,7 @@ const NO_PRICE = 'the provider reported no cost for this model';
 /**
  * Nenhuma chamada de modelo compartilhou o trace da resolução — o limite declarado no ADR-1.
  *
- * MEDIDO NA ACEITAÇÃO, não previsto no plano: o `theo-lens` escreve `traces.cost_usd = 0`
+ * MEDIDO NA ACEITAÇÃO, não previsto no plano: o `looptrace` escreve `traces.cost_usd = 0`
  * (não `null`) para um trace sem span de LLM. A soma devolvia `0`, e a tela renderizava
  * "US$ 0.0000" — afirmando um custo MEDIDO onde não houve medição. O operador lê "barato";
  * a verdade é "não correlacionei". É o mesmo defeito contra o qual a contagem já se protegia,

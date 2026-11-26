@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { traceTreeQueryKey, fetchTrace } from '@/hooks/lens/use-trace';
 import { Link } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
-import { IOCards } from '@usetheo/ui';
+import { IOCards } from '@getloopscale/ui';
 
 import { shortId } from '@/lib/formatting/format';
 import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
@@ -14,7 +14,7 @@ import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } f
  * bubble on the left → an AI (output) bubble offset to the right, mirroring Arize AX's "Session
  * Conversation". Full I/O is fetched lazily per trace via the SAME `GET /v1/dashboard/lens/traces/{id}`
  * tree read the trace-detail uses (shared React-Query cache), ordered by the pure `toConversationTurns`
- * mapper, and rendered with `@usetheo/ui` `IOCards` (chat→role cards / JSON→JsonViewer / text→message).
+ * mapper, and rendered with `@getloopscale/ui` `IOCards` (chat→role cards / JSON→JsonViewer / text→message).
  *
  * The conversation flows in normal document order inside the app shell's single scroll container
  * (see DashboardLayout — <main> is the scroller), so the mouse wheel scrolls it like every other page.
@@ -41,8 +41,8 @@ export const CONVERSATION_TURN_CAP = 50;
  *
  * O DoD do item pedia um read em lote no BFF (`?ids=a,b,c`). Fica registrado
  * como adiado, e a razao e medida, nao preferencia: `internal/routes/
- * lens_dashboard.go:370` proxia `GetTrace(ctx, id)` um a um para o theo-lens, e
- * o theo-lens nao expoe leitura em lote. Um `?ids=` no BFF trocaria 50 requests
+ * lens_dashboard.go:370` proxia `GetTrace(ctx, id)` um a um para o looptrace, e
+ * o looptrace nao expoe leitura em lote. Um `?ids=` no BFF trocaria 50 requests
  * do browser por 1 — ganho real em conexoes e em resolucao de tenant — mas
  * manteria os 50 upstream e continuaria BAIXANDO as 50 arvores, inclusive as que
  * ninguem le. Corrige a contagem, nao o volume.

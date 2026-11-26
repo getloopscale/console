@@ -1,6 +1,6 @@
 import { ErrorBoundary } from 'react-error-boundary';
 import { AlertTriangle } from 'lucide-react';
-import { Button, Card } from '@usetheo/ui';
+import { Button, Card } from '@getloopscale/ui';
 import type { ReactNode } from 'react';
 import { reportError } from '@/lib/telemetry/error-reporter';
 

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package safehttp provides an egress-guarded *http.Client for outbound
 // requests to customer-controlled URLs (webhook delivery).
 //
-// The guard defends against SSRF (theo-cloud#148): a customer registers a
+// The guard defends against SSRF (loop-console#148): a customer registers a
 // webhook whose URL — directly or via DNS rebinding / HTTP redirect — targets
 // an internal address (cloud metadata 169.254.169.254, RFC1918, loopback, …).
 // Without a guard the delivery worker would issue that request from inside the
@@ -38,7 +38,7 @@ import (
 var ErrDestinationNotAllowed = errors.New("safehttp: destination IP not allowed")
 
 // Special-use CIDRs that Go's net.IP.IsPrivate() does NOT cover but which must
-// never be a webhook target (theo-cloud#156). CGNAT is the important one: AWS
+// never be a webhook target (loop-console#156). CGNAT is the important one: AWS
 // EKS assigns pod IPs from 100.64.0.0/16, so without this a customer URL could
 // reach an internal pod. NAT64's well-known prefix embeds an internal IPv4 that
 // a DNS64/NAT64 gateway translates (e.g. to 169.254.169.254 / IMDS) — deny the
@@ -75,7 +75,7 @@ func containsAny(nets []*net.IPNet, ip net.IP) bool {
 // 169.254.169.254 cloud-metadata endpoint and fe80::/10), private (RFC1918 +
 // fc00::/7 ULA via net.IP.IsPrivate), unspecified (0.0.0.0 / ::), all multicast,
 // plus the special-use ranges Go's stdlib omits (CGNAT 100.64/10, NAT64
-// 64:ff9b::/96, and the RFC2544/protocol/Class-E ranges — theo-cloud#156).
+// 64:ff9b::/96, and the RFC2544/protocol/Class-E ranges — loop-console#156).
 func IsDisallowedIP(ip net.IP) bool {
 	if ip == nil {
 		return true
@@ -108,7 +108,7 @@ func DisallowedReason(ip net.IP) string {
 	case ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast():
 		return "link_local" // includes 169.254.169.254 cloud metadata
 	case cidrCGNAT.Contains(ip):
-		return "cgnat" // RFC6598 — AWS EKS pod CIDR (theo-cloud#156)
+		return "cgnat" // RFC6598 — AWS EKS pod CIDR (loop-console#156)
 	case cidrNAT64.Contains(ip):
 		return "nat64" // RFC6052 well-known prefix (embeds internal v4)
 	case containsAny(specialCIDRs, ip):

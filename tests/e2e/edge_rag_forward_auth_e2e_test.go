@@ -1,17 +1,17 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M18 (KEYSTONE) — the non-negotiable proof of invariant #6 for the RAG capability:
 // cross-tenant isolation + the per-verb scope wall + fail-closed hold END-TO-END through
-// the REAL Traefik edge + REAL ForwardAuth + a REAL theo-rag container. Mirrors the
+// the REAL Traefik edge + REAL ForwardAuth + a REAL looprag container. Mirrors the
 // memory edge e2e (edge_forward_auth_e2e_test.go, #113) but uses collections CRUD (no
 // embedding — pure isolation) so the proof needs no LLM.
 //
 // The stack is hermetic (docker-compose.edge.e2e.yaml): container upstream http://rag:8080,
 // mock-openai, consumer keys seeded in the CLOUD DB, per-tenant keys minted by the broker.
-// theo-rag runs with THEORAG_REQUIRE_CREDENTIAL=true (M13) so the direct-to-service no-key
+// looprag runs with LOOPRAG_REQUIRE_CREDENTIAL=true (M13) so the direct-to-service no-key
 // request 401s. Test names carry the TestEdgeForwardAuth prefix so `make e2e-edge`
 // (-run TestEdgeForwardAuth) picks them up.
 package e2e
@@ -29,7 +29,7 @@ import (
 )
 
 // seedRagAPIKey inserts a customer theo_live_* key in the CLOUD DB scoped for rag
-// (mirrors seedAPIKey but with rag scopes). The consumer key resolution is theo-cloud's
+// (mirrors seedAPIKey but with rag scopes). The consumer key resolution is loop-console's
 // job (capability-agnostic); only the scopes JSON differs from the memory variant.
 func seedRagAPIKey(t *testing.T, db *sql.DB, subject, tenant, scopesJSON string) string {
 	t.Helper()
@@ -39,7 +39,7 @@ func seedRagAPIKey(t *testing.T, db *sql.DB, subject, tenant, scopesJSON string)
 	keyHash := hex.EncodeToString(sum[:])
 	id := "e2e-rag-" + keyHash[:16]
 	_, err := db.Exec(`
-		INSERT INTO loopruntime_api_keys
+		INSERT INTO loop_runtime_api_keys
 			(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, bff_minted, created_at)
 		VALUES ($1,$2,$3,$4,'e2e-rag',$5,'theo_live_',$6::jsonb, NOW() + interval '1 hour', false, NOW())
 		ON CONFLICT (key_hash) DO NOTHING`,
@@ -65,7 +65,7 @@ func ragCreateCollection(t *testing.T, base, bearer, name string) int {
 }
 
 // ragCreateCollectionDirect POSTs straight at the rag service (bypassing the edge/rewrite):
-// theo-rag's native path is /v1/collections (no /rag prefix).
+// looprag's native path is /v1/collections (no /rag prefix).
 func ragCreateCollectionDirect(t *testing.T, ragURL, bearer, name string) int {
 	t.Helper()
 	body, _ := json.Marshal(map[string]string{"name": name})
@@ -156,7 +156,7 @@ func TestEdgeForwardAuthRagTenantIsolationE2E(t *testing.T) {
 }
 
 // TestEdgeForwardAuthRag_PerVerbWall — a minted rag:read-only key is 403 on a write
-// THROUGH Traefik (theo-rag's M11 requireScopeOnPrincipal('rag:write')).
+// THROUGH Traefik (looprag's M11 requireScopeOnPrincipal('rag:write')).
 func TestEdgeForwardAuthRag_PerVerbWall(t *testing.T) {
 	edgeURL := requireE2EEdge(t)
 	pgDSN := env(t, "E2E_PG_CLOUD_DSN", "")
@@ -200,7 +200,7 @@ func TestEdgeForwardAuthRag_FailClosed(t *testing.T) {
 	seedTenant(t, db, "tn-rag-fc", "rag-fc-uid")
 	bearerC := seedRagAPIKey(t, db, "rag-fc", "tn-rag-fc", `["rag:read","rag:write"]`)
 
-	// (5) No-key through the edge → DENIED at ForwardAuth (never reaches theo-rag).
+	// (5) No-key through the edge → DENIED at ForwardAuth (never reaches looprag).
 	req, _ := http.NewRequest(http.MethodPost, edgeURL+"/v1/rag/collections", nil)
 	resp := mustDo(t, req)
 	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
@@ -211,12 +211,12 @@ func TestEdgeForwardAuthRag_FailClosed(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// (6) No-key DIRECT to the rag service → 401 (theo-rag M13 THEORAG_REQUIRE_CREDENTIAL).
+	// (6) No-key DIRECT to the rag service → 401 (looprag M13 LOOPRAG_REQUIRE_CREDENTIAL).
 	if code := ragCreateCollectionDirect(t, ragURL, "", "direct-no-key"); code != http.StatusUnauthorized {
 		t.Fatalf("direct-to-service with no key must be 401 (M13 fail-closed), got %d", code)
 	}
 
-	// (7) The RAW customer key DIRECT to the rag service → 401 (theo-rag does not know it;
+	// (7) The RAW customer key DIRECT to the rag service → 401 (looprag does not know it;
 	// only the edge-minted per-tenant key resolves). Combined with the edge-write 201
 	// (isolation test), this proves the edge Del-then-set a DIFFERENT valid key (minted ≠ customer).
 	if code := ragCreateCollectionDirect(t, ragURL, bearerC, "direct-customer-key"); code != http.StatusUnauthorized {

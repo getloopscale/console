@@ -20,7 +20,7 @@ function makeBuild(overrides: Partial<Build> = {}): Build {
     environment: 'production',
     status: 'running',
     commit_sha: 'aaaaaaa1234567890',
-    created_by: 'paulo@theo.test',
+    created_by: 'paulo@loopscale.test',
     created_at: '2026-06-06T00:00:00Z',
     ...overrides,
   };

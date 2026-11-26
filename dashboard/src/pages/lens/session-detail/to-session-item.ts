@@ -1,10 +1,10 @@
-import type { SessionTraceItem } from '@usetheo/ui';
+import type { SessionTraceItem } from '@getloopscale/ui';
 import { isSpanError } from '@/pages/lens/span-status';
 import type { Trace } from '../traces/columns';
 
 /**
- * M9 adoption — the boundary mapper from the theo-lens traces-list row (`Trace`: OTLP-shaped
- * `traceId` + `startTimeUnixNano` string ns + `durationMs`) to the `@usetheo/ui` generic
+ * M9 adoption — the boundary mapper from the looptrace traces-list row (`Trace`: OTLP-shaped
+ * `traceId` + `startTimeUnixNano` string ns + `durationMs`) to the `@getloopscale/ui` generic
  * `SessionTraceItem` (`id` + `startTime` + `endTime` + collapsed OK/ERROR `status`). The lib's
  * session components (`SessionSummary`, `SessionTimeline`) consume `SessionTraceItem`; this is the
  * single place the two shapes meet — mirroring the M8 `to-trace-span.ts` precedent.

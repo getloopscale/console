@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Github, Link2, Loader2, Unlink2 } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, Input, Label, PageShell } from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, Input, Label, PageShell } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';

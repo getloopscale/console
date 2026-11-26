@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Plan 3 of dashboard-memory-section-roadmap.md, T3.3.
 // Tests for the 3 memory export handlers (Create / Status / Download).
@@ -20,12 +20,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
-	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/loopmem"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 func newExportsHandler(t *testing.T) (*routes.MemoryExportsHandler, sqlmock.Sqlmock) {
@@ -35,14 +35,14 @@ func newExportsHandler(t *testing.T) (*routes.MemoryExportsHandler, sqlmock.Sqlm
 		t.Fatalf("sqlmock: %v", err)
 	}
 	fake := &fakeTheMemory{
-		listResp: &themory.ListResult{Memories: []themory.MemoryRow{
+		listResp: &loopmem.ListResult{Memories: []loopmem.MemoryRow{
 			{ID: "m1", Content: "fact"},
 		}},
 	}
 	// Worker delay 0 → completes synchronously in tests (no goroutine wait).
 	// Export dir is a t.TempDir so files clean up automatically.
 	h := routes.NewMemoryExportsHandler(db, fake, nil, t.TempDir(), 0)
-	// Red Team theo-cloud#104 closure: wait for the detached worker
+	// Red Team loop-console#104 closure: wait for the detached worker
 	// goroutines BEFORE the TempDir cleanup + sqlmock close fire,
 	// otherwise the worker can race the test teardown — observable as
 	// `sql: database is closed` warnings and `directory not empty`
@@ -192,23 +192,23 @@ func TestMemoryExports_CrossTenantStatusReturns404(t *testing.T) {
 func sqlNoRowsErr() error { return sqlmockErrNoRows() }
 
 // issue #6 regression: the export worker must page through ALL memories in
-// <=100 chunks (themory caps list page size at 100; a single Limit:200 call
+// <=100 chunks (loopmem caps list page size at 100; a single Limit:200 call
 // 422s and fails every export). Drives an export to completion across 3 cursor
 // pages (100 + 100 + 50 = 250) and asserts: (a) the export file contains all
 // 250 memories (no truncation / no failure), and (b) every upstream List call
 // respected the <=100 cap and followed the provider cursor.
 func TestMemoryExports_WorkerPaginatesPastProviderCap(t *testing.T) {
-	mkRows := func(prefix string, n int) []themory.MemoryRow {
-		rows := make([]themory.MemoryRow, n)
+	mkRows := func(prefix string, n int) []loopmem.MemoryRow {
+		rows := make([]loopmem.MemoryRow, n)
 		for i := range rows {
-			rows[i] = themory.MemoryRow{ID: prefix + strconv.Itoa(i), Content: "fact " + prefix + strconv.Itoa(i)}
+			rows[i] = loopmem.MemoryRow{ID: prefix + strconv.Itoa(i), Content: "fact " + prefix + strconv.Itoa(i)}
 		}
 		return rows
 	}
 	cur1, cur2 := "cursor-page-2", "cursor-page-3"
 	fake := &fakeTheMemory{
 		listLimitCap: 100, // provider rejects Limit > 100 (422 INVALID_QUERY)
-		listPagesByCursor: map[string]*themory.ListResult{
+		listPagesByCursor: map[string]*loopmem.ListResult{
 			"":   {Memories: mkRows("a", 100), NextCursor: &cur1},
 			cur1: {Memories: mkRows("b", 100), NextCursor: &cur2},
 			cur2: {Memories: mkRows("c", 50)}, // last page — no NextCursor
@@ -250,7 +250,7 @@ func TestMemoryExports_WorkerPaginatesPastProviderCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export file not written — worker failed (this is the bug: Limit:200 → 422): %v", err)
 	}
-	var parsed themory.ListResult
+	var parsed loopmem.ListResult
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("export file is not valid ListResult JSON: %v\n%s", err, data)
 	}

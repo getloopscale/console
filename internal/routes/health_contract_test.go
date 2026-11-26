@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -26,7 +26,7 @@ import (
 //
 // # Why this repo is last of the nine
 //
-// theo-cloud is a BFF: it mirrors the names its upstreams choose, so conforming it before them
+// loop-console is a BFF: it mirrors the names its upstreams choose, so conforming it before them
 // would have meant mirroring names that were about to change. The eight upstream items landed
 // first for that reason.
 //

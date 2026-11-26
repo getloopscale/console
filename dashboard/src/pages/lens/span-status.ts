@@ -6,7 +6,7 @@
  * or absent — is NOT an error (fail-safe).
  *
  * This replaces the divergent `statusCode !== "0"` predicate that painted OK spans red
- * (issue usetheodev/theo-cloud#176). Import this everywhere a span status is interpreted so
+ * (issue getloopscale/loop-console#176). Import this everywhere a span status is interpreted so
  * the trace-detail tree, waterfall, transcript, and compare views stay consistent.
  */
 

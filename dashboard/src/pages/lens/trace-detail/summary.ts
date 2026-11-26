@@ -35,7 +35,7 @@ export function traceSummary(root: TraceSpanNode): TraceSummary {
   }
   return {
     durationMs: durationMs(root),
-    // M53 / theo-lens#73: prefer the authoritative trace cost the lens attaches to the root
+    // M53 / looptrace#73: prefer the authoritative trace cost the lens attaches to the root
     // (the stored `traces.cost_usd`, same number the list shows) over re-summing per-span costs —
     // which are absent for interaction/tool spans ($0.0000) and would double-count if a child ever
     // carried its own cost. Fall back to the aggregate only when the root has no stored cost.

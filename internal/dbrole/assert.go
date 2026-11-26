@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package dbrole verifies, at boot, WHICH database role the control plane
 // connects as.
@@ -7,7 +7,7 @@
 // The control plane shares the engine's database (cmd/main.go: "The cloud
 // service shares the database with the engine API"). Engine migration 000062
 // made the tenant-scoped tables fail-closed under Row Level Security, and
-// migration 000063 created `loopruntime_cloud`; a non-owner role holding named,
+// migration 000063 created `loop_console`; a non-owner role holding named,
 // auditable cross-tenant policies.
 //
 // This package exists because pointing DATABASE_URL at the wrong role is
@@ -82,7 +82,7 @@ func Measure(ctx context.Context, db *sql.DB) (Posture, error) {
 // a privilege broader than the one it is meant to have.
 //
 // Deliberately fails closed. Refusing to boot is loud and fixed in seconds by
-// repointing DATABASE_URL at `loopruntime_cloud`; running as the owner is silent and
+// repointing DATABASE_URL at `loop_console`; running as the owner is silent and
 // leaves the control plane with DDL over every tenant's data for as long as
 // nobody looks.
 //
@@ -110,7 +110,7 @@ func AssertControlPlaneRole(ctx context.Context, db *sql.DB) error {
 	return fmt.Errorf(
 		"refusing to serve: the control plane holds an unnamed cross-tenant privilege: %s.\n"+
 			"  cause: %s\n"+
-			"  fix:   point DATABASE_URL at the `loopruntime_cloud` role created by engine migration 000063.\n"+
+			"  fix:   point DATABASE_URL at the `loop_console` role created by engine migration 000063.\n"+
 			"         It keeps the cross-tenant reach the control plane genuinely needs (account\n"+
 			"         listings, billing aggregates, alert evaluation) through NAMED policies that\n"+
 			"         appear in pg_policy — without DDL, and revocable one table at a time",

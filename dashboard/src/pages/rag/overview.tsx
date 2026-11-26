@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ExploreCard } from '@/components/explore-card';
 import { Activity, Boxes, MessageSquare, RefreshCw, ScrollText, Search, Timer } from 'lucide-react';
-import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
+import { Button, Card, MetricCard, PageShell, Skeleton } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { CategoryBars } from '@/components/charts/category-bars';
 
@@ -129,7 +129,7 @@ export function RagOverviewPage() {
             <h2 className="text-base font-semibold">Getting started</h2>
             <p className="text-sm text-muted-foreground">
               Create a collection, ingest documents from the SDK or the Collections tab, then query them
-              with <code>theo.rag(workspace).ask(collectionId, question)</code>.
+              with <code>loopscale.rag(workspace).ask(collectionId, question)</code>.
             </p>
             <Button asChild variant="ghost" >
               <Link to="/rag/collections">Browse collections →</Link>

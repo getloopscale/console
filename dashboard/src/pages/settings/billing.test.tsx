@@ -78,7 +78,7 @@ describe('BillingPage', () => {
     expect(screen.getByText('acme')).toBeInTheDocument();
   });
 
-  // qa-sprint2-cleanup-2026-06-24 T2.1 — closes theo-cloud#15
+  // qa-sprint2-cleanup-2026-06-24 T2.1 — closes loop-console#15
   // (BLOCKER ux_friction: Manage Plan click was inert).
   //
   // Pre-fix: handler called window.open(portal.url, '_blank') from an async
@@ -121,7 +121,7 @@ describe('BillingPage', () => {
     await user.click(screen.getByRole('button', { name: /manage plan/i }));
 
     // The Manage Plan handler also forwards `{ throwOnError: true }` per
-    // theo-cloud#49/#69 closure so non-2xx no longer falls into the
+    // loop-console#49/#69 closure so non-2xx no longer falls into the
     // silent null branch; match the path argument loosely.
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/billing/portal',
@@ -333,7 +333,7 @@ describe('BillingPage', () => {
     // Sprint 3 Phase 7 (#27) v1.1 ADR D4 — upsell card was a <Card onClick>
     // with <p> content (not focusable, no role). Now a real <button> wrapping
     // <Card.Body>. v1.1 EC-3: dropped <Card as="button"> polymorphic gamble
-    // (the @usetheo/ui Card .d.ts has no `as`/`asChild` prop).
+    // (the @getloopscale/ui Card .d.ts has no `as`/`asChild` prop).
     mockUseCloudApi.mockReturnValue({
       data: { plan: 'starter', team: 'acme', usage: {} },
       loading: false,
@@ -351,7 +351,7 @@ describe('BillingPage', () => {
     expect(upgradeBtn.className).toMatch(/focus-visible:ring/);
   });
 
-  // theo-cloud#63 (BLOCKER functional_bug): POST /v1/billing/checkout {plan:'pro'}
+  // loop-console#63 (BLOCKER functional_bug): POST /v1/billing/checkout {plan:'pro'}
   // returns 503 + actionable body `{"code":"BILLING_NOT_CONFIGURED","message":
   // "Plan 'pro' is not available for purchase yet. Please contact support."}` per
   // release-blockers-2026-06-25-set T4.2 backend fix. Pre-fix the UI catch block
@@ -390,7 +390,7 @@ describe('BillingPage', () => {
     expect(text).not.toMatch(/please try again/i);
   });
 
-  // Red Team theo-cloud#72 closure: a double-tap on the Upgrade button
+  // Red Team loop-console#72 closure: a double-tap on the Upgrade button
   // used to fire two POST /v1/billing/checkout requests in a row. The
   // disabled={actionLoading} guard ensures the first click locks the
   // button until the promise resolves.
@@ -420,7 +420,7 @@ describe('BillingPage', () => {
     releaseFetch({ url: 'https://checkout.stripe.com/x' });
   });
 
-  // Red Team theo-cloud#72 re-open: React 18 batches setActionLoading until
+  // Red Team loop-console#72 re-open: React 18 batches setActionLoading until
   // the click handler returns, so disabled={actionLoading} alone does NOT
   // block a SYNCHRONOUS double-click. Two clicks fired before the next
   // render both see disabled=false and both POST. A ref guard short-circuits
@@ -449,11 +449,11 @@ describe('BillingPage', () => {
     releaseFetch({ url: 'https://checkout.stripe.com/x' });
   });
 
-  // Red Team theo-cloud#40 closure: when the backend returns a 4xx with
+  // Red Team loop-console#40 closure: when the backend returns a 4xx with
   // no actionable body, the prior copy was "Please try again." — which
   // misleads the user into hammering a permanently non-retryable
   // endpoint. The new copy points to support.
-  // Red Team theo-cloud#49/#69 closure: a Free-tier visitor clicking
+  // Red Team loop-console#49/#69 closure: a Free-tier visitor clicking
   // Manage Plan used to see no feedback — the cloudFetch silent-null
   // path swallowed the 4xx. Opt-in to throwOnError + surface the
   // canonical "contact support" message so the button is no longer a

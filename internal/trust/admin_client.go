@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// M10 (theo-trust Model B L2, ADR D1) — AdminClient is the CONTROL-PLANE client
-// the gateway uses to provision per-tenant trust_live_* keys against theo-trust's
+// M10 (loopguardrails Model B L2, ADR D1) — AdminClient is the CONTROL-PLANE client
+// the gateway uses to provision per-tenant trust_live_* keys against loopguardrails's
 // admin API (POST /v1/admin/keys). It holds the platform-admin credential
 // (trust:platform-admin, env TRUST_PLATFORM_ADMIN_KEY) and is used ONLY to mint
 // keys — NEVER on the data path. This structural separation is the NIST
 // AC-5/AC-6 control/data-plane split that closes the confused deputy (CWE-441):
 // a data-path bug can no longer wield provisioning authority.
 //
-// Ported from internal/themory/admin_client.go, minus RevokeKey (YAGNI — the
+// Ported from internal/loopmem/admin_client.go, minus RevokeKey (YAGNI — the
 // broker only mints; out-of-band offboarding is a follow-up).
 //
 // @see .claude/knowledge-base/plans/m10-trust-broker-plan.md § T1.1
@@ -36,7 +36,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("trust: upstream status %d: %s", e.StatusCode, e.Body)
 }
 
-// AdminClient talks to theo-trust's admin key-lifecycle API. Construct via
+// AdminClient talks to loopguardrails's admin key-lifecycle API. Construct via
 // NewAdminClient. It is the ONLY holder of the platform credential.
 type AdminClient struct {
 	baseURL     string
@@ -58,7 +58,7 @@ func NewAdminClient(baseURL, platformKey string, httpClient *http.Client) *Admin
 	}
 }
 
-// MintResult is the subset of theo-trust's POST /v1/admin/keys response the
+// MintResult is the subset of loopguardrails's POST /v1/admin/keys response the
 // gateway consumes. Secret is shown once — the broker caches it; it is NEVER
 // logged or returned to the browser.
 type MintResult struct {

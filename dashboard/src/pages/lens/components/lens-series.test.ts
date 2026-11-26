@@ -31,7 +31,7 @@ describe('scoresToSeries (M90 — score over time)', () => {
     // linha desenhada por cima do período sem amostra — afirmando continuidade que o dado não tem.
     //
     // A crença falsa estava registrada por escrito, ao lado de uma asserção que a contradizia. Foi
-    // assim que o defeito sobreviveu dentro do verde (`usetheoai/theo-cloud#395`).
+    // assim que o defeito sobreviveu dentro do verde (`getloopscale/loop-console#395`).
     expect(byName['relevance']!.points).toHaveLength(2);
     expect(byName['relevance']!.points[0]).toEqual({ x: 0, y: 0.9 });
     expect(byName['relevance']!.points[1]?.x).toBe(1);

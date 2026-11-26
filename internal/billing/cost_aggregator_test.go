@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package billing
 
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	planpkg "github.com/usetheoai/theo-contracts/plan"
+	planpkg "github.com/getloopscale/contracts/plan"
 )
 
 // fakePromQuerier is a deterministic in-memory PromQuerier for tests.

@@ -83,7 +83,7 @@ describe('DeviceVerifyPage', () => {
     setSearch('?device_challenge=chal-123&user_code=ABCD1234');
     fetchSpy.mockResolvedValue({
       ok: true,
-      json: async () => ({ redirect_to: 'https://auth-dev.usetheo.dev/oauth2/auth/next' }),
+      json: async () => ({ redirect_to: 'https://auth-dev.getloopscale.com/oauth2/auth/next' }),
     });
     Object.defineProperty(window, 'location', {
       value: { ...window.location, search: '?device_challenge=chal-123&user_code=ABCD1234', href: 'http://localhost/' },
@@ -101,7 +101,7 @@ describe('DeviceVerifyPage', () => {
     expect(body.device_challenge).toBe('chal-123');
     expect(body.user_code).toBe('ABCD1234');
 
-    await waitFor(() => expect(window.location.href).toBe('https://auth-dev.usetheo.dev/oauth2/auth/next'));
+    await waitFor(() => expect(window.location.href).toBe('https://auth-dev.getloopscale.com/oauth2/auth/next'));
   });
 
   it('test_shows_actionable_error_on_4xx_response', async () => {

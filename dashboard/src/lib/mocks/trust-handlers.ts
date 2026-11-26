@@ -16,7 +16,7 @@ const trustDb: {
   /**
    * B-127 — `category` is what `coverageGap` matches an observed policy against
    * (`pages/trust/components/trust-series.ts:162-172`), and it is REQUIRED (nullable) on the
-   * canonical entry (`theo-trust/packages/guardrails-client/src/types.ts:10`).
+   * canonical entry (`loopguardrails/packages/guardrails-client/src/types.ts:10`).
    *
    * It was missing here. Measured in the browser on 2026-08-11, `/trust` read
    * `3 policies / 0 blocked` over a catalogue that covers one of them: with nothing to match on,
@@ -85,7 +85,7 @@ const trustDb: {
 };
 
 /**
- * O prefixo depende de `window.__THEO_CONFIG__.API_URL`, que é vazio em dev (same-origin) e
+ * O prefixo depende de `window.__LOOPSCALE_CONFIG__.API_URL`, que é vazio em dev (same-origin) e
  * `/api` quando servido atrás do gateway. Registrar os dois evita que o mock funcione numa
  * configuração e silenciosamente não na outra — o modo de falha que custou a primeira execução
  * deste e2e, em que a tela corretamente mostrou "não foi possível carregar" e o teste acusou.
@@ -115,7 +115,7 @@ function registerTrustRoutes(base: string) {
   registerRoute('GET', `${base}/policy-violations`, async (req) => {
     const limit = Number(new URL(req.url).searchParams.get('limit') ?? '100');
     const capped = Number.isFinite(limit) && limit > 0 ? limit : 100;
-    // `has_more` is REQUIRED by `theo-trust/openapi.yaml:365` — the B-114/B-120 discipline, because
+    // `has_more` is REQUIRED by `loopguardrails/openapi.yaml:365` — the B-114/B-120 discipline, because
     // a list that truncates in silence is read as complete. A mock that omits it lets a screen be
     // developed against a shape the service does not send.
     return Response.json({

@@ -1,4 +1,4 @@
-import { Button, Input, Label } from '@usetheo/ui';
+import { Button, Input, Label } from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 
 interface Props {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package metering
 
@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/billing"
+	"github.com/getloopscale/loop-console/internal/billing"
 )
 
 // Reporter sends unreported usage records to Stripe.

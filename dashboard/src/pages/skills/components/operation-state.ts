@@ -1,7 +1,7 @@
 /**
  * M31 — traduz o estado bruto de uma operação para a fase que a tela precisa mostrar.
  *
- * O vocabulário é do registro, não desta tela (`theo-skills`
+ * O vocabulário é do registro, não desta tela (`loopskills`
  * `packages/core/src/contract/index.ts:5-15`):
  *
  *   > In-progress states reflect the job type (CREATING/UPDATING/DELETING);

@@ -17,7 +17,7 @@ const coherenceKey = (sessionId: string) =>
  *
  * Generic over the trace shape (owned by `pages/lens/traces/columns`; `src/hooks` may not import
  * from `src/pages`, B-070). The filter is the same `session_id=` the BFF already forwards to
- * theo-lens for the traces list's advanced filter — not a second endpoint.
+ * looptrace for the traces list's advanced filter — not a second endpoint.
  */
 export function useSessionTraces<T>(sessionId: string) {
   return useQuery({

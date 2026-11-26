@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Badge, Button, Card, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, Skeleton, Textarea } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { useDocumentChunks, useSaveChunk, type Chunk } from '@/hooks/rag/use-chunks';
 
 /**
  * chunk-editor — view a document's chunks and edit a chunk's text. On save the BFF
- * PATCHes theo-rag, which re-embeds the chunk server-side so retrieval reflects the
- * edit. Read = rag:read, edit = rag:write (gated at theo-rag). Destructive edit (no
+ * PATCHes looprag, which re-embeds the chunk server-side so retrieval reflects the
+ * edit. Read = rag:read, edit = rag:write (gated at looprag). Destructive edit (no
  * history) by design for the dev tier.
  */
 

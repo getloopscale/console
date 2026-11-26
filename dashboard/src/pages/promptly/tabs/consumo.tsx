@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card } from '@usetheo/ui';
+import { Button, Card } from '@getloopscale/ui';
 import { copyToClipboard } from '@/lib/export/clipboard';
 import {
   INTERFACES,

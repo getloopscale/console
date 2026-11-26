@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import ts from 'typescript';
 
@@ -15,7 +15,7 @@ import ts from 'typescript';
  * `ts.createSourceFile` for the reasons its own docblock gives.
  *
  * The review also named the failure the hand-roll carried, and it was measured rather than
- * theorised: a depth counter reads `(` and `)` as text, but a regex literal is not text. `/\(/`
+ * loopscalerised: a depth counter reads `(` and `)` as text, but a regex literal is not text. `/\(/`
  * holds one unbalanced paren, and against `cloudFetch(build(/\(/), {}, { throwOnError: true })` the
  * old extractor did not merely misread the arguments — it lost the call entirely and reported ZERO
  * call sites. A silently vanishing call is the exact defect class these ratchets exist to catch in

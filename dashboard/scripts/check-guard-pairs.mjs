@@ -57,7 +57,7 @@ const banAtivo =
   Array.isArray(regra) &&
   regra[0] !== 0 &&
   regra[0] !== 'off' &&
-  paths.some((p) => p.name === '@usetheo/ui' && (p.importNames ?? []).includes('Alert'));
+  paths.some((p) => p.name === '@getloopscale/ui' && (p.importNames ?? []).includes('Alert'));
 
 let guardExiste = true;
 try {
@@ -70,7 +70,7 @@ if (banAtivo !== guardExiste) {
   console.error(
     guardExiste
       ? 'O guard alert-guard.tsx existe mas o ban de lint sumiu: o caminho inseguro\n' +
-          '(`Alert` cru de @usetheo/ui) voltou a ser importável e o guard vira opcional.'
+          '(`Alert` cru de @getloopscale/ui) voltou a ser importável e o guard vira opcional.'
       : 'O ban de lint existe mas o guard alert-guard.tsx sumiu: o lint proíbe o Alert\n' +
           'cru sem oferecer a alternativa. Se upstream #175 foi corrigido, remova os DOIS\n' +
           'juntos (e este gate) — e feche B-086.',

@@ -6,7 +6,7 @@ import { MENUS, resolveActiveMenu } from './app-sidebar-menus';
 /**
  * M13 — a navegação tem DUAS metades, e a segunda é a que ninguém lembra.
  *
- * Declarar o submenu não basta. No `theo-trust` (M23) as quatro telas foram declaradas, e **nunca
+ * Declarar o submenu não basta. No `loopguardrails` (M23) as quatro telas foram declaradas, e **nunca
  * abriram**, porque faltava a linha em `resolveActiveMenu` — e três rodadas de validação passaram
  * por cima disso, porque validavam abrindo a URL, que é o único caminho que o usuário real não tem.
  *

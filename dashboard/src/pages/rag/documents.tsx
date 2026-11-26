@@ -14,7 +14,7 @@ import {
   Skeleton,
   Textarea,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -32,14 +32,14 @@ import { ChunksPanel } from './chunks-panel';
 
 // M11 — file types the engine ingests (PDF/office/CSV/text/image). The engine is the
 // source of truth and returns a typed 422 for anything else; this drives the picker's
-// `accept` + a friendly client-side pre-check. 10 MiB matches theo-rag's default cap.
+// `accept` + a friendly client-side pre-check. 10 MiB matches looprag's default cap.
 const ACCEPTED_EXT = '.pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,.html,.png,.jpg,.jpeg';
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /**
  * M21 — /rag/documents. Upload (text ingest → async status), list, and delete a
  * collection's documents via the read+write dashboard BFF. Ingest is async at
- * theo-rag (202); the list polls so status transitions (processing → ready/failed)
+ * looprag (202); the list polls so status transitions (processing → ready/failed)
  * are surfaced — never a fake "done".
  */
 

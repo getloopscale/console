@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// M11 (theo-promptly Model B L2) — Broker resolves a per-tenant promptly_live_*
+// M11 (loopprompt Model B L2) — Broker resolves a per-tenant promptly_live_*
 // secret for the data path. Lazy cache-aside: an in-process LRU keyed by
 // (tenant, granted scopes), with a TTL ≪ the key's validity so an out-of-band
 // revoke self-heals within one TTL (EC-2). Concurrent cache misses for the same
@@ -12,7 +12,7 @@
 // the request (503), NEVER fall back to a master key. A fallback would re-open
 // the confused deputy (CWE-441) this design closes.
 //
-// Mirrors internal/themory/broker.go. The one promptly-specific addition (plan
+// Mirrors internal/loopmem/broker.go. The one promptly-specific addition (plan
 // ADR D1) is translateScopes: the consumer's cloud-facing `promptly:*` scopes
 // are translated to the service `prompt:*` namespace BEFORE the least-privilege
 // intersection, so a read-only consumer never receives a write-capable key.
@@ -99,7 +99,7 @@ func NewBroker(admin minter, size int, ttl time.Duration, scopes []string) (*Bro
 // tenant, or no grantable scope returns an empty secret.
 // M1: accountID is part of the cache key (no cross-account cache sharing) but is
 // NEVER sent to the minter — the minted key's workspace_id stays == tenantID
-// (theo-promptly isolation unit is the tenant). Legacy NULL-account (accountID=="")
+// (loopprompt isolation unit is the tenant). Legacy NULL-account (accountID=="")
 // is valid. The broker lazily trusts the account→tenant relationship ForwardAuth
 // authorized.
 func (b *Broker) KeyForTenantScoped(ctx context.Context, accountID, tenantID string, want []string) (string, error) {

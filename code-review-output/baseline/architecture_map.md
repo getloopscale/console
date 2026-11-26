@@ -1,13 +1,13 @@
-# Architecture map — theo-cloud dashboard
+# Architecture map — loop-console dashboard
 
-**Target:** `/home/paulo/Projetos/theo/theo-platform/theo-cloud/dashboard`
+**Target:** `/home/paulo/Projetos/loopscale/loopscale-platform/loop-console/dashboard`
 **Phase:** 1 (baseline) · **Date:** 2026-08-11
 **Inventory:** 818 files · 137.038 LOC total (excl. `node_modules`, `dist`, `playwright-report`, `test-results`)
 
 ## What this is
 
 A React 19 + TypeScript single-page application built with Vite. It is the web
-control surface of the Theo platform: one route subtree per product capability
+control surface of the LoopScale platform: one route subtree per product capability
 (lens, rag, memory, trust, skills, promptly, projects, deploy, infra, settings).
 It ships as a static bundle served by nginx inside a container, with runtime
 configuration injected at container start.
@@ -27,8 +27,8 @@ index.html → src/main.tsx       ← SPA bootstrap
 ```
 StrictMode
   RouteBoundary(routePath="root")        ← extremal crash boundary
-    QueryClientProvider                  ← deliberately OUTSIDE TheoUIProvider
-      TheoUIProvider(TEMA_THEO)          ← design system + Toaster
+    QueryClientProvider                  ← deliberately OUTSIDE LoopScaleUIProvider
+      LoopScaleUIProvider(TEMA_LOOPSCALE)          ← design system + Toaster
         App
         ReactQueryDevtools               ← dev only, __DEV__ build literal
 ```
@@ -76,7 +76,7 @@ is consumed by both `pages` and `routes`. `lib` imports nothing from `pages`.
 
 `src/lib/http/api.ts` (456 LOC) is the only outbound HTTP surface. It carries:
 
-- the 402 interceptor that emits `theo:plan-limit` window events, consumed by
+- the 402 interceptor that emits `loopscale:plan-limit` window events, consumed by
   the single top-level `<PlanLimitUpgradeModal/>` (`app.tsx:108`);
 - `installAuthChannel()` — BroadcastChannel logout fan-out;
 - 151 importers (per the comment at `main.tsx:60`), which makes it the highest-
@@ -97,7 +97,7 @@ Supporting modules: `lib/http/config.ts` (runtime config), `lib/http/query-clien
   `scripts/check-guard-pairs.mjs`. This is a deliberate, unusually strong
   self-policing layer and should be treated as part of the architecture.
 - **Mixed-language identifiers.** Portuguese identifiers (`rotasDeProjects`,
-  `prontoParaRenderizar`, `TEMA_THEO`, `arvore-estavel`) coexist with English
+  `prontoParaRenderizar`, `TEMA_LOOPSCALE`, `arvore-estavel`) coexist with English
   ones. Comments likewise mix pt-BR and English.
 - **Mock layer is production-gated by tree-shaking**, verified by a dedicated
   script (`scripts/check-mocks-tree-shaken.mjs`) rather than by convention.

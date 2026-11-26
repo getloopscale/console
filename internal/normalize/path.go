@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package normalize provides HTTP request path normalization middleware.
 package normalize
@@ -13,7 +13,7 @@ import (
 // the raw request URI path and redirects to the canonical single-slash
 // form with HTTP 308 (preserves method + body so POSTs are safe).
 //
-// Red Team theo-cloud#86 closure (CWE-16 Security Misconfiguration).
+// Red Team loop-console#86 closure (CWE-16 Security Misconfiguration).
 // Before this middleware, `GET //engine/api/v1/projects` against the
 // edge (Caddy) bypassed the canonical `/engine/*` proxy handle and fell
 // through to the SPA catch-all, returning `200 + text/html` (the SPA

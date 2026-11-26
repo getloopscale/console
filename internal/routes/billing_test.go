@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -14,10 +14,10 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// Plan release-blockers-2026-06-25-set T4.2 — closes theo-cloud#39.
+// Plan release-blockers-2026-06-25-set T4.2 — closes loop-console#39.
 //
 // The Red Team flagged POST /v1/billing/checkout {plan:"pro"} returning
 // 400 INVALID_PLAN with the self-contradicting message
@@ -164,7 +164,7 @@ var _ = func() context.Context {
 	return auth.WithUser(context.Background(), &auth.UserContext{})
 }
 
-// Red Team theo-cloud#42 closure: the billing usage map used to source
+// Red Team loop-console#42 closure: the billing usage map used to source
 // every metric from `usage_records` (a counter feed). Stateful capacity
 // metrics (seats) were always 0 even for accounts with members. The fix
 // reads seats canonically from `tenant_members` so the dashboard shows

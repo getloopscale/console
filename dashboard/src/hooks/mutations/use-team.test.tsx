@@ -50,7 +50,7 @@ describe('use-team mutations — path canonicalization (T0.1)', () => {
     const client = makeClient();
     const { result } = renderHook(() => useInviteMember(), { wrapper: wrap(client) });
 
-    result.current.mutate({ email: 'newbie@theo.dev', role: 'admin' });
+    result.current.mutate({ email: 'newbie@loopscale.dev', role: 'admin' });
 
     await waitFor(() => {
       expect(mockEngineFetch).toHaveBeenCalledTimes(1);
@@ -60,7 +60,7 @@ describe('use-team mutations — path canonicalization (T0.1)', () => {
     expect(path).toBe('/api/v1/teams/members');
     expect((options as RequestInit).method).toBe('POST');
     const body = JSON.parse((options as RequestInit).body as string);
-    expect(body).toEqual({ email: 'newbie@theo.dev', role: 'admin' });
+    expect(body).toEqual({ email: 'newbie@loopscale.dev', role: 'admin' });
   });
 
   it('test_useRemoveMember_deletes_at_pluralized_path_with_encoded_id', async () => {

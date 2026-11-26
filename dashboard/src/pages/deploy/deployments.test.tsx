@@ -230,7 +230,7 @@ describe('DeploymentsPage', () => {
     expect(buildsCalls.length).toBe(1);
   });
 
-  // Red Team theo-cloud#121 (P0 eixo 2 — UI honesty): when production's
+  // Red Team loop-console#121 (P0 eixo 2 — UI honesty): when production's
   // active release was promoted FROM a preview build, the production
   // env_target.active_release.build_id IS the preview build's id (promote
   // copies the build reference, doesn't rebuild). Pre-fix `isActive`

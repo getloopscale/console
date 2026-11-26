@@ -1,11 +1,11 @@
-import { AnnotationInput, Button } from '@usetheo/ui';
+import { AnnotationInput, Button } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { SCORE_CONFIGS, type ScoreConfig } from './score-configs';
 import type { AnnotationValues } from './to-resolve-body';
 
 /**
- * M12 — the resolve modal body: one `@usetheo/ui` AnnotationInput per
+ * M12 — the resolve modal body: one `@getloopscale/ui` AnnotationInput per
  * score-config (replaces the bespoke label/score/note inputs). Fully
  * controlled — the parent owns the `values` map and the resolve submission.
  * Rendered inside the centered `AppModal` (Evaluate UX standardization —

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/looptrace"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/thelens"
 )
 
 // stubLensDataClient counts calls + can error. `calls` is the total (read tests); `writeCalls`
@@ -26,7 +26,7 @@ type stubLensDataClient struct {
 	calls                  int
 	writeCalls             int
 	err                    error
-	lastTraceFilter        thelens.TraceListFilter
+	lastTraceFilter        looptrace.TraceListFilter
 	lastObservabilityRange string
 	lastScoresRange        string
 	lastFacetKey           string
@@ -50,7 +50,7 @@ func (s *stubLensDataClient) write(body string) (json.RawMessage, error) {
 	return json.RawMessage(body), nil
 }
 
-func (s *stubLensDataClient) ListTraces(_ context.Context, f thelens.TraceListFilter) (json.RawMessage, error) {
+func (s *stubLensDataClient) ListTraces(_ context.Context, f looptrace.TraceListFilter) (json.RawMessage, error) {
 	s.lastTraceFilter = f
 	return s.read(`{"traces":[{"traceId":"t1"}]}`)
 }
@@ -133,7 +133,7 @@ func (s *stubLensDataClient) RenameDataset(_ context.Context, _ string, body jso
 	return s.write(`{"id":"ds_1","name":"renamed","itemCount":0}`)
 }
 func (s *stubLensDataClient) DeleteDataset(context.Context, string) (json.RawMessage, error) {
-	// mirrors the real 204→nil path (theo-lens returns no body on delete).
+	// mirrors the real 204→nil path (looptrace returns no body on delete).
 	s.calls++
 	s.writeCalls++
 	if s.err != nil {
@@ -330,12 +330,12 @@ func TestLensDashboard_ListTraces_WhitelistsFilterParams(t *testing.T) {
 	if f.Status != "error" || f.Model != "claude-opus-4-8" || f.Q != "boom" || f.From != "2026-07-01T00:00:00Z" || f.Limit != 25 {
 		t.Fatalf("filter not forwarded from query: %+v", f)
 	}
-	// `evil=1` cannot reach theo-lens — TraceListFilter has no field for it (whitelist by construction).
+	// `evil=1` cannot reach looptrace — TraceListFilter has no field for it (whitelist by construction).
 }
 
-// M56 — the export pages at limit=500 (theo-lens LIST_TRACES_LIMIT_CAP) with an offset. Both must be
-// forwarded; the old ≤100 clamp silently dropped limit=500 → theo-lens defaulted to 50 (silent
-// truncation). The clamp is now the theo-lens cap (500).
+// M56 — the export pages at limit=500 (looptrace LIST_TRACES_LIMIT_CAP) with an offset. Both must be
+// forwarded; the old ≤100 clamp silently dropped limit=500 → looptrace defaulted to 50 (silent
+// truncation). The clamp is now the looptrace cap (500).
 func TestLensDashboard_ListTraces_ForwardsExportPaging(t *testing.T) {
 	h, stub := newLensDashboard()
 	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/traces?limit=500&offset=500", nil), "t1")
@@ -353,7 +353,7 @@ func TestLensDashboard_ListTraces_ForwardsExportPaging(t *testing.T) {
 	}
 }
 
-// A limit above the theo-lens cap is rejected (dropped), not forwarded — theo-lens would 400 on it.
+// A limit above the looptrace cap is rejected (dropped), not forwarded — looptrace would 400 on it.
 func TestLensDashboard_ListTraces_DropsOverCapLimit(t *testing.T) {
 	h, stub := newLensDashboard()
 	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/traces?limit=501", nil), "t1")
@@ -374,7 +374,7 @@ func TestLensDashboard_Observability_WhitelistsRange(t *testing.T) {
 	if stub.lastObservabilityRange != "7d" {
 		t.Fatalf("want range=7d forwarded, got %q", stub.lastObservabilityRange)
 	}
-	// bogus range → dropped (empty → theo-lens applies its default)
+	// bogus range → dropped (empty → looptrace applies its default)
 	req2 := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/observability?range=bogus", nil), "t1")
 	h.Observability(httptest.NewRecorder(), req2)
 	if stub.lastObservabilityRange != "" {
@@ -541,7 +541,7 @@ func TestLensDashboard_Writes_Authenticated(t *testing.T) {
 }
 
 // TestLensDashboard_LabelingQueue_ForwardsBodyVerbatim — M63: the BFF is a thin proxy; a resolve
-// body reaches theo-lens unchanged (never re-encoded / re-shaped by the BFF).
+// body reaches looptrace unchanged (never re-encoded / re-shaped by the BFF).
 func TestLensDashboard_LabelingQueue_ForwardsBodyVerbatim(t *testing.T) {
 	r, stub := mountedLens(t)
 	body := `{"label":"good","score":0.9,"note":"clean"}`
@@ -662,7 +662,7 @@ func TestLensDashboard_WriteUpstreamError_502(t *testing.T) {
 	}
 }
 
-// TestLensDashboard_RenameDataset_ForwardsBodyVerbatim — M82: the rename body reaches theo-lens
+// TestLensDashboard_RenameDataset_ForwardsBodyVerbatim — M82: the rename body reaches looptrace
 // unchanged (thin proxy; the BFF never re-encodes the {name}).
 func TestLensDashboard_RenameDataset_ForwardsBodyVerbatim(t *testing.T) {
 	r, stub := mountedLens(t)
@@ -678,12 +678,12 @@ func TestLensDashboard_RenameDataset_ForwardsBodyVerbatim(t *testing.T) {
 	}
 }
 
-// TestLensDashboard_UpstreamStatus_Forwarded — M82: a browser-actionable theo-lens 4xx (a rename's
+// TestLensDashboard_UpstreamStatus_Forwarded — M82: a browser-actionable looptrace 4xx (a rename's
 // 409 name-conflict) is FORWARDED with its real status + body, not flattened to 502. The browser
 // needs the 409 to show "name already taken" instead of a generic upstream error.
 func TestLensDashboard_UpstreamStatus_Forwarded(t *testing.T) {
 	r, stub := mountedLens(t)
-	stub.err = &thelens.UpstreamStatusError{Status: http.StatusConflict, Body: []byte(`{"code":"NAME_CONFLICT","message":"a resource with that name already exists"}`)}
+	stub.err = &looptrace.UpstreamStatusError{Status: http.StatusConflict, Body: []byte(`{"code":"NAME_CONFLICT","message":"a resource with that name already exists"}`)}
 	req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(`{"name":"dup"}`)), "t1")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -701,7 +701,7 @@ func TestLensDashboard_UpstreamStatus_Forwarded(t *testing.T) {
 func TestLensDashboard_UpstreamStatus_ForwardedActionable(t *testing.T) {
 	for _, code := range []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests} {
 		r, stub := mountedLens(t)
-		stub.err = &thelens.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X","message":"m"}`)}
+		stub.err = &looptrace.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X","message":"m"}`)}
 		req := tenantCtx(httptest.NewRequest(http.MethodPost, "/v1/dashboard/lens/evaluators", strings.NewReader(`{"name":"r","kind":"rule","config":{"predicate":"bad"}}`)), "t1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -712,13 +712,13 @@ func TestLensDashboard_UpstreamStatus_ForwardedActionable(t *testing.T) {
 }
 
 // TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502 — an upstream 401/403 reflects the
-// BFF↔theo-lens minted-key trust boundary (NOT the browser's JWT session); forwarding it would trip
+// BFF↔looptrace minted-key trust boundary (NOT the browser's JWT session); forwarding it would trip
 // the dashboard's session-expiry redirect (a spurious logout). Those, plus any 5xx, MUST collapse
 // to 502 — never leak the upstream status to the browser.
 func TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502(t *testing.T) {
 	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError, http.StatusBadGateway} {
 		r, stub := mountedLens(t)
-		stub.err = &thelens.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X"}`)}
+		stub.err = &looptrace.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X"}`)}
 		req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(`{"name":"x"}`)), "t1")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -731,7 +731,7 @@ func TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502(t *testing.T) 
 // --- M141 — usage-by-user BFF ---------------------------------------------------------------
 
 // TestLensDashboard_UsageByUser_ForwardsQueryVerbatim — DoD-3. The BFF is a thin proxy: the
-// caller's params reach theo-lens unchanged, and a param this BFF never heard of is NOT curated
+// caller's params reach looptrace unchanged, and a param this BFF never heard of is NOT curated
 // away (risk R2 — the day M140 gains a param, the dashboard must not be a release behind).
 func TestLensDashboard_UsageByUser_ForwardsQueryVerbatim(t *testing.T) {
 	h, stub := newLensDashboard()
@@ -756,7 +756,7 @@ func TestLensDashboard_UsageByUser_ForwardsQueryVerbatim(t *testing.T) {
 }
 
 // TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus — the proof of ADR D1. M140 answers a
-// typed 400 for an out-of-range limit; this asserts the browser receives THAT 400 with theo-lens's
+// typed 400 for an out-of-range limit; this asserts the browser receives THAT 400 with looptrace's
 // own {code,message}, not a generic 502. Swapping h.proxy for Cost's older shape turns this red —
 // which is the whole point of the test existing.
 func TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus(t *testing.T) {
@@ -774,7 +774,7 @@ func TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h, stub := newLensDashboard()
-			stub.err = &thelens.UpstreamStatusError{
+			stub.err = &looptrace.UpstreamStatusError{
 				Status: tc.status,
 				Body:   []byte(`{"code":"` + tc.code + `","message":"upstream said so"}`),
 			}
@@ -786,19 +786,19 @@ func TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus(t *testing.T) {
 				t.Fatalf("want the upstream %d forwarded, got %d (%s)", tc.status, w.Code, w.Body.String())
 			}
 			if !strings.Contains(w.Body.String(), tc.code) {
-				t.Fatalf("body = %q, want theo-lens's own typed code so the browser can act on it", w.Body.String())
+				t.Fatalf("body = %q, want looptrace's own typed code so the browser can act on it", w.Body.String())
 			}
 		})
 	}
 }
 
 // TestLensDashboard_UsageByUser_UpstreamAuthCollapsesTo502 — the other half of the policy: a 401/403
-// reflects the BFF↔theo-lens minted-key boundary, NOT the browser's session. Forwarding it would
+// reflects the BFF↔looptrace minted-key boundary, NOT the browser's session. Forwarding it would
 // trip the dashboard's session-expiry redirect — a spurious logout on a broker misconfig.
 func TestLensDashboard_UsageByUser_UpstreamAuthCollapsesTo502(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError} {
 		h, stub := newLensDashboard()
-		stub.err = &thelens.UpstreamStatusError{Status: status, Body: []byte(`{"code":"X"}`)}
+		stub.err = &looptrace.UpstreamStatusError{Status: status, Body: []byte(`{"code":"X"}`)}
 		req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user", nil), "t1")
 		w := httptest.NewRecorder()
 		h.UsageByUser(w, req)

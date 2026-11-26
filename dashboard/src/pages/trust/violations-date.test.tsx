@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { violationColumns } from './violations';
 
-// #347 (1) — o passo 5 da âncora do theo-trust exige "mostra data e botão Abrir funcional".
+// #347 (1) — o passo 5 da âncora do loopguardrails exige "mostra data e botão Abrir funcional".
 // O botão funcionava; a data não existia.
 //
 // A coluna tinha sido REMOVIDA de propósito, com medição: "o /policy-violations do deploy não

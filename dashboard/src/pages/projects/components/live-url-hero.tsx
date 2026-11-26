@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
-import { Badge, Card, Skeleton } from '@usetheo/ui';
+import { Badge, Card, Skeleton } from '@getloopscale/ui';
 import type { ProjectStatusDetail } from '@/lib/api/types';
 import { copyToClipboard } from '@/lib/export/clipboard';
 
@@ -15,7 +15,7 @@ import { copyToClipboard } from '@/lib/export/clipboard';
  *
  * Canonical data path:
  *   useProjectStatus(name).status.url is emitted by `api/internal/routes/status.go:252`
- *   as `https://<project>-<env>.<baseDomain>` (e.g., https://teste-production.usetheo.dev
+ *   as `https://<project>-<env>.<baseDomain>` (e.g., https://teste-production.getloopscale.com
  *   for dev-public). Per ADR D1, this is the single source of truth — zero backend change.
  *
  * Copy affordance uses `copyToClipboard` (secure-context aware, com fallback) + uma regiao ARIA-live transitoria
@@ -27,7 +27,7 @@ interface LiveUrlHeroProps {
   status: ProjectStatusDetail | null;
   loading: boolean;
   /**
-   * Red Team theo-cloud#41 absorption (2026-06-27): when the parent
+   * Red Team loop-console#41 absorption (2026-06-27): when the parent
    * project is preview-only (`last_deploy_status === 'preview'`), the
    * hero renders a Preview-specific empty state — NEVER "URL pending"
    * with the misleading "appears after the first successful deploy"
@@ -37,7 +37,7 @@ interface LiveUrlHeroProps {
    */
   isPreviewOnly?: boolean;
   /**
-   * Red Team theo-cloud#115 absorption (2026-06-28): the production
+   * Red Team loop-console#115 absorption (2026-06-28): the production
    * `status` for a preview-only project has no URL — but the preview env
    * DOES have an active release serving a real Live URL. The parent
    * (project-detail) queries the sibling preview env from
@@ -74,7 +74,7 @@ export function LiveUrlHero({
     );
   }
 
-  // Red Team theo-cloud#115 closure: when production has no URL but the
+  // Red Team loop-console#115 closure: when production has no URL but the
   // sibling preview env has an active release serving HTTP 200, render
   // THAT URL with a "Preview" badge. Resolution order: production URL
   // (canonical) → preview URL (preview-only project) → empty states.
@@ -130,7 +130,7 @@ export function LiveUrlHero({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <div className="text-label text-muted-foreground uppercase">Live URL</div>
-            {/* Red Team theo-cloud#115 closure: when serving from the
+            {/* Red Team loop-console#115 closure: when serving from the
                 preview env (no production URL yet), label the badge
                 honestly so the user knows which environment is live. */}
             {isShowingPreview && <Badge variant="outline">Preview</Badge>}

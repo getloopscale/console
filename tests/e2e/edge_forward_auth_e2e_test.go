@@ -1,15 +1,15 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // platform-api-gateway-edge-slice1 (M6) T2.1 — the headline proof for the edge
 // slice: tenant isolation holds END-TO-END through the Traefik edge, where authZ
-// is delegated to theo-cloud's ForwardAuth endpoint and the data path goes to
-// theo-memory DIRECTLY (ADR D7). A consumer bound to tenant A cannot read tenant
+// is delegated to loop-console's ForwardAuth endpoint and the data path goes to
+// loopmem DIRECTLY (ADR D7). A consumer bound to tenant A cannot read tenant
 // B's memory through the edge, because ForwardAuth mints a PER-TENANT theo_live_*
-// (workspace = TenantID) that themory enforces isolation from — the client's own
-// key never reaches themory (D3, Traefik authResponseHeaders Del-then-set).
+// (workspace = TenantID) that loopmem enforces isolation from — the client's own
+// key never reaches loopmem (D3, Traefik authResponseHeaders Del-then-set).
 //
 // Reuses the package harness (seedAPIKey/remember/recall/env/mustDo from
 // tenant_isolation_e2e_test.go) but points at the EDGE (:8090) instead of the
@@ -41,7 +41,7 @@ func TestEdgeForwardAuthTenantIsolationE2E(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Seed the FK chain: users(id) ← tenants(owner_id); tenants(id) ← loopruntime_api_keys(tenant_id).
+	// Seed the FK chain: users(id) ← tenants(owner_id); tenants(id) ← loop_runtime_api_keys(tenant_id).
 	seedUser(t, db, "edge-alice-uid", "edge-alice@e2e.test")
 	seedUser(t, db, "edge-bob-uid", "edge-bob@e2e.test")
 	seedTenant(t, db, "tn-edge-alice", "edge-alice-uid")
@@ -52,11 +52,11 @@ func TestEdgeForwardAuthTenantIsolationE2E(t *testing.T) {
 	const canary = "edge tenant isolation canary phrase m6"
 
 	// Bob remembers THROUGH THE EDGE: :8090/v1/memory/remember → ForwardAuth mints
-	// tn-edge-bob's key → rewrite → themory:8080/v1/remember (workspace tn-edge-bob).
+	// tn-edge-bob's key → rewrite → loopmem:8080/v1/remember (workspace tn-edge-bob).
 	remember(t, edgeURL, bearerB, "edge-bob", canary)
 
 	// Alice recalls the same text through the edge → MUST be empty (her minted key
-	// is bound to workspace tn-edge-alice; themory never returns tn-edge-bob's rows).
+	// is bound to workspace tn-edge-alice; loopmem never returns tn-edge-bob's rows).
 	resA := recall(t, edgeURL, bearerA, "edge-alice", canary)
 	if len(resA) != 0 {
 		t.Fatalf("CROSS-TENANT LEAK THROUGH THE EDGE: tn-edge-alice recalled %d result(s) for tn-edge-bob's memory", len(resA))
@@ -83,7 +83,7 @@ func seedUser(t *testing.T, db *sql.DB, userID, email string) {
 	}
 }
 
-// seedTenant inserts a minimal tenant row so loopruntime_api_keys.tenant_id FK resolves.
+// seedTenant inserts a minimal tenant row so loop_runtime_api_keys.tenant_id FK resolves.
 func seedTenant(t *testing.T, db *sql.DB, tenantID, ownerID string) {
 	t.Helper()
 	// M3: tenants.account_id is NOT NULL (migration 000044). Ensure a default
@@ -112,7 +112,7 @@ func seedTenant(t *testing.T, db *sql.DB, tenantID, ownerID string) {
 
 // TestEdgeForwardAuth_NoKey_DeniedAtEdge proves the edge fails closed: a request
 // with no valid theo_live_* is DENIED by ForwardAuth (401/403) and never reaches
-// themory (Traefik makes no upstream call without an explicit ALLOW — EC-7).
+// loopmem (Traefik makes no upstream call without an explicit ALLOW — EC-7).
 func TestEdgeForwardAuth_NoKey_DeniedAtEdge(t *testing.T) {
 	edgeURL := requireE2EEdge(t)
 
@@ -123,7 +123,7 @@ func TestEdgeForwardAuth_NoKey_DeniedAtEdge(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("edge must DENY an unauthenticated request at ForwardAuth, got %d", resp.StatusCode)
 	}
-	// The minted Authorization is never set on a deny, so themory is never called.
+	// The minted Authorization is never set on a deny, so loopmem is never called.
 	if resp.Header.Get("Authorization") != "" {
 		t.Fatal("a denied edge request must not carry an Authorization header")
 	}

@@ -38,10 +38,10 @@ const reactHooksShim = {
 // desligou a unica fronteira executavel que ja existia. Toda regra de camada
 // abaixo espalha esta constante no MESMO valor de regra.
 const BAN_ALERT_CRU = {
-  name: '@usetheo/ui',
+  name: '@getloopscale/ui',
   importNames: ['Alert'],
   message:
-    "Import Alert from '@/components/ui/alert-guard' — the raw @usetheo/ui Alert silently drops a `children` body (#175). The guard renders it as `description`.",
+    "Import Alert from '@/components/ui/alert-guard' — the raw @getloopscale/ui Alert silently drops a `children` body (#175). The guard renders it as `description`.",
 };
 
 // Caminho para `pages/`, por alias E por relativo de QUALQUER profundidade.
@@ -119,11 +119,11 @@ export default [
       // de qualquer plano ativo. Promover para error em plano de cleanup
       // dedicado, NÃO aqui (plano 2026-05-29 é interface-only).
       'no-useless-assignment': 'warn',
-      // M87 — the raw @usetheo/ui `Alert` silently drops a body passed as `children` (usetheodev/
-      // theo-cloud#175): it renders only `title`/`description`/`action`. Feature code MUST import
+      // M87 — the raw @getloopscale/ui `Alert` silently drops a body passed as `children` (getloopscale/
+      // loop-console#175): it renders only `title`/`description`/`action`. Feature code MUST import
       // `Alert` from `@/components/ui/alert-guard`, which forwards `children` into `description` so the
       // body is always visible. This ban makes a #175-class regression a lint error, dashboard-side
-      // (the raw kit line the dashboard pins, @usetheo/ui@0.13.x, cannot itself be type-hardened here).
+      // (the raw kit line the dashboard pins, @getloopscale/ui@0.13.x, cannot itself be type-hardened here).
       // The guard file (`src/components/ui/alert-guard.tsx`) is the sanctioned raw-Alert consumer and is
       // overridden below.
       'no-restricted-imports': ['error', { paths: [BAN_ALERT_CRU] }],

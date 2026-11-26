@@ -1,4 +1,4 @@
-// Plan theo-memory-dashboard-full-integration, T3.1.
+// Plan loopmem-dashboard-full-integration, T3.1.
 // Covers the Playground page: remember submits + shows success, recall renders
 // scored results, reflect shows the passed-through result. All three verbs go
 // through the dashboard BFF (`/v1/dashboard/memory/{remember,recall,reflect}`).

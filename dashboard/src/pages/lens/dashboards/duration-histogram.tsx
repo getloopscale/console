@@ -1,4 +1,4 @@
-import { Card, Histogram, Skeleton } from '@usetheo/ui';
+import { Card, Histogram, Skeleton } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { useTracesSample, DURATION_SAMPLE } from '@/hooks/lens/use-traces-sample';
 import { formatDuration } from '@/lib/formatting/format';

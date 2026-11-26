@@ -35,7 +35,7 @@ import type { AuthMethod } from '@/lib/telemetry/rum';
  */
 
 /** Chave do `sessionStorage`. Exportada para o teste inspecionar o descarte. */
-export const PENDING_ATTEMPT_KEY = 'theo.auth.pending-attempt';
+export const PENDING_ATTEMPT_KEY = 'loopscale.auth.pending-attempt';
 
 export interface PendingAttempt {
   method: AuthMethod;

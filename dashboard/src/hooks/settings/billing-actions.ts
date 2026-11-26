@@ -11,10 +11,10 @@ import { cloudFetch } from '@/lib/http/api';
  *
  * Both opt into `throwOnError`, and each for a reason that was paid for in a bug:
  *
- *  - **Portal** (theo-cloud#49/#69): in the default `T | null` mode a non-2xx — the canonical case
+ *  - **Portal** (loop-console#49/#69): in the default `T | null` mode a non-2xx — the canonical case
  *    being a Free-tier visitor with no Stripe subscription to manage — returned `null` silently and
  *    the button looked like a no-op.
- *  - **Checkout** (theo-cloud#63): a non-2xx such as `503 BILLING_NOT_CONFIGURED` has to surface an
+ *  - **Checkout** (loop-console#63): a non-2xx such as `503 BILLING_NOT_CONFIGURED` has to surface an
  *    `ApiError` carrying the server's actionable body, so the UI renders the operator's message
  *    verbatim instead of a generic "please try again" that invites retry for a condition retry
  *    cannot fix.

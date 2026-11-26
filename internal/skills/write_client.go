@@ -100,7 +100,7 @@ func (c *DataClient) sendRaw(ctx context.Context, method, path string, body json
 // SetLifecycle muda o estágio de ciclo de vida de uma skill (`PUT /v1/skills/:id/lifecycle`).
 //
 // Vive no mesmo cliente da promoção porque exige a MESMA credencial: o registro passou a gatear
-// esta rota por `skills:publish` (ADR `0003-lifecycle-gate-por-escopo` do theo-skills), pelo mesmo
+// esta rota por `skills:publish` (ADR `0003-lifecycle-gate-por-escopo` do loopskills), pelo mesmo
 // eixo da promoção — depreciar é curadoria do acervo, não administração do workspace.
 //
 // **Depreciar NÃO tira a skill de quem já a referencia**: ela continua resolvível, e o que muda é

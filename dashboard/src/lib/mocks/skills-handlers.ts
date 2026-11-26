@@ -3,7 +3,7 @@ import { registerRoute } from './server';
 /**
  * M26 — o BFF de skills, para que a jornada do registro seja exercitável sem backend.
  *
- * As formas devolvidas aqui foram **medidas** na definição das rotas do `theo-skills`
+ * As formas devolvidas aqui foram **medidas** na definição das rotas do `loopskills`
  * (`packages/api/src/server/handlers/{skills,publishing}.ts`), não inventadas para o mock passar.
  * Um mock com forma inventada é pior que nenhum: ele deixa a tela verde contra um contrato que
  * não existe, e o defeito só aparece contra o serviço real — quando ninguém mais está olhando.
@@ -94,7 +94,7 @@ const skillsDb = {
 };
 
 /**
- * O prefixo depende de `window.__THEO_CONFIG__.API_URL`, vazio em dev (same-origin) e `/api`
+ * O prefixo depende de `window.__LOOPSCALE_CONFIG__.API_URL`, vazio em dev (same-origin) e `/api`
  * atrás do gateway. Registrar os dois evita que o mock funcione numa configuração e
  * silenciosamente não na outra — o modo de falha que já custou a primeira execução do e2e de
  * guardrails, com a tela corretamente dizendo "não foi possível carregar".
@@ -152,7 +152,7 @@ function registerSkillsRoutes(base: string) {
     // A PRESENÇA do campo distingue os três casos — ausente = rascunho (não há revisão, logo
     // não há vetor a cobrar); `false` = publicada e sem vetor (achado real). O mock usava
     // `!== true`, que colapsa ausente e `false` no mesmo caso, e por isso concordava com a tela
-    // sobre um comportamento que a theo-skills#144 mostrou estar errado.
+    // sobre um comportamento que a loopskills#144 mostrou estar errado.
     if (body.has_embedding === false) {
       causes.push('no_embedding');
       hints.push('The current revision has no vector: the skill only shows up for whoever already knows its name.');
@@ -217,7 +217,7 @@ function registerSkillsRoutes(base: string) {
     // Já concluída: o mock não simula latência de ingestão porque o que a jornada precisa provar
     // é que a tela ACOMPANHA e reage ao estado terminal — não quanto tempo demora.
     //
-    // `ACTIVE` é o SUCESSO, não "trabalhando" — contrato em theo-skills
+    // `ACTIVE` é o SUCESSO, não "trabalhando" — contrato em loopskills
     // `packages/core/src/contract/index.ts:5-15`: os estados de trabalho são
     // CREATING/UPDATING/DELETING, e os terminais são ACTIVE (succeeded) / FAILED.
     //
@@ -241,7 +241,7 @@ function registerSkillsRoutes(base: string) {
 
     // A forma E o vocabulário foram MEDIDOS no app-dev: `results` (não `skills`), `matched` como
     // `[{leg, rank}]` (não `string[]`), e `leg ∈ {'vector','keyword'}` — nunca `'lexical'`, que é
-    // um nome que o registro jamais emitiu (contrato em theo-skills
+    // um nome que o registro jamais emitiu (contrato em loopskills
     // `packages/core/src/domain/retrievers/types.ts:79`).
     //
     // Este mock errou as três coisas em sequência, e cada erro passou verde porque ele repetia a
@@ -351,7 +351,7 @@ function registerSkillsRoutes(base: string) {
     return Response.json(
       {
         code: 'execution_is_local',
-        message: 'skill ships a script and runs on the client machine; use `theoskill install`',
+        message: 'skill ships a script and runs on the client machine; use `loopscaleskill install`',
       },
       { status: 422 },
     );

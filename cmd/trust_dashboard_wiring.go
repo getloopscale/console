@@ -12,7 +12,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // trustDashMinter é a porta que a fiação consome do broker (ISP): apenas a cunhagem escopada.

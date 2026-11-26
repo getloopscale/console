@@ -34,7 +34,7 @@ function PreviewsRedirect() {
   return <Navigate to={`/projects/${encodeURIComponent(name ?? '')}/environments`} replace />;
 }
 
-// Red Team theo-cloud#102 closure: /projects/:name/repository was a dead
+// Red Team loop-console#102 closure: /projects/:name/repository was a dead
 // deep-link — the sidebar menu sent users to /projects/:name/connect but
 // the URL directly resolved to 404. Canonicalize by redirecting to the
 // real route.

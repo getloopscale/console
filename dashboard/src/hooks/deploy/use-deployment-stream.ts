@@ -76,8 +76,8 @@ export function useDeploymentStream(
   options: UseDeploymentStreamOptions = {},
 ): UseDeploymentStreamResult {
   // LIVE bug caught 2026-06-06 J-17 dogfood: dashboard runs at
-  // app-dev.usetheo.dev; Caddy + cloud BFF proxy only routes /engine/* to
-  // theo-api. Plain /api/v1/... returns 404. Mirror the engineFetch prefix
+  // app-dev.getloopscale.com; Caddy + cloud BFF proxy only routes /engine/* to
+  // loop-runtime-api. Plain /api/v1/... returns 404. Mirror the engineFetch prefix
   // pattern used by use-log-stream consumers + cloudFetch helpers.
   const path = buildID
     ? `/engine/api/v1/builds/${encodeURIComponent(buildID)}/stream`

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 //go:build integration
 
@@ -9,7 +9,7 @@
 // mint a presigned GET, read the bytes back. This is the only test that proves the
 // presign SIGNATURE works, not just its format (blueprint ADR D2 mitigation). Run:
 //
-//	S3X_TEST_ENDPOINT=http://127.0.0.1:19000 S3X_TEST_BUCKET=theo-storage-itest \
+//	S3X_TEST_ENDPOINT=http://127.0.0.1:19000 S3X_TEST_BUCKET=loopstore-itest \
 //	S3X_TEST_ACCESS_KEY=... S3X_TEST_SECRET_KEY=... \
 //	go test -tags=integration ./internal/storage/s3x/...
 package s3x
@@ -27,7 +27,7 @@ func TestPresign_RoundTrip_RealMinIO(t *testing.T) {
 	c := integrationClient(t)
 	ctx := context.Background()
 	key := "tenant-presign-itest/dogfood/presigned.txt"
-	payload := []byte("theo presigned-url direct-to-S3 round-trip proof")
+	payload := []byte("loopscale presigned-url direct-to-S3 round-trip proof")
 	plain := &http.Client{Timeout: 30 * time.Second}
 
 	// 1. Mint a presigned PUT and upload the bytes DIRECTLY (no BFF, no signing headers).

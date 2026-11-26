@@ -19,14 +19,14 @@ describe('manualChunks vendor split', () => {
     expect(manualChunks('/x/node_modules/react-router/dist/index.js')).toBe('router');
   });
 
-  it('routes radix / lucide / theo-ui to the single vendor chunk (F-fe-1 — no circular split)', () => {
-    // @usetheo/ui re-exports Radix + utility deps that also live in `vendor`; giving
-    // them dedicated chunks forms a `vendor ↔ theo-ui ↔ radix` cycle → TDZ → blank
+  it('routes radix / lucide / loopscale-ui to the single vendor chunk (F-fe-1 — no circular split)', () => {
+    // @getloopscale/ui re-exports Radix + utility deps that also live in `vendor`; giving
+    // them dedicated chunks forms a `vendor ↔ loopscale-ui ↔ radix` cycle → TDZ → blank
     // SPA. They MUST share the one `vendor` chunk (circular chunks are merged, not
     // split — same principle as scheduler+react in ADR D1).
     expect(manualChunks('/x/node_modules/@radix-ui/react-dialog/index.js')).toBe('vendor');
     expect(manualChunks('/x/node_modules/lucide-react/index.js')).toBe('vendor');
-    expect(manualChunks('/x/node_modules/@usetheo/ui/dist/index.js')).toBe('vendor');
+    expect(manualChunks('/x/node_modules/@getloopscale/ui/dist/index.js')).toBe('vendor');
   });
 
   it('routes other node_modules to vendor', () => {

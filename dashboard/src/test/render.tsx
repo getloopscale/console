@@ -2,8 +2,8 @@ import { render as rtlRender, type RenderOptions } from '@testing-library/react'
 import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
-import { Toaster } from '@usetheo/ui';
-import { ThemeProvider } from '@theokit/ui';
+import { Toaster } from '@getloopscale/ui';
+import { ThemeProvider } from '@getloopscale/loopzero-ui';
 import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import type { ReactElement, ReactNode } from 'react';

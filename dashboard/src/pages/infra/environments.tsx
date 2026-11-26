@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Plus, Rocket, Trash2 } from 'lucide-react';
-import { Button, Card, PageShell, StatusDot, Table } from '@usetheo/ui';
+import { Button, Card, PageShell, StatusDot, Table } from '@getloopscale/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { estadoDaLista } from '@/lib/list-state';
 import { useEngineApi } from '@/hooks/use-api';

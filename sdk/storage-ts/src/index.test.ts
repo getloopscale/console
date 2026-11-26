@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { describe, it, expect, vi } from 'vitest';
 import {
@@ -18,7 +18,7 @@ function client(fetchImpl: typeof fetch) {
   return createStorageClient({ baseUrl: 'https://api.test/', apiKey: 'theo_live_abc', fetch: fetchImpl });
 }
 
-describe('@usetheo/storage', () => {
+describe('@getloopscale/storage', () => {
   it('upload sends PUT with auth + content-type and returns the file', async () => {
     const f = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toBe('https://api.test/v1/storage/objects/docs/a.txt');

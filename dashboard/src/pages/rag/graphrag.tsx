@@ -10,7 +10,7 @@ import {
   Select,
   Skeleton,
   Textarea,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -32,7 +32,7 @@ import { collapseGraph, isSuperNodeId } from './graphrag/collapse-graph';
  * next to the community reports (the "always-generated sensemaking"). A Leiden level slider re-reads
  * the hierarchy. Ask is a SECONDARY panel (global sensemaking / entity graph) layered on top.
  *
- * Reads the M10 BFF endpoints (which proxy theo-rag): `/collections/{id}/graph` + `/communities`.
+ * Reads the M10 BFF endpoints (which proxy looprag): `/collections/{id}/graph` + `/communities`.
  * The graph JSON is forwarded opaquely by the BFF; this page renders it. No fabrication.
  */
 

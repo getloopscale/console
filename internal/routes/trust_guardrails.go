@@ -15,7 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/trust"
+	"github.com/getloopscale/loop-console/internal/trust"
 )
 
 // trustWriter e o subconjunto mutante que este handler consome.
@@ -54,7 +54,7 @@ func readSpec(w http.ResponseWriter, r *http.Request) (json.RawMessage, bool) {
 // mutate centraliza a forma da resposta das mutacoes.
 //
 // Diferenca deliberada em relacao ao proxy de LEITURA: aqui o corpo de erro do upstream ATRAVESSA.
-// O theo-trust responde com codigo tipado (`INVALID_SPEC`, `VALIDATOR_NAME_RESERVED`, `CONFLICT`) e
+// O loopguardrails responde com codigo tipado (`INVALID_SPEC`, `VALIDATOR_NAME_RESERVED`, `CONFLICT`) e
 // mensagem que diz O QUE corrigir. Esconde-lo transformaria "seu termo esta vazio" em "erro" — e o
 // operador tentaria de novo igual. O risco de vazamento e menor aqui porque a falha e de VALIDACAO
 // da spec que ele mesmo enviou, nao de topologia interna.

@@ -35,7 +35,7 @@ test.describe('J-03 Verification — code entry + resend cooldown (DOM-driven)',
       // Simulate a resend that happened ~45s ago on a prior page load. The
       // deadline (epoch ms) survives the reload in localStorage — proving the
       // cooldown is not just in-memory component state.
-      localStorage.setItem('theo-verify-resend-until', String(Date.now() + 45_000));
+      localStorage.setItem('loopscale-verify-resend-until', String(Date.now() + 45_000));
     });
     await page.goto('/verification?flow=verify-2');
 

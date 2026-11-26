@@ -1,7 +1,7 @@
 // Mock HTTP server for /api/v1/* routes — Plan v1.0 T0.2.
 //
 // Extends the dev-mocks.ts pattern (window.fetch wrap) to cover the full
-// Theo backend API surface (55+ endpoints). Per ADR D1, NOT MSW — adds zero
+// LoopScale backend API surface (55+ endpoints). Per ADR D1, NOT MSW — adds zero
 // bundle weight and matches the project's existing interception convention.
 //
 // Pattern:
@@ -146,7 +146,7 @@ export function installMocks(): void {
 
     // Strip /engine prefix that engineFetch prepends — backend endpoints
     // register without it; engineFetch is a dashboard convention for routing
-    // to the Theo engine through a proxy.
+    // to the LoopScale engine through a proxy.
     const normalized = pathname.replace(/^\/engine/, '');
 
     const matched = matchRoute(method, normalized);

@@ -17,20 +17,20 @@ import { buildGrafanaDeepLink } from './grafana-deep-link';
 describe('buildGrafanaDeepLink — T2.3 J-18', () => {
   it('templates URL with all params when grafanaBaseURL set', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local',
+      grafanaBaseURL: 'https://grafana.loopscale.local',
       projectName: 'teste',
       env: 'production',
       signal: 'uptime_24h',
     });
 
     expect(url).toBe(
-      'https://grafana.theo.local/d/theo-project?var-project=teste&var-env=production&var-signal=uptime_24h',
+      'https://grafana.loopscale.local/d/loopscale-project?var-project=teste&var-env=production&var-signal=uptime_24h',
     );
   });
 
   it('EC-6: URL-encodes project name with special chars (&, ?, #)', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local',
+      grafanaBaseURL: 'https://grafana.loopscale.local',
       projectName: 'proj&test?env#prod',
       env: 'production',
       signal: 'uptime_24h',
@@ -44,7 +44,7 @@ describe('buildGrafanaDeepLink — T2.3 J-18', () => {
 
   it('EC-6: URL-encodes env name with spaces and accents', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local',
+      grafanaBaseURL: 'https://grafana.loopscale.local',
       projectName: 'teste',
       env: 'prod ção',
       signal: 'uptime_24h',
@@ -97,7 +97,7 @@ describe('buildGrafanaDeepLink — T2.3 J-18', () => {
 
   it('strips trailing slash from baseURL to avoid double-slash', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local/',
+      grafanaBaseURL: 'https://grafana.loopscale.local/',
       projectName: 'teste',
       env: 'production',
       signal: 'uptime_24h',
@@ -105,34 +105,34 @@ describe('buildGrafanaDeepLink — T2.3 J-18', () => {
 
     // Must not contain `local//d/`
     expect(url).not.toContain('local//d/');
-    expect(url).toContain('local/d/theo-project');
+    expect(url).toContain('local/d/loopscale-project');
   });
 
   it('strips multiple trailing slashes', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local///',
+      grafanaBaseURL: 'https://grafana.loopscale.local///',
       projectName: 'teste',
       env: 'production',
     });
 
-    expect(url).toContain('local/d/theo-project');
+    expect(url).toContain('local/d/loopscale-project');
     expect(url).not.toContain('local//d/');
   });
 
   it('omits var-signal param when signal not provided', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local',
+      grafanaBaseURL: 'https://grafana.loopscale.local',
       projectName: 'teste',
       env: 'production',
     });
 
-    expect(url).toBe('https://grafana.theo.local/d/theo-project?var-project=teste&var-env=production');
+    expect(url).toBe('https://grafana.loopscale.local/d/loopscale-project?var-project=teste&var-env=production');
     expect(url).not.toContain('var-signal');
   });
 
   it('omits var-signal param when signal is empty string', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local',
+      grafanaBaseURL: 'https://grafana.loopscale.local',
       projectName: 'teste',
       env: 'production',
       signal: '',
@@ -143,7 +143,7 @@ describe('buildGrafanaDeepLink — T2.3 J-18', () => {
 
   it('omits var-signal when signal is whitespace-only', () => {
     const url = buildGrafanaDeepLink({
-      grafanaBaseURL: 'https://grafana.theo.local',
+      grafanaBaseURL: 'https://grafana.loopscale.local',
       projectName: 'teste',
       env: 'production',
       signal: '   ',

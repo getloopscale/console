@@ -1,7 +1,7 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // platform-api-gateway edge unification (M8 slice-3a) T4.1 — per-route-class proof
 // that the SINGLE Traefik edge (:8090) routes every concern correctly: the dashboard
@@ -57,7 +57,7 @@ func TestEdge_BffRouter_ReachesBff(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("BFF /health through the edge: want 200, got %d (bff router must reach theo-cloud:13002)", resp.StatusCode)
+		t.Errorf("BFF /health through the edge: want 200, got %d (bff router must reach loop-console:13002)", resp.StatusCode)
 	}
 }
 

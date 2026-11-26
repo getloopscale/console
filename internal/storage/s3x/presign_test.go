@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package s3x
 
@@ -19,19 +19,19 @@ var fixedNow = time.Date(2026, 1, 2, 15, 4, 5, 0, time.UTC)
 // input. Signing security code MUST be validated against an independent oracle,
 // not a self-referential golden (blueprint ADR D2 mitigation).
 //
-// Oracle input: method=PUT, endpoint=http://minio:9000, bucket=theo-storage,
+// Oracle input: method=PUT, endpoint=http://minio:9000, bucket=loopstore,
 // key=tenant-x/data/report.txt, region=us-east-1, AK=AKIAEXAMPLE,
 // SK=SECRETEXAMPLEKEY, expires=300s, X-Amz-Date=20260102T150405Z.
 func TestPresign_MatchesIndependentVector(t *testing.T) {
 	signer := &Signer{Region: "us-east-1", AccessKey: "AKIAEXAMPLE", SecretKey: "SECRETEXAMPLEKEY"}
-	rawURL := "http://minio:9000/theo-storage/tenant-x/data/report.txt"
+	rawURL := "http://minio:9000/loopstore/tenant-x/data/report.txt"
 
 	got, err := signer.Presign("PUT", rawURL, 300*time.Second, fixedNow)
 	if err != nil {
 		t.Fatalf("Presign: %v", err)
 	}
 
-	const wantSig = "e8fad519caf49ee879380cf034d89e2448134bbf53a1a2c68628d16a770532e6"
+	const wantSig = "905eee80694e9766e5ac63c80545429a71cae04ab62414bd1385d8c8ddca1745"
 	const wantCanonicalQuery = "X-Amz-Algorithm=AWS4-HMAC-SHA256&" +
 		"X-Amz-Credential=AKIAEXAMPLE%2F20260102%2Fus-east-1%2Fs3%2Faws4_request&" +
 		"X-Amz-Date=20260102T150405Z&X-Amz-Expires=300&X-Amz-SignedHeaders=host"
@@ -99,8 +99,8 @@ func TestPresign_RejectsBadURL(t *testing.T) {
 // hits) while the BFF's own server-side ops keep using the in-cluster Endpoint.
 func TestClient_PresignUsesPublicEndpoint(t *testing.T) {
 	c, err := New(Config{
-		Endpoint: "http://minio:9000", PublicEndpoint: "https://storage-dev.usetheo.dev",
-		Bucket: "theo-storage", Region: "us-east-1", AccessKey: "AK", SecretKey: "SK",
+		Endpoint: "http://minio:9000", PublicEndpoint: "https://storage-dev.getloopscale.com",
+		Bucket: "loopstore", Region: "us-east-1", AccessKey: "AK", SecretKey: "SK",
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -109,10 +109,10 @@ func TestClient_PresignUsesPublicEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PresignPut: %v", err)
 	}
-	if !strings.HasPrefix(url, "https://storage-dev.usetheo.dev/theo-storage/tn/x.txt?") {
+	if !strings.HasPrefix(url, "https://storage-dev.getloopscale.com/loopstore/tn/x.txt?") {
 		t.Errorf("presign must use the public host, got %s", url)
 	}
-	if got := c.objectURL("tn/x.txt"); got != "http://minio:9000/theo-storage/tn/x.txt" {
+	if got := c.objectURL("tn/x.txt"); got != "http://minio:9000/loopstore/tn/x.txt" {
 		t.Errorf("server-side url must stay in-cluster, got %s", got)
 	}
 }

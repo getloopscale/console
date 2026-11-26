@@ -1,9 +1,9 @@
-import { Select } from '@usetheo/ui';
+import { Select } from '@getloopscale/ui';
 
 /**
  * TimeRangePicker — J-19 T1.1 (R1 blueprint MUST).
  *
- * Six-preset dropdown that maps to Theo's Beta Logs Gate Criterion 7
+ * Six-preset dropdown that maps to LoopScale's Beta Logs Gate Criterion 7
  * `?since=` query param. Preset values are the canonical strings the backend
  * accepts (`5m`, `15m`, `1h`, `6h`, `24h`, `7d`), so NO mapping layer is
  * needed between this component and the SSE URL.

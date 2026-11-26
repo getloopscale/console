@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package tracing provides OpenTelemetry distributed tracing bootstrap for the cloud service.
 // Mirrors the pattern from api/internal/tracing/tracing.go.
 //
 // Conditions applied (same as API service):
 //   - Export timeout 1s, retry disabled, bounded queue 2048
-//   - Feature flag LOOPRUNTIME_TRACING_ENABLED (default true dev, false prod)
+//   - Feature flag LOOP_RUNTIME_TRACING_ENABLED (default true dev, false prod)
 //   - trace-id is separate from correlation-id
 package tracing
 
@@ -27,7 +27,7 @@ import (
 
 const (
 	// DefaultEndpoint is the in-cluster OTel Collector address.
-	DefaultEndpoint = "otel-collector.theo-system.svc.cluster.local:4317"
+	DefaultEndpoint = "otel-collector.loopscale-system.svc.cluster.local:4317"
 
 	// exportTimeout is the maximum time for an export attempt.
 	exportTimeout = 1 * time.Second
@@ -40,14 +40,14 @@ const (
 // Init configures the OTel TracerProvider with OTLP gRPC exporter.
 // Returns a shutdown function for graceful shutdown.
 //
-// If LOOPRUNTIME_TRACING_ENABLED is "false", returns a no-op shutdown
+// If LOOP_RUNTIME_TRACING_ENABLED is "false", returns a no-op shutdown
 // with zero overhead -- no TracerProvider is registered.
 //
 // If the Collector is unreachable, the service continues normally.
 // Spans are dropped after queue exhaustion (graceful degradation).
 func Init(ctx context.Context, serviceName string) (shutdown func(context.Context) error, err error) {
 	if !isEnabled() {
-		slog.Info("tracing disabled via LOOPRUNTIME_TRACING_ENABLED=false")
+		slog.Info("tracing disabled via LOOP_RUNTIME_TRACING_ENABLED=false")
 		return func(context.Context) error { return nil }, nil
 	}
 
@@ -90,7 +90,7 @@ func Init(ctx context.Context, serviceName string) (shutdown func(context.Contex
 		sdktrace.WithSpanProcessor(bsp),
 	)
 
-	// Register globally so otel.Tracer("theo-cloud") works everywhere.
+	// Register globally so otel.Tracer("loop-console") works everywhere.
 	otel.SetTracerProvider(tp)
 
 	// W3C TraceContext propagation for cross-service trace correlation.
@@ -108,10 +108,10 @@ func Init(ctx context.Context, serviceName string) (shutdown func(context.Contex
 	return tp.Shutdown, nil
 }
 
-// isEnabled checks the LOOPRUNTIME_TRACING_ENABLED feature flag.
+// isEnabled checks the LOOP_RUNTIME_TRACING_ENABLED feature flag.
 // Default: "true" unless explicitly set to "false".
 func isEnabled() bool {
-	v := os.Getenv("LOOPRUNTIME_TRACING_ENABLED")
+	v := os.Getenv("LOOP_RUNTIME_TRACING_ENABLED")
 	if v == "" {
 		return true
 	}
@@ -120,7 +120,7 @@ func isEnabled() bool {
 
 // getEnv returns the deployment environment name for resource attributes.
 func getEnv() string {
-	env := os.Getenv("LOOPRUNTIME_ENV")
+	env := os.Getenv("LOOP_RUNTIME_ENV")
 	if env == "" {
 		return "development"
 	}

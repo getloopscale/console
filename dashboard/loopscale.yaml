@@ -1,0 +1,9 @@
+version: 1
+project: loopscale-dashboard
+
+apps:
+  dashboard:
+    path: .
+    framework: vite
+    type: frontend
+    build: buildpack

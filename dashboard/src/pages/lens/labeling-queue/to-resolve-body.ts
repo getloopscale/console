@@ -1,4 +1,4 @@
-import { isCategoricalConfig, isContinuousConfig } from '@usetheo/ui';
+import { isCategoricalConfig, isContinuousConfig } from '@getloopscale/ui';
 
 import type { ScoreConfig } from './score-configs';
 

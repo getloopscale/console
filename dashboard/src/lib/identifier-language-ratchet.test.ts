@@ -5,7 +5,7 @@
 // `i18n-guard.test.ts`, and for the same reason: a slow guard is a guard someone eventually skips.
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';

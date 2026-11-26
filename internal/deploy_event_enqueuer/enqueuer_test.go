@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package deploy_event_enqueuer
 
@@ -21,7 +21,7 @@ func enqueuerDB(t *testing.T) *sql.DB {
 	t.Helper()
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
-		url = "postgres://postgres:postgres@localhost:5432/theo_test?sslmode=disable"
+		url = "postgres://postgres:postgres@localhost:5432/loopscale_test?sslmode=disable"
 	}
 	db, err := sql.Open("pgx", url)
 	if err != nil {
@@ -101,9 +101,9 @@ func TestEnqueuer_FansOutAndMarksDrained(t *testing.T) {
 	}
 
 	var (
-		count           int
-		webhookID, tid  string
-		status          string
+		count          int
+		webhookID, tid string
+		status         string
 	)
 	if err := db.QueryRow(`SELECT count(*) FROM workspace_webhook_deliveries`).Scan(&count); err != nil {
 		t.Fatal(err)
@@ -174,7 +174,7 @@ func TestEnqueuer_CrossTenantIsolation(t *testing.T) {
 	db := enqueuerDB(t)
 	fixtureSchema(t, db)
 	seedWebhook(t, db, "wwh-b", "tn-b", `["deploy.succeeded"]`, false) // tenant B's hook
-	seedEvent(t, db, "tr-1", "deploy.succeeded", "tn-a")              // tenant A's event
+	seedEvent(t, db, "tr-1", "deploy.succeeded", "tn-a")               // tenant A's event
 
 	if err := New(db, nil).Tick(context.Background()); err != nil {
 		t.Fatalf("Tick: %v", err)

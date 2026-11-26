@@ -59,7 +59,7 @@ import {
  * D7 +30% gzip target).
  */
 
-// Red Team theo-cloud#58/#73 closure: wrap the dashboard inner Routes
+// Red Team loop-console#58/#73 closure: wrap the dashboard inner Routes
 // in a route-keyed scope so:
 //   1. When the URL pathname changes, React discards the previous
 //      route's tree IMMEDIATELY (instead of letting the prior page
@@ -72,12 +72,12 @@ import {
 // a fresh one. The cost is one extra render per route change, which is
 // the correct trade-off (the previous behavior was a visible bug). The
 // `dismiss-all` part is best-effort: we cannot enumerate live toast IDs
-// through the @usetheo/ui Toaster contract, so we use a `useToast`
+// through the @getloopscale/ui Toaster contract, so we use a `useToast`
 // shadow-tracking approach via a small registry mounted alongside.
 function RouteScope({ children }: { children: ReactNode }) {
   const location = useLocation();
   // Radix scroll-lock stuck fix (radix-ui/primitives#2122). Quando um overlay do
-  // @usetheo/ui (Select / DropdownMenu / Dialog — todos Radix) está ABERTO e o
+  // @getloopscale/ui (Select / DropdownMenu / Dialog — todos Radix) está ABERTO e o
   // componente DESMONTA durante uma navegação de rota, o Radix não roda o cleanup
   // e deixa `pointer-events: none` (inline) + `data-scroll-locked` PRESOS no <body>.
   // Nesse estado a página inteira trava: nenhum clique passa e NENHUM texto pode
@@ -119,7 +119,7 @@ export default function App() {
             * /signup is the intuitive URL new users try; map to /register via
             * SPA-side Navigate per ADR D5. `replace` keeps history clean. */}
           <Route path="/signup" element={<Navigate to="/register" replace />} />
-          {/* Red Team theo-cloud#55 closure: /registration is the second
+          {/* Red Team loop-console#55 closure: /registration is the second
             * intuitive URL (matches the noun "registration"). Map to
             * /register via SPA-side Navigate — same shape as the /signup
             * alias above. Replaces the prior fall-through that sent
@@ -129,10 +129,10 @@ export default function App() {
           <Route path="/registration" element={<Navigate to="/register" replace />} />
           <Route path="/verification" element={<Boundaried path="/verification"><VerificationPage /></Boundaried>} />
           {/*
-            * Red Team theo/theo#162 (2026-07-01): the post-signup redirect
+            * Red Team loopscale/loopscale#162 (2026-07-01): the post-signup redirect
             * target /auth/check-email + email verify link /auth/verify used
             * to return 404 Caddy raw because the Caddyfile handle /auth/*
-            * proxied everything to the theo-cloud BFF (which only serves
+            * proxied everything to the loop-console BFF (which only serves
             * 4 OAuth routes). Caddyfile is now narrowed with a named
             * @auth_bff matcher so these paths fall through to the SPA.
             * /auth/verify → canonical Kratos /verification page.
@@ -146,7 +146,7 @@ export default function App() {
             path="*"
             element={
               <DashboardLayout>
-                {/* Red Team theo-cloud#58/#73 closure: wrap the inner
+                {/* Red Team loop-console#58/#73 closure: wrap the inner
                     Routes in a route-keyed RouteScope so a route change
                     (a) forces React to discard the prior route's tree
                     immediately instead of letting the previous page
@@ -161,7 +161,7 @@ export default function App() {
                     {rotasDeProjects}
                     {/* Plan J-17 T5.1: nested layout with Outlet replaces
                         the four sibling routes. Index = TimelineTab. */}
-                    {/* Red Team theo-cloud#102 closure: /projects/:name/
+                    {/* Red Team loop-console#102 closure: /projects/:name/
                       * repository was an orphan deep-link (404). Canonical
                       * destination is /connect. */}
                     <Route path="/audit" element={<Boundaried path="/audit"><AuditPage /></Boundaried>} />
@@ -186,7 +186,7 @@ export default function App() {
                         ANUNCIADA no menu (comingSoon) e ainda nao construida. A rota existe para
                         que o item nao leve a lugar nenhum, e a tela diz o que fara.
 
-                        SEM `cliCommand` DE PROPOSITO: nao ha comando `theo db` hoje. Sugerir um
+                        SEM `cliCommand` DE PROPOSITO: nao ha comando `loopscale db` hoje. Sugerir um
                         seria mentir de forma mais convincente que a ausencia — o placeholder
                         existe justamente para nao afirmar o que nao existe.
 

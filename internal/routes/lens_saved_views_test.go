@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -14,10 +14,10 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// theo-lens M52 — LensSavedViewsHandler. Per-tenant saved trace-list filter combinations, mirroring
+// looptrace M52 — LensSavedViewsHandler. Per-tenant saved trace-list filter combinations, mirroring
 // the J-16 workspace_webhooks isolation (subject+tenant_id scoping, 404-not-403 cross-tenant delete).
 
 func lsvReq(method, target, body, tenant string) *http.Request {

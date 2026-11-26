@@ -30,7 +30,7 @@ describe('enrichKratosError (T0.1 EC-02)', () => {
     expect(out).toBe('');
   });
 
-  // Red Team theo-cloud#75 closure: the raw Kratos duplicate-account
+  // Red Team loop-console#75 closure: the raw Kratos duplicate-account
   // message references phone/username fields the /register form
   // never collects. Override with copy scoped to the actual fields
   // (email) plus an inline retry path.

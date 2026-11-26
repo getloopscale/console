@@ -90,7 +90,7 @@ describe('M63 LensLabelingQueuePage', () => {
         : {},
     );
     await renderAndOpenResolve();
-    // the resolve Sheet composes @usetheo/ui AnnotationInputs (M12); the free-text "Label"
+    // the resolve Sheet composes @getloopscale/ui AnnotationInputs (M12); the free-text "Label"
     // score-config renders a required label (trailing * marker), so match loosely.
     await userEvent.type(await screen.findByLabelText(/^Label/), 'good');
     await userEvent.click(screen.getByRole('button', { name: /^resolve$/i }));

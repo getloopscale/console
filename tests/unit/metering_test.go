@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package unit
 
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/metering"
+	"github.com/getloopscale/loop-console/internal/metering"
 )
 
 func TestReporterNilDB(t *testing.T) {

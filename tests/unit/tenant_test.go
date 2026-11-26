@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package unit
 
@@ -12,7 +12,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 func TestTenantProvisionerNilDB(t *testing.T) {
@@ -124,7 +124,7 @@ func TestEnsureTenant_InsertsUsernameOnNewUser(t *testing.T) {
 	prov := auth.NewTenantProvisioner(db, logger)
 
 	userID := "3095bb15-0b35-47c2-b6d6-3af72676f40d"
-	email := "paulo@theo.test"
+	email := "paulo@loopscale.test"
 	// M3: fast-path + re-check now SELECT t.id, t.account_id, tm.role (3 columns).
 	noRows := sqlmock.NewRows([]string{"id", "account_id", "role"})
 

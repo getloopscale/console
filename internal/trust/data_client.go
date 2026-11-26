@@ -1,7 +1,7 @@
-// M23 — DataClient e o proxy de LEITURA por tenant para a API do theo-trust, consumido pelo BFF
+// M23 — DataClient e o proxy de LEITURA por tenant para a API do loopguardrails, consumido pelo BFF
 // do dashboard (`/v1/dashboard/trust/*`).
 //
-// Model B, igual ao `internal/thelens/data_client.go`: o cliente NAO guarda credencial alguma. Um
+// Model B, igual ao `internal/looptrace/data_client.go`: o cliente NAO guarda credencial alguma. Um
 // `keyResolver` injetado cunha o Bearer do tenant a cada requisicao, a partir do JWT em contexto.
 // Resolver ausente ou com erro FALHA FECHADO — nenhuma requisicao sai, e nao existe fallback para
 // chave-mestra. Esse e o ponto: uma requisicao feita com a credencial errada e como comeca um
@@ -9,7 +9,7 @@
 // o defeito e de fiacao.
 //
 // O corpo do upstream atravessa como `json.RawMessage`, sem re-modelagem. O BFF e proxy, nao
-// tradutor: re-tipar aqui criaria um segundo schema para manter em sincronia com o theo-trust, e
+// tradutor: re-tipar aqui criaria um segundo schema para manter em sincronia com o loopguardrails, e
 // toda divergencia entre os dois viraria bug silencioso de renderizacao.
 package trust
 
@@ -24,18 +24,18 @@ import (
 	"strings"
 )
 
-// maxBodyBytes limita o que o BFF le do upstream. Sem teto, uma resposta anomala do theo-trust
+// maxBodyBytes limita o que o BFF le do upstream. Sem teto, uma resposta anomala do loopguardrails
 // vira pressao de memoria no plano de controle — que serve todos os tenants, nao so este.
 const maxBodyBytes = 8 << 20 // 8 MiB
 
-// DataClient e o proxy de leitura por tenant para o theo-trust.
+// DataClient e o proxy de leitura por tenant para o loopguardrails.
 type DataClient struct {
 	baseURL     string
 	httpClient  *http.Client
 	keyResolver func(ctx context.Context) (string, error)
 }
 
-// NewDataClient constroi o cliente. baseURL e a raiz REST do theo-trust (ex.:
+// NewDataClient constroi o cliente. baseURL e a raiz REST do loopguardrails (ex.:
 // http://host.docker.internal:18085). httpClient nil usa http.DefaultClient.
 func NewDataClient(baseURL string, httpClient *http.Client) *DataClient {
 	if httpClient == nil {
@@ -142,7 +142,7 @@ func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (jso
 		return nil, fmt.Errorf("trust data client: read %s: %w", path, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// O corpo do upstream entra truncado: ele carrega o codigo tipado do theo-trust
+		// O corpo do upstream entra truncado: ele carrega o codigo tipado do loopguardrails
 		// (`POLICY_BLOCKED`, `INVALID_SPEC`), que e diagnostico util — mas nao ha razao para
 		// ecoar um corpo grande de erro no log do plano de controle.
 		return nil, fmt.Errorf("trust data client: GET %s: upstream %d: %s",

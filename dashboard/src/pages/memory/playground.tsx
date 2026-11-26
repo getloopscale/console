@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Brain, Search } from 'lucide-react';
-import { Badge, Button, Card, Input, PageShell, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, Input, PageShell, Textarea } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ReflectCard } from '@/pages/memory/reflect-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -8,7 +8,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { useRemember, useRecall } from '@/hooks/memory/use-playground';
 
 /**
- * Plan theo-memory-dashboard-full-integration, T3.1 (ADR D5).
+ * Plan loopmem-dashboard-full-integration, T3.1 (ADR D5).
  *
  * /memory/playground — the live remember / recall / reflect surface.
  * Fulfills the "Try Playground — remember and recall live, no code required"
@@ -60,7 +60,7 @@ export function PlaygroundPage() {
   // --- Recall panel ---
   const [recallQuery, setRecallQuery] = useState('');
   const [recallAsOf, setRecallAsOf] = useState(''); // datetime-local; widened to RFC3339 (asOf, v1.1)
-  // graphExpand (EG-1, theo-memory v0.20.0): opt-in entity-graph recall. Default
+  // graphExpand (EG-1, loopmem v0.20.0): opt-in entity-graph recall. Default
   // OFF so a normal recall body is byte-unchanged; when on, surface memories
   // connected by a shared entity (1 hop) or relation edge (2 hops).
   const [graphExpandOn, setGraphExpandOn] = useState(false);

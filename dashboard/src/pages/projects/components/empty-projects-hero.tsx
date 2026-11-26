@@ -1,5 +1,5 @@
 import { Rocket } from 'lucide-react';
-import { Button, Card, CodeBlock, CopyButton } from '@usetheo/ui';
+import { Button, Card, CodeBlock, CopyButton } from '@getloopscale/ui';
 
 /**
  * EmptyProjectsHero (Sprint 3 T3.3) — Vercel-style empty-state-as-onboarding.
@@ -17,12 +17,12 @@ interface Template {
   cliCommand: string;
 }
 
-// Sprint 4 qa-sprint4-cleanup-2026-06-25 #32 (closes "theo init" inexistente):
-// `theo init` is NOT a real subcommand in @usetheo/cli@0.3.1. Replaced with the
-// canonical `theo project create <name>` per the CLI's actual surface.
+// Sprint 4 qa-sprint4-cleanup-2026-06-25 #32 (closes "loopscale init" inexistente):
+// `loopscale init` is NOT a real subcommand in @getloopscale/loop-cli@0.3.1. Replaced with the
+// canonical `loopscale project create <name>` per the CLI's actual surface.
 // EC-5 absorption: per-template names (my-nextjs-app / my-express-api /
 // my-go-service) preserve the per-stack UX signal — without them, the Copy
-// button on all 3 cards would emit the IDENTICAL string `theo project create
+// button on all 3 cards would emit the IDENTICAL string `loopscale project create
 // my-app`, defeating the purpose of presenting 3 distinct starter options.
 const TEMPLATES: Template[] = [
   { name: 'Next.js', description: 'React framework with SSR', cliCommand: 'loopscale project create my-nextjs-app' },

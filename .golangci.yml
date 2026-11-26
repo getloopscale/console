@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
 # This file did not exist until 2026-08-13 (B-273), and its absence was invisible for a reason
 # worth writing down: the lint step had not actually run. The binary was downloaded from a GitHub

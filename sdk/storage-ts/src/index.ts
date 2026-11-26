@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 /**
- * @usetheo/storage — official TypeScript client for Theo tenant blob storage.
+ * @getloopscale/storage — official TypeScript client for LoopScale tenant blob storage.
  *
  * ```ts
- * import { createStorageClient } from '@usetheo/storage';
+ * import { createStorageClient } from '@getloopscale/storage';
  *
  * const storage = createStorageClient({
- *   baseUrl: 'https://api.usetheo.dev',
- *   apiKey: process.env.THEO_STORAGE_KEY!, // a theo_live_* key with storage:read/write
+ *   baseUrl: 'https://api.getloopscale.com',
+ *   apiKey: process.env.LOOPSCALE_STORAGE_KEY!, // a theo_live_* key with storage:read/write
  * });
  *
  * await storage.upload('avatars/user1.png', bytes, 'image/png');
@@ -20,7 +20,7 @@
 
 /** Options for {@link createStorageClient}. */
 export interface StorageClientOptions {
-  /** Base URL of the Theo API, e.g. `https://api.usetheo.dev`. */
+  /** Base URL of the LoopScale API, e.g. `https://api.getloopscale.com`. */
   baseUrl: string;
   /** A `theo_live_*` API key carrying `storage:read` / `storage:write`. */
   apiKey: string;
@@ -88,7 +88,7 @@ export class NotFoundError extends StorageError {
   }
 }
 
-/** The Theo storage client. Create one with {@link createStorageClient}. */
+/** The LoopScale storage client. Create one with {@link createStorageClient}. */
 export interface StorageClient {
   upload(path: string, body: Uint8Array | ArrayBuffer, contentType?: string): Promise<StorageFile>;
   download(path: string): Promise<Uint8Array>;

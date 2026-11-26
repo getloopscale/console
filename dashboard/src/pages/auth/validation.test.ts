@@ -57,7 +57,7 @@ describe('T1.3 #28 + EC-1 validation helpers (EN messages)', () => {
     expect(validatePasswordMinLength('A1234567890123', 10)).toBeNull();
   });
 
-  // theo-cloud#65 closure (Red Team 2026-06-26): the Kratos identity schema's
+  // loop-console#65 closure (Red Team 2026-06-26): the Kratos identity schema's
   // traits.name was unbounded (maxLength: -1), so /register accepted 20 000-
   // char Names that then bloated the session JWT to ~27 KB (root cause of
   // #64). This client gate is the FIRST defense; the schema cap is the

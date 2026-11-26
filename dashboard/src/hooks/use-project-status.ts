@@ -38,7 +38,7 @@ export function useProjectStatus(
     : `/api/v1/projects/${encodeURIComponent(projectName!)}/status`;
   const query = useQuery({
     queryKey: [...queryKeys.projectStatus.detail(projectName), env ?? 'production'],
-    // Red Team theo-cloud#96 closure: opt into throwOnError so a 404
+    // Red Team loop-console#96 closure: opt into throwOnError so a 404
     // surfaces as a typed ApiError TanStack Query can inspect — the
     // default `T | null` path makes every non-2xx look like a transient
     // network failure and triggers the default 3-retry policy. A
@@ -49,7 +49,7 @@ export function useProjectStatus(
     enabled: !!projectName && (enabledOpt ?? true),
     refetchInterval: intervalMs,
     refetchIntervalInBackground: false,
-    // Red Team theo-cloud#96 closure: do not retry on 4xx. They're
+    // Red Team loop-console#96 closure: do not retry on 4xx. They're
     // non-retryable by definition (client-side fault or "project
     // doesn't exist"). 5xx + network errors keep the default retry
     // policy.

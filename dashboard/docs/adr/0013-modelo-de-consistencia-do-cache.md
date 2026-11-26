@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-08-08
-decision-makers: time do dashboard theo-cloud
+decision-makers: time do dashboard loop-console
 origem: B-077 (backlog) — medido em 2026-08-08
 ---
 
@@ -24,7 +24,7 @@ modelo inteiro, com justificativa por default:
 | `retry` | `retryGuard` | repete só falha transitória |
 | `mutations.retry` | `0` | ação do usuário nunca é repetida sozinha |
 
-O `retryGuard` não é preferência: ele nasceu do Red Team `theo-cloud#93`. O
+O `retryGuard` não é preferência: ele nasceu do Red Team `loop-console#93`. O
 `retry: 1` anterior repetia **tudo**, inclusive 404 e 403 — que não se recuperam
 por repetição e ainda gastam uma ida à rede atrasando o "não encontrado" que a
 pessoa está esperando.

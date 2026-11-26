@@ -14,7 +14,7 @@ sources:
 
 # Presigned upload/download — architecture roadmap
 
-Status: in progress (2026-07-18). Owner: platform. Repo: `theo-cloud` (BFF) + `dashboard`.
+Status: in progress (2026-07-18). Owner: platform. Repo: `loop-console` (BFF) + `dashboard`.
 
 ## Why (bottleneck being removed)
 
@@ -101,18 +101,18 @@ Crossover: the mint (8.9 µs) is cheaper than proxying anything ≳ 35 KB.
 The public browser-reachable storage path was provisioned on app-dev and the presigned
 upload was proven LIVE in a real Chrome (Playwright):
 
-1. **DNS** `storage-dev.usetheo.dev` → droplet IP (Cloudflare A record).
-2. **Edge** — Caddy site `storage-dev.usetheo.dev` reverse-proxies to MinIO with the Host
+1. **DNS** `storage-dev.getloopscale.com` → droplet IP (Cloudflare A record).
+2. **Edge** — Caddy site `storage-dev.getloopscale.com` reverse-proxies to MinIO with the Host
    header preserved (so the SigV4-signed host matches on verification) + a single, deduped
-   `Access-Control-Allow-Origin: https://app-dev.usetheo.dev` (MinIO's own CORS header is
+   `Access-Control-Allow-Origin: https://app-dev.getloopscale.com` (MinIO's own CORS header is
    stripped to avoid the duplicate-value rejection) + an OPTIONS preflight handler.
-3. **BFF** — `STORAGE_S3_PUBLIC_ENDPOINT=https://storage-dev.usetheo.dev` (mints against the
-   public host; server-side ops stay in-cluster). theo-cloud rebuilt + rolled out.
+3. **BFF** — `STORAGE_S3_PUBLIC_ENDPOINT=https://storage-dev.getloopscale.com` (mints against the
+   public host; server-side ops stay in-cluster). loop-console rebuilt + rolled out.
 4. **CSP** — the dashboard `connect-src` now allowlists the storage hosts (the CSP is an
    earlier gate than CORS; without it the browser refused the request before sending it).
 
 **LIVE proof (real Chrome, app-dev, authenticated):** uploading a file in the Workspace fires
-`POST /presign-upload` (mint) → **`PUT https://storage-dev.usetheo.dev/theo-storage/<tenant>/<path>`**
+`POST /presign-upload` (mint) → **`PUT https://storage-dev.getloopscale.com/loopstore/<tenant>/<path>`**
 (bytes go DIRECTLY to S3) → `POST /presign-commit` (the BFF HEADs S3 + commits) → the file
 appears in the list. **Zero `PUT` to the BFF `/objects` proxy path** — the bytes never touch the
 BFF. Screenshot: `.claude/knowledge-base/audits/presign-live-upload-app-dev-2026-07-18.png`. The

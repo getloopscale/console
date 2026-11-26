@@ -26,25 +26,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      # Same layout as the e2e jobs in ci.yml: this repo in theo-cloud/theo-cloud and the
-      # siblings next to it. tests/e2e/docker-compose.e2e.yaml binds ../../../theo and
-      # ../../../theo-rag, which only resolve inside the workspace with this layout. With
+      # Same layout as the e2e jobs in ci.yml: this repo in loop-console/loop-console and the
+      # siblings next to it. tests/e2e/docker-compose.e2e.yaml binds ../../../loopscale and
+      # ../../../looprag, which only resolve inside the workspace with this layout. With
       # this repo checked out at the workspace root they pointed outside it, and every
       # scheduled run died in cloud-migrate with `first .: file does not exist`.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          path: theo-cloud/theo-cloud
+          path: loop-console/loop-console
           persist-credentials: false
 
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version-file: theo-cloud/theo-cloud/go.mod
-          cache-dependency-path: theo-cloud/theo-cloud/go.sum
+          go-version-file: loop-console/loop-console/go.mod
+          cache-dependency-path: loop-console/loop-console/go.sum
 
-      - name: Configure private module access (theo-contracts)
+      - name: Configure private module access (contracts)
         run: |
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/getloopscale/".insteadOf "https://github.com/getloopscale/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
@@ -54,37 +53,37 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           # NAO o GITHUB_TOKEN do run: permissao de package no GHCR e por-package e nao e herdada
-          # de `packages: read`. O package `theo-memory` pertence ao repo irmao e nao lista o
-          # theo-cloud. Medido: run 30527179585 falha com `denied`; o mesmo pull com PAT resolve.
+          # de `packages: read`. O package `loopmem` pertence ao repo irmao e nao lista o
+          # loop-console. Medido: run 30527179585 falha com `denied`; o mesmo pull com PAT resolve.
           # Mesma correcao que f5ee627 aplicou aos dois jobs e2e do ci.yml — este ficou para tras.
           password: ${{ secrets.GOMOD_TOKEN }}
 
-      # O engine entra no drift pelo MESMO motivo das imagens: `THEO_ENGINE_REF` fixa um SHA,
+      # O engine entra no drift pelo MESMO motivo das imagens: `LOOPSCALE_ENGINE_REF` fixa um SHA,
       # e uma migration nova no engine e exatamente o tipo de mudanca que precisa ser vista
       # antes de alguem subir o pin as cegas.
-      - name: Checkout theo (engine — migrations do :develop de hoje)
+      - name: Checkout loopscale (engine — migrations do :develop de hoje)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: getloopscale/loop-runtime
           ref: develop
           token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-cloud/theo
+          path: loop-console/loopscale
           persist-credentials: false
 
-      # rag-migrate seeds the theo-rag schema from this checkout. Without it the bind is
+      # rag-migrate seeds the looprag schema from this checkout. Without it the bind is
       # empty and the stack never comes up. `develop`, for the same reason as the engine.
-      - name: Checkout theo-rag (rag-migrate migrations from today's develop)
+      - name: Checkout looprag (rag-migrate migrations from today's develop)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          repository: getloopscale/looprag
+          repository: getloopscale/loop-rag
           ref: develop
           token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-cloud/theo-rag
+          path: loop-console/looprag
           persist-credentials: false
 
       - name: Comparar o pin com o :develop de hoje
         id: compare
-        working-directory: theo-cloud/theo-cloud
+        working-directory: loop-console/loop-console
         env:
           GH_TOKEN: ${{ secrets.GOMOD_TOKEN }}
         run: |
@@ -92,11 +91,11 @@ jobs:
           set -a; . .github/e2e-images.env; set +a
           drift=0
           live_engine=$(gh api repos/getloopscale/loop-runtime/commits/develop --jq .sha 2>/dev/null || echo unreachable)
-          if [ "$THEO_ENGINE_REF" != "$live_engine" ]; then
-            echo "::warning::engine: o pin esta atras do develop (pin=$THEO_ENGINE_REF live=$live_engine)"
+          if [ "$LOOPSCALE_ENGINE_REF" != "$live_engine" ]; then
+            echo "::warning::engine: o pin esta atras do develop (pin=$LOOPSCALE_ENGINE_REF live=$live_engine)"
             drift=1
           fi
-          for pair in "theo-memory:$THEMORY_IMAGE" "theo-rag:$THEORAG_IMAGE" "theo-lens:$THELENS_IMAGE"; do
+          for pair in "theo-memory:$LOOPMEM_IMAGE" "theo-rag:$LOOPRAG_IMAGE" "theo-lens:$LOOPTRACE_IMAGE"; do
             img="${pair%%:*}"; pinned="${pair#*:}"
             live=$(docker buildx imagetools inspect "ghcr.io/usetheoai/${img}:develop" \
                      --format '{{.Manifest.Digest}}' 2>/dev/null || echo "unreachable")
@@ -110,17 +109,17 @@ jobs:
           # o que prova que a divergencia QUEBRA a integracao, e nao apenas que ela existe.
 
       - name: Rodar o e2e contra o :develop
-        working-directory: theo-cloud/theo-cloud
+        working-directory: loop-console/loop-console
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
-          THEORAG_DIR: ${{ github.workspace }}/theo-cloud/theo-rag
-          THEMORY_IMAGE: ghcr.io/usetheoai/theo-memory:develop
-          THEORAG_IMAGE: ghcr.io/usetheoai/theo-rag:develop
-          THELENS_IMAGE: ghcr.io/usetheoai/theo-lens:develop
+          GOPRIVATE: github.com/getloopscale/*
+          LOOPRAG_DIR: ${{ github.workspace }}/loop-console/looprag
+          LOOPMEM_IMAGE: ghcr.io/usetheoai/theo-memory:develop
+          LOOPRAG_IMAGE: ghcr.io/usetheoai/theo-rag:develop
+          LOOPTRACE_IMAGE: ghcr.io/usetheoai/theo-lens:develop
         run: make e2e-edge
 
       - name: Dump stack logs on failure
         if: failure()
-        working-directory: theo-cloud/theo-cloud
+        working-directory: loop-console/loop-console
         run: |
-          docker compose -p "${E2E_PROJECT:-theo-cloud-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml -f tests/e2e/docker-compose.edge.e2e.yaml logs --tail=200 || true
+          docker compose -p "${E2E_PROJECT:-loop-console-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml -f tests/e2e/docker-compose.edge.e2e.yaml logs --tail=200 || true

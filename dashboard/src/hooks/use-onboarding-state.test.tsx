@@ -132,7 +132,7 @@ describe('useOnboardingState (Sprint 3 T3.1)', () => {
 
   // EC-06: replay must show widget when the user hasn't fully completed
   // the auto-derived steps yet. Use a pre-deploy scenario so cli_installed
-  // depends on the persisted flag (the Red Team theo-cloud#56 auto-flip
+  // depends on the persisted flag (the Red Team loop-console#56 auto-flip
   // requires a successful deploy, which this scenario does NOT have).
   it('test_replay_resets_completion_when_already_complete', () => {
     mockUseWhoami.mockReturnValue({ whoami: { email: 'a@b.com' }, loading: false, error: false });
@@ -164,7 +164,7 @@ describe('useOnboardingState (Sprint 3 T3.1)', () => {
     expect(result.current.state.steps.cli_installed).toBe(true);
   });
 
-  // Red Team theo-cloud#56 closure: a SUCCEEDED build is rigorous proof
+  // Red Team loop-console#56 closure: a SUCCEEDED build is rigorous proof
   // the user installed the CLI (no other path writes to the engine), so
   // cli_installed MUST auto-flip true when deploy_succeeded does. The
   // EC-14 user-confirmed rule still applies BEFORE a deploy lands: the
@@ -176,7 +176,7 @@ describe('useOnboardingState (Sprint 3 T3.1)', () => {
       error: false,
     });
     mockUseProjects.mockReturnValue({
-      projects: [{ name: 'theokit-example', apps: [] }],
+      projects: [{ name: 'loopzero-example', apps: [] }],
       loading: false,
     });
     mockUseDeployments.mockReturnValue({

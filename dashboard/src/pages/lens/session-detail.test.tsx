@@ -18,7 +18,7 @@ import { CONVERSATION_TURN_CAP, CONVERSATION_TURNS_PER_PAGE } from './session-de
 /**
  * M9 — /observability/sessions/:sessionId. The detail page fetches the session's traces
  * (`GET /v1/dashboard/lens/traces?session_id=<id>`), maps them to `SessionTraceItem[]`, and renders
- * the `@usetheo/ui` `SessionSummary` (aggregate metrics) + `SessionTimeline` (temporal replay). Tests
+ * the `@getloopscale/ui` `SessionSummary` (aggregate metrics) + `SessionTimeline` (temporal replay). Tests
  * cover the loading→error→empty→loaded triad, the fetch shape, and the back link.
  */
 describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
@@ -240,7 +240,7 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     expect(screen.getByText('(no input)')).toBeInTheDocument();
   });
 
-  // (M3 rate-limit coverage lives in the theo-lens api route test — session-coherence-routes.test.ts)
+  // (M3 rate-limit coverage lives in the looptrace api route test — session-coherence-routes.test.ts)
   it('M131 (review M1) — a failed coherence run surfaces an error, never a silent revert', async () => {
     mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
       if (String(url).includes('/coherence')) {

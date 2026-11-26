@@ -1,5 +1,5 @@
 /**
- * Playwright browser-runtime E2E — as telas de Observability (Theo Lens).
+ * Playwright browser-runtime E2E — as telas de Observability (LoopScale Lens).
  *
  * Prova que cada capacidade do lens RENDERIZA num navegador real (sessão mock,
  * `VITE_USE_MOCKS=true`) sem crash/error boundary, alcançada PELO MENU — roteamento

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// M10 (theo-trust Model B L2, ADR D3) — ported from internal/themory/broker.go — Broker resolves a per-tenant trust_live_* secret for
+// M10 (loopguardrails Model B L2, ADR D3) — ported from internal/loopmem/broker.go — Broker resolves a per-tenant trust_live_* secret for
 // the data path. Lazy cache-aside: an in-process LRU keyed by tenant id (==
-// theo-trust workspace id), with a TTL ≪ the key's validity so an out-of-band
+// loopguardrails workspace id), with a TTL ≪ the key's validity so an out-of-band
 // revoke self-heals within one TTL. Concurrent cache misses for the same tenant
 // are coalesced by singleflight so a cold tenant under load mints exactly once.
 //
@@ -84,7 +84,7 @@ func (b *Broker) KeyForTenant(ctx context.Context, accountID, tenantID string) (
 //
 // M1: accountID is part of the cache key (an Account-aware key never shares a
 // cached secret across accounts — defense-in-depth) but is NEVER sent to the
-// minter — the minted key's workspace_id stays == tenantID, so the theo-memory
+// minter — the minted key's workspace_id stays == tenantID, so the loopmem
 // isolation unit is the tenant, unchanged. accountID == "" (legacy NULL-account
 // key) is valid and caches under the empty-account slot. The broker LAZILY trusts
 // the account→tenant relationship already authorized by ForwardAuth.

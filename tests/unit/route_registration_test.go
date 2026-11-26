@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // T3.6 of plan 2026-06-11-cleanroom-canonical-5-defense-layers v1.2.
 //
@@ -99,7 +99,7 @@ func TestRouteRegistrationCanonical(t *testing.T) {
 	missing := []string{}
 	for _, ch := range criticalHandlers {
 		if !registeredHandlers[ch.name] {
-			missing = append(missing, ch.name+" (" + ch.catch + ")")
+			missing = append(missing, ch.name+" ("+ch.catch+")")
 		}
 	}
 

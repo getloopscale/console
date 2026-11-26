@@ -8,7 +8,7 @@ import { promotionConfirmation, promotionPhrase } from './confirm-text';
  *
  * **DECISÃO 1, opção (a) do DoD.** O diálogo nomeia o que é VERIFICÁVEL hoje — a revisão que sai e
  * a que entra — e **não afirma contagem de consumidores**, porque essa contagem não existe na API:
- * a telemetria de adoção do `theo-skills` responde por *bundle*
+ * a telemetria de adoção do `loopskills` responde por *bundle*
  * (`GET /v1/bundles/:bundleId/adoption`), não por canal.
  *
  * A **terceira via está proibida pelo próprio DoD**: a tela derivar a contagem por conta própria a

@@ -16,15 +16,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // M8 — OAuth authorization broker for the RAG connectors.
 //
-// theo-rag's connect handler accepts ONLY a pre-obtained refresh_token by design ("the app
+// looprag's connect handler accepts ONLY a pre-obtained refresh_token by design ("the app
 // secret + browser redirect live at the edge"). This broker is that edge: it runs the OAuth
 // authorization-code flow ("Connect with X" → provider consent → callback → code→refresh_token
-// exchange) and hands theo-rag the resulting refresh_token via the M8 connect proxy — so a real
+// exchange) and hands looprag the resulting refresh_token via the M8 connect proxy — so a real
 // user can connect an OAuth data source from the dashboard, never hand-crafting a token.
 //
 // Security: the app `client_secret` lives ONLY in the injected TokenExchanger (never in the
@@ -43,7 +43,7 @@ type OAuthProviderConfig struct {
 	Scopes       string // space-separated scopes
 }
 
-// defaultOAuthProviders are theo-rag's OAuth-refresh providers with their well-known endpoints.
+// defaultOAuthProviders are looprag's OAuth-refresh providers with their well-known endpoints.
 // ClientID/Scopes are filled from edge config (env) at wiring time — empty until the operator
 // registers each OAuth app (the documented M8 operator gate). Non-OAuth providers (github/notion/
 // slack/s3/web/zendesk) are NOT here — they use the paste-credential connect proxy directly.
@@ -85,7 +85,7 @@ type RagConnectorsOAuthHandler struct {
 	exchange      TokenExchanger
 	resolveTenant SessionTenantResolver
 	redirectBase  string // BFF origin + /v1/rag-connect (where the callback is mounted)
-	dashboardURL  string // e.g. https://app-dev.usetheo.dev (the SPA — final redirect target)
+	dashboardURL  string // e.g. https://app-dev.getloopscale.com (the SPA — final redirect target)
 	loginURL      string // where an unauthenticated browser is sent to sign in
 	cookieDomain  string
 	cookieSecure  bool
@@ -135,9 +135,9 @@ func (h *RagConnectorsOAuthHandler) ListOAuthProviders(w http.ResponseWriter, r 
 }
 
 const (
-	oauthStateCookie      = "theo_rag_oauth_state"
-	oauthCollectionCookie = "theo_rag_oauth_collection"
-	oauthVerifierCookie   = "theo_rag_oauth_verifier"
+	oauthStateCookie      = "loopscale_rag_oauth_state"
+	oauthCollectionCookie = "loopscale_rag_oauth_collection"
+	oauthVerifierCookie   = "loopscale_rag_oauth_verifier"
 	oauthCookieTTL        = 600               // 10-minute consent window
 	oauthCookiePath       = "/v1/rag-connect" // scope the CSRF/PKCE cookies to the broker path only
 )
@@ -344,7 +344,7 @@ type oauthError struct{ msg string }
 func (e *oauthError) Error() string { return e.msg }
 
 // LoadOAuthConnectorsFromEnv builds the provider config + secrets from the edge environment.
-// Per provider it reads LOOPRUNTIME_RAG_OAUTH_<PROVIDER>_CLIENT_ID / _CLIENT_SECRET / _SCOPES (provider
+// Per provider it reads LOOP_RUNTIME_RAG_OAUTH_<PROVIDER>_CLIENT_ID / _CLIENT_SECRET / _SCOPES (provider
 // upper-cased, `-` → `_`). Providers without a configured CLIENT_ID are omitted (the operator gate:
 // the broker only offers a provider once its OAuth app is registered). Returns the (config, secrets).
 func LoadOAuthConnectorsFromEnv(getenv func(string) string) (map[string]OAuthProviderConfig, map[string]string) {
@@ -352,24 +352,24 @@ func LoadOAuthConnectorsFromEnv(getenv func(string) string) (map[string]OAuthPro
 	secrets := map[string]string{}
 	for provider, base := range defaultOAuthProviders() {
 		key := strings.ToUpper(strings.ReplaceAll(provider, "-", "_"))
-		clientID := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_CLIENT_ID")
+		clientID := getenv("LOOP_RUNTIME_RAG_OAUTH_" + key + "_CLIENT_ID")
 		if clientID == "" {
 			continue // not registered yet — do not offer this provider
 		}
 		base.ClientID = clientID
-		if sc := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_SCOPES"); sc != "" {
+		if sc := getenv("LOOP_RUNTIME_RAG_OAUTH_" + key + "_SCOPES"); sc != "" {
 			base.Scopes = sc
 		}
 		// Optional endpoint overrides — point a provider at a conformant OAuth2 IdP other than the
 		// public default (staging against Ory Hydra, a self-hosted provider, etc.). Absent → default.
-		if au := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_AUTHORIZE_URL"); au != "" {
+		if au := getenv("LOOP_RUNTIME_RAG_OAUTH_" + key + "_AUTHORIZE_URL"); au != "" {
 			base.AuthorizeURL = au
 		}
-		if tu := getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_TOKEN_URL"); tu != "" {
+		if tu := getenv("LOOP_RUNTIME_RAG_OAUTH_" + key + "_TOKEN_URL"); tu != "" {
 			base.TokenURL = tu
 		}
 		cfgs[provider] = base
-		secrets[provider] = getenv("LOOPRUNTIME_RAG_OAUTH_" + key + "_CLIENT_SECRET")
+		secrets[provider] = getenv("LOOP_RUNTIME_RAG_OAUTH_" + key + "_CLIENT_SECRET")
 	}
 	return cfgs, secrets
 }

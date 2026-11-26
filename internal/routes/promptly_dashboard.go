@@ -8,7 +8,7 @@
 // Sao DUAS, e a separacao nao e organizacao: `promptlyReader` e `promptlyPromoter` sao satisfeitas
 // por clientes distintos, com credenciais distintas — a de leitura nao consegue promover.
 //
-// DIVERGENCIA DELIBERADA da referencia (`theo-cloud#358`): o `proxy` do trust colapsa TODO erro em
+// DIVERGENCIA DELIBERADA da referencia (`loop-console#358`): o `proxy` do trust colapsa TODO erro em
 // 502 com corpo opaco. Aqui a recusa do CLIENTE (4xx) sai com status e corpo preservados, porque a
 // tela precisa DECIDIR sobre o codigo: `policy_not_found` significa "promocao livre" e desenha
 // diferente de "nao consegui ler"; `promotion_blocked` carrega os numeros que explicam a recusa.
@@ -23,8 +23,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/getloopscale/loop-console/internal/promptly"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/promptly"
 )
 
 // revisionsPageCeiling e o teto que ESTA rota impoe a listagem de revisoes.
@@ -82,8 +82,8 @@ type promptlyPromoter interface {
 
 // promptlyUsageReader e a porta do uso observado por revisao (M15).
 //
-// Separada das outras duas de proposito: este dado vem do `theo-lens`, nao do
-// `theo-promptly`, e e servido por outra credencial. Junta-las numa porta so
+// Separada das outras duas de proposito: este dado vem do `looptrace`, nao do
+// `loopprompt`, e e servido por outra credencial. Junta-las numa porta so
 // sugeriria um nivel de privilegio unico que nao existe (ISP).
 type promptlyUsageReader interface {
 	PromptUsage(ctx context.Context, promptName string, windowDays int) (json.RawMessage, error)
@@ -98,7 +98,7 @@ type PromptlyDashboardHandler struct {
 }
 
 // WithUsageReader liga a leitura de uso (M15). OPCIONAL por desenho: um operador que
-// nao tenha o `theo-lens` configurado continua com toda a capacidade de autoria. Sem
+// nao tenha o `looptrace` configurado continua com toda a capacidade de autoria. Sem
 // ele, a rota de uso RECUSA com razao legivel em vez de entrar em panico.
 func (h *PromptlyDashboardHandler) WithUsageReader(u promptlyUsageReader) *PromptlyDashboardHandler {
 	h.usage = u
@@ -567,8 +567,8 @@ const (
 // opostas, e o segundo disfarcado do primeiro faz a tela afirmar um fato que ninguem mediu.
 const usageUnavailable = `{"code":"PROMPTLY_USAGE_UNAVAILABLE","message":"could not read this prompt's usage; no number was read"}`
 
-// usageNotConfigured e a recusa quando o operador nao ligou o theo-lens.
-const usageNotConfigured = `{"code":"PROMPTLY_USAGE_NOT_CONFIGURED","message":"a leitura de uso exige o theo-lens configurado neste ambiente"}`
+// usageNotConfigured e a recusa quando o operador nao ligou o looptrace.
+const usageNotConfigured = `{"code":"PROMPTLY_USAGE_NOT_CONFIGURED","message":"a leitura de uso exige o looptrace configurado neste ambiente"}`
 
 // Usage serve GET /v1/dashboard/promptly/prompts/{promptName}/usage — quantas resolucoes e a
 // que custo, POR REVISAO, na janela pedida.

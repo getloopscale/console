@@ -1,7 +1,7 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import type { MarcandoMutation } from './tipos';
 import { Alert } from '@/components/ui/alert-guard';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 
 interface Props {
   tags: readonly string[];

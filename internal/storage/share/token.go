@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package share mints and redeems short-lived HMAC-SHA256 tokens that grant
 // read access to ONE stored object path. The token IS the authorization for the

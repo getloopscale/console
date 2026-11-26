@@ -94,9 +94,9 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     render(<OnboardingPanel />);
     await userEvent.click(screen.getByLabelText(/get your app live/i));
     // All 5 CLI commands visible em panel expanded.
-    // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `theo init` (which does NOT
-    // exist in @usetheo/cli@0.3.1) replaced with canonical `loopscale project create my-app`.
-    expect(screen.getByText('npm install -g @getloopscale/cli')).toBeInTheDocument();
+    // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `loopscale init` (which does NOT
+    // exist in @getloopscale/loop-cli@0.3.1) replaced with canonical `loopscale project create my-app`.
+    expect(screen.getByText('npm install -g @getloopscale/loop-cli')).toBeInTheDocument();
     expect(screen.getByText('loopscale login')).toBeInTheDocument();
     expect(screen.getByText('loopscale project create my-app')).toBeInTheDocument();
     expect(screen.getByText('loopscale deploy')).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     expect(screen.getByText('optional')).toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#81 closure: the onboarding progress used to ship
+  // Red Team loop-console#81 closure: the onboarding progress used to ship
   // as a generic <div> with only aria-label — AT users heard the label as
   // static text and never as a progress indicator. The track now renders
   // with role=progressbar + aria-valuenow/min/max so it matches the

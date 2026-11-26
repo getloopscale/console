@@ -1,7 +1,7 @@
 package ci
 
 // Dockerfile.local é o caminho de recuperação: ele existe para o dia em que o
-// `gomod_token` falta, e resolve `theo-contracts` por um `replace` para uma cópia local
+// `gomod_token` falta, e resolve `contracts` por um `replace` para uma cópia local
 // em vez de buscar o módulo privado. Foi criado em 2026-06-27 (Red Team #95 P0) porque o
 // token havia expirado e bloqueava um rebuild.
 //
@@ -9,8 +9,8 @@ package ci
 // funcionou — e falhou pelas duas únicas coisas que ele precisa acertar. Ambos os
 // defeitos são invisíveis a um build verde, e é por isso que este guarda é estático:
 //
-//  1. O `replace` citava `github.com/usetheodev/theo-contracts`, enquanto o `go.mod`
-//     declara `github.com/usetheoai/theo-contracts`. Um `replace` que não casa com o
+//  1. O `replace` citava `github.com/getloopscale/contracts`, enquanto o `go.mod`
+//     declara `github.com/getloopscale/contracts`. Um `replace` que não casa com o
 //     caminho do módulo é simplesmente ignorado pelo Go — sem aviso. COM credencial, o
 //     fetch remoto funciona e mascara o replace morto; SEM credencial, que é o único
 //     cenário em que este arquivo é usado, o build morre em `git ls-remote`.
@@ -54,9 +54,9 @@ func TestDockerfileLocalReplaceMatchesModulePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ler go.mod: %v", err)
 	}
-	declared := regexp.MustCompile(`(?m)^\s+(github\.com/[\w.-]+/theo-contracts)\s`).FindStringSubmatch(string(gomod))
+	declared := regexp.MustCompile(`(?m)^\s+(github\.com/[\w.-]+/contracts)\s`).FindStringSubmatch(string(gomod))
 	if declared == nil {
-		t.Fatal("go.mod não declara theo-contracts — o guarda perdeu o alvo e precisa ser revisto")
+		t.Fatal("go.mod não declara contracts — o guarda perdeu o alvo e precisa ser revisto")
 	}
 	modulePath := declared[1]
 
@@ -101,8 +101,8 @@ func TestDockerfileLocalBuildsThePackageNotOneFile(t *testing.T) {
 // aponta chega de fato ao contexto — um replace correto para um caminho vazio falha igual.
 func TestDockerfileLocalStagesContractsLocally(t *testing.T) {
 	dockerfile := readDockerfileLocal(t)
-	if !regexp.MustCompile(`(?m)^COPY\s+theo-contracts/`).MatchString(dockerfile) {
-		t.Error("Dockerfile.local não copia `theo-contracts/` para dentro do contexto; " +
+	if !regexp.MustCompile(`(?m)^COPY\s+contracts/`).MatchString(dockerfile) {
+		t.Error("Dockerfile.local não copia `contracts/` para dentro do contexto; " +
 			"o `replace` apontaria para um caminho inexistente e o build voltaria a buscar remoto")
 	}
 }
@@ -171,7 +171,7 @@ func TestDockerfileLocalCopiesEverySourceDirTheBinaryNeeds(t *testing.T) {
 
 	dockerfile := readDockerfileLocal(t)
 	for dir := range needed {
-		want := "COPY theo-cloud/" + dir + "/"
+		want := "COPY loop-console/" + dir + "/"
 		if !strings.Contains(dockerfile, want) {
 			t.Errorf("./cmd transitively imports %s/ and Dockerfile.local never copies it (%q absent).\n"+
 				"    The image build fails with a missing package, and the three guards above cannot see\n"+

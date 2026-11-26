@@ -24,7 +24,7 @@ import { PRIMARY_CANONICO } from '@/lib/theme/loopscale-theme';
  *
  *   getComputedStyle(document.documentElement)['--primary'] === 'oklch(0.57 0.13 302)'
  *
- * O tema do `TheoUIProvider` vence porque aplica no ELEMENTO, o que precede folha
+ * O tema do `LoopZeroUIProvider` vence porque aplica no ELEMENTO, o que precede folha
  * de estilo na cascata. O docblock do main.tsx estava certo; o do index.css,
  * errado. O CSS foi alinhado ao vencedor em vez de apagado — ele ainda pinta a
  * tela entre o primeiro paint e o React montar, e divergir ali produzia um flash
@@ -34,7 +34,7 @@ import { PRIMARY_CANONICO } from '@/lib/theme/loopscale-theme';
  *
  * Ele afirma que as duas fontes DECLARAM o mesmo valor. Isso e o que impede a
  * divergencia voltar — que foi o defeito real. Ele NAO substitui a medicao: se um
- * bump de `@usetheo/ui` ou `@theokit/ui` mudar quem vence na cascata, este teste
+ * bump de `@getloopscale/ui` ou `@getloopscale/loopzero-ui` mudar quem vence na cascata, este teste
  * segue verde. Fixar o valor COMPUTADO exige Playwright (jsdom nao resolve
  * cascade de `@import`), e esse teste e o passo seguinte, registrado em B-034.
  */

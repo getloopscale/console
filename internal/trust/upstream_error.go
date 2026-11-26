@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// UpstreamError e uma recusa do theo-trust que precisa CHEGAR ao operador.
+// UpstreamError e uma recusa do loopguardrails que precisa CHEGAR ao operador.
 //
 // Existe porque a alternativa — formatar status e corpo numa string de erro — perde a informacao
 // no caminho: quem recebe a string nao tem como separar de volta o codigo tipado do texto, e acaba
@@ -17,7 +17,7 @@ import (
 // nao e um problema de infraestrutura. Ela diz O QUE corrigir, e esconde-la faz o operador tentar
 // de novo identico.
 type UpstreamError struct {
-	// Status e o codigo HTTP que o theo-trust devolveu.
+	// Status e o codigo HTTP que o loopguardrails devolveu.
 	Status int
 	// Body e o corpo do upstream, intacto. Carrega `{code, message}` quando tipado.
 	Body json.RawMessage

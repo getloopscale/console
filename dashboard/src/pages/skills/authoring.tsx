@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
+import { Badge, Button, Card, Input, PageShell } from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { faseDaOperacao } from '@/pages/skills/components/operation-state';
@@ -120,7 +120,7 @@ export function SkillAuthoringPage() {
         // O comentário acima já estava aqui, e a linha abaixo dele dizia `false`, que faz o
         // serviço acusar exatamente disso. `no_embedding` disparava sempre e ENCOBRIA as causas
         // que o autor pode corrigir agora: descrição genérica e colisão com uma vizinha
-        // (theo-skills#144).
+        // (loopskills#144).
         //
         // `{ publicada: false }` omite o campo, e a ausência é o que diz ao serviço que a
         // pergunta é "minha descrição está boa?", não "por que não me acham?".

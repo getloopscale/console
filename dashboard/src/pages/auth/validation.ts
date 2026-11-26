@@ -53,14 +53,14 @@ export function validateEmail(value: string): string | null {
  * Validate a string field does not exceed a maximum character length.
  * Returns an EN error message when `value.length > max`, null otherwise.
  *
- * theo-cloud#65 closure (Red Team 2026-06-26): the Kratos identity schema's
+ * loop-console#65 closure (Red Team 2026-06-26): the Kratos identity schema's
  * `traits.name` was unbounded (`maxLength: -1` per the RegisterFlow probe
  * — JSON Schema default = no cap), allowing 20 000-char display Names to
  * be persisted. That name then embedded verbatim in the session JWT (see
- * #64 root cause: `theo-cloud/internal/routes/session_token.go:117` →
- * `theo-contracts/jwt.SessionTokenIssuer.Issue`), producing a ~27 KB
+ * #64 root cause: `loop-console/internal/routes/session_token.go:117` →
+ * `contracts/jwt.SessionTokenIssuer.Issue`), producing a ~27 KB
  * Authorization header. This client-side gate is the FIRST defense; the
- * Kratos schema cap (`theo/infra/helm/ory-kratos/identity.schema.json
+ * Kratos schema cap (`loopscale/infra/helm/ory-kratos/identity.schema.json
  * → traits.name.maxLength: 256`) is the second.
  *
  * `max` MUST mirror the backend Kratos schema `maxLength` so the

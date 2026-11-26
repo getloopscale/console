@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/getloopscale/loop-console/internal/metrics"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/usetheoai/theo-cloud/internal/metrics"
 	"time"
 )
 
@@ -24,13 +24,13 @@ import (
 type SeriesFetcher func(ctx context.Context, tenantID string, windowSeconds int) (json.RawMessage, error)
 
 // MetricMonitorBreach is the sentinel metric of a monitor-backed rule (M135, renamed M136). It thresholds the
-// number of traces that breached a theo-lens monitor in the window, instead of a workspace aggregate.
+// number of traces that breached a looptrace monitor in the window, instead of a workspace aggregate.
 const // The STORED value stays "guard_breach" until the engine migration widens the CHECK constraint
 // (M136 Phase 4b, T2-gated). Renaming the Go constant without the migration would make every
 // existing rule unroutable — the code would look for a metric no row can hold.
 MetricMonitorBreach = "monitor_breach"
 
-// MonitorBreachWindow mirrors theo-lens `GET /v1/guards/:id/breach-window`.
+// MonitorBreachWindow mirrors looptrace `GET /v1/guards/:id/breach-window`.
 //
 // HasData is the load-bearing field. A window where traces WERE evaluated and none breached
 // (HasData true, BreachCount 0) is a MEASUREMENT of zero; a window with nothing to evaluate
@@ -44,7 +44,7 @@ type MonitorBreachWindow struct {
 	// both "deleted" and "belongs to someone else". It is NOT HasData: a real guard with an empty
 	// window is {MonitorExists:true, HasData:false}; a deleted one is {false, false}. The first
 	// self-heals, the second never does.
-	// The wire carries BOTH names during theo-lens's deprecation window (M136). We decode the
+	// The wire carries BOTH names during looptrace's deprecation window (M136). We decode the
 	// canonical one; `guardExists` is its deprecated twin and always holds the same value.
 	MonitorExists bool `json:"monitorExists"`
 }
@@ -53,13 +53,13 @@ type MonitorBreachWindow struct {
 // SeriesFetcher: the evaluator core stays unit-testable without the broker.
 type MonitorBreachFetcher func(ctx context.Context, tenantID, monitorID string, windowSeconds int) (MonitorBreachWindow, error)
 
-// PromptUsageFetcher fetches one prompt's windowed usage aggregate (theo-promptly M21 DoD-5).
+// PromptUsageFetcher fetches one prompt's windowed usage aggregate (loopprompt M21 DoD-5).
 // Injected for exactly the reason MonitorBreachFetcher is: the workspace series returns one float
 // per window and cannot answer a per-PROMPT question, so the answer comes from a different upstream
 // call — a third fetcher, not a new metric case reading the wrong aggregate.
 type PromptUsageFetcher func(ctx context.Context, tenantID, promptName string, windowSeconds int) (json.RawMessage, error)
 
-// Evaluator is the background alert-rule evaluator (theo-lens M53). It ticks periodically, fetches each
+// Evaluator is the background alert-rule evaluator (looptrace M53). It ticks periodically, fetches each
 // tenant's observability series, evaluates each rule via the pure state machine, and on a fire enqueues a
 // workspace_webhook_deliveries row for the existing J-16 worker to dispatch. It NEVER dispatches HTTP
 // itself (reuse — Rule 9).
@@ -80,8 +80,8 @@ type Evaluator struct {
 var ErrMonitorNotFound = errors.New("lens alert evaluator: guard not found")
 
 // monitorFetchTimeout bounds ONE carrier call. Tick is a single sequential loop, so without this an
-// unresponsive theo-lens serializes N guard rules inside one tick and stalls the series-backed
-// rules queued behind them — rules that have no theo-lens dependency at all. A scoped dependency
+// unresponsive looptrace serializes N guard rules inside one tick and stalls the series-backed
+// rules queued behind them — rules that have no looptrace dependency at all. A scoped dependency
 // failure would become a fleet-wide alerting outage.
 const monitorFetchTimeout = 5 * time.Second
 
@@ -165,7 +165,7 @@ const colunasDeRegra = `id, tenant_id, metric, comparator, threshold, window_sec
 // migration that adds `prompt_name` landed.
 //
 // Nothing in the platform orders those two deploys: the engine migrates through one pipeline and
-// theo-cloud publishes to `develop` through another. Without this, arriving first makes the SELECT
+// loop-console publishes to `develop` through another. Without this, arriving first makes the SELECT
 // fail with 42703 and Tick return BEFORE evaluating a single row — every alert rule in the fleet
 // stops being evaluated, including every rule that has nothing to do with prompts.
 //
@@ -255,7 +255,7 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 			}
 			if monitorFailures >= monitorFailureBudget {
 				// In-tick bulkhead: the carrier is clearly unwell; stop burning the tick budget on
-				// it so series-backed rules — which do not depend on theo-lens at all — still run.
+				// it so series-backed rules — which do not depend on looptrace at all — still run.
 				metrics.IncLensAlertEvaluation("bulkhead_skipped")
 				continue
 			}
@@ -298,7 +298,7 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 			if !w.MonitorExists {
 				// Definitive: the guard is gone (or was never ours). No number of retries brings it
 				// back, so the rule stops pretending to be armed. This is the branch that used to
-				// depend on a 404 theo-lens never emitted.
+				// depend on a 404 looptrace never emitted.
 				metrics.IncLensAlertEvaluation("guard_missing")
 				e.logger.Warn("lens alert evaluator: guard no longer exists — disabling rule",
 					"rule", r.id, "guard", r.monitorID.String)
@@ -318,7 +318,7 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 			}
 			continue
 		}
-		// M21 (theo-promptly): a prompt-scoped rule reads the per-prompt aggregate, not the
+		// M21 (loopprompt): a prompt-scoped rule reads the per-prompt aggregate, not the
 		// workspace series — same reasoning as the guard branch above. The series is one float per
 		// window and knows nothing about a prompt; letting the rule fall through to it would fire
 		// (or not) on a number unrelated to the prompt the customer picked, with that prompt's name

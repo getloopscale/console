@@ -1,4 +1,4 @@
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 import { Download, FlaskConical, GitCompareArrows } from 'lucide-react';
 
 /**

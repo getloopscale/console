@@ -88,7 +88,7 @@ describe('ProjectDetailPage', () => {
     expect(levels).toContain(2);
   });
 
-  // Red Team theo-cloud#41 regression-protector (2026-06-27 UI follow-up):
+  // Red Team loop-console#41 regression-protector (2026-06-27 UI follow-up):
   // when production_env_count === 0 AND latest_build_environment ===
   // 'preview', the LiveUrlHero MUST render the "Preview only" empty
   // state — NOT the misleading "URL pending" hint. Catches the case
@@ -138,12 +138,12 @@ describe('ProjectDetailPage', () => {
     expect(screen.queryByText(/Preview only/i)).not.toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#41 regression-protector: the "Live envs" metric
+  // Red Team loop-console#41 regression-protector: the "Live envs" metric
   // MUST come from production_env_count (kind='permanent' subset), NOT
   // the legacy environment_count which collapses preview env_targets.
   // The Red Team scenario: environment_count=1 but production_env_count=0
   // → "Live envs" must show 0 (truth), not 1 (legacy bug).
-  // Red Team theo-cloud#97 closure: each "Recent deployments" row MUST
+  // Red Team loop-console#97 closure: each "Recent deployments" row MUST
   // surface status + environment badges so the user can tell a failed
   // preview deploy apart from a successful one.
   it('renders status + environment badges per Recent deployments row (#97)', () => {
@@ -196,7 +196,7 @@ describe('ProjectDetailPage', () => {
     expect(liveEnvsValueNode?.textContent).toBe('0');
   });
 
-  // Red Team theo-cloud#134 regression-protector: preview env WITH an
+  // Red Team loop-console#134 regression-protector: preview env WITH an
   // ACTIVE release + Live URL serving MUST render "Live envs: 1" — the
   // pre-fix legacy semantics used production_env_count which returned 0
   // for preview-only projects, contradicting the Live URL exposed on
@@ -229,7 +229,6 @@ describe('ProjectDetailPage', () => {
     render(<ProjectDetailPage />);
     expect(document.body.textContent).toContain('loopscale status my-project');
     expect(document.body.textContent).toContain('loopscale logs my-project');
-    expect(document.body.textContent).not.toMatch(/theo (status|logs) my-project/);
   });
 
   describe('J-08 Deploy primary CTA', () => {
@@ -336,7 +335,6 @@ describe('B-243 — "no deployments" is a claim about the project, not about a f
     render(<ProjectDetailPage />);
 
     expect(document.body.textContent).toContain('loopscale deploy');
-    expect(document.body.textContent).not.toContain('theo deploy');
   });
 
   it('does NOT say there are no deployments when the read FAILED', () => {

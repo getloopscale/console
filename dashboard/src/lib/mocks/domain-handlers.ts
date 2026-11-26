@@ -64,10 +64,10 @@ export function registerDomainHandlers() {
       app: body.app ?? '',
       environment: body.environment ?? 'production',
       status: 'pending_verification',
-      cname_target: `${body.project ?? 'app'}.theo.app`,
+      cname_target: `${body.project ?? 'app'}.loopscale.app`,
       created_at: new Date().toISOString(),
       verification: {
-        txt_name: `_theo.${body.domain}`,
+        txt_name: `_loopscale.${body.domain}`,
         txt_value: `verify=${Math.random().toString(36).slice(2, 18)}`,
       },
     };

@@ -13,8 +13,8 @@
  * one list but forgotten in the other, or a new BFF navigation path forgotten entirely).
  *
  * History — same bug class each time (an incomplete list):
- *  - theo-cloud#112: `/auth/*` (Hydra consent + `theo login --device-flow`) was missing.
- *  - theo-cloud#203: `/v1/rag-connect/*` (connector OAuth broker — "Connect with X") was missing.
+ *  - loop-console#112: `/auth/*` (Hydra consent + `loopscale login --device-flow`) was missing.
+ *  - loop-console#203: `/v1/rag-connect/*` (connector OAuth broker — "Connect with X") was missing.
  */
 export const BFF_NAVIGATION_DENYLIST: readonly RegExp[] = [
   /^\/auth\//,
@@ -22,7 +22,7 @@ export const BFF_NAVIGATION_DENYLIST: readonly RegExp[] = [
   /\/sessions\//,
   /\/self-service\//,
   /\/oauth2\//,
-  /^\/v1\/rag-connect\//, // theo-cloud#203 — OAuth "Connect with X" authorize + callback
+  /^\/v1\/rag-connect\//, // loop-console#203 — OAuth "Connect with X" authorize + callback
   /^\/v1\/integrations\/github\//, // GitHub App install + callback: 302s to and from github.com
 ];
 

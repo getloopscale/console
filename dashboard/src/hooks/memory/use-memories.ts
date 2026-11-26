@@ -42,7 +42,7 @@ export interface MemoryFilters {
  *
  * `throwOnError` carries the page's own reason, which is worth keeping verbatim: without it a
  * failed fetch resolves `null` and this page renders it identically to an empty list — the exact
- * "No memories yet on a 404/502" defect recorded as theo-cloud#250.
+ * "No memories yet on a 404/502" defect recorded as loop-console#250.
  */
 export function useMemories(filters: MemoryFilters) {
   const { category, from, to, offset, session } = filters;

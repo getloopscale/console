@@ -1,5 +1,5 @@
 import { ExternalLink } from 'lucide-react';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 
 import { useMetricsRange } from '@/hooks/projects/use-metrics-range';

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// Package s3x is a minimal, hand-rolled S3-compatible client for Theo's tenant
+// Package s3x is a minimal, hand-rolled S3-compatible client for LoopScale's tenant
 // blob storage. It implements only the operations the storage vertical needs
 // (put/get/head/delete) with AWS Signature v4, avoiding the ~18-module
 // aws-sdk-go-v2 dependency tree (blueprint ADR D2 — fork-and-own, following the

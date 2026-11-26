@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
-// A superficie MCP canonica do theo-promptly (usetheoai/theo-promptly#50).
+// A superficie MCP canonica do loopprompt (getloopscale/loop-prompt#50).
 //
 // Vive aqui, e nao inline em cmd/main.go, pelo mesmo motivo do rag_mcp.go: o teste de
 // invariante de UM BALDE guarda o mapa de PRODUCAO. Uma tool nova que nasca sem escopo,
 // ou que caia em dois baldes, reprova o gate — e nao vira descoberta em runtime.
 //
 // POR QUE ESTE MAPA TEM DE ESPELHAR O GATE DO PROPRIO MCP, e nao apenas "parecer certo":
-// desde o theo-promptly#52 o servidor MCP registra as tools POR ESCOPO — `create_dataset`
+// desde o loopprompt#52 o servidor MCP registra as tools POR ESCOPO — `create_dataset`
 // so existe para uma chave com `prompt:write`. Se este mapa discordar daquele registro,
 // passamos a ter DUAS protecoes para a mesma regra, e duas protecoes que podem divergir
 // sao piores que uma: a que ficar mais frouxa vira o limite real, e ninguem percebe qual
 // delas e. O gateway filtra `tools/list` pelo balde; o proprio promptly nem registra a
 // tool. Os dois tem de dizer a MESMA coisa.
 
-// PromptlyMCPTools e o conjunto EXAUSTIVO das tools registradas pelo @usetheo/promptly-mcp.
-// Tem de ficar em sincronia com theo-promptly packages/mcp/src/create-mcp-server.ts.
+// PromptlyMCPTools e o conjunto EXAUSTIVO das tools registradas pelo @getloopscale/promptly-mcp.
+// Tem de ficar em sincronia com loopprompt packages/mcp/src/create-mcp-server.ts.
 //
 // Sao SEIS. `run_evaluation` NAO esta aqui e nao e omissao: ela nao e exposta no MCP por
 // decisao de seguranca — executar exige a credencial de modelo do usuario, que num

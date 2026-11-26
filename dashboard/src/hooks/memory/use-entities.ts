@@ -37,7 +37,7 @@ export interface EntityFilters {
  * and forgotten in the key: results from another filter under this filter's labels.
  *
  * `throwOnError` carries the page's reason: without it a failed fetch resolves to an empty list and
- * renders as "no entities" (theo-cloud#250).
+ * renders as "no entities" (loop-console#250).
  */
 export function useEntities(filters: EntityFilters) {
   const { scope, session, offset, q } = filters;

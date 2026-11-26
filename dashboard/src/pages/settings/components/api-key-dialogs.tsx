@@ -5,7 +5,7 @@ import {
   type APIKeyView,
 } from '@/pages/settings/api-keys';
 import {useState} from 'react';
-import {Badge, Button, Checkbox, CodeBlock, CopyButton, Input, Tooltip} from '@usetheo/ui';
+import {Badge, Button, Checkbox, CodeBlock, CopyButton, Input, Tooltip} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import {ConfirmDialog} from '@/components/dialogs/confirm-dialog';
 import {Alert} from '@/components/ui/alert-guard';
@@ -354,7 +354,7 @@ interface ConfirmDeleteDialogProps {
 
 /**
  * DESIGN.md danger zone choreography per Memory Section mandate.
- * Uses @usetheo/ui's built-in `confirmationPhrase` (typed verification)
+ * Uses @getloopscale/ui's built-in `confirmationPhrase` (typed verification)
  * + `intent="destructive"` (NOT primary).
  */
 

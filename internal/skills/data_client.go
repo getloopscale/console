@@ -1,7 +1,7 @@
-// M29 — DataClient e o proxy de LEITURA por tenant para a API do theo-skills, consumido pelo BFF
+// M29 — DataClient e o proxy de LEITURA por tenant para a API do loopskills, consumido pelo BFF
 // do dashboard (`/v1/dashboard/skills/*`).
 //
-// Model B, como `internal/trust` e `internal/thelens`: o cliente NAO guarda credencial alguma. Um
+// Model B, como `internal/trust` e `internal/looptrace`: o cliente NAO guarda credencial alguma. Um
 // `keyResolver` injetado cunha o Bearer do tenant a cada requisicao, a partir do JWT em contexto.
 // Isso e SEGURANCA ESTRUTURAL, nao disciplina: como a chave vem do contexto e nao de um parametro,
 // nao existe assinatura por onde a tela peca dados de outro inquilino. Resolver ausente ou em erro
@@ -33,14 +33,14 @@ import (
 // pressao de memoria no plano de controle — que serve TODOS os inquilinos, nao so este.
 const maxBodyBytes = 8 << 20 // 8 MiB
 
-// DataClient e o proxy de leitura por tenant para o theo-skills.
+// DataClient e o proxy de leitura por tenant para o loopskills.
 type DataClient struct {
 	baseURL     string
 	httpClient  *http.Client
 	keyResolver func(ctx context.Context) (string, error)
 }
 
-// NewDataClient constroi o cliente. baseURL e a raiz REST do theo-skills. httpClient nil usa
+// NewDataClient constroi o cliente. baseURL e a raiz REST do loopskills. httpClient nil usa
 // http.DefaultClient.
 func NewDataClient(baseURL string, httpClient *http.Client) *DataClient {
 	if httpClient == nil {
@@ -189,7 +189,7 @@ func (c *DataClient) ValidateSkill(ctx context.Context, skillMd string) (json.Ra
 // Distinto de `ValidateSkill`: aquela responde "é válida?" — sintaxe e frontmatter. Esta responde
 // "é achável?", e compara a candidata com o **acervo real** do workspace.
 //
-// **Nada aqui executa a skill.** Leitura e diagnóstico; a fronteira "execução é do Theokit"
+// **Nada aqui executa a skill.** Leitura e diagnóstico; a fronteira "execução é do LoopZero"
 // permanece intacta.
 func (c *DataClient) Discoverability(ctx context.Context, name, description string, hasEmbedding bool) (json.RawMessage, error) {
 	body, err := json.Marshal(map[string]any{

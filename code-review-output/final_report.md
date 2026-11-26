@@ -1,4 +1,4 @@
-# Code review — theo-cloud dashboard
+# Code review — loop-console dashboard
 
 **Target** `dashboard/` · **Mode** `full` (5 phases) · **Date** 2026-08-11
 **Findings** 113 — 23 high · 52 medium · 30 low · 8 info  ·  **0 critical**
@@ -144,8 +144,8 @@ were computed, so the threshold could not be chosen to clear the gate. It does n
 |---|---|---|---|
 | 1 | completeness | `src/pages/auth/recovery.tsx:21` | recovery.tsx ignores the ACCOUNTS_URL runtime config the sibling auth module honors |
 | 3 | completeness | `nginx-security-headers.conf:31` | The shipped response-header CSP is strictly narrower than the meta CSP, silently revoking six allowances index.html documents as required |
-| 5 | completeness | `src/routes/settings-routes.tsx:51` | Placeholder screens advertise theo CLI commands that do not exist (settings domain) |
-| 8 | completeness | `src/routes/profile-routes.tsx:32` | Placeholder screens advertise theo CLI commands that do not exist (profile domain) |
+| 5 | completeness | `src/routes/settings-routes.tsx:51` | Placeholder screens advertise loopscale CLI commands that do not exist (settings domain) |
+| 8 | completeness | `src/routes/profile-routes.tsx:32` | Placeholder screens advertise loopscale CLI commands that do not exist (profile domain) |
 | 9 | completeness | `src/pages/overview/overview.tsx:154` | Overview project cards display a hardcoded deploy branch of main for every project |
 | 12 | completeness | `src/components/layout/team-switcher.tsx:126` | Create team menu item does not create a team — it opens a docs page in a new tab |
 | 13 | completeness | `src/pages/settings/billing.tsx:380` | Billing upgrade CTAs hardcode prices and quotas that the API already exposes |

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// Package account provisions the Account entity ("Cliente Theo" / independent
+// Package account provisions the Account entity ("Cliente LoopScale" / independent
 // developer) that sits ONE level above the tenant in the nested B2B2C model
 // (ADR account-level-tenancy, M0). An Account groups 1..N isolated tenants;
 // v1 is 1:1 user<->account, enforced by accounts.UNIQUE(owner_id).

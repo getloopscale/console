@@ -117,7 +117,7 @@ function usageUnavailable(): boolean {
 }
 
 /**
- * O prefixo depende de `window.__THEO_CONFIG__.API_URL`, vazio em dev (same-origin) e `/api`
+ * O prefixo depende de `window.__LOOPSCALE_CONFIG__.API_URL`, vazio em dev (same-origin) e `/api`
  * atrás do gateway. Registrar os dois evita que o mock funcione numa configuração e
  * silenciosamente não na outra — o modo de falha que já custou a primeira execução do e2e de trust.
  */

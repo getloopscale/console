@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
@@ -40,7 +40,7 @@ import { queryKeys } from '@/lib/api/query-keys';
  * to report success.
  */
 
-/** Every call answers with `status` — the session cookie needs no priming (usetheoai/theo#477). */
+/** Every call answers with `status` — the session cookie needs no priming (getloopscale/loopscale#477). */
 function serverAnswers(status: number, body: unknown = { code: 'X', message: 'no' }) {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
     new Response(body === null ? null : JSON.stringify(body), { status }),

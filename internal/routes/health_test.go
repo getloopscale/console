@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -36,7 +36,7 @@ func probe(t *testing.T, h *HealthHandler) (int, map[string]any) {
 //
 // Conflacionar as duas foi o defeito da minha primeira versao: eu fiz /health devolver 503. Um
 // livenessProbe apontado para la MATA o container num piscar do Postgres — que e exatamente o
-// LT-038 do theo-trust ("um restart do Postgres deixou de derrubar o servico inteiro"). Trocar
+// LT-038 do loopguardrails ("um restart do Postgres deixou de derrubar o servico inteiro"). Trocar
 // "sonda que nunca reprova" por "sonda que derruba o processo por falha de dependencia" e trocar
 // um defeito por outro pior.
 //
@@ -121,7 +121,7 @@ func TestHealth_returns_200_when_no_database_is_configured(t *testing.T) {
 //
 // Esta e a metade que impede a correcao de virar o proprio defeito que ela combate: as chaves de
 // broker sao opcionais por ambiente, e reprovar a sonda por causa delas derrubaria o container
-// toda vez que uma nao estivesse configurada. O #334 e o theo-workspace#27 sao dois casos em que a
+// toda vez que uma nao estivesse configurada. O #334 e o loopscale-workspace#27 sao dois casos em que a
 // capacidade sumiu com o container saudavel — o que faltava era VISIBILIDADE, e visibilidade se
 // entrega no corpo, nao no status.
 func TestHealth_reports_a_disabled_integration_without_failing_the_probe(t *testing.T) {

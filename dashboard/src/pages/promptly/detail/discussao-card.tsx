@@ -1,8 +1,8 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { comentarioRows } from '@/pages/promptly/components/projections';
 import type { UseMutationResult } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/alert-guard';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 
 interface Props {
   comentando: UseMutationResult<unknown, unknown, string, unknown>;

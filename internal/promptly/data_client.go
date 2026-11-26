@@ -1,7 +1,7 @@
-// M25 — DataClient e o proxy de LEITURA por inquilino para a API do theo-promptly, consumido pelo
+// M25 — DataClient e o proxy de LEITURA por inquilino para a API do loopprompt, consumido pelo
 // BFF do dashboard (`/v1/dashboard/promptly/*`).
 //
-// Model B, como `internal/trust`, `internal/thelens` e `internal/skills`: o cliente NAO guarda
+// Model B, como `internal/trust`, `internal/looptrace` e `internal/skills`: o cliente NAO guarda
 // credencial alguma. Um `keyResolver` injetado cunha o Bearer do inquilino a cada requisicao, a
 // partir do JWT em contexto. Isso e SEGURANCA ESTRUTURAL, nao disciplina: como a chave vem do
 // contexto e nao de um parametro, nao existe assinatura por onde a tela peca dados de outro
@@ -13,7 +13,7 @@
 // bug silencioso de renderizacao.
 //
 // DIVERGENCIA DELIBERADA da referencia — ver o docstring de `UpstreamError`. O `getRaw` do
-// `internal/trust` colapsa o erro do upstream em `fmt.Errorf` (`theo-cloud#358`); aqui o 4xx/5xx
+// `internal/trust` colapsa o erro do upstream em `fmt.Errorf` (`loop-console#358`); aqui o 4xx/5xx
 // constroi o tipo, porque a tela precisa DECIDIR sobre o codigo.
 package promptly
 
@@ -34,7 +34,7 @@ import (
 // memoria no plano de controle — que serve TODOS os inquilinos, nao so este.
 const maxBodyBytes = 8 << 20 // 8 MiB
 
-// DataClient e o proxy de leitura por inquilino para o theo-promptly.
+// DataClient e o proxy de leitura por inquilino para o loopprompt.
 type DataClient struct {
 	baseURL string
 	// httpClient serve as LEITURAS — catalogo, revisoes, labels, politica. Orcamento curto: um
@@ -52,7 +52,7 @@ type DataClient struct {
 	keyResolver      func(ctx context.Context) (string, error)
 }
 
-// NewDataClient constroi o cliente. baseURL e a raiz REST do theo-promptly. httpClient nil usa
+// NewDataClient constroi o cliente. baseURL e a raiz REST do loopprompt. httpClient nil usa
 // http.DefaultClient.
 func NewDataClient(baseURL string, httpClient *http.Client) *DataClient {
 	if httpClient == nil {

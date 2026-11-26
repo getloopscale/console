@@ -19,7 +19,7 @@ const e2eDriftPath = "../../.github/workflows/e2e-drift.yml"
 
 // gomodTokenExpr is the only credential that can pull a package owned by a sibling repository.
 // GHCR package access is a per-package ACL; `packages: read` in the workflow grants the run's
-// GITHUB_TOKEN nothing on `ghcr.io/usetheoai/theo-memory`, which theo-cloud is not listed on.
+// GITHUB_TOKEN nothing on `ghcr.io/usetheoai/theo-memory`, which loop-console is not listed on.
 // Measured: run 30527179585 fails with `Error response from daemon: denied`, while the same
 // reference resolves from a host holding a user PAT. `.github/workflows/ci.yml:72-80` records the
 // same finding, and commit f5ee627 fixed ci.yml's two e2e jobs — this workflow was missed.
@@ -78,16 +78,16 @@ func TestE2EDriftLoopKeysMatchRealPackages(t *testing.T) {
 	}
 	body := string(b)
 
-	// The drift loop reconstructs a registry path from the pair's KEY, so a stale key names a
-	// repository that no longer exists. Measured: `ghcr.io/usetheoai/themory:develop` does not
-	// resolve; `theo-memory` does. That leg reports `unreachable` forever and emits a permanent
-	// false drift warning. Warning-only — it never fails the job — but a permanently wrong warning
-	// trains people to ignore the channel.
-	if strings.Contains(body, `"themory:$THEMORY_IMAGE"`) {
-		t.Error(`loop key "themory" builds ghcr.io/usetheoai/themory, which no longer exists after ` +
-			`the rename; the leg reports unreachable on every run`)
+	// The drift loop reconstructs a registry path from the pair's KEY, and the sibling images
+	// are still published under their old registry paths. A key spelled as the variable is
+	// (`loopmem`) names a repository that does not exist there: that leg reports `unreachable`
+	// forever and emits a permanent false drift warning. Warning-only, but a permanently wrong
+	// warning trains people to ignore the channel.
+	if strings.Contains(body, `"loopmem:$LOOPMEM_IMAGE"`) {
+		t.Error(`loop key "loopmem" builds a registry path the image is not published under; ` +
+			`the leg reports unreachable on every run`)
 	}
-	if !strings.Contains(body, `"theo-memory:$THEMORY_IMAGE"`) {
-		t.Error(`expected the loop key to be "theo-memory:$THEMORY_IMAGE"`)
+	if !strings.Contains(body, `"theo-memory:$LOOPMEM_IMAGE"`) {
+		t.Error(`expected the loop key to be "theo-memory:$LOOPMEM_IMAGE"`)
 	}
 }

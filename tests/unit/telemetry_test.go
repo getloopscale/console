@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // T1.2 of plan 2026-05-27-backend-frontend-integration v1.1.
 // Tests the 4 telemetry endpoints (/v1/telemetry/{errors,web-vitals,events,interactions})
@@ -20,8 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/metrics"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // scrapeMetricCounter renders the /metrics output via metrics.Handler()
@@ -217,7 +217,7 @@ func TestTelemetry_Events_DeviceSuccessViewed_IncrementsCounter(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"event":     "device_success_viewed",
 		"timestamp": 1700000000,
-		"origin":    "https://app-dev.usetheo.dev",
+		"origin":    "https://app-dev.getloopscale.com",
 	})
 	w := postTelemetry(t, h.Events, body)
 	if w.Code != http.StatusAccepted {
@@ -274,12 +274,12 @@ func TestTelemetry_Events_RejectedPayload_DoesNotIncrement(t *testing.T) {
 }
 
 // readBrowserSuccessCounter scrapes the /metrics endpoint and returns
-// the current value of theo_device_flow_browser_success_total. Returns
+// the current value of loopscale_device_flow_browser_success_total. Returns
 // 0 if the metric is not yet registered (counter starts at 0 by spec).
 func readBrowserSuccessCounter(t *testing.T) float64 {
 	t.Helper()
 	// Cross-package: import metrics with its Handler.
-	const metricName = "theo_device_flow_browser_success_total"
+	const metricName = "loopscale_device_flow_browser_success_total"
 	// We can't read the registered counter directly without importing
 	// prometheus/testutil — instead scrape the exposition and parse.
 	value, err := scrapeMetricCounter(metricName)

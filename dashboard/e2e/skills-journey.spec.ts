@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M26 — a jornada do registro de skills, ponta a ponta PELA TELA.
 //
@@ -18,7 +18,7 @@
 //
 // HONESTIDADE SOBRE O ESCOPO: roda hermético contra o Vite local com `VITE_USE_MOCKS=true`, como
 // todo e2e deste repositório. Prova a JORNADA DA INTERFACE contra o contrato medido do
-// `theo-skills` — não prova que o registro implantado devolve estes corpos. Essa metade se
+// `loopskills` — não prova que o registro implantado devolve estes corpos. Essa metade se
 // verifica contra o ambiente real e se registra como evidência; afirmá-la aqui seria teatro.
 
 import { test, expect, type Page } from '@playwright/test';
@@ -177,7 +177,7 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
     await page.getByRole('link', { name: 'Prepare local environment' }).click();
 
     await expect(page.getByText(/runs on the client machine/i)).toBeVisible();
-    await expect(page.getByText(/theoskill install|Install it through the CLI/i)).toBeVisible();
+    await expect(page.getByText(/loopscaleskill install|Install it through the CLI/i)).toBeVisible();
   });
 });
 
@@ -189,7 +189,7 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
 //
 // Também aqui a navegação é POR CLIQUE a partir da raiz. `/bundles` não começa com `/skills`, e
 // por isso depende de uma linha própria em `resolveActiveMenu`: é exatamente a peça que o
-// theo-trust esqueceu, e um `goto('/bundles')` ficaria verde com o menu quebrado.
+// loopguardrails esqueceu, e um `goto('/bundles')` ficaria verde com o menu quebrado.
 
 async function navegarAteOsPacotesPeloMenu(page: Page) {
   await page.goto('/');
@@ -692,7 +692,7 @@ test.describe('M34 — descobribilidade diagnosticada no momento da autoria', ()
     await page.getByRole('button', { name: /validate without publishing/i }).click();
     await expect(page.getByRole('heading', { name: /will it be found/i })).toBeVisible();
 
-    // A tela declara que NÃO executa — a fronteira do Theokit é dita ao usuário, não só ao código.
+    // A tela declara que NÃO executa — a fronteira do LoopZero é dita ao usuário, não só ao código.
     await expect(page.getByText(/does not run it/i)).toBeVisible();
 
     await page.getByRole('button', { name: /diagnose discoverability/i }).click();
@@ -705,7 +705,7 @@ test.describe('M34 — descobribilidade diagnosticada no momento da autoria', ()
     await expect(page.getByText('stub/stub')).toBeVisible();
   });
 
-  test('um rascunho NÃO é acusado de não ter vetor — theo-skills#144', async ({ page }) => {
+  test('um rascunho NÃO é acusado de não ter vetor — loopskills#144', async ({ page }) => {
     // MEDIDO no app-dev em 2026-08-04: a tela mandava `has_embedding: false` fixo, e como a skill
     // ainda não existe o serviço respondia `no_embedding` com o conselho "Republique para gerar o
     // vetor" — impossível para algo nunca publicado.
@@ -774,12 +774,12 @@ test.describe('M31 — nenhuma tela morta: toda rota aninhada tem volta à orige
     await page.goto('/skills/sk_velha/versions');
     await expect(page.getByText(/no version published/i)).toBeVisible();
 
-    // M31 originally asked for a prefilled `theo skills publish sk_velha` here. B-132/B-133 removed
+    // M31 originally asked for a prefilled `loopscale skills publish sk_velha` here. B-132/B-133 removed
     // it on purpose: the CLI registers no `skills` command, so a copyable block would hand over a
     // command the terminal rejects. The empty state must say that, and must not offer the command
     // or promise one is "below" (#527).
     await expect(page.getByText(/publishing a version of an existing skill has no cli command yet/i)).toBeVisible();
-    await expect(page.getByText(/theo skills publish/)).toHaveCount(0);
+    await expect(page.getByText(/loopscale skills publish/)).toHaveCount(0);
     await expect(page.getByText(/command below is already filled in/i)).toHaveCount(0);
 
     // E a saída continua existindo mesmo no estado vazio — que era exatamente onde faltava.
@@ -795,7 +795,7 @@ test.describe('M35 — a cadeia bundle → skill → canal é navegável', () =>
   // chegar na skill nem descobrir qual revisão aquele canal serve hoje. Ver o conteúdo de um
   // pacote sem poder responder "o que meus clientes estão recebendo?" é olhar sem enxergar.
   //
-  // É a mesma lição que o theo-trust pagou caro e que o CLAUDE.md deste repositório registra:
+  // É a mesma lição que o loopguardrails pagou caro e que o CLAUDE.md deste repositório registra:
   // uma listagem que não devolve o caminho da próxima ação vira um painel só de olhar.
 
   async function irAoPacoteComItens(page: Page) {

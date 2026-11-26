@@ -29,7 +29,7 @@ describe('traceSummary (M72 — the trace-level headline)', () => {
 
   it('an empty trace is honest zeros, not fabricated values', () => {
     const s = traceSummary({ spanId: 'r', traceId: 't', name: 'r', children: [] });
-    // theo-cloud#186 SUPERSEDES the former `toBe(0)` assertion on this line. A trace whose spans never
+    // loop-console#186 SUPERSEDES the former `toBe(0)` assertion on this line. A trace whose spans never
     // recorded a token count is UNKNOWN, not zero — and the per-span rows below the header already
     // render `—` for exactly this span (M89). The header claiming "0" while the rows say "—" is the
     // two surfaces disagreeing about the same trace, which is the whole finding.
@@ -39,7 +39,7 @@ describe('traceSummary (M72 — the trace-level headline)', () => {
   });
 
   /**
-   * theo-cloud#186 — the trace-level roll-up showed "0" for an all-unmeasured trace while the per-span
+   * loop-console#186 — the trace-level roll-up showed "0" for an all-unmeasured trace while the per-span
    * rows showed "—". M89 fixed the per-span half and deliberately scoped the aggregate out (ADR-3),
    * because an aggregate 0 is genuinely ambiguous: a trace with no token-bearing spans has a REAL 0,
    * while a trace whose spans exist but never recorded tokens is UNKNOWN. Distinguishing them needs to

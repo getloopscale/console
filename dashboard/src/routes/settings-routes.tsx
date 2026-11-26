@@ -37,7 +37,7 @@ export const rotasDeSettings = (
     window) + Lineage (rotation timeline) + show-once secret reveal
     with EC-13 "I've copied my key safely" acknowledgement gate.
     Pre-fix the sidebar pointed here but the route was a placeholder
-    suggesting a non-existent `theo token create` CLI. The canonical
+    suggesting a non-existent `loopscale token create` CLI. The canonical
     page was orphaned at /api-keys with no nav entry — consolidated
     to the sidebar-shaped Settings → Developer → API Tokens hierarchy. */}
     <Route

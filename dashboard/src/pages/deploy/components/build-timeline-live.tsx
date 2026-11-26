@@ -1,4 +1,4 @@
-import { Stepper, type StepperStepData } from '@usetheo/ui';
+import { Stepper, type StepperStepData } from '@getloopscale/ui';
 import { useDeploymentStream, type DeploymentStatus } from '@/hooks/deploy/use-deployment-stream';
 import type { BuildStep, PhaseGroup } from '@/hooks/deploy/sse-events';
 import type { BuildStatus } from '@/lib/api/types';
@@ -28,7 +28,7 @@ export interface BuildTimelineLiveProps {
   initialLastEventID?: string | null;
   /**
    * REST-derived terminal status for the build (parent's `build.status` from
-   * `useDeployment`). Red Team theo-cloud#122 — when a build dies BEFORE any
+   * `useDeployment`). Red Team loop-console#122 — when a build dies BEFORE any
    * SSE step event (e.g. Argo submit Unauthorized), `steps.length === 0`
    * AND the SSE-derived status defaults to 'queued', so the skeleton
    * "Waiting for build to start… / Connecting to build stream…" rendered
@@ -109,7 +109,7 @@ export function BuildTimelineLive({
   const deployed = restBuildStatus === 'succeeded';
   const grouped = groupByPhase(steps);
   const empty = steps.length === 0;
-  // Red Team theo-cloud#122 — when the REST build status is terminal-failure
+  // Red Team loop-console#122 — when the REST build status is terminal-failure
   // AND no SSE events arrived (build died at submit, before emitting any
   // step), render the honest empty-state instead of the misleading
   // "Connecting to build stream…" skeleton. `cancelled` is terminal in the
@@ -180,7 +180,7 @@ interface SkeletonProps {
   connected: boolean;
 }
 
-// Red Team theo-cloud#122 — honest empty-state for builds that died before
+// Red Team loop-console#122 — honest empty-state for builds that died before
 // emitting any SSE step. Rendered in lieu of `<Skeleton>` when REST status
 // is terminal-failure (`failed` / `cancelled`) AND zero step events arrived.
 // The header's BuildErrorPanel carries the API `error` (e.g. "argo: create

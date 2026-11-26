@@ -1,8 +1,8 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Link, useSearchParams, useNavigate, type NavigateFunction } from 'react-router-dom';
 import { ExternalLink, Plus } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, PageShell, StatusDot, Table } from '@usetheo/ui';
-import type { StatusKind } from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, PageShell, StatusDot, Table } from '@getloopscale/ui';
+import type { StatusKind } from '@getloopscale/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { estadoDaLista } from '@/lib/list-state';
 import { searchWithoutResult } from '@/pages/projects/empty-states';
@@ -15,7 +15,7 @@ import { formatDate } from '@/lib/formatting/format';
 import type { Project } from '@/lib/api/types';
 
 // Data-plane staleness thresholds — T4.2 of plan
-// dashboard-badge-data-plane-poller closing Red Team theo-cloud#128.
+// dashboard-badge-data-plane-poller closing Red Team loop-console#128.
 // The poller emits a snapshot every 30s (canonical operator default);
 // STALENESS_LIVE_MS = 3 tick intervals absorbs a single missed scrape
 // without flickering Live→Deployed. STALENESS_UNKNOWN_MS bounds the
@@ -67,7 +67,7 @@ function deriveDataPlaneBadge(
 //   - framework      (T5.3 LIVE bug fix 2026-06-08 fallback chain)
 //   - appsCount      (apps_count > legacy apps?.length)
 //   - projectStatus  (5-value last_deploy_status enum)
-//   - statusKind     (mapping to @usetheo/ui StatusKind; queued→building)
+//   - statusKind     (mapping to @getloopscale/ui StatusKind; queued→building)
 //   - envCount       (environment_count > legacy singular environment)
 //
 // All resolution shapes pinned by the page's existing tests.
@@ -95,7 +95,7 @@ function ProjectRow({
   // "last_deploy presence" heuristic. FAILED builds no longer render
   // as Idle.
   const rawStatus = p.last_deploy_status ?? 'idle';
-  // Red Team theo-cloud#77 second-pass (2026-06-29): the previous fix
+  // Red Team loop-console#77 second-pass (2026-06-29): the previous fix
   // required production_env_count===0, but the LIVE state Red Team captured
   // is production_env_count===1 with active_release=null — the prod env
   // shell was provisioned but no release ever served it; the latest deploy
@@ -122,7 +122,7 @@ function ProjectRow({
           Date.now(),
         )
       : null;
-  // Map our 6-value enum + 4-state data-plane verdict onto @usetheo/ui's
+  // Map our 6-value enum + 4-state data-plane verdict onto @getloopscale/ui's
   // StatusKind (which is "live" | "building" | "failed" | "idle" | "warning").
   // Queued semantically belongs with `building` (both in-flight, not-yet-
   // live). 'preview' renders with the neutral 'idle' tone. Data-plane
@@ -161,14 +161,14 @@ function ProjectRow({
   // environment_count; fall back to 1 if only the legacy singular
   // `environment` is present.
   //
-  // Red Team theo-cloud#41 absorption (2026-06-27): the "Live envs"
+  // Red Team loop-console#41 absorption (2026-06-27): the "Live envs"
   // column MUST use `production_env_count` (kind='permanent' subset)
   // — the legacy `environment_count` collapses preview env_targets
   // into the count and rendered "Live envs: 1" + "URL PENDING" side
   // by side for preview-only projects. When the new field is absent
   // (legacy server), fall back to environment_count so the table
   // still renders (backwards compat).
-  // Red Team theo-cloud#134 (2026-07-02): active_env_count is the truth
+  // Red Team loop-console#134 (2026-07-02): active_env_count is the truth
   // for "how many envs are currently live?" — see sibling comment in
   // project-detail.tsx for the fallback chain rationale. This closes the
   // preview-env-with-ACTIVE-release-and-Live-URL rendering "LIVE ENVS: 0"

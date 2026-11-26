@@ -31,7 +31,7 @@
 | `api-contracts` | `src/lib/api` | 1274 | TypeScript contracts for backend payloads (types.ts, 861 LOC) + query-key factory. |
 | `http-client` | `src/lib/http` | 1132 | Fetch wrapper (api.ts), runtime config, react-query client factory, list-ceiling guard. The single outbound I/O boundary. |
 | `test-harness` | `src/test` | 1009 | Test infrastructure: render helper, setup, route manifest, stable-tree guard, a11y and journey suites. |
-| `vendor-usetheo-ui` | `src/vendor/usetheo-ui` | 570 | Vendored design-system surface. |
+| `vendor-loopscale-ui` | `src/vendor/loopscale-ui` | 570 | Vendored design-system surface. |
 | `telemetry` | `src/lib/telemetry` | 557 | Client-side telemetry emission. |
 | `auth-session` | `src/lib/auth` | 531 | Session persistence, cross-tab auth channel, logout cache purge. |
 | `build-config` | `src/build` | 0 | Build-time policy modules: manual chunk splitting, service-worker BFF paths + runtime caching, CSP. |
@@ -40,16 +40,16 @@
 
 | Component | Path | LOC | Description |
 |---|---|---|---|
-| `domain-lens` | `src/pages/lens` | 17284 | theo-lens observability surface — largest domain subtree (107 files). |
-| `domain-promptly` | `src/pages/promptly` | 9096 | theo-promptly prompt-management surface. |
+| `domain-lens` | `src/pages/lens` | 17284 | looptrace observability surface — largest domain subtree (107 files). |
+| `domain-promptly` | `src/pages/promptly` | 9096 | loopprompt prompt-management surface. |
 | `domain-projects` | `src/pages/projects` | 7160 | Project CRUD, environments, project status. |
 | `domain-auth` | `src/pages/auth` | 6067 | Login, OIDC callback, signup, verification flows. |
 | `domain-deploy` | `src/pages/deploy` | 5953 | Deployment surface + log streaming. |
-| `domain-rag` | `src/pages/rag` | 5324 | theo-rag surface. |
+| `domain-rag` | `src/pages/rag` | 5324 | looprag surface. |
 | `domain-infra` | `src/pages/infra` | 5317 | Infrastructure/cluster surface. |
-| `domain-memory` | `src/pages/memory` | 4962 | theo-memory surface. |
-| `domain-skills` | `src/pages/skills` | 4818 | theo-skills surface. |
+| `domain-memory` | `src/pages/memory` | 4962 | loopmem surface. |
+| `domain-skills` | `src/pages/skills` | 4818 | loopskills surface. |
 | `domain-settings` | `src/pages/settings` | 4771 | Account, billing, tokens, org settings. |
-| `domain-trust` | `src/pages/trust` | 3603 | theo-trust surface. |
+| `domain-trust` | `src/pages/trust` | 3603 | loopguardrails surface. |
 | `domain-overview` | `src/pages/overview` | 2941 | Capability overview dashboards (active plan area). |
 | `domain-workspace` | `src/pages/workspace` | 1191 | Workspace shell surface. |

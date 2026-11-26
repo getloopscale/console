@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 
 // Plan 2026-06-05-dashboard-journey-j05-device-success T1.2 D4:
 // Telemetry endpoint path — reuses the canonical /v1/telemetry/events handler
 // (cloud/internal/routes/telemetry.go) instead of a dedicated /v1/telemetry/event
 // route. Backend recognizes `event=device_success_viewed` payload and increments
-// `theo_device_flow_browser_success_total`. Path exported so tests can assert.
+// `loopscale_device_flow_browser_success_total`. Path exported so tests can assert.
 export const BEACON_PATH = '/v1/telemetry/events';
 
 const AUTO_CLOSE_MS = 5000;

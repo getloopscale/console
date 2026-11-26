@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { Badge, Button, Card } from '@usetheo/ui';
+import { Badge, Button, Card } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { useReflect } from '@/hooks/memory/use-playground';
 import { ExpandableText } from '@/pages/memory/row-cells';

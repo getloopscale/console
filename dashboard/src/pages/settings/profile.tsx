@@ -7,7 +7,7 @@ import {
   CodeBlock,
   DangerZone,
   PageShell,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -71,7 +71,7 @@ export function ProfilePage() {
         <Card.Header className="flex flex-row items-start justify-between gap-4">
           <div>
             <Card.Title asChild>
-              {/* Red Team theo-cloud#79: promote h3 → h2 so /profile
+              {/* Red Team loop-console#79: promote h3 → h2 so /profile
                   heading hierarchy goes h1 → h2 → h3 without skipping. */}
               <h2>Account</h2>
             </Card.Title>
@@ -117,7 +117,7 @@ export function ProfilePage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            {/* Red Team theo-cloud#79: cards on /profile MUST stay at
+            {/* Red Team loop-console#79: cards on /profile MUST stay at
                 h2 so the page outline is contiguous. */}
             <h2>Or use the CLI</h2>
           </Card.Title>
@@ -126,7 +126,7 @@ export function ProfilePage() {
         <Card.Body>
           <CodeBlock
             caption="Common profile commands"
-            /* B-132/B-133 — `theo account delete` NAO e um comando registrado pela CLI (medido
+            /* B-132/B-133 — `loopscale account delete` NAO e um comando registrado pela CLI (medido
                2026-08-11). Um bloco copiavel torna a mentira acionavel: a pessoa cola e o
                terminal responde que o comando nao existe. */
             code={`loopscale whoami

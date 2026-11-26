@@ -2,7 +2,7 @@
 type: Product Surface
 title: Storage
 description: File storage for a customer app, reachable three ways over one `/v1/storage/*` surface — the API, the CLI and the TypeScript SDK.
-resource: https://api.usetheo.dev/v1/storage
+resource: https://api.getloopscale.com/v1/storage
 tags: [storage, api, cli, sdk, product, share-link]
 generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
 status: stable
@@ -15,8 +15,8 @@ sources:
 
 # Storage — file storage for your app
 
-Theo storage lets your app store and serve files without running its own file
-infrastructure. Files are private by default and accessed through your Theo API
+LoopScale storage lets your app store and serve files without running its own file
+infrastructure. Files are private by default and accessed through your LoopScale API
 key; a temporary **share link** lets you hand out read access to a single file.
 
 Reach it three ways — the **API**, the **CLI**, or the **TypeScript SDK** — all
@@ -37,12 +37,12 @@ carrying the `storage:read` / `storage:write` scopes.
 
 | Operation | API | CLI | SDK |
 |---|---|---|---|
-| Upload | `PUT /v1/storage/objects/{path}` | `theo storage upload <file> <path>` | `storage.upload(path, bytes, contentType?)` |
-| Download | `GET /v1/storage/objects/{path}` | `theo storage download <path> [dest]` | `storage.download(path)` |
-| List | `GET /v1/storage/objects?prefix=` | `theo storage list [prefix]` | `storage.list(prefix?)` |
-| Stat (metadata) | `GET /v1/storage/stat/{path}` | `theo storage stat <path>` | `storage.stat(path)` |
-| Delete | `DELETE /v1/storage/objects/{path}` | `theo storage delete <path>` | `storage.del(path)` |
-| Share | `POST /v1/storage/share` | `theo storage share <path> --expires <s>` | `storage.share(path, seconds?)` |
+| Upload | `PUT /v1/storage/objects/{path}` | `loopscale storage upload <file> <path>` | `storage.upload(path, bytes, contentType?)` |
+| Download | `GET /v1/storage/objects/{path}` | `loopscale storage download <path> [dest]` | `storage.download(path)` |
+| List | `GET /v1/storage/objects?prefix=` | `loopscale storage list [prefix]` | `storage.list(prefix?)` |
+| Stat (metadata) | `GET /v1/storage/stat/{path}` | `loopscale storage stat <path>` | `storage.stat(path)` |
+| Delete | `DELETE /v1/storage/objects/{path}` | `loopscale storage delete <path>` | `storage.del(path)` |
+| Share | `POST /v1/storage/share` | `loopscale storage share <path> --expires <s>` | `storage.share(path, seconds?)` |
 
 Downloads and share redemptions always send `Content-Disposition: attachment`
 and `X-Content-Type-Options: nosniff` — files are served for download, never
@@ -52,14 +52,14 @@ rendered inline (they cannot execute in a browser).
 
 ```sh
 # Upload
-curl -X PUT https://api.usetheo.dev/v1/storage/objects/avatars/user1.png \
-  -H "Authorization: Bearer $THEO_KEY" \
+curl -X PUT https://api.getloopscale.com/v1/storage/objects/avatars/user1.png \
+  -H "Authorization: Bearer $LOOPSCALE_KEY" \
   -H "Content-Type: image/png" \
   --data-binary @user1.png
 
 # Create a 1-hour share link
-curl -X POST https://api.usetheo.dev/v1/storage/share \
-  -H "Authorization: Bearer $THEO_KEY" \
+curl -X POST https://api.getloopscale.com/v1/storage/share \
+  -H "Authorization: Bearer $LOOPSCALE_KEY" \
   -H "Content-Type: application/json" \
   -d '{"path":"avatars/user1.png","expires_in_seconds":3600}'
 # → {"url":"/v1/storage/shared/<token>","expires_at":"..."}
@@ -73,26 +73,26 @@ unavailable.
 ## CLI
 
 ```sh
-theo storage upload ./report.pdf reports/2026-q3.pdf
-theo storage list reports/
-theo storage share reports/2026-q3.pdf --expires 3600
-theo storage download reports/2026-q3.pdf ./local.pdf
-theo storage delete reports/2026-q3.pdf
+loopscale storage upload ./report.pdf reports/2026-q3.pdf
+loopscale storage list reports/
+loopscale storage share reports/2026-q3.pdf --expires 3600
+loopscale storage download reports/2026-q3.pdf ./local.pdf
+loopscale storage delete reports/2026-q3.pdf
 ```
 
-Add `--json` for machine-readable output. Exit codes follow the Theo contract:
+Add `--json` for machine-readable output. Exit codes follow the LoopScale contract:
 `0` success, `1` usage/limit, `4` auth, `5` partial/network.
 
 ## SDK (TypeScript)
 
 ```sh
-npm install @usetheo/storage
+npm install @getloopscale/storage
 ```
 
 ```ts
-import { createStorageClient, QuotaExceededError } from '@usetheo/storage';
+import { createStorageClient, QuotaExceededError } from '@getloopscale/storage';
 
-const storage = createStorageClient({ baseUrl: 'https://api.usetheo.dev', apiKey: process.env.THEO_KEY! });
+const storage = createStorageClient({ baseUrl: 'https://api.getloopscale.com', apiKey: process.env.LOOPSCALE_KEY! });
 
 await storage.upload('avatars/user1.png', bytes, 'image/png');
 const { url } = await storage.share('avatars/user1.png', 3600);

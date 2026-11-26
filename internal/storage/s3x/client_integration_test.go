@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 //go:build integration
 
@@ -7,7 +7,7 @@
 // (MinIO). Proves the hand-rolled SigV4 signer authenticates correctly against a
 // real backend — the one thing unit tests with httptest cannot. Run with:
 //
-//	S3X_TEST_ENDPOINT=http://127.0.0.1:19000 S3X_TEST_BUCKET=theo-storage-itest \
+//	S3X_TEST_ENDPOINT=http://127.0.0.1:19000 S3X_TEST_BUCKET=loopstore-itest \
 //	S3X_TEST_ACCESS_KEY=... S3X_TEST_SECRET_KEY=... \
 //	go test -tags=integration ./internal/storage/s3x/...
 package s3x
@@ -46,7 +46,7 @@ func TestS3X_RoundTrip_RealMinIO(t *testing.T) {
 	c := integrationClient(t)
 	ctx := context.Background()
 	key := "tenant-itest/dogfood/roundtrip.txt"
-	payload := []byte("theo s3x hand-rolled sigv4 round-trip proof")
+	payload := []byte("loopscale s3x hand-rolled sigv4 round-trip proof")
 
 	// PUT
 	if err := c.PutObject(ctx, key, bytes.NewReader(payload), int64(len(payload)), "text/plain"); err != nil {

@@ -13,7 +13,7 @@ export interface RagAnalytics {
   totals: { retrievals: number; answers: number; empty_retrieval_rate: number };
   latency: { p50_ms: number; p95_ms: number };
   confidence: { high: number; medium: number; low: number };
-  /** theo-rag rc.80+ attaches this block only when the request carries `collection_id`. */
+  /** looprag rc.80+ attaches this block only when the request carries `collection_id`. */
   scale?: ScaleObservability;
 }
 
@@ -24,7 +24,7 @@ const analyticsQueryKey = ['cloud', '/v1/dashboard/rag/analytics'] as const;
  *
  * B-244 — two screens read this endpoint and each declared its own copy of the response. The copies
  * had already drifted: `analytics` knew about the `scale` block, `overview` did not, so the field
- * that theo-rag rc.80+ returns was invisible to one of its two readers.
+ * that looprag rc.80+ returns was invisible to one of its two readers.
  *
  * They had also drifted on the CACHE KEY, and that one costs a request on every visit. `overview`
  * keyed on `['cloud', path]` while `analytics` keyed on `['cloud', path, collectionID]` with an

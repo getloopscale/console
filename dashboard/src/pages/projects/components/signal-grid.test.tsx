@@ -78,7 +78,7 @@ describe('SignalGrid — T3.2 J-18 (EC-7 absorption: 8 pills always render)', ()
     expect(emDashes.length).toBe(8);
   });
 
-  // theo-cloud#158: NaN/Inf are `typeof === 'number'`, so the numeric formatters
+  // loop-console#158: NaN/Inf are `typeof === 'number'`, so the numeric formatters
   // must reject non-finite values too — a metric must never render "NaN%" /
   // "NaNms" / "NaN" (the honest-empty-state contract, same as null/undefined).
   it('non-finite values (NaN/Inf) render as "—" muted, never "NaN%"/red', () => {

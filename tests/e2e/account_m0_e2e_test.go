@@ -1,7 +1,7 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M0 T3.1 — Account foundation integration proof against real pg-cloud.
 // Exercises the NEW Go code (internal/auth EnsureTenant + ResolveAPIKey, which
@@ -9,7 +9,7 @@
 // schema (migrations 000034-000039 applied). Reuses the package harness
 // (seedUser/seedTenant/seedAPIKey/env). Build-tagged `e2e`; run with -race:
 //
-//	E2E_PG_CLOUD_DSN=postgres://loopruntime:loopruntime@localhost:15432/m0test?sslmode=disable \
+//	E2E_PG_CLOUD_DSN=postgres://loop_runtime:loop_runtime@localhost:15432/m0test?sslmode=disable \
 //	  go test -tags=e2e -race ./tests/e2e/ -run AccountM0 -v
 package e2e
 
@@ -25,8 +25,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -54,7 +54,7 @@ func quietProvisioner(db *sql.DB) *auth.TenantProvisioner {
 func cleanupOwner(t *testing.T, db *sql.DB, ownerID string) {
 	t.Helper()
 	stmts := []string{
-		`DELETE FROM loopruntime_api_keys WHERE subject = $1`,
+		`DELETE FROM loop_runtime_api_keys WHERE subject = $1`,
 		`DELETE FROM subscriptions WHERE tenant_id IN (SELECT id FROM tenants WHERE owner_id = $1)`,
 		`DELETE FROM tenant_members WHERE user_id = $1`,
 		`DELETE FROM tenants WHERE owner_id = $1`,
@@ -70,7 +70,7 @@ func cleanupOwner(t *testing.T, db *sql.DB, ownerID string) {
 
 // NOTE (M3): the former Scenario 1 — "legacy key (NULL account_id) still
 // resolves, AccountID == ''" — was REMOVED. M3 migration 000044 makes
-// loopruntime_api_keys.account_id NOT NULL, so a NULL-account key can no longer exist in
+// loop_runtime_api_keys.account_id NOT NULL, so a NULL-account key can no longer exist in
 // the database and this e2e could no longer seed the state it asserted. The
 // defensive NULL-tolerant scan it exercised is schema-independent and stays
 // covered at the unit layer:
@@ -139,7 +139,7 @@ func TestAccountM0_NewKeyInheritsTenantAccount(t *testing.T) {
 	}
 
 	var keyAcc sql.NullString
-	if err := db.QueryRow(`SELECT account_id FROM loopruntime_api_keys WHERE subject=$1 AND key_name='m0-key'`, uid).Scan(&keyAcc); err != nil {
+	if err := db.QueryRow(`SELECT account_id FROM loop_runtime_api_keys WHERE subject=$1 AND key_name='m0-key'`, uid).Scan(&keyAcc); err != nil {
 		t.Fatalf("query created key: %v", err)
 	}
 	if !keyAcc.Valid || keyAcc.String != tenantAcc {

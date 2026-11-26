@@ -89,7 +89,7 @@ export function useDisconnectConnection() {
 /**
  * Connect a paste-credential (non-OAuth) source.
  *
- * The BFF proxies the body opaquely to theo-rag's `POST /v1/connectors/{provider}/connect`; the
+ * The BFF proxies the body opaquely to looprag's `POST /v1/connectors/{provider}/connect`; the
  * credential is encrypted at rest and never logged. The body is assembled by the caller for that
  * reason — this module must not learn the shape of anyone's secret.
  *

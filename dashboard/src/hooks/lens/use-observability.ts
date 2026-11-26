@@ -38,7 +38,7 @@ export interface ObservabilityResult {
   tokensByModel: ModelBucket[];
 }
 
-/** The ranges theo-lens whitelists. Anything else is a 400. */
+/** The ranges looptrace whitelists. Anything else is a 400. */
 export const OBSERVABILITY_RANGES = ['1h', '24h', '7d', '30d'] as const;
 export type ObservabilityRange = (typeof OBSERVABILITY_RANGES)[number];
 

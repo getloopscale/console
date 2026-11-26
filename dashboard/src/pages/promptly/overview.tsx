@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FilePlus, FileText, Layers, Rocket, Server } from 'lucide-react';
-import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
+import { Button, Card, MetricCard, PageShell, Skeleton } from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { CategoryBars } from '@/components/charts/category-bars';

@@ -27,7 +27,7 @@ export interface ResendCooldownButtonProps {
   idleLabel?: string;
 }
 
-const DEFAULT_KEY = 'theo-verify-resend-until';
+const DEFAULT_KEY = 'loopscale-verify-resend-until';
 
 /** Remaining whole seconds of cooldown per the stored deadline (0 = ready). */
 function readRemaining(storageKey: string): number {

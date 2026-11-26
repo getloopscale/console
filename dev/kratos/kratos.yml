@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
 # Minimal Ory Kratos config for the LOCAL dev stack (single-origin via the dev
 # edge: vite-dev on :5173 for the dashboard HMR workflow, Traefik on :8090 as the
@@ -8,7 +8,7 @@
 # `kratos serve --dev` so session cookies work over plain http.
 version: v1.3.1
 
-dsn: postgres://theo:theo@pg-cloud:5432/kratos?sslmode=disable
+dsn: postgres://loopscale:loopscale@pg-cloud:5432/kratos?sslmode=disable
 
 serve:
   public:

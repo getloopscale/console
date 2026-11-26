@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { GitCompareArrows, Play, Plus } from 'lucide-react';
-import { Badge, Button } from '@usetheo/ui';
+import { Badge, Button } from '@getloopscale/ui';
 
 import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 import { asChat } from './trace-detail/helpers';

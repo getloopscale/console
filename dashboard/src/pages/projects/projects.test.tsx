@@ -39,7 +39,7 @@ describe('ProjectsPage', () => {
     render(<ProjectsPage />);
     // Sprint 3 T3.3: EmptyProjectsHero replaces PageShell.empty when projects.length === 0.
     // Hero shows hero title + 3 template cards.
-    // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32 (closes "theo init" inexistente):
+    // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32 (closes "loopscale init" inexistente):
     // per-template names — Next.js → my-nextjs-app, Express → my-express-api, Go → my-go-service.
     // Plain "Or from your own repo" block uses `loopscale project create my-app`.
     expect(screen.getByText('Deploy your first project')).toBeInTheDocument();
@@ -50,8 +50,8 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('loopscale project create my-nextjs-app')).toBeInTheDocument();
     expect(screen.getByText('loopscale project create my-express-api')).toBeInTheDocument();
     expect(screen.getByText('loopscale project create my-go-service')).toBeInTheDocument();
-    // Defense: legacy misleading `theo init` strings MUST be gone.
-    expect(screen.queryByText(/theo init/i)).not.toBeInTheDocument();
+    // Defense: legacy misleading `loopscale init` strings MUST be gone.
+    expect(screen.queryByText(/loopscale init/i)).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /create project from dashboard/i }),
     ).toBeInTheDocument();
@@ -85,8 +85,8 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('beta')).not.toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#57 re-open: the page-level search input on /projects
-  // is rendered by PageShell.search (packaged @usetheo/ui ActionBar) which
+  // Red Team loop-console#57 re-open: the page-level search input on /projects
+  // is rendered by PageShell.search (packaged @getloopscale/ui ActionBar) which
   // did NOT carry aria-label. A patch-package patch derives aria-label from
   // the placeholder so screen readers announce the field even after the
   // user starts typing (placeholder vanishes).
@@ -96,8 +96,8 @@ describe('ProjectsPage', () => {
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#77 re-open (2026-06-28): the engine
-  // MapProjectStatus returns last_deploy_status='live' for theokit-example
+  // Red Team loop-console#77 re-open (2026-06-28): the engine
+  // MapProjectStatus returns last_deploy_status='live' for loopzero-example
   // even when production_env_count===0 AND latest_build_environment==='preview'
   // (preview-only project). The /projects table MUST derive isPreviewOnly
   // from those two fields and render the "Preview" badge regardless of
@@ -107,7 +107,7 @@ describe('ProjectsPage', () => {
     mockUseProjects.mockReturnValue({
       projects: [
         {
-          name: 'theokit-example',
+          name: 'loopzero-example',
           last_deploy_status: 'live',
           production_env_count: 0,
           latest_build_environment: 'preview',
@@ -117,12 +117,12 @@ describe('ProjectsPage', () => {
       loading: false,
     });
     render(<ProjectsPage />);
-    expect(screen.getByText('theokit-example')).toBeInTheDocument();
+    expect(screen.getByText('loopzero-example')).toBeInTheDocument();
     expect(screen.getByText('Preview')).toBeInTheDocument();
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#77 second-pass (2026-06-29): the previous fix
+  // Red Team loop-console#77 second-pass (2026-06-29): the previous fix
   // required production_env_count===0, but the LIVE state captured is
   // production_env_count===1 (env PROVISIONED but with active_release=null)
   // — the latest deploy was preview, prod was never released. Detail
@@ -134,7 +134,7 @@ describe('ProjectsPage', () => {
     mockUseProjects.mockReturnValue({
       projects: [
         {
-          name: 'theokit-example',
+          name: 'loopzero-example',
           last_deploy_status: 'live',
           production_env_count: 1,
           latest_build_environment: 'preview',
@@ -144,13 +144,13 @@ describe('ProjectsPage', () => {
       loading: false,
     });
     render(<ProjectsPage />);
-    expect(screen.getByText('theokit-example')).toBeInTheDocument();
+    expect(screen.getByText('loopzero-example')).toBeInTheDocument();
     expect(screen.getByText('Preview')).toBeInTheDocument();
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
 
   // T4.2 of plan dashboard-badge-data-plane-poller closing Red Team
-  // theo-cloud#128 (badge lies "Live" when control-plane ACTIVE +
+  // loop-console#128 (badge lies "Live" when control-plane ACTIVE +
   // data-plane 502). 4-state derivation Live/Deployed/Unknown/Down
   // from the DataPlanePoller snapshot surfaced via last_replicas_ready_*.
   // Time-frozen against 2026-07-01T12:00:00Z so the staleness math is

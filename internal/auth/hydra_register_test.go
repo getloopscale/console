@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// usetheoai/theo#477 step 1: theo-cloud is the single owner of the `theo-cli`
+// getloopscale/loopscale#477 step 1: loop-console is the single owner of the `loopscale-cli`
 // client. Hydra grants a token audience only if it is registered on the
 // client, so the RFC 8707 resources consent may grant (CONSENT_ALLOWED_RESOURCES)
 // must be registered as audience too — one list feeds both.
@@ -28,7 +28,7 @@ func (f *fakeHydraAdmin) server(t *testing.T) *httptest.Server {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		switch {
-		case r.Method == http.MethodPut && r.URL.Path == "/admin/clients/theo-cli":
+		case r.Method == http.MethodPut && r.URL.Path == "/admin/clients/loopscale-cli":
 			f.puts = append(f.puts, body)
 			if !f.clientExists {
 				w.WriteHeader(http.StatusNotFound)
@@ -66,15 +66,15 @@ func audienceOf(t *testing.T, payload map[string]any) []string {
 
 func TestRegisterClient_RegistersTheAllowedResourcesAsAudience(t *testing.T) {
 	admin := &fakeHydraAdmin{clientExists: true}
-	c := NewHydraClient("", admin.server(t).URL, "theo-cli")
+	c := NewHydraClient("", admin.server(t).URL, "loopscale-cli")
 
 	err := c.RegisterClient([]string{"http://localhost:9876/auth"},
-		[]string{"https://mcp.usetheo.dev", "theo-engine", "https://mcp.usetheo.dev"})
+		[]string{"https://mcp.getloopscale.com", "loop-runtime-engine", "https://mcp.getloopscale.com"})
 
 	if err != nil {
 		t.Fatalf("RegisterClient: %v", err)
 	}
-	want := []string{"theo-cloud", "theo-engine", "https://mcp.usetheo.dev"}
+	want := []string{"loop-console", "loop-runtime-engine", "https://mcp.getloopscale.com"}
 	if got := audienceOf(t, admin.puts[0]); !reflect.DeepEqual(got, want) {
 		t.Fatalf("audience = %v, want %v (base first, then each allowed resource once)", got, want)
 	}
@@ -82,12 +82,12 @@ func TestRegisterClient_RegistersTheAllowedResourcesAsAudience(t *testing.T) {
 
 func TestRegisterClient_WithNoAllowedResourcesRegistersOnlyTheBaseAudiences(t *testing.T) {
 	admin := &fakeHydraAdmin{clientExists: true}
-	c := NewHydraClient("", admin.server(t).URL, "theo-cli")
+	c := NewHydraClient("", admin.server(t).URL, "loopscale-cli")
 
 	if err := c.RegisterClient(nil, nil); err != nil {
 		t.Fatalf("RegisterClient: %v", err)
 	}
-	want := []string{"theo-cloud", "theo-engine"}
+	want := []string{"loop-console", "loop-runtime-engine"}
 	if got := audienceOf(t, admin.puts[0]); !reflect.DeepEqual(got, want) {
 		t.Fatalf("audience = %v, want exactly %v", got, want)
 	}
@@ -97,18 +97,18 @@ func TestRegisterClient_CreatesTheClientWhenHydraDoesNotHaveIt(t *testing.T) {
 	// A single owner must be able to CREATE the client, not only replace one
 	// another writer created first.
 	admin := &fakeHydraAdmin{clientExists: false}
-	c := NewHydraClient("", admin.server(t).URL, "theo-cli")
+	c := NewHydraClient("", admin.server(t).URL, "loopscale-cli")
 
-	if err := c.RegisterClient(nil, []string{"https://mcp.usetheo.dev"}); err != nil {
+	if err := c.RegisterClient(nil, []string{"https://mcp.getloopscale.com"}); err != nil {
 		t.Fatalf("RegisterClient: %v", err)
 	}
 	if len(admin.posts) != 1 {
 		t.Fatalf("POST /admin/clients called %d times, want 1", len(admin.posts))
 	}
-	if admin.posts[0]["client_id"] != "theo-cli" {
-		t.Fatalf("created client_id = %v, want theo-cli", admin.posts[0]["client_id"])
+	if admin.posts[0]["client_id"] != "loopscale-cli" {
+		t.Fatalf("created client_id = %v, want loopscale-cli", admin.posts[0]["client_id"])
 	}
-	want := []string{"theo-cloud", "theo-engine", "https://mcp.usetheo.dev"}
+	want := []string{"loop-console", "loop-runtime-engine", "https://mcp.getloopscale.com"}
 	if got := audienceOf(t, admin.posts[0]); !reflect.DeepEqual(got, want) {
 		t.Fatalf("created audience = %v, want %v", got, want)
 	}
@@ -116,7 +116,7 @@ func TestRegisterClient_CreatesTheClientWhenHydraDoesNotHaveIt(t *testing.T) {
 
 func TestRegisterClient_ReportsAFailedCreate(t *testing.T) {
 	admin := &fakeHydraAdmin{clientExists: false, createStatus: http.StatusInternalServerError}
-	c := NewHydraClient("", admin.server(t).URL, "theo-cli")
+	c := NewHydraClient("", admin.server(t).URL, "loopscale-cli")
 
 	if err := c.RegisterClient(nil, nil); err == nil {
 		t.Fatal("RegisterClient returned nil while Hydra refused to create the client")

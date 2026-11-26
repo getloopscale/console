@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package main
 
@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/config"
+	"github.com/getloopscale/loop-console/internal/config"
 )
 
 // M21 F-test-2 — the composition root is the one place the status panel is
@@ -117,7 +117,7 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 		SkillsBaseURL:     "http://host.docker.internal:18087",
 		PromptlyBaseURL:   "http://loopprompt:18085",
 		TrustBaseURL:      "http://loopguardrails:18088",
-		EngineAPIURL:      "http://loopruntime.theo-system:8080",
+		EngineAPIURL:      "http://loop-runtime.loopscale-system:8080",
 		TraefikMcpBaseURL: "http://host.k3d.internal:18090",
 	})
 
@@ -129,12 +129,12 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 	// A omissao contradizia o invariante declarado logo abaixo (e no comentario de
 	// serviceVersionTargets): um servico ausente esconde que ele existe e nao subiu.
 	//
-	// loopruntime e' o engine. Entrou quando passou a falar o contrato da frota
+	// loop-runtime e' o engine. Entrou quando passou a falar o contrato da frota
 	// (`GET /v1/version` -> {version, built_at}); antes divergia em path e em nome
 	// de campo, e por isso nao havia como sonda-lo com o mesmo coletor.
 	for _, name := range []string{
 		"loopmem", "looprag", "looptrace", "loopstore", "loopskills",
-		"loopprompt", "loopguardrails", "loopruntime", "loopmcp",
+		"loopprompt", "loopguardrails", "loop-runtime", "loopmcp",
 	} {
 		if _, ok := got[name]; !ok {
 			t.Fatalf("%s missing from the probed fleet; got %+v", name, got)
@@ -150,7 +150,7 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 	// panel exists to prevent, only in the opposite direction.
 	//
 	// The PORT is asserted, not just the presence of a value. The doc records why
-	// (theo-workspace/docs/service-version-endpoint.md, "a segunda armadilha"): the
+	// (loopscale-workspace/docs/service-version-endpoint.md, "a segunda armadilha"): the
 	// panel once showed an empty `Built` for looprag because the manifest pointed at a
 	// stray process on another port. Nothing went red — a stray process answers 200
 	// just the same — and the gate of the day only checked that the variable was set,
@@ -162,7 +162,7 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 		"loopstore":      "http://host.docker.internal:18086",
 		"loopprompt":     "http://loopprompt:18085",
 		"loopguardrails": "http://loopguardrails:18088",
-		"loopruntime":    "http://loopruntime.theo-system:8080",
+		"loop-runtime":   "http://loop-runtime.loopscale-system:8080",
 		"loopmcp":        "http://host.k3d.internal:18090",
 	} {
 		if got[name] != want {

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { ExploreCard } from '@/components/explore-card';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
 import { RefreshCw } from 'lucide-react';
-import { Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Button, Card, PageShell, Select, Skeleton } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { LENS_EXPLORE_CARDS } from '@/components/layout/lens-capabilities';
 
@@ -17,7 +17,7 @@ import {
   type ObservabilityResult,
 } from '@/hooks/lens/use-observability';
 import { formatCost, formatDuration, formatNumber } from '@/lib/formatting/format';
-import { TrendChart, type TrendSeries } from '@usetheo/ui';
+import { TrendChart, type TrendSeries } from '@getloopscale/ui';
 import {
   throughputSeries,
   errorRateSeries,
@@ -46,7 +46,7 @@ import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/pages/
  * capability section opens on an Overview; Lens now does too.
  */
 
-// The full observability time-series (already bucketed server-side by theo-lens; M51 plots it — the
+// The full observability time-series (already bucketed server-side by looptrace; M51 plots it — the
 // KPI tiles reduce it to current values). `tokensByModel` carries the by-model cost breakdown.
 
 const RANGE_LABEL: Record<ObservabilityRange, string> = { '1h': 'Last hour', '24h': 'Last 24h', '7d': 'Last 7 days', '30d': 'Last 30 days' };
@@ -90,7 +90,7 @@ export function LensOverviewPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
-  // M51 — URL-persisted range; drives the server-side bucketing (theo-lens truncs per range).
+  // M51 — URL-persisted range; drives the server-side bucketing (looptrace truncs per range).
   const [range, setRange] = useQueryState('range', parseAsStringEnum([...OBSERVABILITY_RANGES]).withDefault('24h'));
   // M60 — URL-persisted selected metric: which series the ONE shared trend chart plots (a KPI-tile click swaps it).
   const [selectedMetric, setSelectedMetric] = useQueryState(

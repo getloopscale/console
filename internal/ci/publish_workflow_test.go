@@ -18,7 +18,7 @@ const (
 	vendoredPath     = "../../.github/workflows/build-publish.yml"
 	localRef         = "uses: ./.github/workflows/build-publish.yml"
 	upstreamRef      = "uses: getloopscale/loop-runtime/.github/workflows/build-publish.yml"
-	expectedIdentity = `^https://github\.com/usetheoai/theo-cloud/\.github/workflows/build-publish\.yml@`
+	expectedIdentity = `^https://github\.com/getloopscale/loop-console/\.github/workflows/build-publish\.yml@`
 )
 
 func read(t *testing.T, path string) string {
@@ -34,8 +34,8 @@ func read(t *testing.T, path string) string {
 //
 // ROADMAP_CICD CM1 vendored `build-publish.yml` into this repo because a private
 // reusable workflow is shareable only within the same owner, and this repo is moving
-// to `usetheoai` while `theo` stays in `usetheodev`. The copy is deliberate debt with
-// an expiry: when `theo` migrates, the file is deleted and `publish.yml` goes back to
+// to `getloopscale` while `loopscale` stays in `getloopscale`. The copy is deliberate debt with
+// an expiry: when `loopscale` migrates, the file is deleted and `publish.yml` goes back to
 // the upstream reference.
 //
 // This test is the alarm against that expiry being forgotten. Deleting the copy
@@ -68,7 +68,7 @@ func TestPublishWorkflow_VendoredCopyAndReferenceAgree(t *testing.T) {
 // Keyless signing derives the certificate identity from repo + workflow path. If this
 // regexp points at another repository, `cosign verify` does not merely fail — it
 // ACCEPTS a signature produced by that other repository's workflow. The copy came from
-// `theo-memory`, so this is the exact mistake the copy invites.
+// `loopmem`, so this is the exact mistake the copy invites.
 func TestVendoredBuildPublish_CosignIdentityPointsAtThisRepo(t *testing.T) {
 	if _, err := os.Stat(vendoredPath); err != nil {
 		t.Skip("no vendored copy: nothing to pin (upstream reusable owns its own identity)")
@@ -78,7 +78,7 @@ func TestVendoredBuildPublish_CosignIdentityPointsAtThisRepo(t *testing.T) {
 	if !strings.Contains(vendored, expectedIdentity) {
 		t.Errorf("vendored build-publish.yml does not pin the cosign identity to this repo.\nwant substring: %s", expectedIdentity)
 	}
-	for _, foreign := range []string{"usetheoai/theo-memory", "usetheodev/theo/"} {
+	for _, foreign := range []string{"getloopscale/loop-mem", "getloopscale/loopscale/"} {
 		if strings.Contains(vendored, "certificate-identity-regexp") &&
 			strings.Contains(vendored, foreign+"/.github/workflows/build-publish") {
 			t.Errorf("cosign identity still points at %s — a signature from that repo's workflow would be accepted here", foreign)
@@ -86,8 +86,8 @@ func TestVendoredBuildPublish_CosignIdentityPointsAtThisRepo(t *testing.T) {
 	}
 }
 
-// A run in `usetheoai` gets a GITHUB_TOKEN scoped to that org and has no push rights
-// on `ghcr.io/usetheodev`. Publishing would fail with 403 at the very last step, after
+// A run in `getloopscale` gets a GITHUB_TOKEN scoped to that org and has no push rights
+// on `ghcr.io/getloopscale`. Publishing would fail with 403 at the very last step, after
 // the whole build. Cheap to assert, expensive to discover.
 func TestVendoredBuildPublish_RegistryMatchesTargetOrg(t *testing.T) {
 	if _, err := os.Stat(vendoredPath); err != nil {
@@ -95,19 +95,19 @@ func TestVendoredBuildPublish_RegistryMatchesTargetOrg(t *testing.T) {
 	}
 	vendored := read(t, vendoredPath)
 
-	if !strings.Contains(vendored, `default: "ghcr.io/usetheoai"`) {
-		t.Error("vendored build-publish.yml does not default the registry to ghcr.io/usetheoai")
+	if !strings.Contains(vendored, `default: "ghcr.io/getloopscale"`) {
+		t.Error("vendored build-publish.yml does not default the registry to ghcr.io/getloopscale")
 	}
 
-	// Comments are excluded on purpose: the header explains WHY `ghcr.io/usetheodev`
+	// Comments are excluded on purpose: the header explains WHY `ghcr.io/getloopscale`
 	// must not be used, and matching the whole file would flag that explanation as
 	// the defect it warns about.
 	for i, line := range strings.Split(vendored, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "#") {
 			continue
 		}
-		if strings.Contains(line, "ghcr.io/usetheodev") {
-			t.Errorf("line %d still targets ghcr.io/usetheodev — a usetheoai run cannot push there (403): %s", i+1, strings.TrimSpace(line))
+		if strings.Contains(line, "ghcr.io/getloopscale") {
+			t.Errorf("line %d still targets ghcr.io/getloopscale — a getloopscale run cannot push there (403): %s", i+1, strings.TrimSpace(line))
 		}
 	}
 }

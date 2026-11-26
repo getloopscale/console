@@ -1,4 +1,4 @@
-import { Input, Label } from '@usetheo/ui';
+import { Input, Label } from '@getloopscale/ui';
 
 /**
  * HPA target bounds — mirrors pkg/enforcement.HPACPUTargetMin/Max +

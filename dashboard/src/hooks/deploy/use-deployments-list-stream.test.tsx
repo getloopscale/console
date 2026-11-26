@@ -52,7 +52,7 @@ function makeBuild(id: string, overrides: Partial<Build> = {}): Build {
     environment: 'production',
     status: 'succeeded',
     commit_sha: 'abc1234',
-    created_by: 'paulo@theo.test',
+    created_by: 'paulo@loopscale.test',
     created_at: '2026-06-06T00:00:00Z',
     ...overrides,
   };

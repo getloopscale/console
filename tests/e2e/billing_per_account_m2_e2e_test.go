@@ -1,7 +1,7 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M2 T4.1 — Billing per-Account, proven against real pg-cloud. Proves the
 // per-Account billing model at the schema + resolution level: two tenants of one
@@ -9,7 +9,7 @@
 // resolvers use verbatim), UNIQUE(account_id) enforces one subscription per
 // Account, and the project cap resolves from the Account's plan. Build-tagged e2e:
 //
-//	E2E_PG_CLOUD_DSN=postgres://loopruntime:loopruntime@localhost:15432/m2test?sslmode=disable \
+//	E2E_PG_CLOUD_DSN=postgres://loop_runtime:loop_runtime@localhost:15432/m2test?sslmode=disable \
 //	  go test -tags=e2e ./tests/e2e/ -run BillingPerAccountM2 -v
 package e2e
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package memory_webhook_worker
 
@@ -13,7 +13,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// Real-Postgres tests for the visibility-timeout reaper (theo-cloud#160) — the
+// Real-Postgres tests for the visibility-timeout reaper (loop-console#160) — the
 // permanent-'delivering'-orphan fix the memory worker previously lacked. Uses a
 // fixture schema so the test does not depend on the cross-repo engine migration.
 

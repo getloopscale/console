@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package safehttp
 
@@ -35,14 +35,14 @@ func TestIsDisallowedIP(t *testing.T) {
 		{"224.0.0.1", true, "multicast v4"},
 		{"ff02::1", true, "multicast v6"},
 		// RFC6598 CGNAT — Go's IsPrivate() does NOT cover this; AWS EKS
-		// assigns pod IPs from 100.64.0.0/16 (theo-cloud#156).
+		// assigns pod IPs from 100.64.0.0/16 (loop-console#156).
 		{"100.64.0.1", true, "RFC6598 CGNAT low edge (EKS pod CIDR)"},
 		{"100.100.100.100", true, "RFC6598 CGNAT mid"},
 		{"100.127.255.255", true, "RFC6598 CGNAT high edge"},
 		{"100.63.255.255", false, "just below CGNAT = public"},
 		{"100.128.0.1", false, "just past CGNAT = public"},
 		// NAT64 well-known prefix — reaches internal IPv4 (incl. IMDS) via a
-		// DNS64/NAT64 gateway; deny the whole prefix (theo-cloud#156).
+		// DNS64/NAT64 gateway; deny the whole prefix (loop-console#156).
 		{"64:ff9b::a9fe:a9fe", true, "NAT64 embedding 169.254.169.254 (IMDS)"},
 		{"64:ff9b::808:808", true, "NAT64 prefix (deny whole /96)"},
 		// Other special-use ranges that must never be a webhook target.
@@ -95,9 +95,9 @@ func TestDisallowedReason(t *testing.T) {
 	cases := map[string]string{
 		"127.0.0.1": "loopback", "169.254.169.254": "link_local",
 		"10.0.0.1": "rfc1918_ula", "0.0.0.0": "unspecified",
-		"224.0.0.1": "link_local", // 224.0.0.0/24 is link-local multicast
-		"239.0.0.1": "multicast",  // general (non-link-local) multicast
-		"100.64.0.1":         "cgnat",         // RFC6598 (theo-cloud#156)
+		"224.0.0.1":          "link_local",    // 224.0.0.0/24 is link-local multicast
+		"239.0.0.1":          "multicast",     // general (non-link-local) multicast
+		"100.64.0.1":         "cgnat",         // RFC6598 (loop-console#156)
 		"64:ff9b::a9fe:a9fe": "nat64",         // NAT64 well-known prefix
 		"198.18.0.1":         "special_range", // RFC2544
 		"1.1.1.1":            "",

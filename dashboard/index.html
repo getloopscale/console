@@ -6,7 +6,7 @@
          only one: a <meta> policy here would be intersected with it, and could not take
          the origins a deployment configures (nginx-csp-origins.conf). -->
     <!-- LoopScale brand favicons, copied from the brand kit (getloopscale/brand, web/)
-         for #521, replacing the Theo mark. The SVG favicon renders crisp at
+         for #521, replacing the LoopScale mark. The SVG favicon renders crisp at
          any size in modern browsers; the PNG/ico set is the fallback (ico
          sizes="any" lets legacy browsers pick the embedded size that fits). -->
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#09090b" />
-    <!-- Geist + Geist Mono (Google Fonts CDN). Moved out of `@theokit/ui/fonts-cdn.css`
+    <!-- Geist + Geist Mono (Google Fonts CDN). Moved out of `@getloopscale/loopzero-ui/fonts-cdn.css`
          because CSS spec forbids `@import url(...)` after non-import statements,
          and `@import 'tailwindcss'` in src/index.css inlines thousands of rules
          before any subsequent CSS @import block. The <link> path also avoids

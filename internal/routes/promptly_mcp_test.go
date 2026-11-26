@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
 import "testing"
 
 // Espelha TestRagScopeTools_EveryToolInExactlyOneBucket: toda tool do
-// @usetheo/promptly-mcp em EXATAMENTE um balde — nenhuma sem escopo, nenhuma em dois.
-// Guarda o mapa de PRODUCAO contra tool-drift: uma tool nova no theo-promptly que
+// @getloopscale/promptly-mcp em EXATAMENTE um balde — nenhuma sem escopo, nenhuma em dois.
+// Guarda o mapa de PRODUCAO contra tool-drift: uma tool nova no loopprompt que
 // chegue aqui sem balde reprova o gate, em vez de aparecer no ar sem autorizacao
 // declarada.
 func TestPromptlyScopeTools_EveryToolInExactlyOneBucket(t *testing.T) {
@@ -31,7 +31,7 @@ func TestPromptlyScopeTools_EveryToolInExactlyOneBucket(t *testing.T) {
 	}
 	for tool := range seen {
 		if !canonical[tool] {
-			t.Errorf("PromptlyScopeTools mapeia %q, que nao e tool conhecida do @usetheo/promptly-mcp (PromptlyMCPTools)", tool)
+			t.Errorf("PromptlyScopeTools mapeia %q, que nao e tool conhecida do @getloopscale/promptly-mcp (PromptlyMCPTools)", tool)
 		}
 	}
 	if len(seen) != len(PromptlyMCPTools) {
@@ -44,7 +44,7 @@ func TestPromptlyScopeTools_EveryToolInExactlyOneBucket(t *testing.T) {
 //
 // Este teste existe porque o erro natural aqui e agrupar as tres tools cujo nome contem
 // "evaluation" — e esse agrupamento erra para o lado FROUXO, concedendo escrita a uma
-// chave de leitura. Foi exatamente a classe do theo-promptly#52, onde o MCP aplicava um
+// chave de leitura. Foi exatamente a classe do loopprompt#52, onde o MCP aplicava um
 // gate de leitura sobre uma operacao de escrita e uma chave `prompt:read` criou um
 // dataset que persistiu no banco.
 func TestPromptlyScopeTools_OnlyCreateDatasetIsWrite(t *testing.T) {
@@ -84,7 +84,7 @@ func TestPromptlyScopeTools_OnlyCreateDatasetIsWrite(t *testing.T) {
 }
 
 // A sincronia com o produto e o unico ponto que este repositorio NAO consegue verificar
-// sozinho: `PromptlyMCPTools` e uma copia declarada da lista que vive no theo-promptly.
+// sozinho: `PromptlyMCPTools` e uma copia declarada da lista que vive no loopprompt.
 // O teste fixa a CARDINALIDADE e os nomes, entao uma edicao distraida aqui reprova; uma
 // tool nova no OUTRO repo continua exigindo que alguem atualize esta lista — divida
 // registrada de proposito, do mesmo jeito que o rag_mcp.go a registra.

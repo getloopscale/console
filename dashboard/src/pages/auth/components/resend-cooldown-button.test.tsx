@@ -7,7 +7,7 @@ import { ResendCooldownButton } from './resend-cooldown-button';
 // reloads the verification page cannot spam Kratos with resend requests. Time is
 // made deterministic with fake timers (testing.md § 6 — no wall-clock in units).
 
-const KEY = 'theo-verify-resend-until';
+const KEY = 'loopscale-verify-resend-until';
 
 describe('ResendCooldownButton', () => {
   beforeEach(() => {

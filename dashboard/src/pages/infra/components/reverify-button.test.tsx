@@ -24,36 +24,36 @@ beforeEach(() => {
 describe('ReverifyButton (J-11 v1.1 T2.3)', () => {
   it('test_reverify_button_hidden_for_active_status (ADR D3)', () => {
     const { container } = render(
-      wrap(<ReverifyButton domainName="theo-test.example" status="active" />),
+      wrap(<ReverifyButton domainName="loopscale-test.example" status="active" />),
     );
     expect(container.querySelector('button')).toBeNull();
   });
 
   it('test_reverify_button_hidden_for_provisioning_status', () => {
     const { container } = render(
-      wrap(<ReverifyButton domainName="theo-test.example" status="provisioning" />),
+      wrap(<ReverifyButton domainName="loopscale-test.example" status="provisioning" />),
     );
     expect(container.querySelector('button')).toBeNull();
   });
 
   it('test_reverify_button_hidden_for_removing_status', () => {
     const { container } = render(
-      wrap(<ReverifyButton domainName="theo-test.example" status="removing" />),
+      wrap(<ReverifyButton domainName="loopscale-test.example" status="removing" />),
     );
     expect(container.querySelector('button')).toBeNull();
   });
 
   it('test_reverify_button_renders_for_failed_status', () => {
-    render(wrap(<ReverifyButton domainName="theo-test.example" status="failed" />));
-    expect(screen.getByRole('button', { name: /Re-verify theo-test\.example/i })).toBeInTheDocument();
+    render(wrap(<ReverifyButton domainName="loopscale-test.example" status="failed" />));
+    expect(screen.getByRole('button', { name: /Re-verify loopscale-test\.example/i })).toBeInTheDocument();
   });
 
   it('test_reverify_button_double_click_fires_once (EC-4 absorption)', async () => {
     // Slow mutation — engineFetch never resolves so isPending stays true,
     // letting us assert the debounce.
     mockedEngineFetch.mockImplementation(() => new Promise(() => {}));
-    render(wrap(<ReverifyButton domainName="theo-test.example" status="failed" />));
-    const button = screen.getByRole('button', { name: /Re-verify theo-test\.example/i });
+    render(wrap(<ReverifyButton domainName="loopscale-test.example" status="failed" />));
+    const button = screen.getByRole('button', { name: /Re-verify loopscale-test\.example/i });
     // Rapid double-click within the debounce window.
     fireEvent.click(button);
     fireEvent.click(button);

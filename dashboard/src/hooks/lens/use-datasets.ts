@@ -171,7 +171,7 @@ export function useRenameDataset() {
   });
 }
 
-/** Apagar um dataset — cascateia runs e itens no theo-lens. */
+/** Apagar um dataset — cascateia runs e itens no looptrace. */
 export function useDeleteDataset() {
   const queryClient = useQueryClient();
 

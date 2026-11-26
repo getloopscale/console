@@ -4,7 +4,7 @@ import { readFileSync, globSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * theo-cloud#274 recurrence guard — a read query must FAIL LOUD, never resolve to a lie.
+ * loop-console#274 recurrence guard — a read query must FAIL LOUD, never resolve to a lie.
  *
  * `cloudFetch`/`engineFetch` resolve `T | null` and only throw when the call site passes
  * `{ throwOnError: true }` (deliberate, ADR D3 in `lib/api.ts`, so the original `T | null` callers were
@@ -100,7 +100,7 @@ describe('#274 — no read query swallows a failure into an empty state', () => 
     expect(
       offenders,
       `${offenders.length} read quer${offenders.length === 1 ? 'y' : 'ies'} resolve null on failure, so a ` +
-        `4xx/5xx renders as an empty state (theo-cloud#274).\n\n${detail}\n\n` +
+        `4xx/5xx renders as an empty state (loop-console#274).\n\n${detail}\n\n` +
         `Fix: pass { throwOnError: true } as the 3rd arg to cloudFetch/engineFetch — the isError branch ` +
         `is then reachable. If a resolved null is a LEGITIMATE answer here, say so on the queryFn line:\n` +
         `  // ${MARKER}: <reason>\n`,

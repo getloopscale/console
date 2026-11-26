@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package unit
 
@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/consent"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/consent"
 )
 
 // mockOryServer simulates the Hydra admin + Kratos admin/public endpoints the
@@ -51,7 +51,7 @@ func mockOryServer(t *testing.T, consentClientID string, identityHits *int32) *h
 
 func newConsentHandler(srvURL string) *consent.Handler {
 	logger := slog.New(slog.NewTextHandler(httptest.NewRecorder().Body, nil))
-	hydra := auth.NewHydraClient(srvURL, srvURL, "theo-cli")
+	hydra := auth.NewHydraClient(srvURL, srvURL, "loopscale-cli")
 	prov := auth.NewTenantProvisioner(nil, logger)
 	// kratosPublic, kratosInternal, kratosAdmin all point at the mock server.
 	return consent.NewHandler(hydra, prov, srvURL, srvURL, srvURL, logger)
@@ -74,7 +74,7 @@ func TestConsent_RejectsUntrustedClient(t *testing.T) {
 
 // T1.1 — consent auto-approves the trusted first-party client.
 func TestConsent_AllowsTrustedClient(t *testing.T) {
-	srv := mockOryServer(t, "theo-cli", nil)
+	srv := mockOryServer(t, "loopscale-cli", nil)
 	defer srv.Close()
 	h := newConsentHandler(srv.URL)
 
@@ -91,14 +91,14 @@ func TestConsent_AllowsTrustedClient(t *testing.T) {
 // string-replace heuristic on the public URL.
 func TestConsent_UsesConfiguredKratosAdminURL(t *testing.T) {
 	var hits int32
-	srv := mockOryServer(t, "theo-cli", &hits)
+	srv := mockOryServer(t, "loopscale-cli", &hits)
 	defer srv.Close()
 	// kratosInternalURL contains "kratos-public" so the OLD string-replace
 	// heuristic would rewrite it to an unreachable "kratos-admin" host (0 hits).
 	// The new code uses the explicitly configured kratosAdminURL (the mock),
 	// so the identity endpoint IS hit.
 	logger := slog.New(slog.NewTextHandler(httptest.NewRecorder().Body, nil))
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	prov := auth.NewTenantProvisioner(nil, logger)
 	h := consent.NewHandler(hydra, prov, "https://login.example", "http://kratos-public.invalid", srv.URL, logger)
 
@@ -117,7 +117,7 @@ func TestConsent_UsesConfiguredKratosAdminURL(t *testing.T) {
 // T1.5 — device-verify return_to must be a relative /auth/device path, never an
 // attacker-controlled absolute URL (open-redirect guard).
 func TestDeviceVerify_ReturnToIsRelativePath(t *testing.T) {
-	srv := mockOryServer(t, "theo-cli", nil)
+	srv := mockOryServer(t, "loopscale-cli", nil)
 	defer srv.Close()
 	h := newConsentHandler(srv.URL)
 

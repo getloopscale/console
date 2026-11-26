@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// M15 (theo-promptly) — a guarda de WIRING do uso por revisão.
+// M15 (loopprompt) — a guarda de WIRING do uso por revisão.
 //
 // O handler de promptly é construído em torno da linha 560; o cliente do lens só existe
 // ~200 linhas depois. Sem uma ligação explícita entre os dois, a rota `/usage` sobe
@@ -27,7 +27,7 @@ func TestPromptlyUsageReaderIsWiredFromLensClient(t *testing.T) {
 	}
 
 	// E a ligação tem de vir DEPOIS do cliente do lens existir.
-	iLens := strings.Index(texto, "lensDataClient := thelens.NewDataClient")
+	iLens := strings.Index(texto, "lensDataClient := looptrace.NewDataClient")
 	iUso := strings.Index(texto, "WithUsageReader(")
 	if iLens < 0 {
 		t.Fatal("cliente do lens ausente do composition root")

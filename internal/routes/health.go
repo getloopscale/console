@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -31,7 +31,7 @@ type HealthHandler struct {
 
 // NewHealthHandler — LIVENESS. "O processo esta vivo." NUNCA reprova por falha de dependencia:
 // um livenessProbe que reprova porque o banco piscou MATA o container, e o container reinicia
-// sem corrigir nada (LT-038 do theo-trust, LT-040/LT-041 do promptly). O estado do banco vai no
+// sem corrigir nada (LT-038 do loopguardrails, LT-040/LT-041 do promptly). O estado do banco vai no
 // corpo, para quem investiga; nao no status, que e o que decide se o processo morre.
 func NewHealthHandler(db Pinger, integrations func() map[string][]string) *HealthHandler {
 	return &HealthHandler{db: db, probeTimeout: 2 * time.Second, integrations: integrations}
@@ -81,7 +81,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//
 	// Integracao ausente NAO entra aqui de proposito: ela e opcional por ambiente, e reprovar
 	// por causa dela derrubaria o container em toda topologia que nao a configura. Ela e
-	// REPORTADA no corpo — que era o que faltava no #334 e no theo-workspace#27, onde a
+	// REPORTADA no corpo — que era o que faltava no #334 e no loopscale-workspace#27, onde a
 	// capacidade sumiu com o container saudavel.
 	if status != "ok" && h.failWhenDegraded {
 		w.WriteHeader(http.StatusServiceUnavailable)

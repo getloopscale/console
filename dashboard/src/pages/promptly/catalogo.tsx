@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FileText, GitCompare, Search } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
+import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@getloopscale/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -19,7 +19,7 @@ import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
  *
  * A lista traz o que torna possível a PRÓXIMA AÇÃO de quem a lê — o nome que abre o detalhe, os
  * labels que dizem o que está no ar, e o atalho para comparar revisões. É a lição que o
- * `theo-trust` pagou caro: uma listagem que não devolve o que a jornada seguinte precisa vira
+ * `loopguardrails` pagou caro: uma listagem que não devolve o que a jornada seguinte precisa vira
  * painel de só olhar.
  *
  * O corpo do prompt NÃO aparece aqui, e a ausência é decisão: o índice do serviço não o devolve

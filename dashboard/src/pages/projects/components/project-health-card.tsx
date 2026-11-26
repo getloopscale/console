@@ -1,5 +1,5 @@
 import { AlertTriangle, Cpu, Rocket, TrendingUp } from 'lucide-react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import type { ProjectStatusDetail } from '@/lib/api/types';
 
 interface ProjectHealthCardProps {
@@ -102,7 +102,7 @@ export function ProjectHealthCard({ status }: ProjectHealthCardProps) {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            {/* Red Team theo-cloud#79: promote h3 → h2 so the heading
+            {/* Red Team loop-console#79: promote h3 → h2 so the heading
                 hierarchy on /projects/{name} goes h1 → h2 → h3 without
                 skipping a level. */}
             <h2>Health</h2>
@@ -122,7 +122,7 @@ export function ProjectHealthCard({ status }: ProjectHealthCardProps) {
     <Card>
       <Card.Header>
         <Card.Title asChild>
-            {/* Red Team theo-cloud#79: promote h3 → h2 so the heading
+            {/* Red Team loop-console#79: promote h3 → h2 so the heading
                 hierarchy on /projects/{name} goes h1 → h2 → h3 without
                 skipping a level. */}
             <h2>Health</h2>

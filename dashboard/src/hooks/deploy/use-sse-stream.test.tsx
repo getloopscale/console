@@ -383,7 +383,7 @@ describe('B-221/B-224 — identidade estável e carimbo que não se move', () =>
       useSSEStream('/api/v1/test', { eventTypes: ['x'] }),
     );
     // Wait for the SETTLED state, not just the instance: the stream opens synchronously since
-    // usetheoai/theo#477 (no token to await first), so `onopen` can still flip `connected` after
+    // getloopscale/loopscale#477 (no token to await first), so `onopen` can still flip `connected` after
     // the instance exists — and a value that changes must change the handle.
     await waitFor(() => expect(result.current.connected).toBe(true));
 

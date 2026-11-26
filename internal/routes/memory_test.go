@@ -13,20 +13,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/loopmem"
 )
 
 // recallStubClient embeds the TheMemoryClient interface (only Recall is exercised)
 // and captures the RecallOptions the handler passes through.
 type recallStubClient struct {
 	TheMemoryClient
-	gotOpts themory.RecallOptions
+	gotOpts loopmem.RecallOptions
 }
 
-func (s *recallStubClient) Recall(_ context.Context, _, _ string, opts themory.RecallOptions) (*themory.RecallResult, error) {
+func (s *recallStubClient) Recall(_ context.Context, _, _ string, opts loopmem.RecallOptions) (*loopmem.RecallResult, error) {
 	s.gotOpts = opts
-	return &themory.RecallResult{Results: []themory.RecallHit{}}, nil
+	return &loopmem.RecallResult{Results: []loopmem.RecallHit{}}, nil
 }
 
 func recallWithBody(t *testing.T, h *MemoryHandler, body string) *httptest.ResponseRecorder {

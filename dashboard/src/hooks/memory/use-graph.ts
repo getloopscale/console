@@ -37,7 +37,7 @@ const GRAPH_REQUEST_CAP = 300;
  * The memory relation graph for one scope.
  *
  * `throwOnError` so a failed fetch is `isError` rather than an empty graph rendered as "no
- * relations" (theo-cloud#250) — the reading that matters here, because an empty graph and an
+ * relations" (loop-console#250) — the reading that matters here, because an empty graph and an
  * unreachable service look identical on a canvas.
  */
 export function useMemoryGraph(filters: {

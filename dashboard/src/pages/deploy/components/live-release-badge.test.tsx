@@ -46,12 +46,12 @@ describe('LiveReleaseBadge', () => {
       <LiveReleaseBadge
         isLive={true}
         commitShort="e6001ec"
-        repoUrl="https://github.com/usetheodev/theokit-example.git"
+        repoUrl="https://github.com/getloopscale/loopzero-example.git"
       />,
     );
     const link = screen.getByRole('link', { name: /e6001ec/i });
     expect(link.getAttribute('href')).toBe(
-      'https://github.com/usetheodev/theokit-example/commit/e6001ec',
+      'https://github.com/getloopscale/loopzero-example/commit/e6001ec',
     );
   });
 

@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Circle, Loader2, Undo2, X } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, PageShell, StatusDot } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState, PageShell, StatusDot } from '@getloopscale/ui';
 import { formatDate, humanizeAuthor } from '@/lib/formatting/format';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useSetPageTitle } from '@/hooks/use-page-meta';

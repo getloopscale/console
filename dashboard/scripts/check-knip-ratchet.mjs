@@ -67,7 +67,7 @@ function contar(saida, rotulo) {
 
 // knip exits 0 with no findings and 1 with findings; any other outcome means it did not
 // run. That used to read as a report with every count at zero — "OK" — so a knip that
-// failed to install passed the gate while measuring nothing (usetheoai/theo-cloud#491).
+// failed to install passed the gate while measuring nothing (getloopscale/loop-console#491).
 // It runs from the pinned devDependency (`--no`: never install at run time), so every
 // run measures with the same knip — an unpinned `npx knip` moved 30 to 31 on its own.
 function rodarKnip() {

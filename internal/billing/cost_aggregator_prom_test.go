@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package billing
 
@@ -47,7 +47,7 @@ func TestHTTPPromQuerier_QueryCounterByTenant_ParsesVector(t *testing.T) {
 	}
 
 	values, err := q.QueryCounterByTenant(context.Background(),
-		`sum by (tenant) (theo_egress_bytes_total)`)
+		`sum by (tenant) (loopscale_egress_bytes_total)`)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestHTTPPromQuerier_MissingTenantLabel_Skipped(t *testing.T) {
 			"data": {
 				"resultType": "vector",
 				"result": [
-					{"metric": {"job": "theo-api"}, "value": [1, "42"]},
+					{"metric": {"job": "loop-runtime-api"}, "value": [1, "42"]},
 					{"metric": {"tenant": "tn-real"}, "value": [1, "100"]}
 				]
 			}
@@ -100,7 +100,7 @@ func TestHTTPPromQuerier_MissingTenantLabel_Skipped(t *testing.T) {
 	defer srv.Close()
 
 	q, _ := NewHTTPPromQuerier(srv.URL, slog.Default())
-	values, err := q.QueryCounterByTenant(context.Background(), `theo_x`)
+	values, err := q.QueryCounterByTenant(context.Background(), `loopscale_x`)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}

@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/skills"
+	"github.com/getloopscale/loop-console/internal/skills"
 )
 
 // Reusa o logger silencioso e o stub de leitura já usados por `skills_dashboard_test.go` — o

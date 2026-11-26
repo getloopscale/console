@@ -1,4 +1,4 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { SLO, sloTone } from '@/pages/projects/components/slo-tones';
 import {
   Activity,
@@ -62,7 +62,7 @@ interface PillCfg {
   tone: (value: unknown) => Tone;
 }
 
-// theo-cloud#158: NaN/Inf are `typeof === 'number'`, so a plain type check lets
+// loop-console#158: NaN/Inf are `typeof === 'number'`, so a plain type check lets
 // them through — a metric would render "NaN%"/"NaNms"/"NaN". Require a FINITE
 // number so non-finite values honour the same honest empty state ("—") as
 // null/undefined (never a misleading value).

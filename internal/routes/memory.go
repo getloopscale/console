@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -16,8 +16,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/loopmem"
 )
 
 // Plan 1 of dashboard-memory-section-roadmap.md (T1.3-T1.5).
@@ -33,36 +33,36 @@ import (
 //   D4 — OTel propagation handled by the *http.Client passed to NewClient
 
 // TheMemoryClient is the interface this handler depends on. The concrete
-// type lives in cloud/internal/themory; the interface here lets tests
+// type lives in cloud/internal/loopmem; the interface here lets tests
 // inject a fake without touching the HTTP layer.
 type TheMemoryClient interface {
-	List(ctx context.Context, userID string, opts themory.ListOptions) (*themory.ListResult, error)
+	List(ctx context.Context, userID string, opts loopmem.ListOptions) (*loopmem.ListResult, error)
 	// ListSessions enumerates the subject's SESSION sub-scopes (session-separation,
 	// 2026-07-23 — the M8 session picker data source).
-	ListSessions(ctx context.Context, userID string) (*themory.SessionsResult, error)
-	Metrics(ctx context.Context, userID string) (*themory.MetricsResult, error)
+	ListSessions(ctx context.Context, userID string) (*loopmem.SessionsResult, error)
+	Metrics(ctx context.Context, userID string) (*loopmem.MetricsResult, error)
 	Forget(ctx context.Context, userID, memoryID string, hard bool) error
-	Entities(ctx context.Context, userID, scope string) (*themory.EntitiesResult, error)
+	Entities(ctx context.Context, userID, scope string) (*loopmem.EntitiesResult, error)
 	// Graph returns the subject's entity relation graph ({nodes, edges})
-	// (themory-graph-gateway-dashboard). Same scope rule as Entities.
-	Graph(ctx context.Context, userID, scope string, includeSuperseded bool) (*themory.GraphResult, error)
+	// (loopmem-graph-gateway-dashboard). Same scope rule as Entities.
+	Graph(ctx context.Context, userID, scope string, includeSuperseded bool) (*loopmem.GraphResult, error)
 	// Episodes returns one cursor-paginated page of the subject's episodic
 	// read surface (TheMemory v0.14.0). Same scope rule as Entities.
-	Episodes(ctx context.Context, userID, scope string, opts themory.EpisodeOptions) (*themory.EpisodesResult, error)
-	Remember(ctx context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error)
-	Recall(ctx context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error)
-	Reflect(ctx context.Context, userID string, opts themory.ReflectOptions) (*themory.ReflectResult, error)
+	Episodes(ctx context.Context, userID, scope string, opts loopmem.EpisodeOptions) (*loopmem.EpisodesResult, error)
+	Remember(ctx context.Context, userID, text string, opts loopmem.RememberOptions) (*loopmem.RememberResult, error)
+	Recall(ctx context.Context, userID, query string, opts loopmem.RecallOptions) (*loopmem.RecallResult, error)
+	Reflect(ctx context.Context, userID string, opts loopmem.ReflectOptions) (*loopmem.ReflectResult, error)
 	// ListSkills returns the read-only skill listing for a repo
 	// (dashboard-phase2b-skills-browse T3.1). repoID is the ALREADY-namespaced
 	// `{subject}:{repoId}` value (the handler composes it; D3 isolation).
-	ListSkills(ctx context.Context, repoID string) (*themory.SkillsResult, error)
+	ListSkills(ctx context.Context, repoID string) (*loopmem.SkillsResult, error)
 	// ListSkillsAll returns the cross-repo flat skills listing for a subject
 	// (skills-cross-repo-flat-list-gateway T1.2, ADR D1). subject is passed BARE
 	// (NOT namespaced — the provider prefix-scans `{subject}:%`).
-	ListSkillsAll(ctx context.Context, subject string, opts themory.SkillsAllOptions) (*themory.SkillsAllResult, error)
+	ListSkillsAll(ctx context.Context, subject string, opts loopmem.SkillsAllOptions) (*loopmem.SkillsAllResult, error)
 	// AddSkill creates a skill (skills-write-surface T3.1). repoID is the
 	// ALREADY-namespaced value. ErrSkillConflict on dedup-collision.
-	AddSkill(ctx context.Context, repoID string, draft themory.SkillDraft) (*themory.CreatedSkill, error)
+	AddSkill(ctx context.Context, repoID string, draft loopmem.SkillDraft) (*loopmem.CreatedSkill, error)
 	// ForgetSkill deletes a skill (skills-write-surface T3.1). repoID namespaced.
 	ForgetSkill(ctx context.Context, repoID, skillID string) error
 }
@@ -136,19 +136,19 @@ func namespaceRepo(subject, repoID string) (string, bool) {
 	return subject + ":" + repoID, true
 }
 
-// writeUpstreamError maps a themory client error to an HTTP response (live-test-gaps-fix F-1).
+// writeUpstreamError maps a loopmem client error to an HTTP response (live-test-gaps-fix F-1).
 //
-// A themory upstream CLIENT error (4xx — e.g. 422 on an unsupported skill
+// A loopmem upstream CLIENT error (4xx — e.g. 422 on an unsupported skill
 // codeLanguage) is the CALLER's fault: propagate the SAME status with the
 // upstream's `{code,message}` so the consumer can fix their request — NOT a
 // misleading 502 "try again" (retry can't fix an invalid body). Everything else
-// (themory 5xx, timeout, network, unwrapped error) means the upstream IS
+// (loopmem 5xx, timeout, network, unwrapped error) means the upstream IS
 // unavailable from the consumer's view → 502.
 //
 // Callers MUST still run their domain sentinel pre-checks (ErrNotFound → 404,
 // ErrSkillConflict → 409) BEFORE this helper; it only decides 4xx-passthrough vs 502.
 func (h *MemoryHandler) writeUpstreamError(w http.ResponseWriter, err error, logMsg string, logArgs ...any) {
-	var ue *themory.Error
+	var ue *loopmem.Error
 	if errors.As(err, &ue) && isConsumerFaultStatus(ue.StatusCode) {
 		// CONSUMER-fault 4xx (bad body/params): propagate the real status with the
 		// upstream {code,message} so the caller can fix the request.
@@ -159,7 +159,7 @@ func (h *MemoryHandler) writeUpstreamError(w http.ResponseWriter, err error, log
 		return
 	}
 	// Everything else → 502. Fail-closed allowlist (SEC-STATUS-2): only the
-	// documented consumer-fault 4xx pass through; EVERY other status (themory
+	// documented consumer-fault 4xx pass through; EVERY other status (loopmem
 	// 5xx/timeout/network, an upstream 401/403/429 which is a GATEWAY-side
 	// master-key condition never the consumer's fault, and any unexpected/future
 	// 4xx) is laundered to 502 so provider drift fails closed rather than
@@ -169,25 +169,25 @@ func (h *MemoryHandler) writeUpstreamError(w http.ResponseWriter, err error, log
 		"Memory service is temporarily unavailable. Try again.")
 }
 
-// isConsumerFaultStatus is the fail-closed allowlist of themory upstream statuses
+// isConsumerFaultStatus is the fail-closed allowlist of loopmem upstream statuses
 // that reflect the CONSUMER's request (so they pass through to the SDK consumer
-// with the real status), pinned to themory's documented consumer-fault 4xx:
+// with the real status), pinned to loopmem's documented consumer-fault 4xx:
 //   - 400 Bad Request      — malformed request
-//   - 413 Payload Too Large — body exceeds themory's 1 MB limit
+//   - 413 Payload Too Large — body exceeds loopmem's 1 MB limit
 //   - 422 Unprocessable     — zod validation (e.g. unsupported skill codeLanguage)
 //
 // Every other status is laundered to 502 by the caller. 404/409 never reach here
 // (the client maps them to the ErrNotFound/ErrSkillConflict sentinels, handled by
 // per-handler pre-checks). Adding a status requires confirming it is genuinely the
-// consumer's fault, not a gateway↔themory master-credential / infra condition.
+// consumer's fault, not a gateway↔loopmem master-credential / infra condition.
 func isConsumerFaultStatus(status int) bool {
 	return status == http.StatusBadRequest || // 400
 		status == http.StatusRequestEntityTooLarge || // 413
 		status == http.StatusUnprocessableEntity // 422
 }
 
-// parseUpstreamBody extracts the consumer-facing {code,message} from a themory
-// error body (themory's REST errors are `{"code":..,"message":..}`). Falls back
+// parseUpstreamBody extracts the consumer-facing {code,message} from a loopmem
+// error body (loopmem's REST errors are `{"code":..,"message":..}`). Falls back
 // to a generic code/message when the body is not the expected JSON shape, so the
 // raw upstream body is never blindly echoed to the consumer.
 func parseUpstreamBody(body string) (code, message string) {
@@ -231,12 +231,12 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	// authenticated session ONLY. Query params named "subject" /
 	// "tenant_id" / etc. are silently ignored (tests verify this).
 	q := r.URL.Query()
-	opts := themory.ListOptions{
+	opts := loopmem.ListOptions{
 		Category: q.Get("category"),
 		Cursor:   q.Get("cursor"),
 		From:     q.Get("from"),
 		To:       q.Get("to"),
-		// theo-cloud#252 — per-entity filter, forwarded verbatim (the provider
+		// loop-console#252 — per-entity filter, forwarded verbatim (the provider
 		// normalizes the name and applies the memory_entities join).
 		Entity: q.Get("entity"),
 	}
@@ -274,7 +274,7 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	// D3: ensure memories is an array even if upstream returns nil.
 	if result.Memories == nil {
-		result.Memories = []themory.MemoryRow{}
+		result.Memories = []loopmem.MemoryRow{}
 	}
 
 	writeJSON(w, http.StatusOK, result)
@@ -299,7 +299,7 @@ func (h *MemoryHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Sessions == nil {
-		result.Sessions = []themory.SessionRow{}
+		result.Sessions = []loopmem.SessionRow{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -376,7 +376,7 @@ func (h *MemoryHandler) Forget(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if errors.Is(err, themory.ErrNotFound) {
+	if errors.Is(err, loopmem.ErrNotFound) {
 		// D5 inheritance: 404 covers "doesn't exist" AND "belongs to
 		// another tenant". Never 403 — that would leak existence.
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Memory not found.")
@@ -431,13 +431,13 @@ func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 	}
 	// D3: always emit array, never null.
 	if result.Entities == nil {
-		result.Entities = []themory.Entity{}
+		result.Entities = []loopmem.Entity{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
 
 // =============================================================================
-// GET /v1/memory/graph — themory-graph-gateway-dashboard
+// GET /v1/memory/graph — loopmem-graph-gateway-dashboard
 // =============================================================================
 
 // Graph returns the authenticated subject's entity relation graph ({nodes, edges})
@@ -471,10 +471,10 @@ func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
 	}
 	// D5: always emit arrays, never null.
 	if result.Nodes == nil {
-		result.Nodes = []themory.GraphNode{}
+		result.Nodes = []loopmem.GraphNode{}
 	}
 	if result.Edges == nil {
-		result.Edges = []themory.GraphEdge{}
+		result.Edges = []loopmem.GraphEdge{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -509,7 +509,7 @@ func (h *MemoryHandler) Episodes(w http.ResponseWriter, r *http.Request) {
 	// Session-separation (2026-07-23): mirror Entities/Graph.
 	scope = withSessionInstance(scope, r)
 
-	opts := themory.EpisodeOptions{
+	opts := loopmem.EpisodeOptions{
 		After:  q.Get("after"),
 		Before: q.Get("before"),
 		Order:  q.Get("order"),
@@ -531,7 +531,7 @@ func (h *MemoryHandler) Episodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Items == nil {
-		result.Items = []themory.EpisodeItem{}
+		result.Items = []loopmem.EpisodeItem{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -575,7 +575,7 @@ func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Skills == nil {
-		result.Skills = []themory.Skill{}
+		result.Skills = []loopmem.Skill{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -594,7 +594,7 @@ func (h *MemoryHandler) ListSkillsAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := r.URL.Query()
-	opts := themory.SkillsAllOptions{
+	opts := loopmem.SkillsAllOptions{
 		Query:             q.Get("q"),
 		IncludeSuperseded: q.Get("includeSuperseded") == "true",
 	}
@@ -617,7 +617,7 @@ func (h *MemoryHandler) ListSkillsAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Skills == nil {
-		result.Skills = []themory.SkillWithRepo{}
+		result.Skills = []loopmem.SkillWithRepo{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -663,11 +663,11 @@ func (h *MemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Subject namespace invariant violated.")
 		return
 	}
-	created, err := h.client.AddSkill(r.Context(), namespaced, themory.SkillDraft{
+	created, err := h.client.AddSkill(r.Context(), namespaced, loopmem.SkillDraft{
 		Code: body.Code, Description: body.Description, CodeLanguage: body.CodeLanguage,
 	})
 	if err != nil {
-		if errors.Is(err, themory.ErrSkillConflict) {
+		if errors.Is(err, loopmem.ErrSkillConflict) {
 			writeError(w, http.StatusConflict, "SKILL_ALREADY_EXISTS", "A skill with this description already exists. Revise the description or forget the existing skill.")
 			return
 		}
@@ -705,7 +705,7 @@ func (h *MemoryHandler) ForgetSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.client.ForgetSkill(r.Context(), namespaced, skillID); err != nil {
-		if errors.Is(err, themory.ErrNotFound) {
+		if errors.Is(err, loopmem.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "Skill not found in this repo.")
 			return
 		}
@@ -749,7 +749,7 @@ func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := themory.RememberOptions{Category: req.Category, Metadata: req.Metadata, AttributedTo: req.AttributedTo}
+	opts := loopmem.RememberOptions{Category: req.Category, Metadata: req.Metadata, AttributedTo: req.AttributedTo}
 	// v1.1 attribution-write contract: TheMemory applies the caller's
 	// attributedTo ONLY on the verbatim path (infer:false). On the default
 	// extraction path it uses the LLM's per-fact attribution. So when the
@@ -765,7 +765,7 @@ func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Items == nil {
-		result.Items = []themory.MemoryRow{}
+		result.Items = []loopmem.MemoryRow{}
 	}
 	// best-effort webhook fanout for memory.created
 	if h.eventPublisher != nil {
@@ -787,7 +787,7 @@ type recallRequest struct {
 	GraphExpand *graphExpandReq `json:"graphExpand,omitempty"`
 }
 
-// graphExpandReq is the inbound entity-graph expansion (theo-memory v0.20.0).
+// graphExpandReq is the inbound entity-graph expansion (loopmem v0.20.0).
 // Both fields optional (0 = omitted → provider applies its default), mirroring
 // TheMemory's `z.union([1,2]).optional()` — so `graphExpand:{}` is valid
 // "enable with defaults", NOT a 400 (EG-1 EC-1).
@@ -834,7 +834,7 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 	// EG-1 D2: boundary-validate graphExpand (mirror TheMemory's strict zod:
 	// hops ∈ {1,2} optional, limit 1..100 optional). 0 = omitted (forwarded as
 	// the provider default), so only out-of-range values are a clear 400.
-	var graphExpand *themory.GraphExpand
+	var graphExpand *loopmem.GraphExpand
 	if req.GraphExpand != nil {
 		if req.GraphExpand.Hops < 0 || req.GraphExpand.Hops > 2 {
 			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.hops' must be 1 or 2 (omit for the provider default).")
@@ -844,17 +844,17 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.limit' must be between 1 and 100 (omit for the provider default).")
 			return
 		}
-		graphExpand = &themory.GraphExpand{Hops: req.GraphExpand.Hops, Limit: req.GraphExpand.Limit}
+		graphExpand = &loopmem.GraphExpand{Hops: req.GraphExpand.Hops, Limit: req.GraphExpand.Limit}
 	}
 
 	result, err := h.client.Recall(r.Context(), user.Subject, req.Query,
-		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf, GraphExpand: graphExpand})
+		loopmem.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf, GraphExpand: graphExpand})
 	if err != nil {
 		h.writeUpstreamError(w, err, "memory recall", "subject", user.Subject)
 		return
 	}
 	if result.Results == nil {
-		result.Results = []themory.RecallHit{}
+		result.Results = []loopmem.RecallHit{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -885,7 +885,7 @@ func (h *MemoryHandler) Reflect(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := h.client.Reflect(r.Context(), user.Subject, themory.ReflectOptions{MaxIterations: req.MaxIterations})
+	result, err := h.client.Reflect(r.Context(), user.Subject, loopmem.ReflectOptions{MaxIterations: req.MaxIterations})
 	if err != nil {
 		h.writeUpstreamError(w, err, "memory reflect", "subject", user.Subject)
 		return

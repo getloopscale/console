@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Card } from '@usetheo/ui';
+import { Button, Card } from '@getloopscale/ui';
 import { useProvisioningStatus } from '@/hooks/auth/use-provisioning-status';
 
 /**

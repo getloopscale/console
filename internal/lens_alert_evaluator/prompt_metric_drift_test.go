@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
 import "testing"
 
-// Regressão: uma QUEBRA DE CONTRATO do theo-lens não pode virar uma medição de zero.
+// Regressão: uma QUEBRA DE CONTRATO do looptrace não pode virar uma medição de zero.
 //
 // A decisão de que agregado vazio é zero MEDIDO (e não ausência) é correta para o caso que a
 // motivou — `rows: []` significa literalmente "ninguém resolveu este prompt". Mas ela deixou uma
@@ -14,9 +14,9 @@ import "testing"
 //	json.Unmarshal de um objeto VÁLIDO que não tem a chave `rows` **não falha**. Devolve
 //	Rows == nil, o laço soma nada, e a função responde (0, true).
 //
-// Zero com comparador `lt` é violação. Então um campo renomeado no theo-lens — exatamente a forma
+// Zero com comparador `lt` é violação. Então um campo renomeado no looptrace — exatamente a forma
 // que uma mudança de schema tem — dispararia **toda** regra "avise se este prompt parar de ser
-// usado", em vez de errar alto. É o theo-cloud#247 reentrando por outra porta: absence lida como
+// usado", em vez de errar alto. É o loop-console#247 reentrando por outra porta: absence lida como
 // measurement, só que a absence agora é do CONTRATO, não da janela.
 //
 // A assimetria é o que torna isto perigoso: a decisão de tratar vazio como zero é o que dá valor à
@@ -24,7 +24,7 @@ import "testing"
 // remédio não é desfazer a decisão — é exigir a PRESENÇA das chaves de que o cálculo depende.
 
 func TestObjetoValidoSemAChaveRowsNaoEMedicao(t *testing.T) {
-	// A forma exata de uma mudança de schema no theo-lens: JSON íntegro, envelope reconhecível,
+	// A forma exata de uma mudança de schema no looptrace: JSON íntegro, envelope reconhecível,
 	// e a chave que eu leio simplesmente não está mais lá.
 	for nome, corpo := range map[string][]byte{
 		"envelope sem rows":        []byte(`{"promptName":"saudacao","windowDays":7}`),
@@ -75,7 +75,7 @@ func TestVazioLEGITIMOSegueSendoZeroMedido(t *testing.T) {
 
 func TestCampoNOVONoAgregadoNaoQuebraALeitura(t *testing.T) {
 	// A outra metade da simetria: exigir as chaves de que dependo NÃO pode virar exigir que nada
-	// mais exista. Uma mudança ADITIVA no theo-lens é legítima e frequente; recusá-la
+	// mais exista. Uma mudança ADITIVA no looptrace é legítima e frequente; recusá-la
 	// transformaria toda evolução do upstream numa parada de alerta.
 	corpo := []byte(`{"promptName":"s","windowDays":7,"tenantId":"tn-1",
 		"rows":[{"revision":6,"resolutions":42,"p99LatencyMs":9,"cacheHits":3}]}`)

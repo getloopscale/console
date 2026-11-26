@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Plan 0 of dashboard-memory-section-roadmap.md, T0.6.
 // Tests for auth.RequireScope — Bearer-keyed middleware that fronts every
@@ -24,7 +24,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // sqlmockSetup returns a (db, mock) pair ready for sqlmock expectations.
@@ -45,7 +45,7 @@ func sqlmockSetup(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 func sqlmockErrNoRows() error { return sql.ErrNoRows }
 
 // hashOf returns the SHA-256 hex of the input — the same form persisted
-// in loopruntime_api_keys.key_hash and looked up by the middleware. Reuse here
+// in loop_runtime_api_keys.key_hash and looked up by the middleware. Reuse here
 // avoids re-implementing the hash inside the test, which would be the
 // kind of duplicated knowledge DRY warns against.
 func hashOf(s string) string {
@@ -61,12 +61,12 @@ func TestRequireScope_ValidBearerScopeMatchProceeds(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow(keyID, "user-A", "tenant-A", nil, []byte(`["memory:read","memory:write"]`), nil))
 	// The async last_used_at update fires in a goroutine; allow it.
-	mock.ExpectExec("UPDATE loopruntime_api_keys").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys").
 		WithArgs(keyID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -122,7 +122,7 @@ func TestRequireScope_BadPrefixRejected(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	req := httptest.NewRequest("GET", "/v1/memory/list", nil)
-	req.Header.Set("Authorization", "Bearer sk_test_NotATheoKey")
+	req.Header.Set("Authorization", "Bearer sk_test_NotALoopScaleKey")
 	rec := httptest.NewRecorder()
 	mw(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(rec, req)
 
@@ -138,7 +138,7 @@ func TestRequireScope_HashNotFoundRejected(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnError(sqlmockErrNoRows())
 
@@ -161,7 +161,7 @@ func TestRequireScope_InsufficientScopeReturns403WithMissing(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:write")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow(chaveDeTeste("missing-scope"), "u", "t", nil, []byte(`["memory:read"]`), nil)) // missing memory:write
@@ -196,7 +196,7 @@ func TestRequireScope_CorruptScopesReturns500NotSilent403(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow(chaveDeTeste("corrupt-scopes"), "u", "t", nil, []byte(`{"not":"an array"}`), nil))
@@ -221,12 +221,12 @@ func TestRequireScope_AsyncLastUsedDoesNotBlockHotPath(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow(keyIDHot, "u", "t", nil, []byte(`["memory:read"]`), nil))
 	// Simulate a slow async write — the middleware must NOT await this.
-	mock.ExpectExec("UPDATE loopruntime_api_keys").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys").
 		WithArgs(keyIDHot, sqlmock.AnyArg()).
 		WillDelayFor(500 * time.Millisecond).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -297,11 +297,11 @@ func runScopeMiddlewareWithExpiry(t *testing.T, expiresAt any) *httptest.Respons
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow(keyID, "u", "t", nil, []byte(`["memory:read"]`), expiresAt))
-	mock.ExpectExec("UPDATE loopruntime_api_keys").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys").
 		WithArgs(keyID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 

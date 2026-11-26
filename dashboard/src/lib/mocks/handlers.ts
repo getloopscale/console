@@ -541,7 +541,7 @@ function registerSystemHandlers() {
       collected_at: '2026-08-07T12:00:00Z',
       services: [
         {
-          name: 'theo-engine',
+          name: 'loop-runtime',
           state: 'ok',
           checked_at: '2026-08-07T12:00:00Z',
           version: 'v0.85.0',

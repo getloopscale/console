@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -22,8 +22,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/loopmem"
 )
 
 // Plan 3 of dashboard-memory-section-roadmap.md (T3.3).
@@ -51,7 +51,7 @@ type MemoryExportsHandler struct {
 	logger      *slog.Logger
 	exportDir   string
 	workerDelay time.Duration
-	// Red Team theo-cloud#104 closure: the test suite needs a way to
+	// Red Team loop-console#104 closure: the test suite needs a way to
 	// wait for the detached worker goroutines to finish so `t.TempDir`
 	// cleanup + sqlmock teardown don't race the worker writing the
 	// JSON file / hitting the DB. `workers` is intentionally a
@@ -248,7 +248,7 @@ func (h *MemoryExportsHandler) Download(w http.ResponseWriter, r *http.Request) 
 
 // WaitForWorkers blocks until every in-flight export worker has returned.
 // Test-helper only; production never calls it. Closes the Red Team
-// theo-cloud#104 race where `t.TempDir` cleanup and the test's sqlmock
+// loop-console#104 race where `t.TempDir` cleanup and the test's sqlmock
 // teardown ran while a worker goroutine was still writing the file /
 // running its final UPDATE.
 func (h *MemoryExportsHandler) WaitForWorkers() {
@@ -258,7 +258,7 @@ func (h *MemoryExportsHandler) WaitForWorkers() {
 // exportPageSize is the per-request page size when listing memories for an
 // export. TheMemory caps the scope-list `limit` at 100 (zod `.max(100)`, same
 // as recall `topK`); requesting more 422s and fails the whole export
-// (usetheodev/theo-workspace#6). The worker pages through the full set in
+// (getloopscale/loopscale-workspace#6). The worker pages through the full set in
 // chunks of this size, following the provider's opaque cursor.
 const exportPageSize = 100
 
@@ -282,10 +282,10 @@ func (h *MemoryExportsHandler) runWorker(id, subject, tenantID string) {
 	// provider's opaque cursor. A single oversized request (Limit:200) 422s and
 	// fails every export (#6); a naive clamp to one page would silently truncate
 	// to the first 100 — data loss. Both are avoided by exhausting the cursor.
-	memories := make([]themory.MemoryRow, 0)
+	memories := make([]loopmem.MemoryRow, 0)
 	cursor := ""
 	for {
-		page, err := h.client.List(bg, subject, themory.ListOptions{Limit: exportPageSize, Cursor: cursor})
+		page, err := h.client.List(bg, subject, loopmem.ListOptions{Limit: exportPageSize, Cursor: cursor})
 		if err != nil {
 			h.failExport(bg, id, fmt.Sprintf("memory list failed: %v", err))
 			return
@@ -323,7 +323,7 @@ func (h *MemoryExportsHandler) runWorker(id, subject, tenantID string) {
 
 	// Preserve the on-disk shape ({"memories":[...]}) the single-page worker
 	// wrote (it encoded the *ListResult). NextCursor is nil here (set exhausted).
-	if err := json.NewEncoder(f).Encode(&themory.ListResult{Memories: memories}); err != nil {
+	if err := json.NewEncoder(f).Encode(&loopmem.ListResult{Memories: memories}); err != nil {
 		h.failExport(bg, id, fmt.Sprintf("encode failed: %v", err))
 		return
 	}

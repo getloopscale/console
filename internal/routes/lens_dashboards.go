@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -15,10 +15,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// LensDashboardsHandler — theo-lens M66. A per-WORKSPACE store of custom dashboards for the
+// LensDashboardsHandler — looptrace M66. A per-WORKSPACE store of custom dashboards for the
 // /v1/dashboard/lens BFF. A dashboard is an ordered list of widgets (KPI tile / trend chart /
 // top-N table) each bound to an existing M51/M60 observability series; the whole board is stored
 // as ONE JSONB `config` blob (opik's single-config-blob precedent). Cloud-owned Postgres (raw

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Cloud Auth Service — handles authentication, OAuth2, and consent flows.
-// Sits in front of the Theo engine API, validating JWTs and enforcing plans.
+// Sits in front of the LoopScale engine API, validating JWTs and enforcing plans.
 package main
 
 import (
@@ -26,33 +26,33 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/billing"
-	"github.com/usetheoai/theo-cloud/internal/config"
-	"github.com/usetheoai/theo-cloud/internal/consent"
-	"github.com/usetheoai/theo-cloud/internal/dbrole"
-	"github.com/usetheoai/theo-cloud/internal/deploy_event_enqueuer"
-	"github.com/usetheoai/theo-cloud/internal/lens_alert_evaluator"
-	"github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
-	"github.com/usetheoai/theo-cloud/internal/metering"
-	cloudmetrics "github.com/usetheoai/theo-cloud/internal/metrics"
-	"github.com/usetheoai/theo-cloud/internal/normalize"
-	"github.com/usetheoai/theo-cloud/internal/promptly"
-	"github.com/usetheoai/theo-cloud/internal/rag"
-	"github.com/usetheoai/theo-cloud/internal/ratelimit"
-	"github.com/usetheoai/theo-cloud/internal/routes"
-	"github.com/usetheoai/theo-cloud/internal/serviceversions"
-	"github.com/usetheoai/theo-cloud/internal/skills"
-	"github.com/usetheoai/theo-cloud/internal/storage"
-	"github.com/usetheoai/theo-cloud/internal/storageproxy"
-	"github.com/usetheoai/theo-cloud/internal/thelens"
-	"github.com/usetheoai/theo-cloud/internal/themory"
-	"github.com/usetheoai/theo-cloud/internal/tracing"
-	"github.com/usetheoai/theo-cloud/internal/trust"
-	"github.com/usetheoai/theo-cloud/internal/version"
-	"github.com/usetheoai/theo-cloud/internal/workspace_webhook_worker"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/billing"
+	"github.com/getloopscale/loop-console/internal/config"
+	"github.com/getloopscale/loop-console/internal/consent"
+	"github.com/getloopscale/loop-console/internal/dbrole"
+	"github.com/getloopscale/loop-console/internal/deploy_event_enqueuer"
+	"github.com/getloopscale/loop-console/internal/lens_alert_evaluator"
+	"github.com/getloopscale/loop-console/internal/loopmem"
+	"github.com/getloopscale/loop-console/internal/looptrace"
+	"github.com/getloopscale/loop-console/internal/memory_webhook_worker"
+	"github.com/getloopscale/loop-console/internal/metering"
+	cloudmetrics "github.com/getloopscale/loop-console/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/normalize"
+	"github.com/getloopscale/loop-console/internal/promptly"
+	"github.com/getloopscale/loop-console/internal/rag"
+	"github.com/getloopscale/loop-console/internal/ratelimit"
+	"github.com/getloopscale/loop-console/internal/routes"
+	"github.com/getloopscale/loop-console/internal/serviceversions"
+	"github.com/getloopscale/loop-console/internal/skills"
+	"github.com/getloopscale/loop-console/internal/storage"
+	"github.com/getloopscale/loop-console/internal/storageproxy"
+	"github.com/getloopscale/loop-console/internal/tracing"
+	"github.com/getloopscale/loop-console/internal/trust"
+	"github.com/getloopscale/loop-console/internal/version"
+	"github.com/getloopscale/loop-console/internal/workspace_webhook_worker"
 )
 
 // buildRagForwardAuth constructs the looprag Model-B ForwardAuth handler + its broker
@@ -95,8 +95,8 @@ func buildLensForwardAuth(
 		return nil, nil, nil
 	}
 	lensHTTP := &http.Client{Timeout: 10 * time.Second}
-	lensAdmin := thelens.NewAdminClient(cfg.LensBaseURL, cfg.LensPlatformAdminKey.Value(), lensHTTP)
-	lensBroker, err := thelens.NewBroker(lensAdmin, 1024, time.Hour,
+	lensAdmin := looptrace.NewAdminClient(cfg.LensBaseURL, cfg.LensPlatformAdminKey.Value(), lensHTTP)
+	lensBroker, err := looptrace.NewBroker(lensAdmin, 1024, time.Hour,
 		[]string{"observability:read", "observability:write", "observability:delete"})
 	if err != nil {
 		return nil, nil, fmt.Errorf("lens broker: %w", err)
@@ -189,7 +189,7 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 		// Reusa EngineAPIURL, a MESMA URL pela qual este gateway ja' faz proxy do
 		// engine. Uma variavel propria poderia divergir dela e o painel passaria a
 		// reportar sobre um endereco que ninguem mais usa.
-		{Name: "loopruntime", BaseURL: cfg.EngineAPIURL},
+		{Name: "loop-runtime", BaseURL: cfg.EngineAPIURL},
 		// O gateway MCP. A URL aponta para a RAIZ do processo, nao para a borda
 		// `/mcp` do Traefik: aquele roteador NAO remove o prefixo (deliberado — o
 		// gateway precisa do path completo para rotear MCP), entao uma sonda via
@@ -212,7 +212,7 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 // guard as "the service is down". otelhttp keeps the most diagnostic call in the
 // system visible in looptrace.
 // fleetRefreshInterval — de quanto em quanto tempo a frota e' re-sondada SEM humano
-// (theo-workspace#37).
+// (loopscale-workspace#37).
 //
 // 60s e' o compromisso declarado no ADR 0010: sondar a frota com teto global de 3s
 // custa, no pior caso, 3s a cada minuto, e um scrape de 15s ve dado com no maximo 60s
@@ -236,11 +236,11 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 	}
 	targets := serviceVersionTargets(cfg)
 
-	// theo-workspace#37 — UMA observacao alimenta AS DUAS metricas.
+	// loopscale-workspace#37 — UMA observacao alimenta AS DUAS metricas.
 	//
 	// Deliberadamente um adaptador sobre o hook existente, e nao um segundo caminho de
 	// coleta: dois caminhos divergem, e divergencia entre duas leituras do mesmo fato ja
-	// custou tres diagnosticos errados num unico dia (dois theo-cloud, dois paineis).
+	// custou tres diagnosticos errados num unico dia (dois loop-console, dois paineis).
 	//
 	// O counter responde "quantas sondagens aconteceram"; o gauge responde "qual e' o
 	// estado AGORA". Sao perguntas diferentes e nenhuma das duas responde a outra.
@@ -344,8 +344,8 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	// Initialize OTel tracing (no-op if LOOPRUNTIME_TRACING_ENABLED=false).
-	tracingShutdown, err := tracing.Init(context.Background(), "theo-cloud")
+	// Initialize OTel tracing (no-op if LOOP_RUNTIME_TRACING_ENABLED=false).
+	tracingShutdown, err := tracing.Init(context.Background(), "loop-console")
 	if err != nil {
 		logger.Warn("tracing init failed (continuing without traces)", "error", err)
 	}
@@ -381,7 +381,7 @@ func main() {
 			// Which role we connect as decides how much of every tenant's data
 			// this process can reach — and getting it wrong is invisible at
 			// runtime, because the owner still works. Engine migration 000063
-			// created `loopruntime_cloud` for exactly this: the cross-tenant reach the
+			// created `loop_console` for exactly this: the cross-tenant reach the
 			// control plane needs, as named policies, without DDL.
 			//
 			// Fail closed: refusing to boot is loud and fixed by repointing
@@ -421,34 +421,34 @@ func main() {
 	// JWT validation — single source of truth (pkg/jwt).
 	//
 	// CANONICAL FIX 2026-06-15 (multi-audience JWT per RFC 7519 § 4.1.3):
-	// theo-cloud MUST accept BOTH:
-	//   - "theo-cloud" — its own dashboard session JWTs (HMAC-signed via
+	// loop-console MUST accept BOTH:
+	//   - "loop-console" — its own dashboard session JWTs (HMAC-signed via
 	//     SessionTokenIssuer below; sourced from /v1/auth/session/token
 	//     cookie-based exchange)
-	//   - "theo-engine" — bootstrap + CLI JWTs (RSA-signed by Hydra; minted
-	//     by seed-local-user.sh + theo CLI) which transit /engine/* paths
-	//     into loopruntime (which itself validates "theo-engine")
+	//   - "loop-runtime-engine" — bootstrap + CLI JWTs (RSA-signed by Hydra; minted
+	//     by seed-local-user.sh + loopscale CLI) which transit /engine/* paths
+	//     into loop-runtime (which itself validates "loop-runtime-engine")
 	//
-	// Single-audience validation (aud="theo-cloud" only) caused 11/12
+	// Single-audience validation (aud="loop-console" only) caused 11/12
 	// dogfood --live-only wrappers to fail because the bootstrap JWT
-	// audience is "theo-engine" by design. Multi-audience constructor
+	// audience is "loop-runtime-engine" by design. Multi-audience constructor
 	// matches the AWS Cognito + Auth0 + Okta + Google Cloud Identity
 	// canonical pattern. Zero technical debt — single-aud NewValidator
 	// is preserved for backward compat (delegates to multi-aud with
 	// []string{audience}).
 	jwksURL := cfg.HydraPublicURL + "/.well-known/jwks.json"
-	jwtValidator := theojwt.NewValidatorWithAudiences(
+	jwtValidator := loopscalejwt.NewValidatorWithAudiences(
 		jwksURL,
 		cfg.JWTIssuer,
-		[]string{"theo-cloud", "theo-engine"},
+		[]string{"loop-console", "loop-runtime-engine"},
 	)
 
 	// Session token issuer/validator (HMAC JWTs for dashboard)
 	// MEET-2026-04-07-039: audience explicit. §2.2: kid + dual-key rotation.
-	sessIssuer := theojwt.NewSessionTokenIssuer(
+	sessIssuer := loopscalejwt.NewSessionTokenIssuer(
 		cfg.SessionTokenSecret.Value(),
-		"theo-cloud",
-		"theo-cloud",
+		"loop-console",
+		"loop-console",
 		24*time.Hour,
 	).WithPreviousSecret(string(cfg.SessionTokenSecretPrevious))
 	tenantProvisioner := auth.NewTenantProvisioner(db, logger)
@@ -488,8 +488,8 @@ func main() {
 	}
 
 	// Caller authentication for every protected route: a Bearer JWT (CLI, and the
-	// scripts that still exchange for an HS256 token until usetheoai/theo#477 step
-	// 4) OR the Kratos session cookie (the dashboard — theo-cloud is its Backend
+	// scripts that still exchange for an HS256 token until getloopscale/loopscale#477 step
+	// 4) OR the Kratos session cookie (the dashboard — loop-console is its Backend
 	// for Frontend and the browser holds no token). The variable keeps its old
 	// name because the route mount functions receive it as `requireJWT`.
 	sessionAuthenticator := auth.NewKratosSessionAuthenticator(cfg.KratosInternalURL, tenantProvisioner)
@@ -503,10 +503,10 @@ func main() {
 	billingLimiter := ratelimit.NewInMemoryLimiter(30, time.Minute)
 	// F-sec-1 absorption: BFF-layer defense-in-depth for /v1/auth/register.
 	// Caddy edge `register_throttle` (5/min) matches /self-service/registration/*
-	// on auth-dev.usetheo.dev only — the BFF endpoint on cloud-dev / app-dev
+	// on auth-dev.getloopscale.com only — the BFF endpoint on cloud-dev / app-dev
 	// is reachable without that edge gate (k8s NodePort, cross-cluster, dev
 	// direct hits). 5/min/IP keeps brute-force registration infeasible even
-	// when Caddy is bypassed. Per Red Team theo-cloud#43 closure plan.
+	// when Caddy is bypassed. Per Red Team loop-console#43 closure plan.
 	registerLimiter := ratelimit.NewInMemoryLimiter(5, time.Minute)
 	ipKey := func(r *http.Request) string { return ratelimit.Key("", r.RemoteAddr) }
 	userKey := func(r *http.Request) string {
@@ -529,7 +529,7 @@ func main() {
 		meHandler = routes.NewMeHandler(db, nil)
 	}
 	// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 — response-shape
-	// unifier middleware closing Red Team theo-cloud#43 (account enumeration via
+	// unifier middleware closing Red Team loop-console#43 (account enumeration via
 	// register response shape divergence). Proxies POST /v1/auth/register to the
 	// upstream identity-store and ALWAYS returns the canonical universal body
 	// regardless of new-vs-existing-email branch.
@@ -551,10 +551,10 @@ func main() {
 	apiKeysHandler := routes.NewAPIKeysHandler(db, logger)
 
 	// Plan 1 of dashboard-memory-section-roadmap.md: Memory Shell — Go proxy to
-	// OSS TheMemory. Only instantiated when THEMORY_BASE_URL is configured,
+	// OSS TheMemory. Only instantiated when LOOPMEM_BASE_URL is configured,
 	// matching the same opt-in pattern as billing (BillingHandler is nil when
-	// Stripe is not configured). Operators must set THEMORY_BASE_URL +
-	// THEMORY_API_KEY before /v1/memory/* routes are usable.
+	// Stripe is not configured). Operators must set LOOPMEM_BASE_URL +
+	// LOOPMEM_API_KEY before /v1/memory/* routes are usable.
 	var memoryHandler *routes.MemoryHandler
 	var memoryWebhooksHandler *routes.MemoryWebhooksHandler
 	var memoryExportsHandler *routes.MemoryExportsHandler
@@ -691,7 +691,7 @@ func main() {
 	// M22 (loopskills Model B): a ForwardAuth handler for the /v1/skills
 	// capability. Reuses the generic handler wired with the skills broker +
 	// "skills:read"; only registered when SKILLS_BASE_URL is set. The broker mints a
-	// per-tenant theoskill_live_* key (least-privilege intersection of the consumer's
+	// per-tenant loopscaleskill_live_* key (least-privilege intersection of the consumer's
 	// skills:* scopes with the data scopes) and fails CLOSED — no master fallback.
 	//
 	// The mint targets loopskills' PLATFORM route, not its admin one: the admin
@@ -837,9 +837,9 @@ func main() {
 		// 35s (not the usual 10s): this client also proxies the LLM-backed M33 Ask + M55
 		// replay paths, whose downstream chat client caps at 30s (looptrace CHAT_TIMEOUT_MS).
 		// A 10s ceiling raced the LLM call → 502 "context deadline exceeded" on legitimate
-		// asks. Mirrors the themory LLM path (30s). Fast paths (traces list/cost) are
+		// asks. Mirrors the loopmem LLM path (30s). Fast paths (traces list/cost) are
 		// unaffected — the timeout is only a ceiling.
-		lensDataClient := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 35 * time.Second}).
+		lensDataClient := looptrace.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 35 * time.Second}).
 			WithKeyResolver(newLensDashboardKeyResolver(lensBroker))
 		lensDashboardHandler = routes.NewLensDashboardHandler(lensDataClient, logger)
 		logger.Info("dashboard lens enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/lens")
@@ -902,30 +902,30 @@ func main() {
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
 	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
 	if missing := config.MissingSettings(
-		config.Setting{Name: "THEMORY_BASE_URL", Value: cfg.ThemoryBaseURL},
+		config.Setting{Name: "LOOPMEM_BASE_URL", Value: cfg.ThemoryBaseURL},
 	); len(missing) > 0 {
 		logger.Warn("integration disabled — configuration absent",
 			"integration", "memory", "missing", missing)
 	}
 	if cfg.ThemoryBaseURL != "" {
-		themoryHTTP := &http.Client{
+		loopmemHTTP := &http.Client{
 			Timeout:   30 * time.Second,
 			Transport: otelhttp.NewTransport(http.DefaultTransport), // D4 W3C trace propagation
 		}
 		// Model B (ADR D1) — control-plane / data-plane credential separation.
 		// Control plane: the platform-admin key mints per-tenant data keys via the
-		// admin API. Sourced from THEMORY_PLATFORM_ADMIN_KEY (falls back to the
-		// legacy THEMORY_API_KEY only as the control-plane credential — NEVER on
+		// admin API. Sourced from LOOPMEM_PLATFORM_ADMIN_KEY (falls back to the
+		// legacy LOOPMEM_API_KEY only as the control-plane credential — NEVER on
 		// the data path).
 		platformKey := cfg.ThemoryPlatformAdminKey.Value()
 		if platformKey == "" {
 			platformKey = cfg.ThemoryAPIKey.Value()
 		}
-		adminClient := themory.NewAdminClient(cfg.ThemoryBaseURL, platformKey, themoryHTTP)
-		themoryBroker, brErr := themory.NewBroker(adminClient, 1024, time.Hour,
+		adminClient := loopmem.NewAdminClient(cfg.ThemoryBaseURL, platformKey, loopmemHTTP)
+		loopmemBroker, brErr := loopmem.NewBroker(adminClient, 1024, time.Hour,
 			[]string{"memory:read", "memory:write", "memory:delete"})
 		if brErr != nil {
-			logger.Error("failed to construct themory credential broker — refusing to start", "error", brErr)
+			logger.Error("failed to construct loopmem credential broker — refusing to start", "error", brErr)
 			os.Exit(1)
 		}
 		// Data plane: the Bearer is a PER-TENANT theo_live_* resolved from the
@@ -935,14 +935,14 @@ func main() {
 		keyResolver := func(ctx context.Context) (string, error) {
 			u := auth.GetUser(ctx)
 			if u == nil || u.TenantID == "" {
-				return "", fmt.Errorf("themory: no authenticated tenant in context")
+				return "", fmt.Errorf("loopmem: no authenticated tenant in context")
 			}
-			return themoryBroker.KeyForTenant(ctx, u.AccountID, u.TenantID)
+			return loopmemBroker.KeyForTenant(ctx, u.AccountID, u.TenantID)
 		}
-		dataClient := themory.NewClient(cfg.ThemoryBaseURL, "", themoryHTTP).WithKeyResolver(keyResolver)
+		dataClient := loopmem.NewClient(cfg.ThemoryBaseURL, "", loopmemHTTP).WithKeyResolver(keyResolver)
 		// Control-plane client for the boot capability probe (GET /v1/openapi.json):
 		// uses the platform credential, never a per-tenant key.
-		probeClient := themory.NewClient(cfg.ThemoryBaseURL, platformKey, themoryHTTP)
+		probeClient := loopmem.NewClient(cfg.ThemoryBaseURL, platformKey, loopmemHTTP)
 
 		// platform-api-gateway-edge-slice1 (M6, ADR D1/D7): the ForwardAuth authz
 		// endpoint the Traefik edge calls per request. It reuses the SAME inbound
@@ -952,7 +952,7 @@ func main() {
 			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
 				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
 			},
-			themoryBroker,
+			loopmemBroker,
 			// M1: cross-account guard — does the resolved account own this tenant?
 			func(ctx context.Context, accountID, tenantID string) (bool, error) {
 				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
@@ -961,43 +961,43 @@ func main() {
 			logger,
 		)
 
-		// gateway-themory-integration (D1/D2): register the memory capability with the
-		// MCP-aware resolve endpoint the Theo MCP Gateway's BrokerResolver calls. The
+		// gateway-loopmem-integration (D1/D2): register the memory capability with the
+		// MCP-aware resolve endpoint the LoopScale MCP Gateway's BrokerResolver calls. The
 		// handler itself is built AFTER this block (M16 D2) so it exists whenever ANY
-		// capability (memory OR rag) is configured. theo-workspace#10 — data scope → MCP
+		// capability (memory OR rag) is configured. loopscale-workspace#10 — data scope → MCP
 		// tool names (the gateway allowlist matches scope==tool exactly). Mirrors
 		// loopmem's REST per-verb scope map (#77): read=recall, write=remember,
 		// delete=forget. The downstream minted key keeps the raw data scopes.
-		mcpCaps["memory"] = routes.MCPCapabilityBinding{Minter: themoryBroker, RequiredScope: "memory:read", ScopeTools: map[string][]string{
+		mcpCaps["memory"] = routes.MCPCapabilityBinding{Minter: loopmemBroker, RequiredScope: "memory:read", ScopeTools: map[string][]string{
 			"memory:read":   {"recall", "episodes", "search_memory", "list_memories"},
 			"memory:write":  {"remember", "reflect", "add_skill", "execute_skill", "add_memories"},
 			"memory:delete": {"forget", "forget_skill", "delete_memories"},
 		}}
 
-		// themory-gateway-provider-capability-guard (F1): fail boot if the provider
+		// loopmem-gateway-provider-capability-guard (F1): fail boot if the provider
 		// is REACHABLE but does NOT advertise the scoped-forget DELETE route — a
 		// deploy-ordering bug (gateway ahead of TheMemory v0.12.0) that would make
 		// forget 404-collapse into a silent not-deleted. Transient failures
 		// (unreachable / non-2xx / unparseable openapi) WARN + proceed (ADR D2).
 		if cfg.ThemorySkipCapabilityCheck {
-			logger.Warn("themory capability guard SKIPPED via THEMORY_SKIP_CAPABILITY_CHECK — forget-by-id correctness is not verified against the provider")
+			logger.Warn("loopmem capability guard SKIPPED via LOOPMEM_SKIP_CAPABILITY_CHECK — forget-by-id correctness is not verified against the provider")
 		} else {
 			capCtx, capCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			capErr := probeClient.AssertScopedForgetSupported(capCtx)
 			capCancel()
-			switch themory.ClassifyBootCapability(capErr) {
-			case themory.BootFatal:
-				logger.Error("themory capability guard: provider does not advertise the scoped-forget DELETE route — refusing to start (deploy TheMemory v0.12.0+ first, or set THEMORY_SKIP_CAPABILITY_CHECK=true to override)",
-					"error", capErr, "themory_base_url", cfg.ThemoryBaseURL)
+			switch loopmem.ClassifyBootCapability(capErr) {
+			case loopmem.BootFatal:
+				logger.Error("loopmem capability guard: provider does not advertise the scoped-forget DELETE route — refusing to start (deploy TheMemory v0.12.0+ first, or set LOOPMEM_SKIP_CAPABILITY_CHECK=true to override)",
+					"error", capErr, "loopmem_base_url", cfg.ThemoryBaseURL)
 				// os.Exit skips deferred cleanup (db.Close/cancel); acceptable on this
 				// fatal-boot path — listeners are not started yet and the OS reclaims
 				// the just-opened pool on exit (mirrors the other boot os.Exit calls).
 				os.Exit(1)
-			case themory.BootWarn:
-				logger.Warn("themory capability guard: could not verify provider scoped-forget capability (transient) — proceeding",
+			case loopmem.BootWarn:
+				logger.Warn("loopmem capability guard: could not verify provider scoped-forget capability (transient) — proceeding",
 					"error", capErr)
-			case themory.BootProceed:
-				logger.Info("themory capability guard: provider advertises scoped-forget DELETE")
+			case loopmem.BootProceed:
+				logger.Info("loopmem capability guard: provider advertises scoped-forget DELETE")
 			}
 		}
 
@@ -1005,16 +1005,16 @@ func main() {
 		// `memory.forgotten` mutations fan out to active webhooks.
 		webhookEventPublisher := routes.NewMemoryWebhookEventPublisher(db, logger)
 		memoryHandler = routes.NewMemoryHandler(dataClient, logger).WithEventPublisher(webhookEventPublisher)
-		logger.Info("memory proxy enabled", "themory_base_url", cfg.ThemoryBaseURL)
+		logger.Info("memory proxy enabled", "loopmem_base_url", cfg.ThemoryBaseURL)
 
 		// Plan 3 — Memory Operations (exports + webhooks).
 		// Webhooks need only the DB; exports need DB + TheMemory client +
 		// a worker-output directory. Both stay nil if Memory itself is
 		// disabled, so the /v1/memory/exports/* and /v1/memory/webhooks/*
 		// blocks below also remain unregistered when off.
-		exportDir := os.Getenv("LOOPRUNTIME_EXPORT_DIR")
+		exportDir := os.Getenv("LOOP_RUNTIME_EXPORT_DIR")
 		if exportDir == "" {
-			exportDir = "/tmp/theo-exports"
+			exportDir = "/tmp/loopscale-exports"
 		}
 		workerDelay := 3 * time.Second
 		if d := os.Getenv("EXPORT_WORKER_DELAY_MS"); d != "" {
@@ -1033,12 +1033,12 @@ func main() {
 		// discarded the secret) is removed.
 		logger.Info("dashboard memory enabled (per-tenant broker)", "mount", "/v1/dashboard/memory")
 	} else {
-		logger.Warn("THEMORY_BASE_URL not set — /v1/memory/* endpoints disabled")
+		logger.Warn("LOOPMEM_BASE_URL not set — /v1/memory/* endpoints disabled")
 	}
 
 	// M16 (D2/D4): register the looprag MCP capability when the rag broker is configured
 	// (RAG_BASE_URL set) — independent of memory. ScopeTools maps rag data scopes → the
-	// @usetheo/rag-mcp tool names, so a rag:read key exposes NO write tool; the delete
+	// @getloopscale/rag-mcp tool names, so a rag:read key exposes NO write tool; the delete
 	// bucket is empty today (rag-mcp has no delete tool). The SAME broker serves the REST
 	// ForwardAuth handler AND this MCP binding (one mint cache — consistent per-tenant keys).
 	if ragBroker != nil {
@@ -1090,7 +1090,7 @@ func main() {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 
-	// Red Team theo-cloud#86 closure (CWE-16 Security Misconfiguration):
+	// Red Team loop-console#86 closure (CWE-16 Security Misconfiguration):
 	// detect consecutive slashes in the raw request URI (Caddy's
 	// `path_regexp` matcher cannot — Caddy normalizes path BEFORE
 	// routing) and 308-redirect to the canonical single-slash form.
@@ -1178,7 +1178,7 @@ func main() {
 	})
 
 	// B-124 — the ecosystem's canonical names for these two answers
-	// (theo-contracts/httpsurface, D5), mounted alongside the unversioned pair.
+	// (contracts/httpsurface, D5), mounted alongside the unversioned pair.
 	//
 	// This service was inconsistent with itself: `/v1/version` below is versioned
 	// while these two were not, and all three are unauthenticated and consumed by
@@ -1248,7 +1248,7 @@ func main() {
 		r.Get(routes.AuthzForwardRagPath, ragForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardRagPath, ragForwardAuthHandler.ServeHTTP)
 	}
-	// gateway-themory-integration: the MCP-aware resolve endpoint the Theo MCP
+	// gateway-loopmem-integration: the MCP-aware resolve endpoint the LoopScale MCP
 	// Gateway's BrokerResolver calls. Internal-only (the gateway is the caller),
 	// outside any auth middleware because it IS the auth. GET + POST.
 	if mcpResolveHandler != nil {
@@ -1265,7 +1265,7 @@ func main() {
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/device/token", deviceHandler.Token)
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/token/refresh", deviceHandler.Refresh)
 		// HS256 exchange — no longer called by the dashboard; kept for the scripts and
-		// e2e that still use it until usetheoai/theo#477 step 4 (rate-limited inside).
+		// e2e that still use it until getloopscale/loopscale#477 step 4 (rate-limited inside).
 		r.Post("/session/token", sessionTokenHandler.Exchange)
 		// Dashboard: the identity behind the Kratos session cookie, with no credential in it.
 		r.Get("/session", routes.NewSessionIdentityHandler(sessionAuthenticator).Get)
@@ -1354,7 +1354,7 @@ func main() {
 			// Plan 2 (Memory Insights) — entities aggregated by scope.
 			// Same scope as List + Metrics per D2 (no per-feature scope explosion).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/entities", memoryHandler.Entities)
-			// themory-graph-gateway-dashboard — entity relation graph ({nodes,edges}).
+			// loopmem-graph-gateway-dashboard — entity relation graph ({nodes,edges}).
 			// Same memory:read scope as entities (shared handler, D2).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/graph", memoryHandler.Graph)
 			// episodes-gateway-dashboard — cursor-paginated bi-temporal episode log.
@@ -1621,7 +1621,7 @@ func main() {
 	}
 
 	// Engine API proxy — dashboard calls engine through cloud service.
-	// The engine only accepts RSA tokens (aud=theo-engine) or internal service auth.
+	// The engine only accepts RSA tokens (aud=loop-runtime) or internal service auth.
 	// Dashboard has HMAC tokens, so cloud authenticates to engine via X-Service-Auth.
 	engineURL := cfg.EngineAPIURL
 	serviceSecret := string(cfg.ServiceAuthSecret)
@@ -1629,12 +1629,12 @@ func main() {
 	// Dual-control Ed25519 signer (ADR 2026-05-13). The cloud proxy
 	// signs the canonical payload (user, tenant, ts, nonce, method+path)
 	// in addition to sending the shared secret. Phase 1: signer is
-	// optional — if LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY is empty, the
+	// optional — if LOOP_RUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY is empty, the
 	// proxy degrades gracefully to single-control. The engine middleware
 	// counts present-vs-absent and the operator flips to Phase 2 when
 	// the 7-day coverage soak hits 100% (RFC Q3).
 	var serviceSigner *auth.ServiceSigner
-	if ed25519Key := os.Getenv("LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY"); ed25519Key != "" {
+	if ed25519Key := os.Getenv("LOOP_RUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY"); ed25519Key != "" {
 		serviceSigner, err = auth.NewServiceSignerFromBase64(ed25519Key)
 		if err != nil {
 			// Per RFC Q5 fail-closed: a misconfigured key MUST NOT silently
@@ -1646,7 +1646,7 @@ func main() {
 		}
 		logger.Info("service-auth Ed25519 dual-control signer enabled")
 	} else {
-		logger.Warn("service-auth Ed25519 private key not configured — Phase 1 single-control only; set LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY to enable dual-control")
+		logger.Warn("service-auth Ed25519 private key not configured — Phase 1 single-control only; set LOOP_RUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY to enable dual-control")
 	}
 
 	// LIVE-caught 2026-06-18: 30s timeout was killing legitimate
@@ -1698,13 +1698,13 @@ func main() {
 	// HMAC signature (X-Hub-Signature-256 header) — NOT Bearer JWT. The
 	// requireJWT middleware was wrongly blocking webhook deliveries on
 	// the /engine path. Webhook subtree is exempted from JWT and proxied
-	// raw to loopruntime where the canonical signature verification runs
+	// raw to loop-runtime where the canonical signature verification runs
 	// (api/cmd/setup_github.go reads GITHUB_WEBHOOK_SECRET). All other
 	// /engine/* paths still require JWT auth.
 	r.HandleFunc("/engine/api/v1/webhooks/*", func(w http.ResponseWriter, r *http.Request) {
 		targetPath := strings.TrimPrefix(r.URL.Path, "/engine")
 		// #nosec G404 — webhook endpoint authenticates via HMAC signature
-		// downstream (loopruntime setup_github.go ConstantTimeCompare); cloud
+		// downstream (loop-runtime setup_github.go ConstantTimeCompare); cloud
 		// is a pass-through proxy here.
 		proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, engineURL+targetPath, r.Body)
 		if err != nil {
@@ -1715,7 +1715,7 @@ func main() {
 		}
 		proxyReq.URL.RawQuery = r.URL.RawQuery
 		// Preserve canonical webhook headers (signature + delivery + event)
-		// so loopruntime can verify HMAC.
+		// so loop-runtime can verify HMAC.
 		for _, h := range []string{
 			"Content-Type",
 			"X-Hub-Signature-256",
@@ -1777,7 +1777,7 @@ func main() {
 			if rid := r.Header.Get("X-Request-Id"); rid != "" {
 				proxyReq.Header.Set("X-Request-Id", rid)
 			}
-			// CANONICAL FIX 2026-06-15: forward Idempotency-Key header. loopruntime
+			// CANONICAL FIX 2026-06-15: forward Idempotency-Key header. loop-runtime
 			// requires Idempotency-Key on mutating routes (POST/PATCH/DELETE per
 			// router.go idempotentMiddlewares — D/Domains/Secrets/Bulk/etc).
 			// Prior proxy implementation only forwarded Content-Type + correlation
@@ -1842,7 +1842,7 @@ func main() {
 			// they arrive instead of timing out with 0 bytes. Closes the
 			// dev-public-deployments-flow_test.sh Scenario B regression
 			// (curl -m 8 returned 0 bytes received before this fix).
-			// Memory: feedback_theo_cloud_sse_proxy_buffers_until_eof_2026_06_13
+			// Memory: feedback_loop_console_sse_proxy_buffers_until_eof_2026_06_13
 			if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 				flusher, _ := w.(http.Flusher)
 				// Flush response headers IMMEDIATELY so EventSource onopen()
@@ -1877,7 +1877,7 @@ func main() {
 	// Start metering scheduler (background goroutines)
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
 
-	// theo-workspace#37 — a frota passa a ser sondada SEM humano autenticado.
+	// loopscale-workspace#37 — a frota passa a ser sondada SEM humano autenticado.
 	//
 	// Ate aqui `Collect` so era disparado pelo handler de
 	// `/v1/dashboard/status/versions`, que exige Bearer. Logo a metrica de frota —
@@ -1924,7 +1924,7 @@ func main() {
 	if db != nil && lensBroker != nil {
 		fetch := func(ctx context.Context, tenantID string, windowSeconds int) (json.RawMessage, error) {
 			// Per-tenant DataClient: the resolver mints observability:read for THIS tenant (no JWT).
-			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+			dc := looptrace.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
 				WithKeyResolver(func(ctx context.Context) (string, error) {
 					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
 				})
@@ -1934,13 +1934,13 @@ func main() {
 		// 404 is translated to the typed sentinel so the evaluator can disable a rule whose guard is
 		// gone, while a transport error keeps retrying — the two must never collapse into one error.
 		fetchMonitor := func(ctx context.Context, tenantID, monitorID string, windowSeconds int) (lens_alert_evaluator.MonitorBreachWindow, error) {
-			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+			dc := looptrace.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
 				WithKeyResolver(func(ctx context.Context) (string, error) {
 					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
 				})
 			raw, err := dc.MonitorBreachWindow(ctx, monitorID, windowSeconds)
 			if err != nil {
-				var us *thelens.UpstreamStatusError
+				var us *looptrace.UpstreamStatusError
 				// 403 is classified as definitive here for the same reason the create-time verifier
 				// does: a key that cannot read this guard will not start being able to on retry.
 				// The two call sites classifying the same status oppositely was itself a defect.
@@ -1965,7 +1965,7 @@ func main() {
 		// then be evaluated against nothing — silently, since an empty aggregate is a legitimate
 		// measurement on this path.
 		fetchPromptUsage := func(ctx context.Context, tenantID, promptName string, windowSeconds int) (json.RawMessage, error) {
-			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+			dc := looptrace.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
 				WithKeyResolver(func(ctx context.Context) (string, error) {
 					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
 				})
@@ -1990,12 +1990,12 @@ func main() {
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus
-	// is configured. Opt-in via LOOPRUNTIME_PROMETHEUS_URL — when unset, the
+	// is configured. Opt-in via LOOP_RUNTIME_PROMETHEUS_URL — when unset, the
 	// aggregator stays disabled and cost_counters remain empty (the API
 	// middleware fails-open). Interval defaults to 5 min, overridable
-	// via LOOPRUNTIME_COST_AGGREGATOR_INTERVAL.
+	// via LOOP_RUNTIME_COST_AGGREGATOR_INTERVAL.
 	if db != nil {
-		if promURL := strings.TrimSpace(os.Getenv("LOOPRUNTIME_PROMETHEUS_URL")); promURL != "" {
+		if promURL := strings.TrimSpace(os.Getenv("LOOP_RUNTIME_PROMETHEUS_URL")); promURL != "" {
 			prom, perr := billing.NewHTTPPromQuerier(promURL, logger)
 			if perr != nil {
 				logger.Error("cost aggregator: prometheus client init failed; aggregator disabled",
@@ -2003,7 +2003,7 @@ func main() {
 					"prometheus_url", promURL)
 			} else {
 				interval := 5 * time.Minute
-				if iv := os.Getenv("LOOPRUNTIME_COST_AGGREGATOR_INTERVAL"); iv != "" {
+				if iv := os.Getenv("LOOP_RUNTIME_COST_AGGREGATOR_INTERVAL"); iv != "" {
 					if parsed, perr := time.ParseDuration(iv); perr == nil && parsed > 0 {
 						interval = parsed
 					}
@@ -2015,7 +2015,7 @@ func main() {
 					"interval", interval.String())
 			}
 		} else {
-			logger.Info("cost aggregator disabled (LOOPRUNTIME_PROMETHEUS_URL not set)")
+			logger.Info("cost aggregator disabled (LOOP_RUNTIME_PROMETHEUS_URL not set)")
 		}
 	}
 
@@ -2078,7 +2078,7 @@ func monitorOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter)
 		return nil
 	}
 	return func(ctx context.Context, tenantID, monitorID string) error {
-		dc := thelens.NewDataClient(lensBaseURL, &http.Client{Timeout: 2 * time.Second}).
+		dc := looptrace.NewDataClient(lensBaseURL, &http.Client{Timeout: 2 * time.Second}).
 			WithKeyResolver(func(ctx context.Context) (string, error) {
 				return broker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
 			})
@@ -2087,7 +2087,7 @@ func monitorOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter)
 		// the explicit guardExists field rather than from a status code.
 		raw, err := dc.MonitorBreachWindow(ctx, monitorID, 60)
 		if err != nil {
-			var us *thelens.UpstreamStatusError
+			var us *looptrace.UpstreamStatusError
 			if errors.As(err, &us) && (us.Status == http.StatusNotFound || us.Status == http.StatusForbidden) {
 				return routes.ErrMonitorNotOwned
 			}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package skills
 
@@ -12,13 +12,13 @@ import (
 	"testing"
 )
 
-// O duplo abaixo espelha o contrato MEDIDO de theo-skills
+// O duplo abaixo espelha o contrato MEDIDO de loopskills
 // `POST /v1/platform/keys` (packages/api/src/server/handlers/platform-keys.ts):
 //
 //	pedido : {"workspace_id": "...", "scopes": [...]}
 //	201    : {"key_id": "...", "workspace_id": "...", "scopes": [...], "token": "..."}
 //
-// Os nomes importam e são diferentes dos de trust/themory (`name`/`secret`): um
+// Os nomes importam e são diferentes dos de trust/loopmem (`name`/`secret`): um
 // duplo que inventasse o formato concordaria com este cliente e falharia contra o
 // servidor — foi exatamente esse defeito que o registry viveu com `payload_base64`.
 
@@ -32,7 +32,7 @@ func TestMintKey_SendsWorkspaceIDAndReadsToken(t *testing.T) {
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"key_id":"key_1","workspace_id":"ws_a","scopes":["skills:read"],"token":"theoskill_live_abc"}`))
+		_, _ = w.Write([]byte(`{"key_id":"key_1","workspace_id":"ws_a","scopes":["skills:read"],"token":"loopscaleskill_live_abc"}`))
 	}))
 	defer srv.Close()
 
@@ -54,7 +54,7 @@ func TestMintKey_SendsWorkspaceIDAndReadsToken(t *testing.T) {
 	if _, temNome := gotBody["name"]; temNome {
 		t.Error("enviou `name`: o upstream ignora, e mandá-lo sugere uma capacidade de rotular que não existe")
 	}
-	if res.Secret != "theoskill_live_abc" {
+	if res.Secret != "loopscaleskill_live_abc" {
 		t.Errorf("Secret = %q — o campo do upstream é `token`, não `secret`", res.Secret)
 	}
 	if res.ID != "key_1" {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // platform-api-gateway-edge-slice1 (M6) T0.2 — the ForwardAuth authz endpoint
 // Traefik calls per request: validate the inbound theo_live_*, resolve the
@@ -18,7 +18,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 // stubMinter is a test double for the per-tenant key broker.
@@ -95,7 +95,7 @@ func TestForwardAuth_ValidKey_Returns200WithMintedAuthorization(t *testing.T) {
 	}
 }
 
-// theo-cloud#249: ForwardAuth hands the credential's user identity upstream as
+// loop-console#249: ForwardAuth hands the credential's user identity upstream as
 // X-Theo-User-Id, so the REST backend binds the user tier like the MCP path.
 func TestForwardAuth_ValidKey_InjectsUserIdHeader(t *testing.T) {
 	h := NewForwardAuthHandler(
@@ -236,7 +236,7 @@ func TestForwardAuth_EmptyScopes_Returns403(t *testing.T) {
 func TestForwardAuth_ConcurrentRequestsSameTenant_MintOnce(t *testing.T) {
 	// Race-aware: N concurrent ServeHTTP for the same tenant; assert all 200 and
 	// the handler is race-free (run under -race). The mint-once singleflight
-	// invariant itself is proven in themory/broker_test.go; here we assert the
+	// invariant itself is proven in loopmem/broker_test.go; here we assert the
 	// handler does not corrupt the concurrent mint path.
 	minter := &stubMinter{key: "theo_live_mintedForA"}
 	h := NewForwardAuthHandler(

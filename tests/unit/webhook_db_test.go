@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package unit
 
@@ -14,7 +14,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheoai/theo-cloud/internal/billing"
+	"github.com/getloopscale/loop-console/internal/billing"
 )
 
 func newWebhookHandler(t *testing.T) (*billing.WebhookHandler, sqlmock.Sqlmock) {

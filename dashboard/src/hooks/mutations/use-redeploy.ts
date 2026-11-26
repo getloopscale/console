@@ -30,7 +30,7 @@ export function useRedeploy() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (sourceBuildId: string) =>
-      // Red Team theo-cloud#122 surface 2 — opt into throwOnError so 4xx
+      // Red Team loop-console#122 surface 2 — opt into throwOnError so 4xx
       // problem+json (MISSING_FIELD, BUILD_NOT_TERMINAL, …) REJECTS the
       // mutation instead of resolving null. Pre-fix the default engineFetch
       // resolved null on 4xx, the dialog `if (!resp) return;` closed

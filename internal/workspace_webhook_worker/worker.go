@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package workspace_webhook_worker dispatches workspace_webhook_deliveries
 // (engine migration 000052) to customer-registered URLs — the final stage of
@@ -18,7 +18,7 @@
 //
 // The HTTP client is safehttp's SSRF-guarded client (rejects the resolved
 // destination IP if internal, no redirects) — the delivery target is a
-// customer-controlled URL (theo-cloud#149).
+// customer-controlled URL (loop-console#149).
 package workspace_webhook_worker
 
 import (
@@ -30,9 +30,9 @@ import (
 	"sync"
 	"time"
 
-	mww "github.com/usetheoai/theo-cloud/internal/memory_webhook_worker"
-	"github.com/usetheoai/theo-cloud/internal/metrics"
-	"github.com/usetheoai/theo-cloud/internal/safehttp"
+	mww "github.com/getloopscale/loop-console/internal/memory_webhook_worker"
+	"github.com/getloopscale/loop-console/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/safehttp"
 )
 
 const (
@@ -42,7 +42,7 @@ const (
 	// batch-tail rows block in the semaphore while their lease clock (stamped at
 	// claim time) keeps running — the reaper could then reclaim a row THIS
 	// worker still holds and re-dispatch it, a concurrent double-delivery
-	// (theo-cloud#155 B1). Keeping them equal bounds a claimed row's in-flight
+	// (loop-console#155 B1). Keeping them equal bounds a claimed row's in-flight
 	// time to a single dispatch (≤ ~40s) ≪ the 90s lease.
 	defaultClaimBatch        = defaultMaxInFlight
 	defaultHTTPClientTimeout = 35 * time.Second
@@ -74,7 +74,7 @@ func New(db *sql.DB, logger *slog.Logger, replicaID string) *Worker {
 		logger:    logger,
 		replicaID: replicaID,
 		semaCh:    make(chan struct{}, defaultMaxInFlight),
-		// The SSRF guard's rejections feed theo_workspace_webhook_ssrf_rejected_total
+		// The SSRF guard's rejections feed loopscale_workspace_webhook_ssrf_rejected_total
 		// (wiring-triad security metric, MEET-2026-07-03-005) — any non-zero value
 		// in prod is a probe/misconfig signal worth a log correlation.
 		httpc: safehttp.NewClient(defaultHTTPClientTimeout,
@@ -137,7 +137,7 @@ func (w *Worker) reapStaleLeases(ctx context.Context) (int64, error) {
 	// at the cap — the same accounting as recordResult (DRY via mww.*). The
 	// pre-#155 behavior (reset next_attempt_at=NOW() without counting) tight-
 	// looped poison rows and bypassed the dead-letter budget forever
-	// (theo-cloud#155 B3). Each UPDATE re-guards on status='delivering' so it
+	// (loop-console#155 B3). Each UPDATE re-guards on status='delivering' so it
 	// races cleanly with a concurrent recordResult (whichever wins, the row is
 	// transitioned exactly once).
 	rows, err := w.db.QueryContext(ctx, `
@@ -259,7 +259,7 @@ func (w *Worker) recordResult(d *mww.Delivery, r mww.DispatchResult) {
 	// Every write is guarded on (claimed_by=this replica, status='delivering'):
 	// if the lease was reaped + reclaimed by another replica while this dispatch
 	// was in flight, the UPDATE affects 0 rows and is DROPPED — the new owner is
-	// authoritative and will record its own outcome (theo-cloud#155 B2). We NEVER
+	// authoritative and will record its own outcome (loop-console#155 B2). We NEVER
 	// blind-update by id (that lost updates + resurrected delivered rows). The
 	// outcome metric is incremented only when the write actually applied.
 	apply := func(query string, args ...any) bool {

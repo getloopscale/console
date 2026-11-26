@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package storageproxy
 
@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/storage"
-	"github.com/usetheoai/theo-cloud/internal/storage/share"
+	"github.com/getloopscale/loop-console/internal/storage"
+	"github.com/getloopscale/loop-console/internal/storage/share"
 )
 
-// upstream is a minimal stand-in for the theo-storage service. It records the
+// upstream is a minimal stand-in for the loopstore service. It records the
 // last request (to assert header injection) and replays a scripted response.
 type upstream struct {
 	lastTenant string

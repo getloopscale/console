@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // T6.0 of plan 2026-05-27-backend-frontend-integration v1.1.
 //
 // Originally asserted that RequireJWT accepted a JWT in `?token=<jwt>` for the
-// browser EventSource. usetheoai/theo#477 step 3 removed that fallback: the
+// browser EventSource. getloopscale/loopscale#477 step 3 removed that fallback: the
 // dashboard stream is cookie-authenticated, and a query-string token is now
 // ignored. The Bearer-header cases below still hold.
 
@@ -16,25 +16,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 const (
 	sseTestSecret   = "test-secret-at-least-32-bytes-long-ok!"
-	sseTestIssuer   = "theo-cloud-test"
-	sseTestAudience = "theo-engine"
+	sseTestIssuer   = "loop-console-test"
+	sseTestAudience = "loop-runtime-engine"
 )
 
 // buildSSEChain wires RequireJWT (HMAC validator only — no Hydra RSA) around
 // a sentinel handler that records whether it was reached and the resolved
 // user context.
-func buildSSEChain(t *testing.T) (http.Handler, *theojwt.SessionTokenIssuer, *struct {
+func buildSSEChain(t *testing.T) (http.Handler, *loopscalejwt.SessionTokenIssuer, *struct {
 	called bool
 	user   *auth.UserContext
 }) {
 	t.Helper()
-	issuer := theojwt.NewSessionTokenIssuer(sseTestSecret, sseTestIssuer, sseTestAudience, 3600*time.Second)
+	issuer := loopscalejwt.NewSessionTokenIssuer(sseTestSecret, sseTestIssuer, sseTestAudience, 3600*time.Second)
 	state := &struct {
 		called bool
 		user   *auth.UserContext
@@ -48,9 +48,9 @@ func buildSSEChain(t *testing.T) (http.Handler, *theojwt.SessionTokenIssuer, *st
 	return mw(sentinel), issuer, state
 }
 
-func mintSSEToken(t *testing.T, issuer *theojwt.SessionTokenIssuer) string {
+func mintSSEToken(t *testing.T, issuer *loopscalejwt.SessionTokenIssuer) string {
 	t.Helper()
-	token, _, err := issuer.Issue("kratos-user-id-sse-1", "sse@theo.dev", "Sse User", "tn-sse-1", "")
+	token, _, err := issuer.Issue("kratos-user-id-sse-1", "sse@loopscale.dev", "Sse User", "tn-sse-1", "")
 	if err != nil {
 		t.Fatalf("mint token: %v", err)
 	}
@@ -58,7 +58,7 @@ func mintSSEToken(t *testing.T, issuer *theojwt.SessionTokenIssuer) string {
 }
 
 func TestSSEAuth_IgnoresValidQueryParamToken(t *testing.T) {
-	// usetheoai/theo#477 step 3: the dashboard stream authenticates with the
+	// getloopscale/loopscale#477 step 3: the dashboard stream authenticates with the
 	// session cookie, so no caller needs a credential in the URL — where it would
 	// reach access logs, proxy logs, browser history and the Referer header.
 	handler, issuer, state := buildSSEChain(t)
@@ -149,7 +149,7 @@ func TestSSEAuth_RejectsInvalidQueryToken(t *testing.T) {
 
 func TestSSEAuth_RejectsExpiredQueryToken(t *testing.T) {
 	// Mint a token with TTL 1ns then wait — validator must reject.
-	expIssuer := theojwt.NewSessionTokenIssuer(sseTestSecret, sseTestIssuer, sseTestAudience, time.Nanosecond)
+	expIssuer := loopscalejwt.NewSessionTokenIssuer(sseTestSecret, sseTestIssuer, sseTestAudience, time.Nanosecond)
 	expired, _, _ := expIssuer.Issue("u", "e@e.e", "E", "tn-e", "")
 	time.Sleep(2 * time.Millisecond)
 
@@ -168,7 +168,7 @@ func TestSSEAuth_RejectsExpiredQueryToken(t *testing.T) {
 
 func TestSSEAuth_RejectsWrongSecretQueryToken(t *testing.T) {
 	// Mint a JWT with a DIFFERENT secret — signature must fail.
-	bogusIssuer := theojwt.NewSessionTokenIssuer(
+	bogusIssuer := loopscalejwt.NewSessionTokenIssuer(
 		"different-secret-also-at-least-32-bytes!",
 		sseTestIssuer, sseTestAudience, 3600*time.Second,
 	)

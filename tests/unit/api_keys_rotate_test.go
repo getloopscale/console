@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // API Key Rotation plan, T6.3.
 // Tests for POST /v1/api-keys/{id}/rotate.
@@ -18,7 +18,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
 func rotateRequest(t *testing.T, keyID string, body string, u *auth.UserContext) *http.Request {
@@ -60,12 +60,12 @@ func TestRotateKey_HappyPathDefaultGrace(t *testing.T) {
 
 	mock.ExpectBegin()
 	// SELECT FOR UPDATE returns the old key's name + scopes + expires_at.
-	mock.ExpectQuery("SELECT key_name, scopes, revoked_at, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT key_name, scopes, revoked_at, expires_at FROM loop_runtime_api_keys").
 		WithArgs("apk-0d11111111aaaaaa", "user-A", "tenant-A").
 		WillReturnRows(sqlmock.NewRows([]string{"key_name", "scopes", "revoked_at", "expires_at"}).
 			AddRow("prod-agent", []byte(`["memory:read","memory:write"]`), nil, nil))
 	// INSERT new row.
-	mock.ExpectExec("INSERT INTO loopruntime_api_keys").
+	mock.ExpectExec("INSERT INTO loop_runtime_api_keys").
 		WithArgs(
 			sqlmock.AnyArg(), // new id apk-{16hex}
 			"user-A", "tenant-A",
@@ -78,7 +78,7 @@ func TestRotateKey_HappyPathDefaultGrace(t *testing.T) {
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	// UPDATE old row's expires_at.
-	mock.ExpectExec("UPDATE loopruntime_api_keys SET expires_at").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys SET expires_at").
 		WithArgs(sqlmock.AnyArg(), "apk-0d11111111aaaaaa").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -115,11 +115,11 @@ func TestRotateKey_AcceptsValidGraceWindowHours(t *testing.T) {
 				WithArgs("apk-0d11111111aaaaaa", "u", "t").
 				WillReturnRows(sqlmock.NewRows([]string{"key_name", "scopes", "revoked_at", "expires_at"}).
 					AddRow("k", []byte(`["memory:read"]`), nil, nil))
-			mock.ExpectExec("INSERT INTO loopruntime_api_keys").WithArgs(
+			mock.ExpectExec("INSERT INTO loop_runtime_api_keys").WithArgs(
 				sqlmock.AnyArg(), "u", "t", sqlmock.AnyArg(), sqlmock.AnyArg(),
 				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "apk-0d11111111aaaaaa",
 			).WillReturnResult(sqlmock.NewResult(1, 1))
-			mock.ExpectExec("UPDATE loopruntime_api_keys SET expires_at").
+			mock.ExpectExec("UPDATE loop_runtime_api_keys SET expires_at").
 				WithArgs(sqlmock.AnyArg(), "apk-0d11111111aaaaaa").
 				WillReturnResult(sqlmock.NewResult(0, 1))
 			mock.ExpectCommit()

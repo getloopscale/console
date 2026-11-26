@@ -150,7 +150,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByRole('link', { name: /view all/i })).not.toBeInTheDocument();
   });
 
-  // Red Team theo-cloud#53/#76 closure: the Overview project card used to
+  // Red Team loop-console#53/#76 closure: the Overview project card used to
   // pass the raw RFC3339Nano ISO string (e.g. "2026-06-26T14:16:43.712767Z")
   // to ProjectCard.lastDeployedAt, which rendered it verbatim. The
   // /projects list humanizes the same field via formatDate(..., 'relative').
@@ -160,7 +160,7 @@ describe('OverviewPage', () => {
     mockUseProjects.mockReturnValue({
       projects: [
         {
-          name: 'theokit-example',
+          name: 'loopzero-example',
           last_deploy: recent,
           last_deploy_status: 'live',
           apps: [],
@@ -175,7 +175,7 @@ describe('OverviewPage', () => {
     // render somewhere within the card. The Intl.RelativeTimeFormat
     // English locale always emits these tokens for past times.
     const card = screen
-      .getByRole('link', { name: /theokit-example/i })
+      .getByRole('link', { name: /loopzero-example/i })
       .closest('article, div, section');
     expect(card?.textContent ?? '').toMatch(/ago|yesterday|just now/i);
   });

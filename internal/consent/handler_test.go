@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package consent
 
@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// Red Team theo-cloud#117 closure — friendly "login link expired" page
+// Red Team loop-console#117 closure — friendly "login link expired" page
 // rendered on Hydra 404 instead of the previous silent empty-redirect →
 // browser → /auth/login/ → 404 "Page not found".
 //
@@ -27,7 +27,7 @@ import (
 func newHandlerWithMockHydra(t *testing.T, hydraServerURL string) *Handler {
 	t.Helper()
 	h := NewHandler(
-		auth.NewHydraClient(hydraServerURL, hydraServerURL, "theo-cli"),
+		auth.NewHydraClient(hydraServerURL, hydraServerURL, "loopscale-cli"),
 		nil, // tenantProvisioner — unused on the expired-link path
 		"http://kratos.example",
 		"http://kratos.example",
@@ -86,10 +86,10 @@ func TestLogin_ExpiredChallenge_RendersFriendlyPage_RedTeam117(t *testing.T) {
 	assertExpiredLinkResponse(t, rec, "Login")
 }
 
-// 2) LoginComplete (GET /auth/login/complete?login_challenge=...) — this is
-//    THE canonical hit-path that surfaced the original CTO bug. Kratos
-//    session present, but AcceptLogin returns 404 because the Hydra
-//    challenge has already been consumed/expired.
+//  2. LoginComplete (GET /auth/login/complete?login_challenge=...) — this is
+//     THE canonical hit-path that surfaced the original CTO bug. Kratos
+//     session present, but AcceptLogin returns 404 because the Hydra
+//     challenge has already been consumed/expired.
 func TestLoginComplete_ExpiredChallenge_RendersFriendlyPage_RedTeam117(t *testing.T) {
 	// Two mock servers — one for Hydra (returns 404), one for Kratos
 	// /sessions/whoami (returns an active session so we reach AcceptLogin).
@@ -110,7 +110,7 @@ func TestLoginComplete_ExpiredChallenge_RendersFriendlyPage_RedTeam117(t *testin
 	defer kratos.Close()
 
 	h := NewHandler(
-		auth.NewHydraClient(hydra.URL, hydra.URL, "theo-cli"),
+		auth.NewHydraClient(hydra.URL, hydra.URL, "loopscale-cli"),
 		nil,
 		kratos.URL,
 		kratos.URL,

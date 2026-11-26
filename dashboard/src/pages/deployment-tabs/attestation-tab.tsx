@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
-import { Badge, Card, EmptyState } from '@usetheo/ui';
+import { Badge, Card, EmptyState } from '@getloopscale/ui';
 import { useBuildAttestation } from '@/hooks/deploy/use-build-artifacts';
 import { formatDate } from '@/lib/formatting/format';
 

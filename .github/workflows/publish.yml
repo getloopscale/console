@@ -1,11 +1,11 @@
-# AM6 — theo-cloud artifact pipeline, dual-channel + low-cost.
+# AM6 — loop-console artifact pipeline, dual-channel + low-cost.
 #   develop push  → DEV channel: build only CHANGED images, :develop/:develop-<sha>, NO sign
 #   tag v*        → RELEASE channel: build BOTH images, SBOM + provenance + keyless cosign
 #   workflow_dispatch → build BOTH (unsigned), manual
-# Calls the reusable build-publish workflow hosted in the theo repo (cross-repo).
+# Calls the reusable build-publish workflow hosted in the loopscale repo (cross-repo).
 # Ref = @develop today (resolves to the branch carrying build-publish.yml); cuts over to a pinned
-# theo release tag at release time (owner-gated) — same convention as theo-contracts replace→pin
-# (see theo-cloud/CLAUDE.md § Invariants). EC-3 tag-first: the pinned tag must carry build-publish.yml.
+# loopscale release tag at release time (owner-gated) — same convention as contracts replace→pin
+# (see loop-console/CLAUDE.md § Invariants). EC-3 tag-first: the pinned tag must carry build-publish.yml.
 name: publish
 on:
   push:
@@ -43,8 +43,8 @@ jobs:
         uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         with:
           filters: |
-            loopruntime-cloud: ['cmd/**', 'internal/**', 'go.mod', 'go.sum', 'Dockerfile']
-            loopruntime-dashboard: ['dashboard/**']
+            loop-console: ['cmd/**', 'internal/**', 'go.mod', 'go.sum', 'Dockerfile']
+            loop-console-dashboard: ['dashboard/**']
       - id: set
         env:
           IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -52,11 +52,11 @@ jobs:
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
           set -euo pipefail
-          # Published as ghcr.io/<owner>/loopruntime-cloud and loopruntime-dashboard, the names the engine
+          # Published as ghcr.io/<owner>/loop-console and loop-console-dashboard, the names the engine
           # pulls. The filter keys above must match these image names: the selection below joins them.
-          ALL='[{"image":"loopruntime-cloud","dockerfile":"Dockerfile","context":"."},{"image":"loopruntime-dashboard","dockerfile":"dashboard/Dockerfile","context":"dashboard"}]'
+          ALL='[{"image":"loop-console","dockerfile":"Dockerfile","context":"."},{"image":"loop-console-dashboard","dockerfile":"dashboard/Dockerfile","context":"dashboard"}]'
           # MEDIDO em 2026-07-31 na /status implantada: nove servicos mostravam `develop-<sha>` e o
-          # theo-cloud mostrava `develop` — a unica linha do painel que nao dizia QUAL build estava
+          # loop-console mostrava `develop` — a unica linha do painel que nao dizia QUAL build estava
           # rodando. Em tag, `ref_name` ja E a versao e nao leva sufixo; fora dela, o nome do canal
           # sozinho nao identifica nada, entao carrega o commit curto.
           if [ "$IS_TAG" = "true" ]; then

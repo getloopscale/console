@@ -1,4 +1,4 @@
-import { Skeleton } from '@usetheo/ui';
+import { Skeleton } from '@getloopscale/ui';
 
 /**
  * A table-shaped, screen-reader-labelled loading placeholder for the lens list screens — the loading

@@ -7,7 +7,7 @@ import { BFF_NAVIGATION_REGEXP } from './sw-bff-paths';
  *
  * Pelo mesmo motivo que `sw-bff-paths.ts` saiu: uma lista dentro do config de
  * build não tem como ser testada, e esta é uma superfície onde o projeto já
- * teve três incidentes — `theo-cloud#112`, `#203` e a armadilha do `urlPattern`
+ * teve três incidentes — `loop-console#112`, `#203` e a armadilha do `urlPattern`
  * como função, que derrubou TODO o roteamento do SW de uma vez.
  *
  * O config importa e passa adiante. O teste ao lado verifica o significado das
@@ -73,7 +73,7 @@ export const SW_RUNTIME_CACHING: readonly RegraDeCache[] = [
   {
     urlPattern: /\/__config\.js$/,
     handler: 'NetworkFirst',
-    options: { cacheName: 'theo-config', networkTimeoutSeconds: 3 },
+    options: { cacheName: 'loopscale-config', networkTimeoutSeconds: 3 },
   },
   // Assets estáticos — CacheFirst, 30 dias. Cada build emite nomes com hash,
   // então uma entrada velha nunca é servida no lugar de uma nova.
@@ -81,7 +81,7 @@ export const SW_RUNTIME_CACHING: readonly RegraDeCache[] = [
     urlPattern: /\.(js|css|woff2?|svg|png|webp)$/,
     handler: 'CacheFirst',
     options: {
-      cacheName: 'theo-assets',
+      cacheName: 'loopscale-assets',
       expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
     },
   },

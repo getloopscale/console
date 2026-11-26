@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package storage
 
@@ -26,7 +26,7 @@ const maxUnescapePasses = 3
 // length budget. A valid path is a '/'-joined set of non-empty segments none of
 // which is "." or "..".
 //
-// It validates the path BOTH as written and as it would DECODE (theo-cloud#195). The router hands over
+// It validates the path BOTH as written and as it would DECODE (loop-console#195). The router hands over
 // the wildcard still percent-encoded, so `..%2f..%2fetc%2fpasswd` arrives as a SINGLE segment: it is not
 // "..", it passed, reached the backend, and the failure surfaced as 503 `storage_unavailable` — an
 // input-validation reject wearing the mask of backend health, which sends the operator to inspect S3

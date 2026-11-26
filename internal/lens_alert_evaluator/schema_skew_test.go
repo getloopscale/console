@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
@@ -16,8 +16,8 @@ import (
 // Defasagem entre schema e código, no único ponto onde ela é fatal.
 //
 // A coluna `prompt_name` nasce na migração 000060 do engine; a consulta que a lê nasce nesta
-// imagem do theo-cloud. **Nada no sistema ordena os dois deploys** — o engine migra por um
-// pipeline, o theo-cloud publica em `develop` por outro. Se a imagem chegar primeiro, o SELECT
+// imagem do loop-console. **Nada no sistema ordena os dois deploys** — o engine migra por um
+// pipeline, o loop-console publica em `develop` por outro. Se a imagem chegar primeiro, o SELECT
 // falha com 42703 e o Tick devolve erro ANTES de avaliar qualquer linha: todas as regras de alerta
 // do parque param, inclusive as que não têm relação alguma com prompt.
 //

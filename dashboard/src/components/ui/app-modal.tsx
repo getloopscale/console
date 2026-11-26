@@ -9,12 +9,12 @@ import { twMerge } from 'tailwind-merge';
  * A traditional CENTERED modal (overlay + centered panel), built directly on
  * `@radix-ui/react-dialog` so it renders correctly regardless of the design system.
  *
- * Why not the `@usetheo/ui` `Dialog`? The original reason was a bug: in
- * `@usetheo/ui@0.28.2` `Dialog` and `Sheet` were the SAME object, and `Sheet.Content =
+ * Why not the `@getloopscale/ui` `Dialog`? The original reason was a bug: in
+ * `@getloopscale/ui@0.28.2` `Dialog` and `Sheet` were the SAME object, and `Sheet.Content =
  * <drawer>` ran after `Dialog.Content = <centered>` and clobbered it, so every "dialog"
  * rendered as a right-anchored drawer.
  *
- * THAT BUG IS FIXED. Measured on the installed `@usetheo/ui@0.35.1`
+ * THAT BUG IS FIXED. Measured on the installed `@getloopscale/ui@0.35.1`
  * (2026-08-10): `dist/` ships a separate `primitives/dialog/`, and the bundle carries a
  * centered panel (`left-1/2 top-1/2 -translate-x-1/2`) alongside the lateral sheet
  * (`inset-y-0 right-0`). Leaving the old rationale in place would have been a Rule-9

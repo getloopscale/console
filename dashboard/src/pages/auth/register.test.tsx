@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'https://auth-dev.usetheo.dev',
+  API_URL: 'https://auth-dev.getloopscale.com',
   AUTH_URL: '',
   ACCOUNTS_URL: '',
   OAUTH_URL: '',
@@ -50,7 +50,7 @@ function flowFixture(): FlowFixture {
   return {
     id: 'reg-flow-1',
     ui: {
-      action: 'https://auth-dev.usetheo.dev/self-service/registration?flow=reg-flow-1',
+      action: 'https://auth-dev.getloopscale.com/self-service/registration?flow=reg-flow-1',
       method: 'POST',
       nodes: [
         { group: 'default', attributes: { name: 'csrf_token', type: 'hidden', value: 'csrf-reg' } },
@@ -157,11 +157,11 @@ describe('RegisterPage', () => {
 
     const forms = Array.from(document.querySelectorAll('form'));
     // T3.4 of plan kratos-self-service-rate-limit-systemic v1.1 — form
-    // action now points at the theo-cloud BFF response-shape unifier
+    // action now points at the loop-console BFF response-shape unifier
     // (/v1/auth/register) instead of the upstream identity-store directly.
     // BFF returns 303 redirect to /auth/check-email so dashboard navigates
     // uniformly regardless of new-vs-existing email branch (closes Red
-    // Team theo-cloud#43 enumeration).
+    // Team loop-console#43 enumeration).
     const regForm = forms
       .filter((f) => f.action.includes('/v1/auth/register'))
       .find((f) => {
@@ -202,7 +202,7 @@ describe('RegisterPage', () => {
   it('test_register_inputs_have_visible_labels_closes_26', async () => {
     // Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2 Labels or Instructions.
     // Replace `placeholder + aria-label` anti-pattern with explicit
-    // <label htmlFor> + <Input id> (id forwards through @usetheo/ui Input
+    // <label htmlFor> + <Input id> (id forwards through @getloopscale/ui Input
     // because InputProps extends InputHTMLAttributes per v1.1 EC-5 probe).
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
     render(<RegisterPage />);
@@ -221,20 +221,20 @@ describe('RegisterPage', () => {
     }
   });
 
-  // theo-cloud#65 closure (Red Team 2026-06-26): the /register Name field had
+  // loop-console#65 closure (Red Team 2026-06-26): the /register Name field had
   // no length cap (Kratos schema maxLength: -1 + no HTML maxLength), so a
   // 20 000-char Name was accepted, persisted, embedded in the session JWT
   // (root cause of #64 ~27 KB Authorization header → 431). Fix: HTML
   // maxLength=256 on the <Input> + JS validateMaxLength gate + Kratos schema
   // maxLength: 256. This test locks the HTML attribute structurally.
-  // Red Team theo-cloud#74 closure: a benign "account exists" error
+  // Red Team loop-console#74 closure: a benign "account exists" error
   // round-trips through the BFF as a full-page navigation, which wipes
   // React state on re-mount. The fix persists name + email (NOT
   // password) to sessionStorage on submit and re-hydrates them on
   // mount, so the user only has to retype the password.
   it('rehydrates name + email from sessionStorage on mount (#74)', async () => {
     sessionStorage.setItem(
-      'theo-register-form-restore',
+      'loopscale-register-form-restore',
       JSON.stringify({ name: 'Paulo Henrique', email: 'paulo@example.com' }),
     );
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
@@ -249,7 +249,7 @@ describe('RegisterPage', () => {
     expect(emailInput.value).toBe('paulo@example.com');
     // Password MUST stay empty — never persisted.
     expect(passwordInput.value).toBe('');
-    sessionStorage.removeItem('theo-register-form-restore');
+    sessionStorage.removeItem('loopscale-register-form-restore');
   });
 
   it('test_register_name_input_has_maxLength_256_closes_65', async () => {

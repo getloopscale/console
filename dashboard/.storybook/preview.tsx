@@ -4,7 +4,7 @@
 import type { Preview } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { TheoUIProvider, violetForge } from '@theokit/ui';
+import { LoopZeroUIProvider, violetForge } from '@getloopscale/loopzero-ui';
 import '../src/index.css';
 
 const queryClient = new QueryClient({
@@ -17,8 +17,8 @@ const queryClient = new QueryClient({
 const preview: Preview = {
   parameters: {
     backgrounds: {
-      default: 'theo-dark',
-      values: [{ name: 'theo-dark', value: '#09090b' }],
+      default: 'loopscale-dark',
+      values: [{ name: 'loopscale-dark', value: '#09090b' }],
     },
     controls: {
       matchers: { color: /(background|color)$/i, date: /Date$/ },
@@ -27,7 +27,7 @@ const preview: Preview = {
   decorators: [
     (Story) => (
       <QueryClientProvider client={queryClient}>
-        <TheoUIProvider
+        <LoopZeroUIProvider
           theme={{
             themes: [violetForge],
             defaultTheme: 'violet-forge',
@@ -39,7 +39,7 @@ const preview: Preview = {
               <Story />
             </div>
           </MemoryRouter>
-        </TheoUIProvider>
+        </LoopZeroUIProvider>
       </QueryClientProvider>
     ),
   ],

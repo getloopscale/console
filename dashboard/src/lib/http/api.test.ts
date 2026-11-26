@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
@@ -44,11 +44,11 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// usetheoai/theo#477 step 3 — the dashboard holds NO token. theo-cloud is its Backend for
+// getloopscale/loopscale#477 step 3 — the dashboard holds NO token. loop-console is its Backend for
 // Frontend and authenticates every call from the Kratos session cookie.
 // ---------------------------------------------------------------------------
 
-describe('the dashboard holds no token (usetheoai/theo#477)', () => {
+describe('the dashboard holds no token (getloopscale/loopscale#477)', () => {
   it('a data call carries no Authorization header and sends the session cookie to its own origin', async () => {
     const spy = stubNetwork({ data: () => new Response(JSON.stringify({ ok: true }), { status: 200 }) });
 

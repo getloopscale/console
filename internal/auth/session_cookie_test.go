@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth_test
 
@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	theojwt "github.com/usetheoai/theo-contracts/jwt"
+	loopscalejwt "github.com/getloopscale/contracts/jwt"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/getloopscale/loop-console/internal/auth"
 )
 
-// usetheoai/theo#477 step 3: the dashboard holds no token. theo-cloud is its
+// getloopscale/loopscale#477 step 3: the dashboard holds no token. loop-console is its
 // Backend for Frontend and authenticates each browser request from the Kratos
 // session cookie, server-side. These cases pin the negative half of that
 // contract, one behaviour each.
@@ -66,7 +66,7 @@ type reached struct {
 	user   *auth.UserContext
 }
 
-func chain(t *testing.T, kratosURL string, sess *theojwt.SessionTokenIssuer) (http.Handler, *reached) {
+func chain(t *testing.T, kratosURL string, sess *loopscalejwt.SessionTokenIssuer) (http.Handler, *reached) {
 	t.Helper()
 	state := &reached{}
 	sentinel := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +148,7 @@ func TestRequireCaller_ReportsAnUnreachableIdentityProviderAsBadGatewayNotAsLogo
 }
 
 func TestRequireCaller_IgnoresATokenInTheQueryString(t *testing.T) {
-	issuer := theojwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "theo-cloud", "theo-cloud", time.Hour)
+	issuer := loopscalejwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "loop-console", "loop-console", time.Hour)
 	token, _, err := issuer.Issue("id-a", "a@example.com", "A", "tenant-a", "")
 	if err != nil {
 		t.Fatalf("mint: %v", err)
@@ -261,7 +261,7 @@ func TestRequireCaller_IgnoresTenantHintsSuppliedByTheClient(t *testing.T) {
 
 func TestRequireCaller_KeepsAcceptingABearerToken(t *testing.T) {
 	// The CLI and the remaining scripts send a Bearer; step 4 removes the HS256 half.
-	issuer := theojwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "theo-cloud", "theo-cloud", time.Hour)
+	issuer := loopscalejwt.NewSessionTokenIssuer("test-secret-at-least-32-bytes-long-ok!", "loop-console", "loop-console", time.Hour)
 	token, _, err := issuer.Issue("id-cli", "cli@example.com", "CLI", "tenant-cli", "")
 	if err != nil {
 		t.Fatalf("mint: %v", err)

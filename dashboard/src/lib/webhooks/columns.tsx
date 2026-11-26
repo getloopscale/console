@@ -1,4 +1,4 @@
-import { Badge, Timestamp, type DataTableColumn } from '@usetheo/ui';
+import { Badge, Timestamp, type DataTableColumn } from '@getloopscale/ui';
 
 /**
  * As colunas que descrevem um webhook, iguais onde quer que ele seja listado (B-183).

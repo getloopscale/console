@@ -35,7 +35,7 @@ interface RecallInput {
   topK: number;
   /** RFC3339 UTC instant; the provider's `asOf` is `z.string().datetime()`. */
   asOf?: string;
-  /** EG-1 (theo-memory v0.20.0) — opt-in entity-graph expansion. */
+  /** EG-1 (loopmem v0.20.0) — opt-in entity-graph expansion. */
   graphExpand?: { hops: number };
 }
 

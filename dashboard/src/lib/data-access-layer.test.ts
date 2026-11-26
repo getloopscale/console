@@ -286,7 +286,7 @@ exatamente a classe "grep casa prosa".
 // Antes disso: `memory/{overview,entities}.tsx` e todo o cluster de RAG
 // (`overview,analytics,wiki,collections,documents,connectors`).
 //
-// Em `documents`, o que nao podia se perder na mudanca era o predicado do polling: theo-rag
+// Em `documents`, o que nao podia se perder na mudanca era o predicado do polling: looprag
 // ingere assincrono e responde 202, entao sem o refetch a lista congela em `processing` e um
 // documento que terminou — ou falhou — parece travado ate alguem recarregar a pagina.
 //

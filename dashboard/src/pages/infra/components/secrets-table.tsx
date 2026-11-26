@@ -1,4 +1,4 @@
-import { Badge, Button, Table } from '@usetheo/ui';
+import { Badge, Button, Table } from '@getloopscale/ui';
 import { RotateCw, Trash2 } from 'lucide-react';
 import type { ProjectSecret } from '@/hooks/infra/use-secrets';
 

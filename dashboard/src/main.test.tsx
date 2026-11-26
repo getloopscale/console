@@ -7,7 +7,7 @@
 /**
  * Phase 1 (#23) — production bundle hygiene tests.
  *
- * Closes theo-cloud#23 (defense in depth): even if the runtime gate
+ * Closes loop-console#23 (defense in depth): even if the runtime gate
  * `import.meta.env.DEV ? lazy(…) : null` at `src/main.tsx:12-19` regresses or
  * the Vite build mode is misconfigured, this test catches the leak BEFORE merge.
  *

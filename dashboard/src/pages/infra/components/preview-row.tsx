@@ -12,7 +12,7 @@
  *     they all closed).
  */
 import { ExternalLink, GitBranch } from 'lucide-react';
-import { Table } from '@usetheo/ui';
+import { Table } from '@getloopscale/ui';
 import { EnvKindBadge } from './env-kind-badge';
 
 export interface PreviewSlot {

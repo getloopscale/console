@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { flowUrl } from '@/pages/auth/kratos';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2 } from 'lucide-react';
-import { Button, Card, CodeBlock, FormField, Input } from '@usetheo/ui';
+import { Button, Card, CodeBlock, FormField, Input } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { LoginErrorBanner } from '@/pages/auth/components/login-error-banner';
@@ -178,7 +178,7 @@ export function LoginPage() {
   // por isso o hook de retomada recebe esta funcao, e nao `submitOIDC`. Reexecutar o comando
   // inteiro emitia um segundo `auth.method.attempt` com correlation_id novo, orfanando o
   // primeiro contexto e inflando a contagem de tentativas exatamente na coorte de rede lenta
-  // que o theo#140 existe para atender.
+  // que o loopscale#140 existe para atender.
   const postOIDC = (provider: 'github' | 'google') => {
     if (!flow) return;
     const posted = postOIDCForm(
@@ -195,7 +195,7 @@ export function LoginPage() {
   const submitOIDC = (provider: 'github' | 'google') => {
     startAuthAttempt(provider);
     if (!flow) {
-      // theo#140: dropping the provider here is what made the click vanish.
+      // loopscale#140: dropping the provider here is what made the click vanish.
       rememberPendingOIDC(provider);
       startLogin();
       return;
@@ -203,14 +203,14 @@ export function LoginPage() {
     postOIDC(provider);
   };
 
-  // theo#140 — completes a click that landed before the flow was ready (logic in the hook).
+  // loopscale#140 — completes a click that landed before the flow was ready (logic in the hook).
   const { remember: rememberPendingOIDC } = usePendingOIDC(flow, postOIDC);
 
   // SECURITY: submit password login via top-level HTML form POST instead of
   // XHR fetch — same pattern as submitOIDC above. Top-level navigation sends
   // SameSite=Lax cookies (including the anti-CSRF cookie Kratos requires).
   // Cross-origin XHR drops Lax cookies even between same-site subdomains
-  // (app.usetheo.dev → auth.usetheo.dev), causing 403 CSRF rejection.
+  // (app.getloopscale.com → auth.getloopscale.com), causing 403 CSRF rejection.
   // Fix 2026-06-01 — "configuração mais segura possível" mandate; preferred
   // over weakening SameSite to None (which would expose the flow to CSRF from
   // third-party sites).
@@ -394,7 +394,7 @@ export function LoginPage() {
           </div>
 
           {/* Email/password form — T2.1 FormField + visible Label (D4).
-              Red Team theo-cloud#51 closure: pass `id` through FormField
+              Red Team loop-console#51 closure: pass `id` through FormField
               (the wrapper threads htmlFor + id automatically) so password
               managers + screen readers + autofill attach cleanly. The
               Input also carries `name` directly so the browser-issued

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { diagnosticBody } from './discoverability-request';
 
 /**
- * M34 / theo-skills#144 — o corpo enviado ao diagnóstico de descobribilidade.
+ * M34 / loopskills#144 — o corpo enviado ao diagnóstico de descobribilidade.
  *
  * O defeito, medido no `app-dev` em 2026-08-04: a tela de autoria enviava `has_embedding: false`
  * **fixo** para uma skill que ainda não existe. O serviço então respondia

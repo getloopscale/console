@@ -3,33 +3,33 @@
 # M8 slice-3a: Traefik is the SINGLE dev edge (retires dev/caddy). Routers, by
 # explicit priority (ADR D3 — rule-length already makes the longer rule win, the
 # explicit `priority` is defense-in-depth so a future rule edit can't reorder):
-#   memory-edge   (100)  /v1/memory/*                         → forward-auth → memory-rewrite → themory:8080  (M6, ADR D7)
-#   bff           (10)   /v1, /engine, /health                → theo-cloud:13002 (cloud-API / engine proxy)
+#   memory-edge   (100)  /v1/memory/*                         → forward-auth → memory-rewrite → loopmem:8080  (M6, ADR D7)
+#   bff           (10)   /v1, /engine, /health                → loop-console:13002 (cloud-API / engine proxy)
 #   kratos        (rule-length)  /self-service,/sessions,/.well-known/ory → kratos:4433
 #   dashboard-spa (1)    /  (catch-all)                       → nginx dashboard static (SPA history-fallback lives in nginx.conf)
 #
-# Capability flow (unchanged from M6): forward-auth delegates authZ to theo-cloud
+# Capability flow (unchanged from M6): forward-auth delegates authZ to loop-console
 # /internal/authz/forward; authResponseHeaders=[Authorization] does Del-then-set,
 # stripping the client key (D3); memory-rewrite maps /v1/memory/recall → /v1/recall.
-# The /v1/memory data upstream is theo-memory DIRECTLY (ADR D7), never the BFF.
+# The /v1/memory data upstream is loopmem DIRECTLY (ADR D7), never the BFF.
 
 http:
   routers:
-    # theo-workspace#7: gateway-OWNED customer paths under /v1/memory. These are
-    # theo-cloud's own scope-guarded (theo_live_*) mounts (skills authoring/list,
-    # exports, webhooks) — NOT themory data verbs. They MUST reach the BFF, not be
-    # rewritten to themory (→ 404). Priority 110 beats memory-edge(100). NO
-    # middlewares: (a) no memory-rewrite — theo-cloud owns the /v1/memory/* path
+    # loopscale-workspace#7: gateway-OWNED customer paths under /v1/memory. These are
+    # loop-console's own scope-guarded (theo_live_*) mounts (skills authoring/list,
+    # exports, webhooks) — NOT loopmem data verbs. They MUST reach the BFF, not be
+    # rewritten to loopmem (→ 404). Priority 110 beats memory-edge(100). NO
+    # middlewares: (a) no memory-rewrite — loop-console owns the /v1/memory/* path
     # verbatim; (b) no forward-auth — the customer's theo_live_* key must reach
-    # theo-cloud's RequireScope intact (forward-auth would Del-then-set it to a
-    # themory-minted key that pg-cloud cannot resolve → 401). theo-cloud does its
-    # OWN Model B broker exchange downstream to themory.
+    # loop-console's RequireScope intact (forward-auth would Del-then-set it to a
+    # loopmem-minted key that pg-cloud cannot resolve → 401). loop-console does its
+    # OWN Model B broker exchange downstream to loopmem.
     memory-gateway-edge:
       priority: 110
       rule: "PathPrefix(`/v1/memory/skills`) || PathPrefix(`/v1/memory/exports`) || PathPrefix(`/v1/memory/webhooks`)"
       entryPoints:
         - web
-      service: theo-cloud-bff
+      service: loop-console-bff
 
     # Capability namespace — highest priority so it always beats the /v1 BFF route.
     memory-edge:
@@ -37,7 +37,7 @@ http:
       rule: "PathPrefix(`/v1/memory`)"
       entryPoints:
         - web
-      service: themory
+      service: loopmem
       middlewares:
         - forward-auth
         - memory-rewrite
@@ -48,7 +48,7 @@ http:
       rule: "PathPrefix(`/v1`) || PathPrefix(`/engine`) || Path(`/health`)"
       entryPoints:
         - web
-      service: theo-cloud-bff
+      service: loop-console-bff
 
     # Ory Kratos auth flows. Explicit priority (50) — above the SPA catch-all and
     # the BFF, below the memory capability — so ADR D3's defense-in-depth covers ALL
@@ -70,31 +70,31 @@ http:
       service: dashboard
 
   middlewares:
-    # D3 (+ credential exchange): delegate authZ to theo-cloud; copy ONLY the minted
+    # D3 (+ credential exchange): delegate authZ to loop-console; copy ONLY the minted
     # Authorization onto the upstream request (Del-then-set strips the client's). On a
     # non-2xx from the authz endpoint, Traefik denies (no upstream call).
     forward-auth:
       forwardAuth:
-        address: "http://theo-cloud:13002/internal/authz/forward"
+        address: "http://loop-console:13002/internal/authz/forward"
         authResponseHeaders:
           - "Authorization"
         trustForwardHeader: false
 
-    # Capability namespace → themory native path: /v1/memory/recall → /v1/recall.
+    # Capability namespace → loopmem native path: /v1/memory/recall → /v1/recall.
     memory-rewrite:
       replacePathRegex:
         regex: "^/v1/memory/(.*)"
         replacement: "/v1/$1"
 
   services:
-    themory:
+    loopmem:
       loadBalancer:
         servers:
-          - url: "http://themory:8080"
-    theo-cloud-bff:
+          - url: "http://loopmem:8080"
+    loop-console-bff:
       loadBalancer:
         servers:
-          - url: "http://theo-cloud:13002"
+          - url: "http://loop-console:13002"
     kratos:
       loadBalancer:
         servers:
@@ -111,7 +111,7 @@ http:
   # the prod overlay where the cert material exists. See dev/traefik/README.md.
   serversTransports:
     internal-tls:
-      serverName: "theo-cloud.internal"
+      serverName: "loop-console.internal"
       rootCAs:
         - "/etc/traefik/certs/dev-ca.pem"
       insecureSkipVerify: false

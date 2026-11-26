@@ -1,4 +1,4 @@
-// Visual-validation mock layer for the Theo dashboard.
+// Visual-validation mock layer for the LoopScale dashboard.
 //
 // Activated only when `import.meta.env.VITE_USE_MOCKS === 'true'`. Returns
 // seeded fixtures for session + every cloudFetch/engineFetch path so all 13
@@ -154,7 +154,7 @@ const FIXTURES: Record<string, unknown> = {
         app: 'frontend',
         environment: 'production',
         status: 'active',
-        cname_target: 'acme-web.theo.app',
+        cname_target: 'acme-web.loopscale.app',
         created_at: '2026-04-10T12:00:00Z',
         verified_at: '2026-04-10T12:08:00Z',
         tls: { status: 'issued', expires_at: '2026-07-10T12:08:00Z' },
@@ -166,7 +166,7 @@ const FIXTURES: Record<string, unknown> = {
         app: 'stripe-webhook',
         environment: 'production',
         status: 'active',
-        cname_target: 'acme-payments.theo.app',
+        cname_target: 'acme-payments.loopscale.app',
         created_at: '2026-04-15T09:30:00Z',
         verified_at: '2026-04-15T09:42:00Z',
         tls: { status: 'issued', expires_at: '2026-07-15T09:42:00Z' },
@@ -178,10 +178,10 @@ const FIXTURES: Record<string, unknown> = {
         app: 'landing',
         environment: 'staging',
         status: 'pending_verification',
-        cname_target: 'acme-marketing.theo.app',
+        cname_target: 'acme-marketing.loopscale.app',
         created_at: '2026-05-23T14:00:00Z',
         verification: {
-          txt_name: '_theo.staging.acme.com',
+          txt_name: '_loopscale.staging.acme.com',
           txt_value: 'verify=a1b2c3d4e5f6g7h8',
         },
       },
@@ -192,7 +192,7 @@ const FIXTURES: Record<string, unknown> = {
         app: 'a-b-test',
         environment: 'preview',
         status: 'provisioning',
-        cname_target: 'acme-experiments.theo.app',
+        cname_target: 'acme-experiments.loopscale.app',
         created_at: '2026-05-25T07:30:00Z',
       },
     ],

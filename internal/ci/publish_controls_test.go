@@ -32,12 +32,12 @@ func readWF(t *testing.T, name string) string {
 	b, err := os.ReadFile(filepath.Clean(filepath.Join("../../.github/workflows", name)))
 	if err != nil {
 		// `build-publish.yml` era uma COPIA vendorizada deste repo. Ela existia porque
-		// `usetheodev/theo` era privado e de outro dono, e sumiu quando o `theo` migrou
-		// para `usetheoai` e a referencia voltou ao reusable upstream.
+		// `getloopscale/loopscale` era privado e de outro dono, e sumiu quando o `loopscale` migrou
+		// para `getloopscale` e a referencia voltou ao reusable upstream.
 		//
 		// Os controles que dependem do CORPO dela (identidade cosign, provenance,
 		// build-args nos dois builds, trivyignore) passaram a pertencer a
-		// `usetheoai/theo` e sao testados LA. Afirma-los daqui seria testar outro
+		// `getloopscale/loopscale` e sao testados LA. Afirma-los daqui seria testar outro
 		// repositorio — e um Fatal aqui reportaria como defeito deste repo algo que
 		// ele nao controla mais.
 		//
@@ -45,7 +45,7 @@ func readWF(t *testing.T, name string) string {
 		// nunca coexistem nem faltam as duas — segue coberto por
 		// publish_workflow_test.go, que roda independentemente deste helper.
 		if os.IsNotExist(err) && name == "build-publish.yml" {
-			t.Skipf("%s nao existe neste repo: o reusable e upstream (usetheoai/theo) "+
+			t.Skipf("%s nao existe neste repo: o reusable e upstream (getloopscale/loopscale) "+
 				"e seus controles internos sao testados la", name)
 		}
 		t.Fatalf("reading %s: %v", name, err)
@@ -88,7 +88,7 @@ func TestCosignIdentityRegexpIsAnchored(t *testing.T) {
 	if !strings.HasSuffix(got, "$") {
 		t.Errorf("identity regexp %q has no terminal anchor: it matches any SUFFIX, so a signature "+
 			"produced by a DIFFERENT workflow in this repo would be accepted as this one's. "+
-			"theo-memory records the same fix as its item #8.", got)
+			"loopmem records the same fix as its item #8.", got)
 	}
 	if !strings.Contains(got, "refs/") {
 		t.Errorf("identity regexp %q does not constrain the ref; develop and tags must BOTH be "+
@@ -447,8 +447,8 @@ func needsOf(v any) []string {
 func TestPublishConcurrencyStaysKeyedByRefNotCommit(t *testing.T) {
 	var wf struct {
 		Concurrency struct {
-			Group             string `yaml:"group"`
-			CancelInProgress  string `yaml:"cancel-in-progress"`
+			Group            string `yaml:"group"`
+			CancelInProgress string `yaml:"cancel-in-progress"`
 		} `yaml:"concurrency"`
 	}
 	if err := yaml.Unmarshal([]byte(readWF(t, "publish.yml")), &wf); err != nil {
@@ -498,7 +498,7 @@ func TestConcurrencyGuardRejectsCommitKeyedGroups(t *testing.T) {
 // T3.2 — a coluna Version do painel precisa IDENTIFICAR o build, não só nomear o canal.
 //
 // MEDIDO em 2026-07-31 na página /status implantada: nove serviços mostram `develop-<sha>` e o
-// theo-cloud mostra `develop`. Num milestone chamado "diz a verdade sobre si mesmo", a linha dele
+// loop-console mostra `develop`. Num milestone chamado "diz a verdade sobre si mesmo", a linha dele
 // era a única do painel que não respondia "qual build está rodando" — o operador via o canal e
 // tinha de ir ao registry para descobrir o commit.
 //

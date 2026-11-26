@@ -1,7 +1,7 @@
 //go:build e2e
 
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package e2e
 
@@ -11,13 +11,13 @@ package e2e
 // ZERO mocks and ZERO synthetic seeds:
 //
 //   real Kratos login (pre-verified identity, headless API flow)
-//     -> POST /v1/auth/session/token (Kratos cookie -> theo_session_* JWT)
+//     -> POST /v1/auth/session/token (Kratos cookie -> loopscale_session_* JWT)
 //       -> POST /v1/dashboard/memory/{remember,recall} (session-JWT chain)
 //         -> the REAL Model-B broker mints a per-tenant key
-//           -> REAL themory stores/returns the memory
+//           -> REAL loopmem stores/returns the memory
 //
 // This replaces the captureMinter STUB the M1/M3 isolation e2e used: tenancy
-// isolation is proven here on the fully-real broker -> themory path.
+// isolation is proven here on the fully-real broker -> loopmem path.
 //
 //   make e2e   (or, against a KEEP_UP=1 stack:)
 //   E2E_CLOUD_URL=... E2E_KRATOS_PUBLIC_URL=... E2E_KRATOS_ADMIN_URL=... \
@@ -127,7 +127,7 @@ func deleteIdentity(t *testing.T, adminURL, id string) {
 // loginViaKratos drives the REAL headless Kratos browser-API login flow (cookie
 // jar + CSRF), returning the ory_kratos_session cookie value. This is the exact
 // flow the dashboard performs, minus the browser (ported from the canonical bash
-// recipe theo/infra/tests/e2e/dashboard-engine-proxy_test.sh).
+// recipe loopscale/infra/tests/e2e/dashboard-engine-proxy_test.sh).
 func loginViaKratos(t *testing.T, kratosPublic, email string) string {
 	t.Helper()
 	jar, _ := cookiejar.New(nil)
@@ -197,7 +197,7 @@ func loginViaKratos(t *testing.T, kratosPublic, email string) string {
 }
 
 // exchangeForJWT calls POST /v1/auth/session/token with the Kratos session cookie
-// and returns the theo_session_* JWT (the real seam the dashboard uses).
+// and returns the loopscale_session_* JWT (the real seam the dashboard uses).
 func exchangeForJWT(t *testing.T, cloudURL, sessionCookie string) string {
 	t.Helper()
 	req, _ := http.NewRequest(http.MethodPost, cloudURL+"/v1/auth/session/token", nil)
@@ -244,7 +244,7 @@ func dashboardMemory(t *testing.T, cloudURL, jwt, verb string, payload map[strin
 }
 
 // T2.1 — the full chain happy path: real login -> JWT -> BFF memory write+read
-// -> real broker -> real themory -> the written content comes back.
+// -> real broker -> real loopmem -> the written content comes back.
 func TestFullChainE2E_RealLoginToMemory(t *testing.T) {
 	cloudURL, kratosPublic, kratosAdmin := fcSkip(t)
 	email := fcEmail("fullchain-solo")
@@ -259,7 +259,7 @@ func TestFullChainE2E_RealLoginToMemory(t *testing.T) {
 		t.Fatalf("remember via real session JWT: HTTP %d: %s", st, body)
 	}
 
-	// Recall the same text; the real themory (via the broker-minted per-tenant key)
+	// Recall the same text; the real loopmem (via the broker-minted per-tenant key)
 	// returns it. Retry briefly to absorb async indexing.
 	var lastBody string
 	for i := 0; i < 10; i++ {

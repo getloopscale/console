@@ -32,7 +32,7 @@ export const TAG_PALETTE: readonly TagColor[] = [
   { chip: 'bg-pink-500/15 text-pink-300 border-pink-500/30', swatch: 'bg-pink-500', label: 'Pink' },
 ];
 
-const OVERRIDE_KEY = 'theo:wiki:tag-colors';
+const OVERRIDE_KEY = 'loopscale:wiki:tag-colors';
 
 function readOverrides(): Record<string, number> {
   try {

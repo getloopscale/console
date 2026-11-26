@@ -12,7 +12,7 @@ import (
 //
 //   gateway MCP   {"version":"develop-6d0db8d","built_at":"2026-08-02T12:50:35.598Z"}
 //                 tem PROVENIENCIA, nao tem a forma completa (sem name/git_sha/node)
-//   looprag      {"name":"@usetheo/rag-api","version":"dev","git_sha":"unknown",
+//   looprag      {"name":"@getloopscale/rag-api","version":"dev","git_sha":"unknown",
 //                  "built_at":"unknown","node":"v22.12.0"}
 //                 tem a FORMA completa, nao tem proveniencia nenhuma
 //
@@ -22,7 +22,7 @@ import (
 
 // CASO 1 — forma invalida: o payload nao produz versao alguma.
 func TestOK_absent_version_is_malformed_payload(t *testing.T) {
-	got := OK("theo-x", "", "", time.Now())
+	got := OK("loopscale-x", "", "", time.Now())
 
 	if got.State() != StateUnreachable {
 		t.Fatalf("State() = %q, want unreachable", got.State())
@@ -77,7 +77,7 @@ func TestNoState_becomes_ok_from_absent_data(t *testing.T) {
 	}
 	for _, c := range absent {
 		t.Run(c.name, func(t *testing.T) {
-			if got := OK("theo-x", c.version, c.builtAt, time.Now()); got.State() == StateOK {
+			if got := OK("loopscale-x", c.version, c.builtAt, time.Now()); got.State() == StateOK {
 				t.Fatalf("State() = ok para version=%q built_at=%q — ok exige proveniencia PRESENTE",
 					c.version, c.builtAt)
 			}

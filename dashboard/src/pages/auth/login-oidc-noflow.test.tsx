@@ -1,4 +1,4 @@
-// RED test for theo#140: clicking "Continue with GitHub" does nothing visible
+// RED test for loopscale#140: clicking "Continue with GitHub" does nothing visible
 // — the page silently re-renders and the user is never sent to the provider.
 //
 // The cause is a branch in `submitOIDC` (src/pages/login.tsx):
@@ -24,7 +24,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'https://auth-dev.usetheo.dev',
+  API_URL: 'https://auth-dev.getloopscale.com',
   AUTH_URL: '',
   ACCOUNTS_URL: '',
   OAUTH_URL: '',
@@ -53,7 +53,7 @@ function flowFixture() {
   return {
     id: 'flow-1',
     ui: {
-      action: 'https://auth-dev.usetheo.dev/self-service/login?flow=flow-1',
+      action: 'https://auth-dev.getloopscale.com/self-service/login?flow=flow-1',
       method: 'POST',
       nodes: [
         {
@@ -66,7 +66,7 @@ function flowFixture() {
   };
 }
 
-describe('login OIDC — click before the flow resolves (theo#140)', () => {
+describe('login OIDC — click before the flow resolves (loopscale#140)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -106,7 +106,7 @@ describe('login OIDC — click before the flow resolves (theo#140)', () => {
         onTimeout: (err) => {
           err.message =
             'Clicking "Continue with GitHub" before the login flow resolved never submitted ' +
-            'to the provider (theo#140).\n' +
+            'to the provider (loopscale#140).\n' +
             '    submitOIDC hits `if (!flow) { startLogin(); return; }`, which starts a NEW flow ' +
             'and DISCARDS the click.\n' +
             '    The user sees a silent re-render and no navigation — no error, no spinner, ' +

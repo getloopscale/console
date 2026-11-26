@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// UpstreamError e uma recusa do theo-skills que precisa CHEGAR ao operador.
+// UpstreamError e uma recusa do loopskills que precisa CHEGAR ao operador.
 //
 // Porte do padrao ja provado em `internal/trust/upstream_error.go`. Nao e generalizacao
 // especulativa: os dois clientes falam com produtos que recusam por razoes do cliente, e no trust
@@ -18,7 +18,7 @@ import (
 // separar de volta o codigo tipado do texto, e responde generico. Este tipo existe para que a
 // separacao sobreviva ate a tela, que precisa DECIDIR sobre o codigo, nao exibi-lo.
 type UpstreamError struct {
-	// Status e o codigo HTTP que o theo-skills devolveu.
+	// Status e o codigo HTTP que o loopskills devolveu.
 	Status int
 	// Body e o corpo do upstream, intacto. Carrega `{code, message}` quando tipado.
 	Body json.RawMessage

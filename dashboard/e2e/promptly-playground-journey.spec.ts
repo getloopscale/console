@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M14 T5.1 — a jornada do playground, ponta a ponta pela tela.
 //
@@ -7,7 +7,7 @@
 // salvar. É o ÚNICO e2e do milestone; o resto da cobertura vive em lógica pura (22 casos) e teste
 // de componente (15), seguindo o que o M12 e o M13 já fizeram.
 //
-// POR QUE NAVEGA POR CLIQUE. No `theo-trust` (M23) quatro telas foram declaradas no submenu e
+// POR QUE NAVEGA POR CLIQUE. No `loopguardrails` (M23) quatro telas foram declaradas no submenu e
 // NUNCA abriram, porque faltava a linha em `resolveActiveMenu` — e três rodadas de validação
 // passaram por cima, porque validavam digitando a URL, que é o único caminho que o usuário real
 // não tem. Por isso há UM único `page.goto`, na raiz.

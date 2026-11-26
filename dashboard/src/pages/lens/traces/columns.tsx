@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, CopyButton, StatusDot, type DataTableColumn } from '@usetheo/ui';
+import { Badge, Button, Checkbox, CopyButton, StatusDot, type DataTableColumn } from '@getloopscale/ui';
 import { Sparkles } from 'lucide-react';
 
 import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/formatting/format';
@@ -96,7 +96,7 @@ export function tracesColumns({ selected, toggleSelected, onOpen, onAsk }: Trace
     { key: 'name', label: 'Name', render: (row) => <span>{row.name ?? '—'}</span> },
     { key: 'model', label: 'Model', render: (row) => <span className="font-mono text-xs">{row.model ?? '—'}</span> },
     {
-      // M53 / theo-lens#74: honest label — this is the trace wall-clock (for an interaction that is
+      // M53 / looptrace#74: honest label — this is the trace wall-clock (for an interaction that is
       // the whole session, minutes), NOT request latency. The `latency` key is kept so saved views /
       // sort params stay stable; only the user-facing label changes to "Duration".
       key: 'latency',

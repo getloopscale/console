@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Card, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
+import { Card, DataTable, type DataTableColumn, EmptyState, PageShell } from '@getloopscale/ui';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 

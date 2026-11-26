@@ -1,4 +1,4 @@
-import { Card, FormField, Input, Select, Textarea } from '@usetheo/ui';
+import { Card, FormField, Input, Select, Textarea } from '@getloopscale/ui';
 
 import type { DraftField, GuardrailDraft } from './guardrail-draft';
 

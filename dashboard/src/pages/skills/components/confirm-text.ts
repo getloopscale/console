@@ -10,7 +10,7 @@
  * ## DECISÃO 1 — opção (a) do DoD, e por quê
  *
  * O DoD exigia dizer **quantos consumidores** passam a receber outro conteúdo. **Esse número não
- * existe na API.** Medido: a telemetria de adoção do `theo-skills` (M21) responde por **bundle**
+ * existe na API.** Medido: a telemetria de adoção do `loopskills` (M21) responde por **bundle**
  * (`GET /v1/bundles/:bundleId/adoption`); não há rota que responda "quantos consumidores deste
  * canal", e `GET /v1/skills/:id/channels` devolve apenas
  * `{channel, revision_id, previous_revision_id}`.
@@ -22,7 +22,7 @@
  * **A terceira via está PROIBIDA pelo DoD e não deve ser reintroduzida:** a tela NÃO pode derivar
  * a contagem por conta própria cruzando dados de bundle. Seria a interface afirmando um número que
  * o serviço não afirma — o Risco 1 deste milestone, literalmente. Se um dia a contagem por canal
- * for necessária, ela entra como **rota nova no `theo-skills`**, não como aritmética aqui.
+ * for necessária, ela entra como **rota nova no `loopskills`**, não como aritmética aqui.
  */
 
 export interface PromotionTarget {

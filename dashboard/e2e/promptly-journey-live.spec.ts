@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M25 item 8 — a jornada inteira contra a INSTÂNCIA IMPLANTADA.
 //
@@ -31,7 +31,7 @@
 
 import { test, expect, chromium, type Page } from '@playwright/test';
 
-const BORDA = process.env.PW_LIVE_URL ?? 'https://app-dev.usetheo.dev';
+const BORDA = process.env.PW_LIVE_URL ?? 'https://app-dev.getloopscale.com';
 const CDP = process.env.PW_CDP_URL ?? 'http://127.0.0.1:9222';
 /** Semeado para esta verificação: 14 revisões, `prod` apontando para a do MEIO. */
 const PROMPT = process.env.PW_LIVE_PROMPT ?? 'validacao-borda-longo';

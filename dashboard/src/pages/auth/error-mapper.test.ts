@@ -74,12 +74,12 @@ describe('mapKratosError — side effects + canonical EC scenarios', () => {
 
   it('handles 422 + redirect_browser_to chain (ADR D4)', () => {
     const input: KratosErrorInput = {
-      redirect_browser_to: 'https://auth-dev.usetheo.dev/self-service/login/methods/oidc/callback/github',
+      redirect_browser_to: 'https://auth-dev.getloopscale.com/self-service/login/methods/oidc/callback/github',
     };
     const out = mapKratosError(input);
     expect(out.retryable).toBe(false);
     expect(out.redirectTo).toEqual(
-      'https://auth-dev.usetheo.dev/self-service/login/methods/oidc/callback/github',
+      'https://auth-dev.getloopscale.com/self-service/login/methods/oidc/callback/github',
     );
   });
 });

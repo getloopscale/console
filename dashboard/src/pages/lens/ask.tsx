@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useTrace } from '@/hooks/lens/use-trace';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Button, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
+import { Button, EmptyState, PageShell, Skeleton } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';

@@ -7,7 +7,7 @@ describe('NSInstructionsCard (J-11 v1.1 T2.1)', () => {
     render(
       <NSInstructionsCard
         nameservers={['ns1.x.cloudflare.com', 'ns2.x.cloudflare.com']}
-        domainName="theo-test.example"
+        domainName="loopscale-test.example"
       />,
     );
     // 3 numbered cards rendered
@@ -20,14 +20,14 @@ describe('NSInstructionsCard (J-11 v1.1 T2.1)', () => {
   });
 
   it('test_ns_instructions_card_renders_skeleton_when_nameservers_empty (EC-8)', () => {
-    render(<NSInstructionsCard nameservers={[]} domainName="theo-test.example" />);
+    render(<NSInstructionsCard nameservers={[]} domainName="loopscale-test.example" />);
     expect(screen.getByText(/Generating nameservers…/i)).toBeInTheDocument();
     // No code-block rendered for an empty array.
     expect(screen.queryByText('ns1.x.cloudflare.com')).toBeNull();
   });
 
   it('test_ns_instructions_card_renders_skeleton_when_nameservers_undefined (EC-8 defensive)', () => {
-    render(<NSInstructionsCard nameservers={undefined} domainName="theo-test.example" />);
+    render(<NSInstructionsCard nameservers={undefined} domainName="loopscale-test.example" />);
     expect(screen.getByText(/Generating nameservers…/i)).toBeInTheDocument();
   });
 
@@ -35,7 +35,7 @@ describe('NSInstructionsCard (J-11 v1.1 T2.1)', () => {
     render(
       <NSInstructionsCard
         nameservers={['ns1.x.cloudflare.com', 'ns2.x.cloudflare.com']}
-        domainName="theo-test.example"
+        domainName="loopscale-test.example"
       />,
     );
     const link = screen.getByRole('link', { name: /Read the registrar guide/i });

@@ -40,7 +40,7 @@ export interface ScaleConfirmDialogProps {
  *   - Scale down → in-flight requests may be terminated.
  *
  * Vercel/Stripe surfaces use type-to-confirm only for destructive flows;
- * Theo extends this to scale because the production blast-radius is
+ * LoopScale extends this to scale because the production blast-radius is
  * equivalent (data loss possible on aggressive down-scale). For Manual →
  * scale-up at the same project size, the dialog still appears but the
  * impact paragraph reads "No change in replicas" (parent guard

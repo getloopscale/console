@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@/test/render';
 import type { Build } from '@/lib/api/types';
 
-vi.mock('@usetheo/ui', async (orig) => {
-  const actual = await orig<typeof import('@usetheo/ui')>();
+vi.mock('@getloopscale/ui', async (orig) => {
+  const actual = await orig<typeof import('@getloopscale/ui')>();
   return { ...actual, useToast: () => ({ toast, dismiss }) };
 });
 vi.mock('@/hooks/deploy/use-rollback-in-flight', () => ({

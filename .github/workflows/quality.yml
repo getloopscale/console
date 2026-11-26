@@ -19,7 +19,7 @@ on:
     secrets:
       GOMOD_TOKEN:
         required: true
-        description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
+        description: PAT com leitura no modulo privado contracts; um callee NAO herda secrets.
 permissions:
   contents: read
 jobs:
@@ -36,7 +36,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: theo_test
+          POSTGRES_DB: loopscale_test
         ports:
           - 5432:5432
         options: >-
@@ -54,7 +54,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # `theo-contracts` e um modulo Go PRIVADO. Sem esta configuracao o `go build` tenta
+      # `contracts` e um modulo Go PRIVADO. Sem esta configuracao o `go build` tenta
       # baixa-lo por HTTPS anonimo e morre com "could not read Username for github.com" — o
       # que aconteceu no primeiro run deste gate. Mesmo mecanismo que o job e2e deste repo e
       # o Dockerfile ja usam; o token nunca e impresso.
@@ -62,28 +62,27 @@ jobs:
       # Meu `go build` LOCAL passou porque a maquina tem credencial — ponto cego da validacao
       # local que so o CI expoe. Vale registrar: validar localmente reduz o ciclo, nao
       # substitui o ambiente limpo.
-      - name: Configure private module access (theo-contracts)
-        # DUAS orgs de proposito. A org foi renomeada `usetheodev` -> `usetheoai`, e o
-        # go.mod ja aponta para o caminho novo (`github.com/usetheoai/theo-contracts`).
+      - name: Configure private module access (contracts)
+        # DUAS orgs de proposito. A org foi renomeada `getloopscale` -> `getloopscale`, e o
+        # go.mod ja aponta para o caminho novo (`github.com/getloopscale/contracts`).
         # O GitHub mantem redirect do caminho antigo, entao ele continua resolvendo — mas
         # o `insteadOf` casa por PREFIXO DE STRING, nao segue redirect: com so a regra de
-        # `usetheodev/`, o fetch do caminho novo saia sem token e morria em
+        # `getloopscale/`, o fetch do caminho novo saia sem token e morria em
         # "could not read Username". Nenhum run de CI tinha exercitado isso: os 6 runs
         # verdes mais recentes sao anteriores ao rename.
         run: |
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
-          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/getloopscale/".insteadOf "https://github.com/getloopscale/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
       - name: Build
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+          GOPRIVATE: github.com/getloopscale/*
         run: go build ./...
 
       - name: Test (race detector)
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+          GOPRIVATE: github.com/getloopscale/*
         # `-race` nao e luxo num control plane: ele serve requisicoes HTTP concorrentes sobre
         # estado compartilhado (contas, projetos, billing). Suite single-thread verde nao prova
         # ausencia de corrida — prova que ninguem a exercitou.
@@ -96,8 +95,8 @@ jobs:
       # O servico sobe so aqui; o teste cria e derruba o proprio schema temporario.
       - name: Test (integration — Postgres real)
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
-          AUTH_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/theo_test?sslmode=disable
+          GOPRIVATE: github.com/getloopscale/*
+          AUTH_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/loopscale_test?sslmode=disable
           # Sem isto o teste daria `t.Skip` caso a variavel nao chegasse — e um skip e verde. Com
           # isto, a ausencia da variavel FALHA o job em vez de fingir que o portao rodou.
           REQUIRE_INTEGRATION: "1"
@@ -119,7 +118,7 @@ jobs:
 
       - name: Vet
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+          GOPRIVATE: github.com/getloopscale/*
         run: go vet ./...
 
       # B-273 — DOIS passos, e a separacao e o ponto.
@@ -141,10 +140,10 @@ jobs:
       # NAO resolvido com `continue-on-error`: um gate que ignora a propria falha e pior que o flake.
       - name: Install golangci-lint
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+          GOPRIVATE: github.com/getloopscale/*
         run: |
           # Versao PINADA — sem pin a resolucao acontece em runtime, e foi assim que uma v2.11.3
-          # nova quebrou o theo-traefik-mcp sem nenhuma mudanca de codigo.
+          # nova quebrou o loopmcp sem nenhuma mudanca de codigo.
           #
           # POR QUE v2.12.2 E NAO a v2.6.0 dos repos irmaos: o binario carrega a versao de Go com
           # que foi COMPILADO, e ela precisa ser >= a do `go.mod` do alvo. Este repo esta em
@@ -164,7 +163,7 @@ jobs:
 
       - name: Lint (analysis)
         env:
-          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
+          GOPRIVATE: github.com/getloopscale/*
         run: |
           "$(go env GOPATH)/bin/golangci-lint" run ./...
 
@@ -195,7 +194,7 @@ jobs:
 
       # Build ANTES de lint: regras type-aware precisam de um projeto que compile. Rodar lint
       # primeiro produz erro de tipo em codigo intocado e esconde o defeito real — defeito que
-      # ficou meses invisivel no theo-memory.
+      # ficou meses invisivel no loopmem.
       # `npm run build` ja e `tsc -b && vite build` — o typecheck esta dentro dele. Um passo
       # `tsc --noEmit` separado rodaria o compilador duas vezes para a mesma garantia.
       - name: Build (inclui typecheck via tsc -b)
@@ -229,7 +228,7 @@ jobs:
       # Reusa o dist/ do passo Build acima — nao rebuilda.
       # B-022/B-035 — o orcamento de bundle existia e nao valia nada: tres das nove
       # entradas apontavam para chunks que o manual-chunks.ts nao emite mais
-      # (theo-ui, radix, lucide), e o glob do TOTAL era `dist/assets/*.js`, que
+      # (loopscale-ui, radix, lucide), e o glob do TOTAL era `dist/assets/*.js`, que
       # somava os 129 chunks — inclusive os lazy que o usuario nunca baixa no
       # primeiro paint.
       #
@@ -277,13 +276,13 @@ jobs:
         # quatro estados: build normal PASS; import do barrel, de fixtures e de
         # handlers, os tres FAIL.
         run: |
-          if grep -q '__theo_mocks_present_in_bundle__' dist/assets/*.js; then
+          if grep -q '__loopscale_mocks_present_in_bundle__' dist/assets/*.js; then
             echo "FAIL: chunk de mocks vazou para o bundle de producao"
             exit 1
           fi
           echo "PASS: mocks tree-shaken do bundle de producao"
 
-      # theo-cloud#276 — the dashboard suite (247 files / 1925 tests) had NEVER run in CI. No workflow
+      # loop-console#276 — the dashboard suite (247 files / 1925 tests) had NEVER run in CI. No workflow
       # invoked vitest at all; the job name was honest about doing only build+lint, and nobody wired
       # the rest. The cost was measured, not feared: SIX tests were red in `develop` and had been for
       # as long as the code they cover — two suites rotted when a child component started issuing its

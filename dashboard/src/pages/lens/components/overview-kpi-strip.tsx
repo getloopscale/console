@@ -1,11 +1,11 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { MetricCard } from '@usetheo/ui';
+import { MetricCard } from '@getloopscale/ui';
 import { Activity, DollarSign, Network, Timer } from 'lucide-react';
 
 import { cardMode, deltaTooSparse, periodDelta, type Delta } from './overview-metrics';
 
 /**
- * M60 P1 — the observability KPI strip (blueprint §5; ADR D2/D3/D5). Four `@usetheo/ui` `MetricCard`s
+ * M60 P1 — the observability KPI strip (blueprint §5; ADR D2/D3/D5). Four `@getloopscale/ui` `MetricCard`s
  * (Traces / Error rate / Latency p95 / Cost) each carrying a **period-over-period delta** from the pure
  * `periodDelta` (half-vs-half of the fetched M51 window — no BFF change), with `invertTrend` on the
  * "up is bad" metrics (cost/latency/error-rate) and an honest **"N/A"** when the window is too sparse to
@@ -92,7 +92,7 @@ export function OverviewKpiStrip({
               invertTrend={t.invert}
               hint={
                 tooSparse
-                  ? // M53 / theo-lens#75: name the TREND explicitly. The metric VALUE above is real;
+                  ? // M53 / looptrace#75: name the TREND explicitly. The metric VALUE above is real;
                     // only the period-over-period delta needs more history. The old "N/A — window too
                     // sparse" read as if the value itself were N/A.
                     'Trend N/A — not enough history'

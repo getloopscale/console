@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
-// Package lens_alert_evaluator evaluates per-tenant threshold alert rules (theo-lens M53) against the
+// Package lens_alert_evaluator evaluates per-tenant threshold alert rules (looptrace M53) against the
 // observability series and, on a breach, enqueues a webhook delivery for the existing J-16
 // workspace_webhook_worker to dispatch. This file holds the PURE decision logic (comparator, metric
 // extraction, anti-storm state machine) — deterministic + exhaustively unit-tested without a DB.
@@ -9,7 +9,7 @@ package lens_alert_evaluator
 
 import "time"
 
-// WindowToRange maps a rule's window (seconds) to theo-lens's observability `range` preset
+// WindowToRange maps a rule's window (seconds) to looptrace's observability `range` preset
 // (1h/24h/7d/30d — the only values `GET /v1/metrics/observability?range=` accepts). The metric is then
 // computed over the whole returned series, which spans that range. Exported for the main.go fetcher.
 func WindowToRange(windowSeconds int) string {
@@ -41,7 +41,7 @@ func evaluateBreach(value, threshold float64, comparator string) bool {
 	}
 }
 
-// observabilitySeries is the subset of theo-lens's GET /v1/metrics/observability response the evaluator
+// observabilitySeries is the subset of looptrace's GET /v1/metrics/observability response the evaluator
 // reads. Field tags match the upstream JSON (traffic/latency/tokensByModel buckets).
 type observabilitySeries struct {
 	Traffic []struct {
@@ -61,7 +61,7 @@ type observabilitySeries struct {
 // at all. The bool is the whole point: without it "no data" and "the metric is genuinely zero" collapse
 // into the same float, and the comparator then reads absence as a measurement.
 //
-// That collapse was theo-cloud#247. An empty window yielded 0, `lt`/`lte` are accepted comparators
+// That collapse was loop-console#247. An empty window yielded 0, `lt`/`lte` are accepted comparators
 // (internal/routes/lens_alert_rules.go:38), and 0 < threshold is true — so a traffic-free workspace
 // fired a permanent false alert on any "alert if X drops below N" rule, which is precisely the rule
 // shape you use to detect that your pipeline STOPPED. The anti-storm machine then latched it, so the

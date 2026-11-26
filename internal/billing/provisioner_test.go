@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // M2 — ProvisionStarter creates ONE subscription per Account: the INSERT derives
 // account_id from the tenant and conflicts on account_id (not tenant_id), so a

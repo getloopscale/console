@@ -1,7 +1,7 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import type { TextMode } from '@/pages/promptly/components/composicao';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 
 interface Props {
   textMode: TextMode;

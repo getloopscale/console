@@ -1,8 +1,8 @@
-// API client for the Theo dashboard.
+// API client for the LoopScale dashboard.
 //
-// Auth (Backend for Frontend, usetheoai/theo#477 step 3):
+// Auth (Backend for Frontend, getloopscale/loopscale#477 step 3):
 //   The browser holds NO token. It keeps the Kratos session cookie, which the
-//   browser sends on every same-origin request; theo-cloud validates it
+//   browser sends on every same-origin request; loop-console validates it
 //   server-side on each call and holds any downstream credential itself.
 //   There is nothing here to steal, refresh, expire or broadcast.
 //
@@ -81,7 +81,7 @@ export interface CloudFetchConfig {
 const CREDENTIALS: RequestCredentials = 'same-origin';
 
 // §3.3: BroadcastChannel for cross-tab coordination. Only logout crosses it — it carries no
-// secret, and since usetheoai/theo#477 step 3 there is no secret in this tab to carry anyway.
+// secret, and since getloopscale/loopscale#477 step 3 there is no secret in this tab to carry anyway.
 let authChannel: BroadcastChannel | null = null;
 
 /**

@@ -33,7 +33,7 @@ const CONNECT_PATH = `/projects/${PROJECT}/connect`;
 // punting us to /login. The dashboard does not validate this cookie in
 // dev mode — its presence alone is enough to keep the page mounted.
 const JWT_COOKIE = {
-  name: 'theo_session',
+  name: 'loopscale_session',
   value: 'pw-mock-session',
   url: 'http://localhost:5174',
 };

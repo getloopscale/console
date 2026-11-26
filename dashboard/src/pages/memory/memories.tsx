@@ -11,7 +11,7 @@ import {
   Input,
   PageShell,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ForgetMemoryDialog } from '@/pages/memory/forget-dialog';
 import { EmDash, ExpandableText, TablePager } from '@/pages/memory/row-cells';
 import { ScopeSelect } from '@/pages/memory/scope-switcher';

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Sheet, Textarea } from '@usetheo/ui';
+import { Button, Sheet, Textarea } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import {
   useBulkUploadSecrets,

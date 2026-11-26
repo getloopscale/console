@@ -4,7 +4,7 @@ import {
   Button,
   Input,
   Label,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useRotateSecret } from '@/hooks/mutations/use-secrets-mutations';

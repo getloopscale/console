@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/getloopscale/loop-console/internal/skills"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/skills"
 )
 
 // skillsReader e o subconjunto de `*skills.DataClient` que este BFF consome.

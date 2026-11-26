@@ -3,7 +3,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup, configure } from '@testing-library/react';
 
 /**
- * theo-cloud#187 — `findBy*` / `waitFor` budget, raised from the testing-library default of 1000 ms.
+ * loop-console#187 — `findBy*` / `waitFor` budget, raised from the testing-library default of 1000 ms.
  *
  * `vitest.config.ts` ALREADY raised `testTimeout`/`hookTimeout` to 20 s, for this exact reason, in its
  * own words: *"worker contention does NOT produce false failures — the tests are starved, not wrong"*.

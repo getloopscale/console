@@ -3,7 +3,7 @@ import { useTraces, useAttributeKeys, useCreateRegressionDataset } from '@/hooks
 import { fetchForExport, TRACES_PAGE_SIZE } from '@/hooks/lens/traces-api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { Button, Card, DataTable, EmptyState, Input, PageShell } from '@usetheo/ui';
+import { Button, Card, DataTable, EmptyState, Input, PageShell } from '@getloopscale/ui';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -41,7 +41,7 @@ export { nsToIso } from './traces/helpers';
 /**
  * M44 — /lens/traces. Read the workspace's traces and manage their human-in-the-loop
  * metadata: tags + annotations. M49 — search + filters (name search, status=error, model,
- * time-range) that narrow the list SERVER-SIDE (theo-lens's existing `/v1/traces` filter SQL,
+ * time-range) that narrow the list SERVER-SIDE (looptrace's existing `/v1/traces` filter SQL,
  * forwarded by the BFF), URL-persisted via `nuqs` so a filtered view is shareable. The trace BODY
  * stays read-only (spans arrive via OTLP); only the metadata is browser-authored.
  */
@@ -59,8 +59,8 @@ export type { TraceFilters };
 
 /**
  * Build the `/v1/dashboard/lens/traces` query string from the active filters — active-only (empty /
- * `all` values are omitted so theo-lens sees only real filters), `range` → a `from` ISO timestamp.
- * M52 folds in the advanced filters (cost/token ranges + session) → theo-lens's snake_case params.
+ * `all` values are omitted so looptrace sees only real filters), `range` → a `from` ISO timestamp.
+ * M52 folds in the advanced filters (cost/token ranges + session) → looptrace's snake_case params.
  * `now` is injected (not `Date.now()` inline) so the helper is deterministic + unit-testable
  * (`.claude/rules/testing.md` — inject the clock).
  */
@@ -133,7 +133,7 @@ export function LensTracesPage() {
 
   // The search box keeps its own immediate value (responsive typing) and DEBOUNCES into the `q`
   // query-state that drives the server fetch — one request per pause, not per keystroke (a full-text
-  // search per character would hammer theo-lens). `q` still owns the URL; the box mirrors it on
+  // search per character would hammer looptrace). `q` still owns the URL; the box mirrors it on
   // external changes (URL round-trip, Clear).
   const [searchInput, setSearchInput] = useState(q);
   useEffect(() => setSearchInput(q), [q]);

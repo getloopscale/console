@@ -1,4 +1,4 @@
-import { Card, Dialog } from '@usetheo/ui';
+import { Card, Dialog } from '@getloopscale/ui';
 import { AlertTriangle, BookOpen, Globe, HelpCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 

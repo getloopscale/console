@@ -1,41 +1,41 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2025-2026 The Theo Authors
+# Copyright 2025-2026 The LoopScale Authors
 #
-# End-to-end harness for the theo-cloud <-> TheMemory integration AND the M6
-# full-chain journey (real Kratos login -> JWT -> BFF -> broker -> themory).
+# End-to-end harness for the loop-console <-> TheMemory integration AND the M6
+# full-chain journey (real Kratos login -> JWT -> BFF -> broker -> loopmem).
 #
 # Brings up the FULL real path the customer traverses:
 #
-#   go test (real Kratos login) --session cookie--> theo-cloud /v1/auth/session/token
-#        --theo_session_* JWT-->  theo-cloud (gateway) --broker mint-->
-#        themory (TheMemory REST) --> pgvector
+#   go test (real Kratos login) --session cookie--> loop-console /v1/auth/session/token
+#        --loopscale_session_* JWT-->  loop-console (gateway) --broker mint-->
+#        loopmem (TheMemory REST) --> pgvector
 #                                ^
-#   themory --OPENAI_BASE_URL--> mock-openai (hermetic LLM + embeddings)
+#   loopmem --OPENAI_BASE_URL--> mock-openai (hermetic LLM + embeddings)
 #
 # pg-cloud runs the engine's REAL migrations (cloud-migrate) so the full
 # account-tenancy schema (users/accounts/tenants/subscriptions/projects/
-# loopruntime_api_keys) is present; drift-free vs the dev stack. Kratos provides real
+# loop_runtime_api_keys) is present; drift-free vs the dev stack. Kratos provides real
 # identity/login (M6). Everything is hermetic: no external network, no API keys.
 #
-# Run via ./run.sh (builds host binaries + the themory image, waits for health,
-# runs the Go e2e test, tears down). Override with THEMORY_IMAGE / E2E_*_PORT.
+# Run via ./run.sh (builds host binaries + the loopmem image, waits for health,
+# runs the Go e2e test, tears down). Override with LOOPMEM_IMAGE / E2E_*_PORT.
 
-name: theo-cloud-memory-e2e
+name: loop-console-memory-e2e
 
 services:
-  pg-themory:
+  pg-loopmem:
     image: ankane/pgvector:v0.5.1
     environment:
       POSTGRES_USER: themem
       POSTGRES_PASSWORD: themem
       POSTGRES_DB: themem
     volumes:
-      # initdb: themory_app / themory_worker. themem stays the schema owner and only migrates.
-      - ./sql/themory:/docker-entrypoint-initdb.d:ro
+      # initdb: loopmem_app / loopmem_worker. themem stays the schema owner and only migrates.
+      - ./sql/loopmem:/docker-entrypoint-initdb.d:ro
     ports:
       # Exposed so the host-run `go test` can seed skill rows directly (there is
       # no skill-WRITE REST surface — skills are read-only via the gateway).
-      - "${E2E_PG_THEMORY_PORT:-55434}:5432"
+      - "${E2E_PG_LOOPMEM_PORT:-55434}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U themem -d themem"]
       interval: 3s
@@ -45,13 +45,13 @@ services:
 
   pg-cloud:
     image: postgres:17-alpine
-    # Owner role `loopruntime`: loopruntime migration 000023 refuses to run as any other
-    # role. The database is named `loopruntime` to match; the migrations grant on
+    # Owner role `loop-runtime`: loop-runtime migration 000023 refuses to run as any other
+    # role. The database is named `loop_runtime` to match; the migrations grant on
     # current_database(), so the name itself is not asserted.
     environment:
-      POSTGRES_USER: loopruntime
-      POSTGRES_PASSWORD: loopruntime
-      POSTGRES_DB: loopruntime
+      POSTGRES_USER: loop_runtime
+      POSTGRES_PASSWORD: loop-runtime
+      POSTGRES_DB: loop_runtime
     volumes:
       # initdb (superuser): extensions the migrations assume + the separate
       # `kratos` database. The cloud schema itself comes from cloud-migrate.
@@ -60,13 +60,13 @@ services:
       # Exposed so the host-run `go test` can seed tenants/accounts/keys directly.
       - "${E2E_PG_CLOUD_PORT:-55432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U loopruntime -d loopruntime"]
+      test: ["CMD-SHELL", "pg_isready -U loop_runtime -d loop_runtime"]
       interval: 3s
       timeout: 3s
       retries: 20
       start_period: 5s
 
-  # Applies the engine's REAL golang-migrate migrations to the `loopruntime` DB so the
+  # Applies the engine's REAL golang-migrate migrations to the `loop-runtime` DB so the
   # full account-tenancy schema exists (drift-free vs hand-maintained SQL).
   cloud-migrate:
     image: migrate/migrate:v4.17.1
@@ -74,10 +74,10 @@ services:
       pg-cloud:
         condition: service_healthy
     volumes:
-      - ../../../theo/api/internal/db/migrations:/migrations:ro
+      - ../../../loopscale/api/internal/db/migrations:/migrations:ro
     command:
       - "-path=/migrations"
-      - "-database=postgres://loopruntime:loopruntime@pg-cloud:5432/loopruntime?sslmode=disable"
+      - "-database=postgres://loop_runtime:loop_runtime@pg-cloud:5432/loop_runtime?sslmode=disable"
       - "up"
     restart: on-failure:3
 
@@ -88,7 +88,7 @@ services:
       pg-cloud:
         condition: service_healthy
     environment:
-      DSN: postgres://loopruntime:loopruntime@pg-cloud:5432/kratos?sslmode=disable
+      DSN: postgres://loop_runtime:loop_runtime@pg-cloud:5432/kratos?sslmode=disable
     command: ["migrate", "sql", "-e", "--yes"]
     restart: on-failure:3
 
@@ -104,7 +104,7 @@ services:
     volumes:
       - ../../dev/kratos:/etc/config/kratos:ro
     environment:
-      DSN: postgres://loopruntime:loopruntime@pg-cloud:5432/kratos?sslmode=disable
+      DSN: postgres://loop_runtime:loop_runtime@pg-cloud:5432/kratos?sslmode=disable
       SERVE_PUBLIC_BASE_URL: http://localhost:${E2E_KRATOS_PUBLIC_PORT:-14433}/
     command: ["serve", "--config", "/etc/config/kratos/kratos.yml", "--dev"]
     ports:
@@ -133,32 +133,32 @@ services:
       retries: 10
       start_period: 2s
 
-  themory:
-    image: ${THEMORY_IMAGE:-themory-e2e:latest}
+  loopmem:
+    image: ${LOOPMEM_IMAGE:-loopmem-e2e:latest}
     depends_on:
-      pg-themory:
+      pg-loopmem:
         condition: service_healthy
       mock-openai:
         condition: service_healthy
     environment:
       # Requests run as the contained application role: the server refuses a superuser,
       # because RLS (migration 0029) would not apply to it. The owner only migrates, at boot.
-      THEOMEM_PG_URI: postgres://themory_app:themory_app@pg-themory:5432/themem
-      THEOMEM_MIGRATE_PG_URI: postgres://themem:themem@pg-themory:5432/themem
+      LOOPSCALEMEM_PG_URI: postgres://loopmem_app:loopmem_app@pg-loopmem:5432/themem
+      LOOPSCALEMEM_MIGRATE_PG_URI: postgres://themem:themem@pg-loopmem:5432/themem
       PORT: "8080"
       HOST: "0.0.0.0"
       # Master bearer the gateway uses. NEVER reaches the customer.
-      THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
+      THEMEMORY_API_KEY: ${LOOPMEM_MASTER_KEY:-e2e-master-key}
       # M6: bootstrap token run.sh uses to mint the Model-B platform-admin key
       # (the credential broker needs it to mint per-tenant data keys).
-      THEMORY_ADMIN_BOOTSTRAP_TOKEN: ${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
+      LOOPMEM_ADMIN_BOOTSTRAP_TOKEN: ${LOOPMEM_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
       # OpenAI embedder (1536) routed at the hermetic mock — no xenova download.
-      THEOMEM_EMBEDDER: openai
+      LOOPSCALEMEM_EMBEDDER: openai
       OPENAI_API_KEY: dummy-key-for-mock
       OPENAI_BASE_URL: http://mock-openai:11434/v1
     ports:
       # Exposed so the host-run `go test` can seed memories via POST /v1/remember.
-      - "${E2E_THEMORY_PORT:-18080}:8080"
+      - "${E2E_LOOPMEM_PORT:-18080}:8080"
     healthcheck:
       # Distroless image: no shell/curl — probe via the bundled node binary.
       test:
@@ -171,12 +171,12 @@ services:
       retries: 12
       start_period: 15s
 
-  theo-cloud:
+  loop-console:
     build:
       context: .
       dockerfile: runtime.Dockerfile
       args:
-        BINARY: bin/theo-cloud
+        BINARY: bin/loop-console
     depends_on:
       pg-cloud:
         condition: service_healthy
@@ -184,22 +184,22 @@ services:
         condition: service_completed_successfully
       kratos:
         condition: service_healthy
-      themory:
+      loopmem:
         condition: service_healthy
     environment:
-      LOOPRUNTIME_ENV: dev
+      LOOP_RUNTIME_ENV: dev
       CLOUD_LISTEN_ADDR: ":13002"
-      # The non-owner role (sql/02-loopruntime-cloud-role.sql): theo-cloud refuses to serve as
+      # The non-owner role (sql/02-loop-console-role.sql): loop-console refuses to serve as
       # the owner, which holds DDL and an unnamed cross-tenant privilege.
-      DATABASE_URL: postgres://loopruntime_cloud:loopruntime_cloud@pg-cloud:5432/loopruntime?sslmode=disable
-      THEMORY_BASE_URL: http://themory:8080
-      THEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
+      DATABASE_URL: postgres://loop_console:loop_console@pg-cloud:5432/loop_runtime?sslmode=disable
+      LOOPMEM_BASE_URL: http://loopmem:8080
+      LOOPMEM_API_KEY: ${LOOPMEM_MASTER_KEY:-e2e-master-key}
       # M6: Model-B control-plane credential the broker mints per-tenant keys with.
-      # run.sh provisions it from themory's bootstrap token after the stack is up,
+      # run.sh provisions it from loopmem's bootstrap token after the stack is up,
       # then recreates this service with the minted value injected here.
-      THEMORY_PLATFORM_ADMIN_KEY: ${THEMORY_PLATFORM_ADMIN_KEY:-}
+      LOOPMEM_PLATFORM_ADMIN_KEY: ${LOOPMEM_PLATFORM_ADMIN_KEY:-}
       # #331: sorteado por execucao em run.sh, nao fixo aqui. Precisa ser ESTAVEL dentro do run
-      # porque o servico `theo-cloud` e recriado no meio (provisionamento da chave Model-B), e um
+      # porque o servico `loop-console` e recriado no meio (provisionamento da chave Model-B), e um
       # segredo novo invalidaria as sessoes ja emitidas.
       SESSION_TOKEN_SECRET: ${E2E_SESSION_TOKEN_SECRET:?run.sh precisa sortear este valor}
       # M6: real Kratos session validation for /v1/auth/session/token.

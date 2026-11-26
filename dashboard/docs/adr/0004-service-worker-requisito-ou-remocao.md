@@ -3,7 +3,7 @@ status: accepted
 date: 2026-08-06
 executado-em: 2026-08-08
 origem-da-execucao: B-055 (cache de API) · B-074 (requisito do SW)
-decision-makers: time do dashboard theo-cloud
+decision-makers: time do dashboard loop-console
 origem: tradeoff_decisions#12 · scaling_findings#7 · system_design_findings#9
 ---
 
@@ -24,7 +24,7 @@ skeleton, streaming e Web Vitals.
 
 O custo, por outro lado, esta medido e escrito no proprio arquivo:
 
-- Dois incidentes de producao atribuidos ao SW interceptando caminhos de navegacao BFF: `theo-cloud#112` e `#203` (`vite.config.ts:135-146`).
+- Dois incidentes de producao atribuidos ao SW interceptando caminhos de navegacao BFF: `loop-console#112` e `#203` (`vite.config.ts:135-146`).
 - Uma armadilha do Workbox que derrubava TODO o roteamento do SW (`vite.config.ts:152-155`).
 - Uma segunda camada de cache sobre a API que **contradiz** o `staleTime` do app em 60x: `runtimeCaching` `NetworkFirst` para `/api/v1/` com `maxAgeSeconds: 3600` (`vite.config.ts:162-169`) contra `staleTime: 60_000` do TanStack Query (`src/lib/query-client.ts:41`). Como `engineFetch` prefixa `/engine`, a regex casa por substring e alcanca os reads do control plane — deploys, builds, audit, secrets.
 

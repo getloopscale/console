@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M20 — a jornada da COMPOSIÇÃO, ponta a ponta pela tela.
 //
@@ -7,14 +7,14 @@
 // seguir para o prompt referenciado → ver quem depende dele → voltar. É o par que o milestone exige
 // nos dois sentidos: *"o que eu componho"* e *"quem me compõe"*.
 //
-// A navegação é sempre por CLIQUE, a partir da raiz. A lição custou o M20 do `theo-trust`: quatro
+// A navegação é sempre por CLIQUE, a partir da raiz. A lição custou o M20 do `loopguardrails`: quatro
 // telas foram declaradas no submenu, nunca abriram por falta de uma linha em `resolveActiveMenu`, e
 // três rodadas de validação passaram por cima — porque eu validava digitando a URL, que é o único
 // caminho que o usuário real não tem.
 //
 // HONESTIDADE SOBRE O ESCOPO: roda hermético contra o Vite local com `VITE_USE_MOCKS=true`, como
 // todo e2e deste repositório. Prova a JORNADA DA INTERFACE contra o contrato medido do
-// `theo-promptly` — não prova que o serviço implantado resolve a composição, nem que o modelo
+// `loopprompt` — não prova que o serviço implantado resolve a composição, nem que o modelo
 // recebe o texto resolvido. Essa metade se verifica contra o ambiente real e se registra como
 // evidência de aceitação; afirmá-la aqui seria teatro.
 

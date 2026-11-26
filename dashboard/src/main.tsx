@@ -1,7 +1,7 @@
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { TheoUIProvider } from '@theokit/ui';
+import { LoopZeroUIProvider } from '@getloopscale/loopzero-ui';
 import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
@@ -79,7 +79,7 @@ if (import.meta.env.PROD) {
 }
 
 /**
- * TheoUIProvider — canonical entry point per @usetheo/ui API
+ * LoopZeroUIProvider — canonical entry point per @getloopscale/ui API
  * (replaces hand-wired ThemeProvider + Toaster from earlier iterations).
  *
  * Composes <ThemeProvider> + <Toaster> with the right defaults so every
@@ -92,10 +92,10 @@ if (import.meta.env.PROD) {
  */
 // Provider chain (order matters):
 //   StrictMode
-//     RouteBoundary (T0.1) — catches EXTREMAL crashes (Theo/Router init)
-//       QueryClientProvider (T1.1) — server state cache, OUTSIDE TheoUI so
+//     RouteBoundary (T0.1) — catches EXTREMAL crashes (LoopScale/Router init)
+//       QueryClientProvider (T1.1) — server state cache, OUTSIDE LoopScaleUI so
 //                                    Theme crash não derruba queries
-//         TheoUIProvider — design system + toaster
+//         LoopZeroUIProvider — design system + toaster
 //           App
 //             ReactQueryDevtools (dev only) — Cmd-Shift-Q inspect cache
 void readyToRender.then(() =>
@@ -103,14 +103,14 @@ void readyToRender.then(() =>
   <StrictMode>
     <RouteBoundary routePath="root">
       <QueryClientProvider client={queryClient}>
-        <TheoUIProvider theme={TEMA_LOOPSCALE}>
+        <LoopZeroUIProvider theme={TEMA_LOOPSCALE}>
           <App />
           {ReactQueryDevtools ? (
             <Suspense fallback={null}>
               <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
             </Suspense>
           ) : null}
-        </TheoUIProvider>
+        </LoopZeroUIProvider>
       </QueryClientProvider>
     </RouteBoundary>
   </StrictMode>,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { SIGNALS, type SignalName } from '@/hooks/projects/signals';
 

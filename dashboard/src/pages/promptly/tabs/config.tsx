@@ -1,4 +1,4 @@
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 /** A afinação declarada numa revisão (M17). */

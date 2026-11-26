@@ -96,14 +96,14 @@ export interface Project {
   // renders this as "Live envs" instead of the legacy singular
   // `environment` field.
   environment_count?: number;
-  // Red Team theo-cloud#41 absorption (2026-06-27): subset of
+  // Red Team loop-console#41 absorption (2026-06-27): subset of
   // environment_count that includes ONLY env_targets with kind='permanent'
   // (production-like envs). The dashboard's "Live envs" column / hero
   // metric MUST use this — `environment_count` collapses preview
   // env_targets too, producing the misleading "Live envs: 1 + URL pending"
   // pair the Red Team caught.
   production_env_count?: number;
-  // Red Team theo-cloud#134 absorption (2026-07-02): count of env_targets
+  // Red Team loop-console#134 absorption (2026-07-02): count of env_targets
   // that currently have a corresponding release with status='ACTIVE'
   // (preview OR permanent kind). The dashboard "LIVE ENVS" counter
   // MUST use this — `production_env_count` returns 0 for preview-only
@@ -129,16 +129,16 @@ export interface Project {
   // LIVE catch).
   latest_framework?: string;
   apps_count?: number;
-  // Red Team theo-cloud#41 (2026-06-27): the latest build's environment
+  // Red Team loop-console#41 (2026-06-27): the latest build's environment
   // ("preview" / "production" / "staging" / ...). Drives the
   // preview-only-project disambiguation in projects.tsx / LiveUrlHero
   // so a preview-only project does NOT render "Live" + "URL PENDING".
   latest_build_environment?: string;
   created_at?: string;
   // Data-plane snapshot fields — T4.1 of plan
-  // dashboard-badge-data-plane-poller closing Red Team theo-cloud#128
+  // dashboard-badge-data-plane-poller closing Red Team loop-console#128
   // (badge lies "Live" when control-plane ACTIVE + data-plane 502).
-  // Populated by the DataPlanePoller Runnable in theo-app-operator via
+  // Populated by the DataPlanePoller Runnable in loopscale-app-operator via
   // migration 000045 columns; ABSENT (both fields undefined) when the
   // Cleanroom is warming up before the first poller tick OR the operator
   // env-gate is off. The dashboard's 4-state badge derivation
@@ -157,7 +157,7 @@ export interface Project {
   last_replicas_ready_at?: string;
 }
 
-// Red Team theo-cloud#41 absorption (2026-06-27): 'preview' value
+// Red Team loop-console#41 absorption (2026-06-27): 'preview' value
 // indicates a project whose only deploys are preview-environment builds
 // (no active production release). The dashboard renders a distinct
 // "Preview" badge — never "Live" with a contradictory "URL PENDING"
@@ -535,7 +535,7 @@ export interface ProjectStatusDetail {
   } | null;
   sync_status?: string;
   url?: string;
-  // Red Team theo-cloud#70/#62/#98 closure: when the queried env has no
+  // Red Team loop-console#70/#62/#98 closure: when the queried env has no
   // last_build and no active_release, the engine lists sibling environments
   // (≠ queried) that DO have a SUCCEEDED build under this field. The
   // dashboard uses it to render an honest "No production deployment yet —
@@ -546,7 +546,7 @@ export interface ProjectStatusDetail {
   // T1.1 of plan 2026-06-06-dashboard-journey-j18-status-runtime-health v1.1:
   // backend statusResponse adds Grafana deep-link templated URL + canonical
   // prom_query_keys list. metrics_range_url is empty string when operator did
-  // not set THEO_GRAFANA_BASE_URL (honest disabled per ADR D2). prom_query_keys
+  // not set LOOPSCALE_GRAFANA_BASE_URL (honest disabled per ADR D2). prom_query_keys
   // is the deterministic 8-name list consumers use for /metrics queries.
   metrics_range_url?: string;
   prom_query_keys?: string[];

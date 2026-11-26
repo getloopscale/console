@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // Package storageproxy is the thin-proxy implementation of the storage vertical:
 // it satisfies the same interface routes.NewStorageHandler consumes, but instead
 // of running the in-process storage.Service it forwards each op to the standalone
-// theo-storage service. theo-cloud is the trusted edge here — it has already
+// loopstore service. loop-console is the trusted edge here — it has already
 // authenticated the client's theo_live_* key + scope, so it injects the resolved
-// tenant as X-Theo-Tenant (theo-storage's `header` auth mode trusts it, exactly
+// tenant as X-Theo-Tenant (loopstore's `header` auth mode trusts it, exactly
 // like the Model B ForwardAuth trust boundary the other data services use).
 //
 // This is the strangler-fig endgame: the in-process vertical and this proxy are
@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/storage"
-	"github.com/usetheoai/theo-cloud/internal/storage/share"
+	"github.com/getloopscale/loop-console/internal/storage"
+	"github.com/getloopscale/loop-console/internal/storage/share"
 )
 
 const (
@@ -37,7 +37,7 @@ const (
 	sharedPrefix = "/v1/storage/shared/"
 )
 
-// Client forwards storage ops to a theo-storage upstream. It holds no standing
+// Client forwards storage ops to a loopstore upstream. It holds no standing
 // credential — the tenant is injected per request from the arg the handler
 // already resolved from the client's authenticated key.
 type Client struct {
@@ -45,8 +45,8 @@ type Client struct {
 	http    *http.Client
 }
 
-// New builds a proxy client. baseURL is theo-storage's root (e.g.
-// http://theo-storage:8080). hc may be nil (http.DefaultClient).
+// New builds a proxy client. baseURL is loopstore's root (e.g.
+// http://loopstore:8080). hc may be nil (http.DefaultClient).
 func New(baseURL string, hc *http.Client) *Client {
 	if hc == nil {
 		hc = http.DefaultClient
@@ -102,11 +102,11 @@ func errFromResponse(resp *http.Response) error {
 		if msg == "" {
 			msg = resp.Status
 		}
-		return fmt.Errorf("theo-storage upstream: %s (%s)", msg, code)
+		return fmt.Errorf("loopstore upstream: %s (%s)", msg, code)
 	}
 }
 
-// Upload streams the body to theo-storage's PUT, injecting the tenant.
+// Upload streams the body to loopstore's PUT, injecting the tenant.
 func (c *Client) Upload(ctx context.Context, tenantID, path string, body io.Reader, size int64, mime string) error {
 	// A 0-byte object must forward with a clean Content-Length: 0 — an arbitrary
 	// non-nil reader of unknown length makes Go emit chunked Transfer-Encoding,
@@ -136,7 +136,7 @@ func (c *Client) Upload(ctx context.Context, tenantID, path string, body io.Read
 	return errFromResponse(resp)
 }
 
-// Download opens a stream of the object from theo-storage. The caller closes rc.
+// Download opens a stream of the object from loopstore. The caller closes rc.
 func (c *Client) Download(ctx context.Context, tenantID, path string) (io.ReadCloser, storage.ObjectMeta, error) {
 	return c.stream(ctx, http.MethodGet, tenantID, "/v1/storage/objects/"+path)
 }
@@ -256,7 +256,7 @@ func (c *Client) DeletePrefix(ctx context.Context, tenantID, prefix string) (sto
 }
 
 // Share mints a share link upstream and returns just the token (the handler
-// re-wraps it into theo-cloud's own /v1/storage/shared/{token} URL).
+// re-wraps it into loop-console's own /v1/storage/shared/{token} URL).
 func (c *Client) Share(ctx context.Context, tenantID, path string, ttl time.Duration) (string, time.Time, error) {
 	reqBody, _ := json.Marshal(map[string]any{
 		"path":               path,
@@ -326,7 +326,7 @@ func (c *Client) Usage(ctx context.Context, tenantID string) (storage.UsageInfo,
 
 // presignPost forwards a presign mint (upload/download) to the upstream storage
 // service and decodes the {url, expires_at} envelope. The upstream owns the S3
-// signing; theo-cloud only relays the already-authenticated tenant.
+// signing; loop-console only relays the already-authenticated tenant.
 func (c *Client) presignPost(ctx context.Context, tenantID, endpoint string, reqBody any) (string, time.Time, error) {
 	raw, err := json.Marshal(reqBody)
 	if err != nil {

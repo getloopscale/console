@@ -1,9 +1,9 @@
 import { History } from 'lucide-react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@getloopscale/ui';
 import { revisionColumns } from '@/pages/promptly/revision-columns';
 import { revisionRows } from '@/pages/promptly/components/projections';
 import type { RevisionsQuery } from './tipos';
-import { DataTable, EmptyState } from '@usetheo/ui';
+import { DataTable, EmptyState } from '@getloopscale/ui';
 
 interface Props {
   REVISIONS_LIMIT: number;

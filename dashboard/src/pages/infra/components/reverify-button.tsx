@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Button } from '@usetheo/ui';
+import { Button } from '@getloopscale/ui';
 import { RefreshCw } from 'lucide-react';
 import { useVerifyDomain } from '@/hooks/mutations/use-domains';
 import type { DomainStatus } from '@/lib/api/types';

@@ -1,6 +1,6 @@
 // @vitest-environment node
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
  * the deployment.
  *
  * The policy used to be declared twice, in a `<meta>` of index.html and in the nginx header,
- * each naming the usetheo.dev hosts. A browser applies every policy it receives and allows only
+ * each naming the getloopscale.com hosts. A browser applies every policy it receives and allows only
  * their intersection, and neither copy could be changed without rebuilding the image, so the
  * dashboard on any other host (staging on getloopscale.com) could not reach its own Kratos:
  * "Refused to connect because it violates the document's Content Security Policy".
@@ -73,7 +73,7 @@ describe('the Content-Security-Policy is one policy, configured per deployment',
   });
 
   it('the header names no environment host', () => {
-    expect(headerPolicy()).not.toMatch(/usetheo\.dev|getloopscale\.com/);
+    expect(headerPolicy()).not.toMatch(/getloopscale\.com|getloopscale\.com/);
   });
 
   it('nginx-csp-origins.conf defines both variables, empty by default', () => {
@@ -105,7 +105,7 @@ describe('the Content-Security-Policy is one policy, configured per deployment',
   });
 });
 
-describe("Red Team theo-cloud#67: script-src without 'unsafe-inline'", () => {
+describe("Red Team loop-console#67: script-src without 'unsafe-inline'", () => {
   // `'unsafe-inline'` in `script-src` removes the main defence against XSS. The bundle has no
   // inline handler (React uses synthetic events).
   it('nginx-security-headers.conf', () => {

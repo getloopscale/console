@@ -10,7 +10,7 @@
 // Um formulário que permite montar o par inválido não fica mais permissivo — só empurra a recusa
 // para depois do clique, onde ela chega como erro de servidor em vez de orientação.
 
-/** A métrica escopada a um prompt (`theo-cloud` v0.83.0, migração `000060`). */
+/** A métrica escopada a um prompt (`loop-console` v0.83.0, migração `000060`). */
 export const METRICA_DE_PROMPT = 'prompt_resolutions';
 
 export type AlertField = 'name' | 'promptName' | 'threshold' | 'webhookId';

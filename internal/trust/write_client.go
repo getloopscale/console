@@ -75,7 +75,7 @@ func (c *DataClient) sendRaw(ctx context.Context, method, path string, body json
 		return nil, fmt.Errorf("trust data client: read %s: %w", path, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// O corpo carrega o codigo TIPADO do theo-trust (INVALID_SPEC, VALIDATOR_NAME_RESERVED,
+		// O corpo carrega o codigo TIPADO do loopguardrails (INVALID_SPEC, VALIDATOR_NAME_RESERVED,
 		// CONFLICT). Ele precisa sobreviver ate a tela: sem o motivo, o operador ve "erro" e nao
 		// sabe O QUE corrigir — e tenta de novo igual.
 		//

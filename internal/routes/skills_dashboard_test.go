@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"strconv"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,11 +8,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/getloopscale/loop-console/internal/skills"
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheoai/theo-cloud/internal/skills"
 )
 
 // stubSkillsReader implementa a porta que o handler consome.
@@ -777,7 +777,6 @@ func TestAutoria_corpoVazioNaoChegaAoUpstream(t *testing.T) {
 		t.Fatalf("não deveria ter chamado o upstream: %v", author.seen)
 	}
 }
-
 
 // Upload de skill com scripts — uma skill que carrega Python/Bash é uma ARVORE, nao um markdown.
 //

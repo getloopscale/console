@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Brain, Loader2, Sparkles } from 'lucide-react';
-import { Button, Card, PageShell, PlanBadge, type PlanTier } from '@usetheo/ui';
-import { UsageMeter, type UsageMetric as UsageMeterMetric } from '@theokit/ui';
+import { Button, Card, PageShell, PlanBadge, type PlanTier } from '@getloopscale/ui';
+import { UsageMeter, type UsageMetric as UsageMeterMetric } from '@getloopscale/loopzero-ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
 import { InvoicesCard } from '@/pages/settings/components/invoices-card';
@@ -15,7 +15,7 @@ import { openBillingPortal, startCheckout } from '@/hooks/settings/billing-actio
 import type { MemoryMetrics } from '@/hooks/memory/use-memory-metrics';
 
 /**
- * theo-cloud#63: extract the actionable error copy when the backend rejected
+ * loop-console#63: extract the actionable error copy when the backend rejected
  * a checkout/portal request. Order of preference (KISS — no new UI invented):
  *
  *   1. ApiError + parsed JSON body with a non-empty `message` → use it verbatim.
@@ -38,7 +38,7 @@ function extractActionableErrorMessage(err: unknown): string {
       return body.message;
     }
   }
-  // Red Team theo-cloud#40 closure: when the backend returns a 4xx with
+  // Red Team loop-console#40 closure: when the backend returns a 4xx with
   // no actionable body, "Please try again" misleads the user into
   // hammering a permanently broken endpoint. A 4xx is non-retryable by
   // definition (client-side fault OR backend feature-flag off), so
@@ -130,7 +130,7 @@ export function BillingPage() {
 
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
-  // Red Team theo-cloud#72 closure: React 18 batches setActionLoading until
+  // Red Team loop-console#72 closure: React 18 batches setActionLoading until
   // the click handler returns, so two synchronous clicks both see disabled=false
   // before the first re-render lands. A ref guard short-circuits the 2nd click
   // SYNCHRONOUSLY (same pattern as components/domains/reverify-button.tsx EC-4).
@@ -144,7 +144,7 @@ export function BillingPage() {
     try {
       const portal = await openBillingPortal();
       if (portal?.url) {
-        // theo-cloud#15: `window.open(url, '_blank')` after an await is eaten by popup
+        // loop-console#15: `window.open(url, '_blank')` after an await is eaten by popup
         // blockers — gesture activation expires across the await — so this is a
         // same-window navigation, which is also Stripe's documented portal pattern.
         // B-138: it goes through the boundary under BILLING_REDIRECT, a destination
@@ -327,7 +327,7 @@ export function BillingPage() {
         {/* Sprint 3 Phase 7 (#27) v1.1 ADR D4 — replace the outer <Card
             onClick> with a real <button type="button"> wrapping <Card.Body>
             (which renders a <div> so no nested-interactive trap). Card root
-            has no `as`/`asChild` polymorphic prop in its @usetheo/ui .d.ts
+            has no `as`/`asChild` polymorphic prop in its @getloopscale/ui .d.ts
             (probed during v1.1 EC-3 absorption). The button preserves the
             previous card visuals (border + padding + hover) AND surfaces a
             real accessible name + focus ring for keyboard users. */}
@@ -336,7 +336,7 @@ export function BillingPage() {
             type="button"
             onClick={() => upgradePlan(OFERTA_POR_PLANO[planTier]!.target)}
             disabled={actionLoading}
-            // Red Team theo-cloud#72 closure: disable on the first click so a double-tap can't
+            // Red Team loop-console#72 closure: disable on the first click so a double-tap can't
             // fire two POST /v1/billing/checkout requests in quick succession. This is the
             // client-side guard; the Stripe Idempotency-Key bucket (internal/billing) is the
             // server-side guard.

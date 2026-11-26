@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 // skills-cross-repo-sdk-symmetry (M3) — route-gating proof for the SDK-surface
 // cross-repo flat skills list. cmd/main.go mounts
@@ -23,8 +23,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/themory"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/loopmem"
 )
 
 // 200 path: a theo_live_* key carrying memory:read reaches the handler, which
@@ -34,18 +34,18 @@ func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
 	keyIDSkills := chaveDeTeste("skills-all")
 	db, mock := sqlmockSetup(t)
 	h, fake := newMemoryHandler(t)
-	fake.skillsAllResp = &themory.SkillsAllResult{
-		Skills: []themory.SkillWithRepo{{Skill: themory.Skill{ID: "s1"}, RepoID: "repo-a"}},
+	fake.skillsAllResp = &loopmem.SkillsAllResult{
+		Skills: []loopmem.SkillWithRepo{{Skill: loopmem.Skill{ID: "s1"}, RepoID: "repo-a"}},
 		Total:  1,
 	}
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow(keyIDSkills, "sub-xyz", "tenant-A", nil, []byte(`["memory:read"]`), nil))
-	mock.ExpectExec("UPDATE loopruntime_api_keys").
+	mock.ExpectExec("UPDATE loop_runtime_api_keys").
 		WithArgs(keyIDSkills, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -81,7 +81,7 @@ func TestMemorySkillsAllRoute_Forbidden_WithoutMemoryRead(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loopruntime_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM loop_runtime_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow("apk-skills-all-2", "sub-xyz", "tenant-A", nil, []byte(`["memory:write"]`), nil)) // no memory:read

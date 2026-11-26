@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package auth
 
@@ -12,11 +12,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/usetheoai/theo-contracts/serviceauth"
+	"github.com/getloopscale/contracts/serviceauth"
 )
 
 // ServiceSigner attaches the three dual-control headers
-// (X-LoopRuntime-Signature, X-LoopRuntime-Timestamp, X-LoopRuntime-Nonce) to outbound
+// (X-Loop-Runtime-Signature, X-Loop-Runtime-Timestamp, X-Loop-Runtime-Nonce) to outbound
 // engine requests on behalf of the authenticated dashboard user.
 //
 // The private key is held only by the cloud proxy — no other binary
@@ -38,7 +38,7 @@ func NewServiceSigner(priv ed25519.PrivateKey) (*ServiceSigner, error) {
 }
 
 // NewServiceSignerFromBase64 is the production constructor used in
-// cloud bootstrap: the env var LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY
+// cloud bootstrap: the env var LOOP_RUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY
 // carries a base64-encoded Ed25519 private key (RFC § Key management).
 //
 // Returns an error if:
@@ -51,7 +51,7 @@ func NewServiceSigner(priv ed25519.PrivateKey) (*ServiceSigner, error) {
 // this error to the readiness probe so the LB stops sending traffic.
 func NewServiceSignerFromBase64(encoded string) (*ServiceSigner, error) {
 	if encoded == "" {
-		return nil, errors.New("cloud service-signer: private key is empty (set LOOPRUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY)")
+		return nil, errors.New("cloud service-signer: private key is empty (set LOOP_RUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY)")
 	}
 	raw, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
@@ -67,7 +67,7 @@ func NewServiceSignerFromBase64(encoded string) (*ServiceSigner, error) {
 // engine audit logs rather than the cloud proxy, hiding the bug.
 // Failing here produces a clear cloud-side error and a 502 to the
 // dashboard caller.
-var ErrMissingIdentityHeaders = errors.New("cloud service-signer: missing X-LoopRuntime-User-ID or X-LoopRuntime-Tenant on outbound request")
+var ErrMissingIdentityHeaders = errors.New("cloud service-signer: missing X-Loop-Runtime-User-ID or X-Loop-Runtime-Tenant on outbound request")
 
 // Attach signs the canonical payload derived from the request and
 // adds the three signature headers in-place. Idempotent: calling
@@ -101,9 +101,9 @@ func (s *ServiceSigner) Attach(r *http.Request) error {
 		return fmt.Errorf("cloud service-signer: sign failed: %w", err)
 	}
 
-	r.Header.Set("X-LoopRuntime-Signature", sig)
-	r.Header.Set("X-LoopRuntime-Timestamp", fmt.Sprintf("%d", ts))
-	r.Header.Set("X-LoopRuntime-Nonce", nonce)
+	r.Header.Set("X-Loop-Runtime-Signature", sig)
+	r.Header.Set("X-Loop-Runtime-Timestamp", fmt.Sprintf("%d", ts))
+	r.Header.Set("X-Loop-Runtime-Nonce", nonce)
 	return nil
 }
 

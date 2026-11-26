@@ -1,13 +1,13 @@
 // Package version reports this binary's own build provenance.
 //
-// WHY IT EXISTS. Until M22 theo-cloud CONSUMED `/v1/version` from every sibling service
+// WHY IT EXISTS. Until M22 loop-console CONSUMED `/v1/version` from every sibling service
 // (`internal/serviceversions/probe.go`) and served none itself. `GET /v1/version` returned a literal
 // 404, measured 6/6 against the public-dev edge, while the host reconciler's third convergence axis
 // probed a different, JWT-gated endpoint, read its 401 as "a rota existe" and declared provenance
 // converged. The service could not say what it was running, and the thing that checks it said
 // everything was fine.
 //
-// WHY -X AND NOT ANYTHING ELSE. The workspace spec (theo-workspace/docs/service-version-endpoint.md,
+// WHY -X AND NOT ANYTHING ELSE. The workspace spec (loopscale-workspace/docs/service-version-endpoint.md,
 // § "Camada 3 — a proveniência, que é onde isso quebra") requires the source of truth to be the OCI
 // label, never `git rev-parse` on the host. Every runtime route to that label is closed here:
 //
@@ -25,7 +25,7 @@
 // outside the artifact that can go stale. Pulling a new digest necessarily changes the reported sha.
 //
 // That property is the whole point. The failure the spec names has one mechanism — a SEPARATE
-// WRITER. theo-memory's provenance was written into a .env on the host; when its deploy moved
+// WRITER. loopmem's provenance was written into a .env on the host; when its deploy moved
 // push→pull the writing job vanished, nobody noticed, and the container ran the new image while
 // reporting the old commit. A second, measured recurrence followed a rename. `-X` deletes the
 // writer, so the "image" and "provenance" convergence axes collapse into one fact.
@@ -39,7 +39,7 @@ import (
 
 // Injected at link time by the container build:
 //
-//	-ldflags "-X github.com/usetheoai/theo-cloud/internal/version.Version=$V ..."
+//	-ldflags "-X github.com/getloopscale/loop-console/internal/version.Version=$V ..."
 //
 // The defaults are the unstamped-build sentinels and are NOT interchangeable — see the note on
 // Version below.
@@ -62,7 +62,7 @@ var (
 )
 
 // serviceName is a compile-time literal, matching how the sibling services identify themselves.
-const serviceName = "theo-cloud"
+const serviceName = "loop-console"
 
 // Info is the wire contract of GET /v1/version. Five fields, all always present.
 //

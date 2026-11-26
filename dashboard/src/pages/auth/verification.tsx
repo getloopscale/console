@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { flowUrl } from '@/pages/auth/kratos';
 import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react';
-import { Button, Card, PinInput } from '@usetheo/ui';
+import { Button, Card, PinInput } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { useSetPageTitle } from '@/hooks/use-page-meta';

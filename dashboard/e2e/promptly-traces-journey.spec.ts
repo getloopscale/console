@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 //
 // M23 — o caminho da aba de um prompt até as resoluções individuais dele.
 //
 // A aba *Uso em produção* mostra um agregado. Quando o número surpreende, não havia para onde ir:
-// os spans `prompt.resolve` já existiam, já estavam indexados por `prompt.id` no `theo-lens`, e a
-// única forma de chegar neles era digitar a URL (`usetheoai/theo-cloud#463`).
+// os spans `prompt.resolve` já existiam, já estavam indexados por `prompt.id` no `looptrace`, e a
+// única forma de chegar neles era digitar a URL (`getloopscale/loop-console#463`).
 //
 // POR QUE ESTE SPEC EXISTE, e por que ele afirma no DESTINO:
 //

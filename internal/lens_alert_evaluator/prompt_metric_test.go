@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package lens_alert_evaluator
 
 import "testing"
 
-// theo-promptly M21 DoD-5 — a métrica escopada a prompt, extraída do agregado do M15.
+// loopprompt M21 DoD-5 — a métrica escopada a prompt, extraída do agregado do M15.
 //
-// O agregado do theo-lens (`GET /v1/analytics/prompt-usage`) é **por revisão sobre a janela
+// O agregado do looptrace (`GET /v1/analytics/prompt-usage`) é **por revisão sobre a janela
 // inteira**, não uma série temporal:
 //
 //	{promptName, windowDays, rows: [{revision, resolutions, totalTokens, costUsd, p50LatencyMs}]}
@@ -37,13 +37,13 @@ func TestSomaAsResolucoesDeTodasAsRevisoes(t *testing.T) {
 func TestAgregadoVazioEZeroHONESTOENaoAusencia(t *testing.T) {
 	// O ponto mais delicado desta fatia, e onde ela DIVERGE de metricFromSeries de propósito.
 	//
-	// Em `metricFromSeries`, janela sem tráfego devolve (0, false) — foi o theo-cloud#247: `lt`/`lte`
+	// Em `metricFromSeries`, janela sem tráfego devolve (0, false) — foi o loop-console#247: `lt`/`lte`
 	// são comparadores aceitos, `0 < limiar` é verdadeiro, e um workspace parado disparava alerta
 	// falso permanente justamente na regra que serve para detectar que o pipeline PAROU.
 	//
 	// Aqui a resposta é a oposta, e o motivo é o transporte: `PromptUsage` já separa os dois fatos —
 	// falha de leitura sobe como *UpstreamStatusError, nunca como agregado vazio
-	// (`internal/thelens/data_client.go`, comentário do método). Então `rows: []` significa
+	// (`internal/looptrace/data_client.go`, comentário do método). Então `rows: []` significa
 	// literalmente "ninguém resolveu este prompt na janela", que é uma MEDIÇÃO.
 	//
 	// Se devolvêssemos (0, false) por simetria com o irmão, a regra "avise se este prompt parar de

@@ -8,7 +8,7 @@ import path from 'path';
 // manualChunks extracted to a pure, unit-tested module (dashboard-manualchunks-tdz-fix,
 // ADR D1/D2) — keeps the react+react-dom+scheduler co-location invariant testable.
 import { manualChunks } from './src/build/manual-chunks';
-// SW navigation denylist extracted to a pure, unit-tested module (theo-cloud#203) —
+// SW navigation denylist extracted to a pure, unit-tested module (loop-console#203) —
 // single source of truth shared by navigateFallbackDenylist + the NetworkOnly
 // runtimeCaching predicate, so a BFF navigation path can never be added to one and
 // forgotten in the other (the recurring #112/#203 bug class).
@@ -18,7 +18,7 @@ import { SW_RUNTIME_CACHING } from './src/build/sw-runtime-caching';
 
 /**
  * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
- * (`form-action 'self' https://auth.usetheo.dev …`). In the local dev stack the
+ * (`form-action 'self' https://auth.getloopscale.com …`). In the local dev stack the
  * login/registration forms POST to the vite-proxied Kratos at the dev origin
  * (localhost:5173 → kratos:14433). When the page is opened via 127.0.0.1 (vite
  * `--host` binds 0.0.0.0), `'self'` no longer matches the localhost form-action
@@ -44,7 +44,7 @@ function devCspRelax(): Plugin {
 /**
  * Vite config with manualChunks vendor split (T-H.3 final optimization).
  *
- * Splits @usetheo/ui + Radix + Lucide into dedicated vendor chunk so the
+ * Splits @getloopscale/ui + Radix + Lucide into dedicated vendor chunk so the
  * browser caches it independently of app code. Reduces re-download cost
  * on subsequent visits + parallelizes parsing.
  *
@@ -158,13 +158,13 @@ export default defineConfig(({ mode }) => ({
         // EC-04: NEVER cache auth/session endpoints — would serve stale
         // tokens making user appear logged-in when session is gone.
         //
-        // Red Team theo-cloud#112 caveat closure (2026-06-28): include
+        // Red Team loop-console#112 caveat closure (2026-06-28): include
         // /auth/* — the BFF Hydra consent/device-flow routes
         // (/auth/login, /auth/login/complete, /auth/consent, /auth/device).
         // Without this entry, the SW from any tab that opened the
         // dashboard before the #112 fix landed serves the SPA shell from
         // precache → React Router has no `/auth/login` route → "Page
-        // not found" → CLI `theo login --device-flow` chain breaks for
+        // not found" → CLI `loopscale login --device-flow` chain breaks for
         // every existing user with a warm SW (same class as #100 MIME
         // outage). Mirror in runtimeCaching below as NetworkOnly so the
         // path never enters any cache, even after warmup.
@@ -186,26 +186,26 @@ export default defineConfig(({ mode }) => ({
     },
     // Force a single React instance across the dependency graph.
     // Without this, pnpm's content-addressable store can resolve `react` and
-    // `react-dom` from `@usetheo/ui`'s own pkg dir (via its peer entry) while
+    // `react-dom` from `@getloopscale/ui`'s own pkg dir (via its peer entry) while
     // the app code resolves from the workspace root — producing two distinct
     // module identities and the "Invalid hook call" runtime error from
     // useContext returning null.
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    // Pre-bundle @usetheo/ui to a single optimized artifact so Vite doesn't
+    // Pre-bundle @getloopscale/ui to a single optimized artifact so Vite doesn't
     // re-discover it on every page (the heavy library was triggering serial
     // re-optimizations and 504s on outdated optimize-dep). Listing it here
-    // pins the entry to the app's React, not @usetheo/ui's peer copy.
-    include: ['@usetheo/ui', 'react', 'react-dom', 'react-dom/client', 'react-force-graph-2d'],
+    // pins the entry to the app's React, not @getloopscale/ui's peer copy.
+    include: ['@getloopscale/ui', 'react', 'react-dom', 'react-dom/client', 'react-force-graph-2d'],
   },
-  // Dev-only: same-origin against the local theo-cloud + Kratos port-forwards
+  // Dev-only: same-origin against the local loop-console + Kratos port-forwards
   // via vite proxy (avoids browser CORS). In prod, the dashboard is served
   // from cloud.{domain} (MEET-040). `allowedHosts` whitelists the public
   // Caddy-fronted hostname so vite's DNS-rebinding guard doesn't 403 us.
   server: {
     host: true,
-    allowedHosts: ['localhost', 'app.usetheo.dev', '.usetheo.dev'],
+    allowedHosts: ['localhost', 'app.getloopscale.com', '.getloopscale.com'],
     proxy: {
       '/v1':           { target: 'http://localhost:13002', changeOrigin: true },
       '/engine':       { target: 'http://localhost:13002', changeOrigin: true },

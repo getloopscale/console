@@ -55,7 +55,7 @@ describe('TeamPage', () => {
   });
 
   it('test_team_invite_member_opens_dialog', async () => {
-    // Plan v1.2 divergence: invite is delegated to docs.usetheo.dev/teams/invite via
+    // Plan v1.2 divergence: invite is delegated to docs.getloopscale.com/teams/invite via
     // ActionBar.primaryAction (window.open) — no in-app dialog. Verify button exists.
     seedTeam({ members: [] });
     render(<TeamPage />);

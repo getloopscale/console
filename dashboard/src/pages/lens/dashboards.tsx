@@ -16,7 +16,7 @@ import {
   Select,
   Skeleton,
   Timestamp,
-} from '@usetheo/ui';
+} from '@getloopscale/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { nextBoardName } from './dashboards/board-name';
@@ -33,7 +33,7 @@ import {
   type DashboardRow as DashboardRowOf,
 } from '@/hooks/lens/use-dashboards';
 import { formatCost, formatDuration, formatNumber } from '@/lib/formatting/format';
-import { TrendChart } from '@usetheo/ui';
+import { TrendChart } from '@getloopscale/ui';
 import { useObservability, type ObservabilityRange } from '@/hooks/lens/use-observability';
 import {
   TRACING_OVERVIEW_TEMPLATE,
@@ -177,7 +177,7 @@ export function LensDashboardsPage() {
   useRequireAuth();
   const [params, setParams] = useSearchParams();
   const boardId = params.get('board') ?? '';
-  // Typed as the whitelisted union rather than a bare string: theo-lens 400s on anything outside
+  // Typed as the whitelisted union rather than a bare string: looptrace 400s on anything outside
   // `OBSERVABILITY_RANGES`, and until this read moved behind the hook the compiler had no way to
   // say so. There is no range picker on this screen yet — when one is added, an invalid option
   // fails to compile instead of failing at the endpoint.

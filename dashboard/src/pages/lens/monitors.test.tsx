@@ -145,7 +145,7 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
  * "Gate traces on evaluator thresholds", which is the exact over-promise the milestone exists to
  * remove. Every hermetic test passed, because none of them looked at copy.
  *
- * "Gate" and "guard" imply blocking. Theo Lens observes; your own application blocks.
+ * "Gate" and "guard" imply blocking. LoopScale Lens observes; your own application blocks.
  */
 describe('M136 user-visible copy', () => {
   it('reads Monitors, never Guards, and never promises gating', async () => {
@@ -189,7 +189,7 @@ describe('M136 deprecated UI route', () => {
 });
 
 /**
- * theo-cloud#259 — the M135 DoD that shipped open: the Monitors screen shows severity + last-evaluated.
+ * loop-console#259 — the M135 DoD that shipped open: the Monitors screen shows severity + last-evaluated.
  *
  * The state ALREADY exists — the evaluator writes `status` / `last_evaluated_at` / `stale` onto the
  * monitor-backed rule in `lens_alert_rules`, and `GET /v1/dashboard/lens/alert-rules` already returns
@@ -294,7 +294,7 @@ describe('#259 — monitor severity + last-evaluated', () => {
  */
 describe('#259 — the alert-rule contract the Monitors screen depends on', () => {
   it('lens_alert_rules.go still emits monitor_id, stale and last_evaluated_at', async () => {
-    // dashboard/ → theo-cloud/
+    // dashboard/ → loop-console/
     const fs = await import('node:fs');
     const path = await import('node:path');
     const src = fs.readFileSync(path.resolve(process.cwd(), '../internal/routes/lens_alert_rules.go'), 'utf8');

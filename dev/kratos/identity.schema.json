@@ -1,7 +1,7 @@
 {
-  "$id": "https://schemas.usetheo.dev/identity.schema.json",
+  "$id": "https://schemas.getloopscale.com/identity.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Theo Identity",
+  "title": "LoopScale Identity",
   "type": "object",
   "properties": {
     "traits": {

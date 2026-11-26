@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package normalize
 
@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Red Team theo-cloud#86 regression-protectors. The middleware MUST
+// Red Team loop-console#86 regression-protectors. The middleware MUST
 // redirect any request with consecutive slashes in the URI to the
 // canonical single-slash form with HTTP 308 (preserves method + body).
 // The 4 scenarios lock the 4-axis attack surface from the issue body.

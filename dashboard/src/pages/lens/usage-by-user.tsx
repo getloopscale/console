@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { parseAsInteger, useQueryState } from 'nuqs';
-import { Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
+import { Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@getloopscale/ui';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
-import { TrendChart, type TrendSeries } from '@usetheo/ui';
+import { TrendChart, type TrendSeries } from '@getloopscale/ui';
 import { densificar, seriesWindow, type PlottableField } from '@/pages/lens/usage-series';
 import { summarizeConsumption } from '@/pages/lens/usage-summary';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
@@ -18,7 +18,7 @@ import { formatCost, formatNumber, shortId } from '@/lib/formatting/format';
 
 /**
  * M142 — /observability/usage-by-user. Consumo (tokens + custo estimado) agrupado por END USER,
- * lendo o BFF `GET /v1/dashboard/lens/usage-by-user` (M141), que proxia o theo-lens (M140).
+ * lendo o BFF `GET /v1/dashboard/lens/usage-by-user` (M141), que proxia o looptrace (M140).
  *
  * Somente leitura, e por construção: o relatório é DERIVADO dos spans ingeridos — não há o que
  * criar, editar ou apagar aqui, do mesmo jeito que na tela de Agents.
@@ -405,7 +405,7 @@ export function LensUsageByUserPage() {
               revisor previa isso.
 
               A linha QUEBRA no dia sem consumo. `densificar` põe `NaN` onde o serviço não devolveu
-              ponto, e o `seriesPath` do `@usetheo/ui` emite um novo subcaminho ali — a
+              ponto, e o `seriesPath` do `@getloopscale/ui` emite um novo subcaminho ali — a
               convenção de toda biblioteca séria, e a única leitura honesta: ligar afirmaria
               continuidade que o dado não tem, e zero seria indistinguível de consumo real zero.
             */}

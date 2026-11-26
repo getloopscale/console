@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package routes
 
@@ -13,9 +13,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/billing"
-	"github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/billing"
+	"github.com/getloopscale/loop-console/internal/metrics"
 )
 
 // UsageMetric represents a single usage metric with current value and limit.
@@ -233,7 +233,7 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Plan release-blockers-2026-06-25-set T4.2 — closes theo-cloud#39.
+	// Plan release-blockers-2026-06-25-set T4.2 — closes loop-console#39.
 	// The Red Team flagged a self-contradicting "Invalid plan. Available:
 	// pro, team" when the user sent the valid plan name "pro". Root cause:
 	// PriceIDForPlan reads os.Getenv("STRIPE_PRICE_PRO") raw — when the
@@ -401,7 +401,7 @@ func (h *BillingHandler) getUsageForTenant(r *http.Request, tenantID string) map
 		return map[string]int{}
 	}
 
-	// Red Team theo-cloud#42 closure: usage_records is an append-only
+	// Red Team loop-console#42 closure: usage_records is an append-only
 	// counter feed for usage-style metrics (build minutes, etc.). It is
 	// the wrong source for STATEFUL capacity metrics — projects + seats
 	// don't emit a +1 event per existence; they have a current count

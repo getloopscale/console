@@ -11,7 +11,7 @@ import { ApiError, cloudFetch } from '@/lib/http/api';
  *
  * O prefixo também vive aqui: as telas nomeiam o recurso, não a rota do BFF.
  *
- * M24 acrescenta os verbos de gestão de guardrail. A regra nova é `serviceMessage`: o `theo-trust`
+ * M24 acrescenta os verbos de gestão de guardrail. A regra nova é `serviceMessage`: o `loopguardrails`
  * devolve códigos tipados (`INVALID_SPEC`, `VALIDATOR_NAME_RESERVED`, `CONFLICT`) com uma frase que
  * diz ao operador o que corrigir. Se essa frase virar "ocorreu um erro" em qualquer ponto do
  * caminho, ele tenta de novo exatamente igual — e é por isso que a extração vive aqui, uma vez, e

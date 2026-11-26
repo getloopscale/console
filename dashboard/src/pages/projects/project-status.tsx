@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Activity, ArrowLeft, Loader2 } from 'lucide-react';
-import { Button, EmptyState, PageShell } from '@usetheo/ui';
+import { Button, EmptyState, PageShell } from '@getloopscale/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjectStatus } from '@/hooks/use-project-status';
@@ -95,7 +95,7 @@ export function ProjectStatusPage() {
   // status.environment once loaded (undefined → 'production' default in the hook).
   // Unit conversions match the SignalGrid formatters: uptime avg_over_time
   // (0..1) → % (×100); p95 histogram_quantile (seconds) → ms (×1000); error_rate
-  // is already a % (theo#170 fix → ratio ×100) so ×1; rps passes through. These
+  // is already a % (loopscale#170 fix → ratio ×100) so ×1; rps passes through. These
   // render "—" honestly until a Prometheus backend is reachable.
   const uptime24hKpi = useKpiReading(name, 'uptime_24h', 100);
   const p95LatencyKpi = useKpiReading(name, 'p95_latency', 1000);
@@ -145,7 +145,7 @@ export function ProjectStatusPage() {
     );
   }
 
-  // Red Team theo-cloud#98 closure: a preview-only project (no last_build
+  // Red Team loop-console#98 closure: a preview-only project (no last_build
   // and no active_release in the queried env) used to default to
   // "Progressing" with a perpetual 5s auto-refresh. Both signals were
   // dishonest — there was nothing to refresh into existence, and the
@@ -205,7 +205,7 @@ export function ProjectStatusPage() {
     rps: rpsKpi.collecting,
   };
 
-  // Red Team theo-cloud#124 — health-truth fix.
+  // Red Team loop-console#124 — health-truth fix.
   // Pre-fix: `Healthy` was emitted from active_release.status === 'ACTIVE'
   // ALONE — control-plane SYNC confirmation by ArgoCD. But `synced ≠ serving`.
   // LIVE repro (2026-06-30): build SUCCEEDED + release ACTIVE + sync synced +
@@ -241,7 +241,7 @@ export function ProjectStatusPage() {
   };
 
   // Backend T1.1: status response now has `metrics_range_url` populated when
-  // operator set THEO_GRAFANA_BASE_URL. We pass it to the drill-down sheet so
+  // operator set LOOPSCALE_GRAFANA_BASE_URL. We pass it to the drill-down sheet so
   // the "Open in Grafana" link is enabled honest.
   const grafanaBaseURL: string | null =
     typeof status.metrics_range_url === 'string' && status.metrics_range_url !== ''

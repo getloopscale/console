@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2025-2026 The Theo Authors
+// Copyright 2025-2026 The LoopScale Authors
 
 package unit
 
@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheoai/theo-cloud/internal/auth"
-	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/getloopscale/loop-console/internal/auth"
+	"github.com/getloopscale/loop-console/internal/routes"
 )
 
 // mockHydraServer returns a test server that simulates Hydra's endpoints.
@@ -22,12 +22,12 @@ func mockHydraServer(t *testing.T, tokenReady bool) *httptest.Server {
 		case r.URL.Path == "/oauth2/device/auth" && r.Method == "POST":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"device_code":              "test-device-code",
-				"user_code":               "ABCD-1234",
-				"verification_uri":         "http://localhost:4455/device",
+				"device_code":               "test-device-code",
+				"user_code":                 "ABCD-1234",
+				"verification_uri":          "http://localhost:4455/device",
 				"verification_uri_complete": "http://localhost:4455/device?user_code=ABCD-1234",
-				"expires_in":              300,
-				"interval":                5,
+				"expires_in":                300,
+				"interval":                  5,
 			})
 
 		case r.URL.Path == "/oauth2/token" && r.Method == "POST":
@@ -77,7 +77,7 @@ func TestDeviceAuthorize(t *testing.T) {
 	srv := mockHydraServer(t, false)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	req := httptest.NewRequest("POST", "/v1/auth/device/authorize", nil)
@@ -115,7 +115,7 @@ func TestDeviceTokenPending(t *testing.T) {
 	srv := mockHydraServer(t, false)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"device_code":"test-device-code"}`
@@ -140,7 +140,7 @@ func TestDeviceTokenSuccess(t *testing.T) {
 	srv := mockHydraServer(t, true)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"device_code":"test-device-code"}`
@@ -178,7 +178,7 @@ func TestDeviceTokenMissingBody(t *testing.T) {
 	srv := mockHydraServer(t, false)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	req := httptest.NewRequest("POST", "/v1/auth/device/token", strings.NewReader("{}"))
@@ -195,7 +195,7 @@ func TestRefreshToken(t *testing.T) {
 	srv := mockHydraServer(t, false)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"refresh_token":"refresh-token-123"}`
@@ -220,7 +220,7 @@ func TestRefreshTokenMissingBody(t *testing.T) {
 	srv := mockHydraServer(t, false)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	req := httptest.NewRequest("POST", "/v1/auth/token/refresh", strings.NewReader("{}"))
@@ -250,7 +250,7 @@ func mockHydraAdmin(t *testing.T, acceptOK bool) *httptest.Server {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"redirect_to": "https://auth-dev.usetheo.dev/oauth2/auth?login_challenge=next-step",
+				"redirect_to": "https://auth-dev.getloopscale.com/oauth2/auth?login_challenge=next-step",
 			})
 			return
 		}
@@ -262,7 +262,7 @@ func TestAcceptDevice_HappyPath(t *testing.T) {
 	srv := mockHydraAdmin(t, true)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"device_challenge":"chal-123","user_code":"ABCD1234"}`
@@ -288,7 +288,7 @@ func TestAcceptDevice_MissingChallenge(t *testing.T) {
 	srv := mockHydraAdmin(t, true)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"user_code":"ABCD1234"}`
@@ -309,7 +309,7 @@ func TestAcceptDevice_MissingUserCode(t *testing.T) {
 	srv := mockHydraAdmin(t, true)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"device_challenge":"chal-123"}`
@@ -327,7 +327,7 @@ func TestAcceptDevice_MalformedJSON(t *testing.T) {
 	srv := mockHydraAdmin(t, true)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	req := httptest.NewRequest("POST", "/v1/auth/device/accept", strings.NewReader("{not json"))
@@ -344,7 +344,7 @@ func TestAcceptDevice_HydraRejects(t *testing.T) {
 	srv := mockHydraAdmin(t, false) // Hydra refuses (bad user_code)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"device_challenge":"chal-123","user_code":"BADCODE"}`
@@ -376,7 +376,7 @@ func TestAcceptDevice_Rule3InternalTermsSweep(t *testing.T) {
 	srv := mockHydraAdmin(t, true)
 	defer srv.Close()
 
-	hydra := auth.NewHydraClient(srv.URL, srv.URL, "theo-cli")
+	hydra := auth.NewHydraClient(srv.URL, srv.URL, "loopscale-cli")
 	handler := routes.NewDeviceHandler(hydra, "http://localhost:3000")
 
 	body := `{"device_challenge":"chal-123","user_code":"ABCD1234"}`
