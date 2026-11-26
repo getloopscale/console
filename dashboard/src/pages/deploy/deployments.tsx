@@ -17,7 +17,8 @@ import { DeploymentRow } from '@/pages/deploy/components/deployment-row';
 import { RollbackRow } from '@/pages/deploy/components/rollback-row';
 import { deploymentEntries } from '@/pages/deploy/deployment-entries';
 import { formatDate } from '@/lib/formatting/format';
-import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
+import { type Build, type BuildStatus } from '@/lib/api/types';
+import { buildOutcome } from '@/pages/deploy/build-outcome';
 
 
 
@@ -217,12 +218,11 @@ export function DeploymentsPage() {
 
   // Server already filtered (when status / env != all) — client filter
   // mantém como fallback safety net se server ignorar query param.
-  // Backend returns CAPS statuses; normalize before comparing with
-  // the lowercase filter value.
+  // A build whose deploy failed is filtered as failed (build-outcome.ts).
   const filtered = useMemo<Build[]>(() => {
     let out = builds;
     if (statusFilter !== 'all') {
-      out = out.filter((b) => normalizeBuildStatus(b.status) === statusFilter);
+      out = out.filter((b) => buildOutcome(b) === statusFilter);
     }
     if (envFilter !== 'all') {
       out = out.filter((b) => b.environment === envFilter);

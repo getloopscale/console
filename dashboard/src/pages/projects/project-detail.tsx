@@ -21,6 +21,7 @@ import { ProjectHealthCard } from '@/pages/projects/components/project-health-ca
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { deleteProject } from '@/hooks/projects/use-project-actions';
 import { normalizeBuildStatus } from '@/lib/api/types';
+import { buildOutcome } from '@/pages/deploy/build-outcome';
 import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/formatting/format';
 import { useState } from 'react';
 
@@ -396,7 +397,7 @@ export function ProjectDetailPage() {
                   // identical to five "preview · SUCCEEDED" rows and the
                   // user can't tell apart a working preview from a broken
                   // one.
-                  const ns = normalizeBuildStatus(b.status);
+                  const ns = buildOutcome(b);
                   return (
                     <li
                       key={b.build_id}

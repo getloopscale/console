@@ -380,6 +380,30 @@ describe('DeploymentsPage', () => {
     await waitFor(() => expect(screen.getByText('Showing 2 of 4 deployments')).toBeInTheDocument());
   });
 
+  it('shows a build whose deploy failed as "Deploy failed" and finds it under Failed', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      builds: [
+        makeBuild('b-1', { commit_sha: 'aaaaaaa', status: 'succeeded', deploy_status: 'failed' }),
+        makeBuild('b-2', { commit_sha: 'bbbbbbb', status: 'succeeded', deploy_status: 'succeeded' }),
+        makeBuild('b-3', { commit_sha: 'ccccccc', status: 'failed' }),
+      ],
+      total: 3,
+    } as BuildListResponse);
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Showing 3 of 3 deployments')).toBeInTheDocument());
+    const row = screen.getByText('aaaaaaa').closest('tr') as HTMLElement;
+    expect(within(row).getByText('Deploy failed')).toBeInTheDocument();
+    expect(within(screen.getByText('bbbbbbb').closest('tr') as HTMLElement).getByText('Succeeded')).toBeInTheDocument();
+
+    const group = screen.getByRole('group', { name: /filter by status/i });
+    await userEvent.click(within(group).getByRole('button', { name: /^failed$/i }));
+
+    await waitFor(() => expect(screen.getByText('Showing 2 of 3 deployments')).toBeInTheDocument());
+    expect(screen.getByText('aaaaaaa')).toBeInTheDocument();
+    expect(screen.getByText('ccccccc')).toBeInTheDocument();
+  });
+
   it('test_status_filter_chips_work', async () => {
     mockedEngineFetch.mockResolvedValue({
       builds: [makeBuild('b-1', { commit_sha: 'aaaaaaa' })],

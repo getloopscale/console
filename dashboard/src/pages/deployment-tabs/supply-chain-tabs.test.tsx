@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { render } from '@/test/render';
 import { ApiError } from '@/lib/http/api';
 import { SBOMTab } from './sbom-tab';
@@ -23,11 +23,21 @@ import { AttestationTab } from './attestation-tab';
  */
 
 const mockEngineFetch = vi.fn();
+const mockCloudFetchRaw = vi.fn();
+const mockTriggerBlobDownload = vi.fn();
 
 vi.mock('@/lib/http/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/http/api')>();
-  return { ...actual, engineFetch: (...args: unknown[]) => mockEngineFetch(...args) };
+  return {
+    ...actual,
+    engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
+    cloudFetchRaw: (...args: unknown[]) => mockCloudFetchRaw(...args),
+  };
 });
+
+vi.mock('@/lib/export/download', () => ({
+  triggerBlobDownload: (...args: unknown[]) => mockTriggerBlobDownload(...args),
+}));
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
@@ -36,6 +46,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 beforeEach(() => {
   mockEngineFetch.mockReset();
+  mockCloudFetchRaw.mockReset();
+  mockTriggerBlobDownload.mockReset();
 });
 
 describe('SBOMTab — a missing SBOM and an unreadable one are different findings', () => {
@@ -85,6 +97,53 @@ describe('SBOMTab — a missing SBOM and an unreadable one are different finding
     render(<SBOMTab />);
 
     expect(await screen.findByText(/could not read the sbom/i)).toBeInTheDocument();
+  });
+});
+
+describe('SBOMTab — the file is downloaded through the API', () => {
+  // The link was a presigned URL to the storage endpoint, which on staging is an address no
+  // browser reaches (getloopscale/loopzero#104). The API now serves the file at `download_path`.
+  const withDownload = {
+    apps: [
+      {
+        app_name: 'web',
+        sbom_format: 'cyclonedx-json',
+        download_path: '/api/v1/builds/bld-1/sbom/web/download',
+      },
+    ],
+  };
+
+  it('fetches download_path with the session and saves the file', async () => {
+    mockEngineFetch.mockResolvedValue(withDownload);
+    const file = new Blob(['{"bomFormat":"CycloneDX"}'], { type: 'application/json' });
+    mockCloudFetchRaw.mockResolvedValue({ ok: true, status: 200, blob: async () => file });
+
+    render(<SBOMTab />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+
+    await waitFor(() => expect(mockTriggerBlobDownload).toHaveBeenCalledTimes(1));
+    expect(mockCloudFetchRaw).toHaveBeenCalledWith('/engine/api/v1/builds/bld-1/sbom/web/download');
+    expect(mockTriggerBlobDownload).toHaveBeenCalledWith('bld-1-web.cdx.json', file);
+  });
+
+  it('says the download failed, and saves nothing, when the API refuses it', async () => {
+    mockEngineFetch.mockResolvedValue(withDownload);
+    mockCloudFetchRaw.mockResolvedValue({ ok: false, status: 502, blob: async () => new Blob() });
+
+    render(<SBOMTab />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+
+    expect(await screen.findByText('Could not download the SBOM. Try again in a moment.')).toBeInTheDocument();
+    expect(mockTriggerBlobDownload).not.toHaveBeenCalled();
+  });
+
+  it('offers no download for an app whose file the API cannot serve', async () => {
+    mockEngineFetch.mockResolvedValue({ apps: [{ app_name: 'web' }, withDownload.apps[0]] });
+
+    render(<SBOMTab />);
+    await screen.findAllByText('web');
+
+    expect(screen.getAllByRole('button', { name: 'Download' })).toHaveLength(1);
   });
 });
 

@@ -194,6 +194,7 @@ export interface Build {
   error?: string;
   apps?: BuildApp[];
   manifests?: string;
+  deploy_status?: string; // how the deploy of this build did; absent with no release
 }
 
 export type BuildStatus =
@@ -265,11 +266,9 @@ export interface BuildCreateResponse {
 // Build artifacts (SBOM + Attestation)
 // ============================================================================
 
-/** SBOM metadata response.
- * LIVE bug 2026-06-06: prior TS shape declared inline CycloneDX
- * payload. Backend (api/internal/routes/build_sbom.go) actually
- * returns metadata per app + presigned MinIO download_url. The full
- * CycloneDX JSON lives at download_url, not inline.
+/** SBOM metadata response: metadata per app + download_path. The full
+ * CycloneDX JSON is served by the engine API at download_path, not inline
+ * (the prior TS shape declared an inline CycloneDX payload).
  * @see api/internal/routes/build_sbom.go:BuildSBOMResponse */
 export interface BuildSBOM {
   build_id: string;
@@ -281,7 +280,7 @@ interface AppSBOMSummary {
   sbom_format?: string;       // "cyclonedx-json"
   component_count?: number;
   generated_at?: string;      // ISO 8601
-  download_url?: string;      // presigned MinIO URL (~1h TTL)
+  download_path?: string;     // engine API path that serves the file
 }
 
 /** Attestation metadata.

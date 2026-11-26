@@ -274,7 +274,7 @@ function registerBuildHandlers() {
 
   registerRoute('GET', '/api/v1/builds/{id}/sbom', async () => {
     // LIVE bug 2026-06-06: shape updated to match backend (metadata
-    // per app + presigned download_url, not inline CycloneDX).
+    // per app + download_path, not inline CycloneDX).
     const sbom: BuildSBOM = {
       build_id: 'b-mock',
       apps: [
@@ -283,7 +283,7 @@ function registerBuildHandlers() {
           sbom_format: 'cyclonedx-json',
           component_count: 949,
           generated_at: new Date().toISOString(),
-          download_url: 'http://mock.local/sbom/api.cdx.json',
+          download_path: '/api/v1/builds/b-mock/sbom/api/download',
         },
       ],
     };
