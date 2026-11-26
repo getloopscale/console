@@ -293,6 +293,38 @@ describe('ProjectConnectPage errors', () => {
     expect(await screen.findByText(/couldn.t connect repository/i)).toBeInTheDocument();
   });
 
+  it('shows the reason the API gives when it refuses the connect', async () => {
+    const reason =
+      'loopzero.yaml not found on branch "main". Add it at the repository root, declaring the apps to deploy under `apps:`, and commit it.';
+    mockEngine({
+      installations: [ACME],
+      connect: () => {
+        throw new ApiError(400, { code: 'MISSING_LOOPZERO_YAML', message: reason });
+      },
+    });
+    renderConnect();
+    fireEvent.change(await screen.findByLabelText(/^repository$/i), { target: { value: 'owner/api' } });
+    fireEvent.click(screen.getByRole('button', { name: /connect repository/i }));
+
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(screen.queryByText(/try again in a moment/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps the retry message when a server error carries a message', async () => {
+    mockEngine({
+      installations: [ACME],
+      connect: () => {
+        throw new ApiError(503, { message: 'upstream connect error' });
+      },
+    });
+    renderConnect();
+    fireEvent.change(await screen.findByLabelText(/^repository$/i), { target: { value: 'owner/api' } });
+    fireEvent.click(screen.getByRole('button', { name: /connect repository/i }));
+
+    expect(await screen.findByText(/couldn.t connect repository/i)).toBeInTheDocument();
+    expect(screen.queryByText(/upstream connect error/i)).not.toBeInTheDocument();
+  });
+
   it('says so when the installations cannot be loaded', async () => {
     engineFetchMock.mockImplementation(async (path: string) => {
       if (path === INSTALLATIONS_PATH) throw new ApiError(500);

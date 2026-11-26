@@ -97,6 +97,8 @@ export function BuildTimelineLive({
   // status de CADA step (Stepper da lib), não de um ponteiro externo.
   const { steps, status, error, connected } = useDeploymentStream(buildId, {
     initialLastEventID,
+    ended:
+      restBuildStatus === 'succeeded' || restBuildStatus === 'failed' || restBuildStatus === 'cancelled',
   });
 
   const grouped = groupByPhase(steps);

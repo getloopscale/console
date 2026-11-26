@@ -429,3 +429,52 @@ describe('B-221/B-224 — identidade estável e carimbo que não se move', () =>
     expect(result.current.events[0].receivedAt).toBe(primeiro);
   });
 });
+
+describe('a stream whose source has ended', () => {
+  // A build that finished: the server replays its events and closes the response. There is
+  // no event that always comes last, so the caller says the source ended (#563).
+  it('is not reopened after the server closes it', async () => {
+    renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'], sourceEnded: true }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    act(() => {
+      MockEventSource.instances[0].triggerError({ kind: 'server-closed' });
+    });
+
+    // The first reopen is scheduled within one second.
+    await new Promise((r) => setTimeout(r, 1100));
+    expect(MockEventSource.instances.length).toBe(1);
+    expect(MockEventSource.instances[0].closed).toBe(true);
+  });
+
+  it('is still reopened after a network error, which may have cut the replay short', async () => {
+    renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'], sourceEnded: true }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    act(() => {
+      MockEventSource.instances[0].triggerError({ kind: 'network-error' });
+    });
+
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(2), { timeout: 1500 });
+  });
+
+  it('stops reopening once the source ends while the page is open', async () => {
+    const { rerender } = renderHook(
+      ({ ended }: { ended: boolean }) => useSSEStream('/api/v1/test', { eventTypes: ['x'], sourceEnded: ended }),
+      { initialProps: { ended: false } },
+    );
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    act(() => {
+      MockEventSource.instances[0].triggerError({ kind: 'server-closed' });
+    });
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(2), { timeout: 1500 });
+
+    rerender({ ended: true });
+    act(() => {
+      MockEventSource.instances[1].triggerError({ kind: 'server-closed' });
+    });
+
+    await new Promise((r) => setTimeout(r, 2100));
+    expect(MockEventSource.instances.length).toBe(2);
+  });
+});
