@@ -64,7 +64,7 @@ func TestClient_PutObject(t *testing.T) {
 // (empty __init__.py / .gitkeep / placeholder) must PUT with a clean
 // Content-Length: 0 and NO chunked Transfer-Encoding — chunked breaks S3/MinIO
 // SigV4 single-payload signing and surfaces downstream as a 503 (observed during
-// a real `theo storage sync` of a .claude/ with empty package markers).
+// a real `loopscale storage sync` of a .claude/ with empty package markers).
 func TestClient_PutObject_EmptyBody(t *testing.T) {
 	var gotCL int64
 	var gotTE []string

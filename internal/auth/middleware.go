@@ -88,7 +88,7 @@ func RequireCaller(rsaValidator *theojwt.Validator, sessValidator *theojwt.Sessi
 			}
 			if sessions == nil || len(r.Cookies()) == 0 {
 				slog.Warn("auth: rejected — no credential", "method", r.Method, "path", r.URL.Path)
-				writeAuthError(w, "Not authenticated. Run: theo login")
+				writeAuthError(w, "Not authenticated. Run: loopscale login")
 				return
 			}
 			if err := crossOrigin.Check(r); err != nil {
@@ -179,7 +179,7 @@ func authenticateBearer(w http.ResponseWriter, r *http.Request, next http.Handle
 	}
 
 	slog.Warn("auth: all JWT validators failed", "path", r.URL.Path, "token_len", len(token))
-	writeAuthError(w, "Invalid or expired token. Run: theo login")
+	writeAuthError(w, "Invalid or expired token. Run: loopscale login")
 }
 
 // bearerToken returns the JWT in `Authorization: Bearer`, or "" when absent.

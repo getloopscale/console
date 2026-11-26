@@ -132,3 +132,28 @@ export function faseCorrente(phases: readonly PhaseState[]): PhaseState {
   const lastTouched = [...phases].reverse().find((c) => c.status !== 'pending');
   return lastTouched ?? phases[0];
 }
+
+/** Deploy statuses of a build whose release did serve its environment, now or earlier. */
+const DEPLOY_WENT_LIVE = new Set(['succeeded', 'superseded', 'rolled_back', 'archived']);
+
+/**
+ * Completes the phases a stalled timeline left open, when the build record says the deploy
+ * finished. The engine writes the timeline from a process that can restart mid-deploy, and the
+ * events it had not written yet never arrive: the last phase would spin for good next to a
+ * release that is serving. The build's `deploy_status` comes from the release itself, so it wins.
+ *
+ * A phase that ended without an event has no end time of its own and takes its start time. The
+ * same array comes back when there is nothing to settle.
+ */
+export function settleWithDeployStatus(
+  phases: readonly PhaseState[],
+  deployStatus: string | undefined,
+): readonly PhaseState[] {
+  if (!deployStatus || !DEPLOY_WENT_LIVE.has(deployStatus)) return phases;
+  const stopped = phases.some((p) => p.status === 'failed' || p.status === 'canceled');
+  const open = phases.some((p) => p.status !== 'completed');
+  if (stopped || !open) return phases;
+  return phases.map((p) =>
+    p.status === 'completed' ? p : { ...p, status: 'completed' as const, endedAt: p.endedAt ?? p.startedAt },
+  );
+}

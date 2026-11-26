@@ -154,7 +154,7 @@ func parseDashboardWrite(r *http.Request) (string, json.RawMessage, string) {
 func (h *LensDashboardsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	name, config, msg := parseDashboardWrite(r)
@@ -177,7 +177,7 @@ func (h *LensDashboardsHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *LensDashboardsHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	const q = `SELECT id, name, config, created_by, created_at, updated_at
@@ -211,7 +211,7 @@ func (h *LensDashboardsHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *LensDashboardsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -243,7 +243,7 @@ func (h *LensDashboardsHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *LensDashboardsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -275,7 +275,7 @@ func (h *LensDashboardsHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *LensDashboardsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	id := chi.URLParam(r, "id")

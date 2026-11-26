@@ -158,7 +158,7 @@ func NewMemoryWebhookDeliveriesHandler(db *sql.DB, logger *slog.Logger) *MemoryW
 func (h *MemoryWebhookDeliveriesHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -255,7 +255,7 @@ var deliveryIDPattern = regexp.MustCompile(`^mwd-[0-9a-f]{16}$`)
 func (h *MemoryWebhookDeliveriesHandler) Replay(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 

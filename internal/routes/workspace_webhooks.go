@@ -67,7 +67,7 @@ type WorkspaceWebhookView struct {
 func (h *WorkspaceWebhooksHandler) Create(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -149,7 +149,7 @@ func (h *WorkspaceWebhooksHandler) Create(w http.ResponseWriter, r *http.Request
 func (h *WorkspaceWebhooksHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -193,7 +193,7 @@ func (h *WorkspaceWebhooksHandler) List(w http.ResponseWriter, r *http.Request) 
 func (h *WorkspaceWebhooksHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -229,7 +229,7 @@ func (h *WorkspaceWebhooksHandler) Delete(w http.ResponseWriter, r *http.Request
 func (h *WorkspaceWebhooksHandler) Deliveries(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 

@@ -22,7 +22,7 @@ import (
 // GetConsentRequest / AcceptConsent when Hydra responds with 404
 // (challenge expired, already consumed, or otherwise unknown). Callers
 // SHOULD render a friendly "this login link has expired — please re-run
-// `theo login`" page rather than letting the error bubble up as a generic
+// `loopscale login`" page rather than letting the error bubble up as a generic
 // 502 (or, worse, silently swallowing it — see Red Team theo-cloud#117).
 var ErrChallengeNotFound = errors.New("hydra: challenge not found (expired or already consumed)")
 

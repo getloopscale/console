@@ -223,7 +223,7 @@ func sanitizeForLog(s string) string {
 func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -290,7 +290,7 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	result, err := h.client.ListSessions(r.Context(), user.Subject)
@@ -313,7 +313,7 @@ func (h *MemoryHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -346,7 +346,7 @@ func (h *MemoryHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) Forget(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -409,7 +409,7 @@ func withSessionInstance(scope string, r *http.Request) string {
 func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -447,7 +447,7 @@ func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -494,7 +494,7 @@ func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) Episodes(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -549,7 +549,7 @@ func (h *MemoryHandler) Episodes(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -589,7 +589,7 @@ func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) ListSkillsAll(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -636,7 +636,7 @@ type skillCreateBody struct {
 func (h *MemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	repoID := r.URL.Query().Get("repoId")
@@ -682,7 +682,7 @@ func (h *MemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryHandler) ForgetSkill(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	repoID := r.URL.Query().Get("repoId")
@@ -735,7 +735,7 @@ type rememberRequest struct {
 func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, memoryMaxBodyBytes)
@@ -800,7 +800,7 @@ type graphExpandReq struct {
 func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, memoryMaxBodyBytes)
@@ -872,7 +872,7 @@ type reflectRequest struct {
 func (h *MemoryHandler) Reflect(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, memoryMaxBodyBytes)

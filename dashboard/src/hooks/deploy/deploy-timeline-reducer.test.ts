@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { aplicarEvento, estadoInicial, faseCorrente } from './deploy-timeline-reducer';
+import { aplicarEvento, estadoInicial, faseCorrente, settleWithDeployStatus } from './deploy-timeline-reducer';
 
 const ev = (type: string, data: unknown = {}) => ({ type, data });
 const fase = (e: ReturnType<typeof estadoInicial>, nome: string) =>
@@ -87,5 +87,39 @@ describe('faseCorrente', () => {
 
   it('no estado inicial, aponta a primeira', () => {
     expect(faseCorrente(estadoInicial().phases).phase).toBe('build');
+  });
+});
+
+describe('settleWithDeployStatus', () => {
+  // The engine's timeline can stop short: the process that writes it restarted mid-deploy.
+  const stalled = () =>
+    [
+      ev('deploy_timeline.build.completed', { timestamp: 't1' }),
+      ev('deploy_timeline.sign.completed', { timestamp: 't2' }),
+      ev('deploy_timeline.release.completed', { timestamp: 't3' }),
+      ev('deploy_timeline.deploy.completed', { timestamp: 't4' }),
+      ev('deploy_timeline.live.in_progress', { timestamp: 't5' }),
+    ].reduce(aplicarEvento, estadoInicial()).phases;
+
+  it.each(['succeeded', 'superseded', 'rolled_back', 'archived'])(
+    'completes a stalled live phase when the build record says the deploy ended as %s',
+    (deployStatus) => {
+      const live = settleWithDeployStatus(stalled(), deployStatus).find((p) => p.phase === 'live');
+      expect(live?.status).toBe('completed');
+      expect(live?.endedAt).toBe('t5');
+    },
+  );
+
+  it.each([undefined, 'in_progress', 'failed', 'rollback_failed', 'cancelled'])(
+    'leaves the phases alone when the deploy status is %s',
+    (deployStatus) => {
+      const phases = stalled();
+      expect(settleWithDeployStatus(phases, deployStatus)).toBe(phases);
+    },
+  );
+
+  it('keeps a failed phase failed', () => {
+    const phases = aplicarEvento(estadoInicial(), ev('deploy_timeline.deploy.failed', { timestamp: 't1' })).phases;
+    expect(settleWithDeployStatus(phases, 'superseded')).toBe(phases);
   });
 });

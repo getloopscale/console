@@ -99,7 +99,7 @@ func (c *Client) PutObject(ctx context.Context, key string, body io.Reader, size
 	// SigV4 single-payload signing, surfacing as ErrStorageUnavailable (503). Only
 	// *bytes/*strings.Reader get auto-normalized to http.NoBody; the real path does
 	// not. Force NoBody here so empty objects round-trip. (Regression: a real
-	// `theo storage sync` of a .claude/ skipped 15 empty package markers on 503.)
+	// `loopscale storage sync` of a .claude/ skipped 15 empty package markers on 503.)
 	if size == 0 {
 		body = http.NoBody
 	}

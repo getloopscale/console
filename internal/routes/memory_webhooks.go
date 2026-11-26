@@ -71,7 +71,7 @@ type MemoryWebhookView struct {
 func (h *MemoryWebhooksHandler) Create(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *MemoryWebhooksHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryWebhooksHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 
@@ -197,7 +197,7 @@ func (h *MemoryWebhooksHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *MemoryWebhooksHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: loopscale login")
 		return
 	}
 

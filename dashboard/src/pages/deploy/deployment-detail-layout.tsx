@@ -145,6 +145,7 @@ export function DeploymentDetailLayout() {
         <DeployTimelineHero
           deployId={build.build_id}
           buildStatus={build.status}
+          deployStatus={build.deploy_status}
           liveRelease={{
             commitShort: projectStatus?.active_release?.git_commit?.slice(0, 7) ?? null,
             activeSince: projectStatus?.active_release?.created_at ?? null,
