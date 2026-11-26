@@ -13,6 +13,11 @@ interface AddSecretSheetProps {
   availableEnvs?: string[];
   /** Optional project param forwarded to the backend. */
   project?: string;
+  /**
+   * The project's secrets in every environment. A key that is already in a chosen
+   * environment is replaced only after the person confirms.
+   */
+  existingSecrets?: ReadonlyArray<{ name: string; environments: string[] }>;
   onCreated?: () => void;
 }
 
@@ -44,12 +49,15 @@ export function AddSecretSheet({
   // + ADR-Q6 (lexicon lock).
   availableEnvs = ['preview', 'production'],
   project,
+  existingSecrets = [],
   onCreated,
 }: AddSecretSheetProps) {
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
   const [selectedEnvs, setSelectedEnvs] = useState<string[]>(defaultEnvs);
   const [error, setError] = useState<string | null>(null);
+  // The key and environments the person agreed to replace; any other choice asks again.
+  const [confirmedReplace, setConfirmedReplace] = useState<string | null>(null);
   const createSecret = useCreateSecret();
   const submitting = createSecret.isPending;
 
@@ -58,7 +66,15 @@ export function AddSecretSheet({
     setValue('');
     setSelectedEnvs(defaultEnvs);
     setError(null);
+    setConfirmedReplace(null);
   };
+
+  // The chosen environments that already hold this key.
+  const replacedEnvs = selectedEnvs.filter((env) =>
+    existingSecrets.some((s) => s.name === name && s.environments.includes(env)),
+  );
+  const replaceKey = replacedEnvs.length > 0 ? `${name}\u0000${[...replacedEnvs].sort().join(',')}` : null;
+  const awaitingConfirmation = replaceKey !== null && confirmedReplace === replaceKey;
 
   const toggleEnv = (env: string) => {
     setSelectedEnvs((current) =>
@@ -79,6 +95,10 @@ export function AddSecretSheet({
     }
     if (selectedEnvs.length === 0) {
       setError('Pick at least one environment.');
+      return;
+    }
+    if (replaceKey !== null && confirmedReplace !== replaceKey) {
+      setConfirmedReplace(replaceKey);
       return;
     }
     try {
@@ -156,6 +176,14 @@ export function AddSecretSheet({
               </div>
             </fieldset>
 
+            {awaitingConfirmation && (
+              <Alert
+                intent="warning"
+                description={`${name} already exists in ${replacedEnvs.join(', ')}. Replacing it changes the value the app reads after its next deploy.`}
+                className="mt-2"
+              />
+            )}
+
             {error && <Alert intent="destructive" description={error} className="mt-2" />}
           </Sheet.Body>
 
@@ -177,6 +205,8 @@ export function AddSecretSheet({
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                   Adding…
                 </>
+              ) : awaitingConfirmation ? (
+                'Replace value'
               ) : (
                 'Add secret'
               )}

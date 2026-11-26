@@ -140,4 +140,80 @@ describe('AddSecretSheet — J-22 T3.2', () => {
     expect(await screen.findByText(/status 503/i)).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
+  it('asks before it replaces a key that already exists in a chosen environment', async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <Wrapper>
+        <AddSecretSheet
+          open
+          onOpenChange={onOpenChange}
+          project="hello"
+          defaultEnvs={['production']}
+          availableEnvs={['preview', 'production']}
+          existingSecrets={[{ name: 'API_KEY', environments: ['production'] }]}
+        />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Key$/i), { target: { value: 'API_KEY' } });
+    fireEvent.change(screen.getByLabelText(/^Value$/i), { target: { value: 'new-value' } });
+    fireEvent.click(screen.getByRole('button', { name: /add secret/i }));
+
+    expect(
+      await screen.findByText(/API_KEY already exists in production\. Replacing it changes the value/i),
+    ).toBeInTheDocument();
+    expect(mockedEngineFetch).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    fireEvent.click(screen.getByRole('button', { name: /replace value/i }));
+
+    await waitFor(() => expect(mockedEngineFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it('asks again when the key changes after the warning', async () => {
+    render(
+      <Wrapper>
+        <AddSecretSheet
+          open
+          onOpenChange={vi.fn()}
+          project="hello"
+          defaultEnvs={['production']}
+          existingSecrets={[
+            { name: 'API_KEY', environments: ['production'] },
+            { name: 'DB_URL', environments: ['production'] },
+          ]}
+        />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Key$/i), { target: { value: 'API_KEY' } });
+    fireEvent.change(screen.getByLabelText(/^Value$/i), { target: { value: 'v' } });
+    fireEvent.click(screen.getByRole('button', { name: /add secret/i }));
+    await screen.findByRole('button', { name: /replace value/i });
+
+    fireEvent.change(screen.getByLabelText(/^Key$/i), { target: { value: 'DB_URL' } });
+    fireEvent.click(screen.getByRole('button', { name: /add secret/i }));
+
+    expect(await screen.findByText(/DB_URL already exists in production/i)).toBeInTheDocument();
+    expect(mockedEngineFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not ask when the key exists only in an environment that is not chosen', async () => {
+    render(
+      <Wrapper>
+        <AddSecretSheet
+          open
+          onOpenChange={vi.fn()}
+          project="hello"
+          defaultEnvs={['production']}
+          availableEnvs={['preview', 'production']}
+          existingSecrets={[{ name: 'API_KEY', environments: ['preview'] }]}
+        />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByLabelText(/^Key$/i), { target: { value: 'API_KEY' } });
+    fireEvent.change(screen.getByLabelText(/^Value$/i), { target: { value: 'v' } });
+    fireEvent.click(screen.getByRole('button', { name: /add secret/i }));
+
+    await waitFor(() => expect(mockedEngineFetch).toHaveBeenCalledTimes(1));
+  });
 });
