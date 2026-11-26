@@ -5,14 +5,14 @@
 DO $$
 BEGIN
     -- Atende requisição. Contido pelas policies — é esse o ponto.
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'loopmem_app') THEN
-        CREATE ROLE loopmem_app LOGIN PASSWORD 'loopmem_app' NOSUPERUSER NOBYPASSRLS;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'themory_app') THEN
+        CREATE ROLE themory_app LOGIN PASSWORD 'themory_app' NOSUPERUSER NOBYPASSRLS;
     END IF;
 
     -- Trabalho que atravessa workspaces de propósito (retenção, manutenção).
     -- A travessia dele é uma POLICY NOMEADA, criada pela 0029 — enumerável em
     -- pg_policies e revogável por tabela, ao contrário de BYPASSRLS.
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'loopmem_worker') THEN
-        CREATE ROLE loopmem_worker LOGIN PASSWORD 'loopmem_worker' NOSUPERUSER NOBYPASSRLS;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'themory_worker') THEN
+        CREATE ROLE themory_worker LOGIN PASSWORD 'themory_worker' NOSUPERUSER NOBYPASSRLS;
     END IF;
 END $$;
