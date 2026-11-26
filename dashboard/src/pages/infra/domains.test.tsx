@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@/test/render';
+import { fireEvent, render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({
@@ -65,8 +65,11 @@ describe('DomainsPage', () => {
   it('test_domains_add_domain_opens_form', async () => {
     seedDomains({ domains: [], total: 0 });
     render(<DomainsPage />);
-    // ActionBar.primaryAction renders "Add Domain" button (opens docs page per source line 100-102)
-    expect(screen.getByRole('button', { name: /add domain/i })).toBeInTheDocument();
+    // With no domain yet the page shows its empty state, and the button still opens the form (#581).
+    const add = await screen.findByRole('button', { name: /add domain/i });
+    await waitFor(() => expect(screen.getByText('No custom domains yet')).toBeInTheDocument());
+    fireEvent.click(add);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
   it('test_domains_dns_record_copy_button_works', async () => {

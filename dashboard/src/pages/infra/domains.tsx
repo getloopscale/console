@@ -220,6 +220,7 @@ export function DomainsPage() {
   const COLUMN_COUNT = 6;
 
   return (
+    <>
     <PageShell
       title="Domains"
       search={{
@@ -414,8 +415,6 @@ export function DomainsPage() {
         </Card.Body>
       </Card>
 
-      <AddDomainSheet open={addOpen} onOpenChange={setAddOpen} />
-
       {/* J-11 v1.1 T2.4 — DomainTroubleshootSheet opens from failed-pill click. */}
       <DomainTroubleshootSheet
         open={troubleshootTarget !== null}
@@ -447,5 +446,8 @@ export function DomainsPage() {
         }}
       />
     </PageShell>
+    {/* Outside the shell: the shell swaps its children for the empty state. */}
+    <AddDomainSheet open={addOpen} onOpenChange={setAddOpen} />
+    </>
   );
 }
