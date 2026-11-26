@@ -11,6 +11,12 @@ describe('VerificationBanner', () => {
     ).toBeInTheDocument();
   });
 
+  it('does not claim that an unverified account cannot deploy', () => {
+    // No API refuses a deploy over an unverified address, so the banner must not say one does.
+    render(<VerificationBanner />);
+    expect(screen.getByRole('status')).not.toHaveTextContent(/can't deploy/i);
+  });
+
   it('test_verification_banner_renders_verify_action_link', () => {
     render(<VerificationBanner />);
     const link = screen.getByRole('link', { name: /verify now/i });
