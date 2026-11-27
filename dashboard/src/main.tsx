@@ -84,11 +84,11 @@ if (import.meta.env.PROD) {
  *
  * Composes <ThemeProvider> + <Toaster> with the right defaults so every
  * composite that depends on theme cascade + toast context works out of
- * the box. Single-theme override (`theme.themes={[violetForge]}`)
- * preserves the bundle-size win (drops 9 theme definitions, ~150KB).
+ * the box. The provider gets one theme, the LoopScale brand
+ * (`lib/theme/loopscale-theme.ts`), so the other theme definitions of the
+ * package stay out of the bundle.
  *
- * Trade-off: cannot switch themes at runtime. Acceptable per D1 (locked
- * single Violet Forge dark) — dashboard never offered theme picker.
+ * Trade-off: no theme or mode switch at runtime. The dashboard is dark only.
  */
 // Provider chain (order matters):
 //   StrictMode

@@ -1,45 +1,22 @@
-/* @getloopscale/ui canonical consumer entry (T-A.0 v1.2 + 2026-05-26 visual fix).
+/* Stylesheet entry of the dashboard.
  *
- * Imports ordered per CSS spec (@import MUST precede non-import rules):
- *   1. tailwindcss         — v4 core (preflight + utilities generator)
- *   2. preset.css          — tokens.css + tokens-v4.css (@theme namespace)
- *   3. components.css      — PRE-COMPILED composite utilities (~100KB)
- *                            CRITICAL: without this, composites that reference
- *                            classes Tailwind doesn't scan in dashboard src/
- *                            (DataTable headers, Select trigger, Sidebar footer,
- *                            etc.) render with NO matching CSS rule.
- *   4. fonts-cdn.css       — Geist Sans + Geist Mono via CDN
+ * Imports come first, as the CSS spec requires: Tailwind v4, then the token layers and the brand
+ * typefaces of @getloopscale/ui. Tailwind scans the package's compiled components (`@source`) for
+ * the utility classes they use.
  *
- * Previous comment claimed styles.css "adds CSS @import-ordering conflict"
- * with @theme — that's not strictly true: @import is allowed before @theme
- * (which is not @layer base). We replicate styles.css critical base layer
- * locally so the dashboard:
- *   - Gets button cursor: pointer (Tailwind v4 dropped the v3 preflight rule;
- *     without this, every native <button> renders with default arrow cursor —
- *     buttons LOOK and FEEL dead).
- *   - Uses themed border (`hsl(var(--border))`) instead of arbitrary
- *     `border-white/6` (which produced inconsistent borders across composites).
- *   - Uses themed background + foreground via --background / --foreground vars
- *     instead of hard-coded surface-0 + white (which fought the Violet Forge
- *     theme cascade).
- *   - Display headings adopt --font-display (Geist).
- *   - Code surfaces adopt --font-mono + tabular-nums.
- *   - Focus ring is the themed violet --ring.
- *   - Scrollbar styled with theme --primary.
+ * The base layer below gives the dashboard what Tailwind v4's preflight no longer does: the
+ * pointer cursor on buttons, the theme's border color on bare borders, the theme's background
+ * and text on the body, the display and mono fonts, one focus ring and a neutral scrollbar.
  */
 @import 'tailwindcss';
-/* @getloopscale/ui@0.22 stopped shipping preset.css/components.css/fonts-cdn.css
- * (upstream regression #10 — migrated to a Tailwind-v4 utility model). We vendor
- * the canonical token layers from the design system's own Ladle preview and let
- * Tailwind scan the package's compiled components for the utility classes they use. */
-/* The theme provider of @getloopscale/loopzero-ui writes its variables inside `@layer theme`.
+/* The token layers and the two brand typefaces come from the design system package.
+ * The theme provider of @getloopscale/loopzero-ui writes its variables inside `@layer theme`.
  * A layered rule loses to any rule outside a layer, whatever its selector, so the token
  * fallbacks are placed in the same layer: there the provider's
- * `[data-theme][data-mode]` selector outranks `:root` and `.dark`, and the theme wins as
- * it did when the provider wrote unlayered rules. */
-@import './vendor/loopscale-ui/tokens.css' layer(theme);
-@import './vendor/loopscale-ui/tokens-v4.css';
-@import './vendor/loopscale-ui/fonts-cdn.css';
+ * `[data-theme][data-mode]` selector outranks `:root` and `.dark`. */
+@import '@getloopscale/ui/tokens.css' layer(theme);
+@import '@getloopscale/ui/tokens-v4.css';
+@import '@getloopscale/ui/fonts.css';
 /* KB9 — Tailwind v4 typography engine. MUST come AFTER every @import: the CSS spec
  * requires @import to precede all non-import statements, so a @plugin placed between
  * `@import 'tailwindcss'` and the vendor `@import`s invalidates them and Tailwind stops
@@ -63,18 +40,6 @@ html[data-density] {
 }
 
 @theme {
-  --color-loopscale-50: #e8f4f8;
-  --color-loopscale-100: #b8dfe8;
-  --color-loopscale-200: #88c9d8;
-  --color-loopscale-300: #58b3c8;
-  --color-loopscale-400: #389eb8;
-  --color-loopscale-500: #2a8a9e;
-  --color-loopscale-600: #1f6b7a;
-  --color-loopscale-700: #154d57;
-  --color-loopscale-800: #0c3038;
-  --color-loopscale-900: #04171c;
-  --color-loopscale-950: #020c0f;
-
   --animate-slide-in: slide-in 0.4s ease-out;
   --animate-fade-in: fade-in 0.3s ease-out;
   --animate-pulse-subtle: pulse-subtle 2s ease-in-out infinite;
@@ -119,72 +84,7 @@ html[data-density] {
   --easing-decelerate: cubic-bezier(0, 0, 0, 1);
   --easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
 
-  /* T1.1 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #19 (WCAG 2.4.11
-   * Focus Appearance, contrast ≥ 3:1). Light-theme `--ring` was resolving to
-   * white-on-white (oklch(1 0 0)) at @getloopscale/ui defaults, making the focus
-   * indicator invisible on auth pages. Canonical violet (HSL 260 80% 45%)
-   * yields ~5:1 contrast vs card backgrounds — passes WCAG AA. Per ADR D2
-   * (canonical violet over black/red; matches comment line 27 + brand). */
-  --ring: 262 42% 49%;
-
-  /* Red Team loopscale/loopscale#163 — WCAG 1.4.3 (normal text contrast ≥ 4.5:1).
-   * @getloopscale/ui default `--primary: oklch(0.628 0.225 296)` (~#995ffe)
-   * failed AA in two Lighthouse-detected surfaces:
-   *   - white text on primary bg (buttons/CTAs) → 3.87:1
-   *   - primary text on dark bg (project name span) → 4.37:1
-   * Darkening to `oklch(0.50 0.16 296.97)` (~#7c47dc) raises white-on-primary
-   * to ~5.1:1 (passes AA) while keeping the violet brand identity.
-   * `--primary-deep` + `--primary-glow` are `oklch(from var(--primary) …)`
-   * derived tokens in @getloopscale/ui/tokens.css, so they cascade the new
-   * base automatically.
-   *
-   * NOTE: dark-scope override lives in the `.dark { … }` block below —
-   * @getloopscale/ui/tokens.css redeclares `--primary` under `.dark` (line 166),
-   * so a :root-only override is DEAD in the app's actual runtime theme.
-   * Red Team #163 v1 caught this via getComputedStyle.
-   *
-   * B-034 — MEDIDO em 2026-08-06 no app BUILDADO (vite preview + Chrome headless,
-   * getComputedStyle(document.documentElement)): o valor efetivo e
-   * `oklch(0.57 0.13 302)`, vindo do tema do LoopZeroUIProvider (main.tsx), NAO daqui.
-   * O provider aplica no elemento, o que precede folha de estilo na cascata.
-   *
-   * Esta declaracao fica como FALLBACK pre-hidratacao — e o que pinta a tela entre
-   * o primeiro paint e o React montar — e por isso foi ALINHADA ao valor vencedor.
-   * Antes ela declarava `oklch(0.50 0.16 296.97)`, um roxo diferente: quem abrisse
-   * o dashboard via um flash da cor errada. Divergir do tema aqui nao "reforca" o
-   * contraste, apenas produz dois roxos. */
-  --primary: oklch(0.57 0.13 302);
 }
-}
-
-/* Red Team loopscale/loopscale#163 v2 — dark-mode fallback.
- *
- * B-034 — o docblock anterior afirmava "This is the block the app actually uses
- * at runtime". MEDIDO em 2026-08-06 com `.dark` ATIVO no html: falso. O valor
- * computado e `oklch(0.57 0.13 302)`, do LoopZeroUIProvider. Este bloco perde para
- * o tema porque o provider aplica no elemento, nao via folha.
- *
- * Duas afirmacoes opostas coexistiam no repo — esta e a de main.tsx:91 ("o
- * index.css NAO tem efeito no primary") — e nenhum teste distinguia. A medicao
- * deu razao ao main.tsx. Mantido como fallback pre-hidratacao, alinhado ao valor
- * vencedor para que nao haja flash de cor divergente. */
-@layer theme {
-.dark {
-  --primary: oklch(0.57 0.13 302);
-}
-}
-
-/* Red Team loopscale/loopscale#163 v2 — WCAG 1.4.3 escape for `text-primary` used
- * as foreground text on dark surfaces (e.g. project-name `span.truncate`
- * flagged by Lighthouse @ 4.37:1). Route the tailwind utility to
- * `--primary-glow` (the design system's lighter derivative, l + 0.18 =
- * ~0.73) so foreground text on `#1f1a2a` reaches ~5.0:1 (passes AA).
- * Icons (`aria-hidden`) don't count toward the contrast rule, but the
- * lighter shade remains recognizably violet — brand identity preserved. */
-@layer utilities {
-  .text-primary {
-    color: oklch(from var(--primary) min(0.95, calc(l + 0.18)) c h);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -263,18 +163,9 @@ html[data-density] {
      * utilities used on the layout shells. */
     background-color: var(--background);
     color: var(--foreground);
-    /* OpenType ligatures (Geist 'liga' + 'ss01' is structural for the
-     * Vercel-tight glyph combinations) + cv02/03/04/11 stylistic alternates */
-    font-feature-settings:
-      'liga' 1,
-      'ss01' 1,
-      'cv02',
-      'cv03',
-      'cv04',
-      'cv11';
   }
 
-  /* Display headings inherit theme display font (Geist by default).
+  /* Display headings inherit the theme's display font.
    * Per-size tracking is set in tokens-v4.css; this is the safety net. */
   h1,
   h2,
@@ -296,16 +187,13 @@ html[data-density] {
       'liga' 1;
   }
 
-  /* Themed focus ring (violet) — was outline:none then ad-hoc rings per
-   * component, inconsistent. Now uniform across all keyboard-focusable
-   * elements. */
+  /* One focus ring for every keyboard-focusable element. The token is a complete color. */
   :focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
 
-  /* Themed selection — was bg-accent/20 (green), now uses theme primary
-   * (violet) for brand consistency. */
+  /* Selection in the brand color. */
   ::selection {
     /* oklch tokens: hsl(var(--primary) / .25) was invalid, so the selection
      * highlight had NO background and text looked unselectable. color-mix
@@ -314,7 +202,7 @@ html[data-density] {
     color: var(--foreground);
   }
 
-  /* Native scrollbar — themed with --primary. Used by elements that don't
+  /* Native scrollbar, neutral like the design system's. Used by elements that don't
    * wrap in <ScrollArea>. */
   *::-webkit-scrollbar {
     width: 10px;
@@ -324,21 +212,21 @@ html[data-density] {
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+    background-color: color-mix(in oklch, var(--muted-foreground) 25%, transparent);
     border: 2px solid transparent;
     background-clip: content-box;
     border-radius: 9999px;
     transition: background-color var(--motion-fast) var(--easing-standard);
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in oklch, var(--primary) 50%, transparent);
+    background-color: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
   }
   *::-webkit-scrollbar-thumb:active {
-    background-color: color-mix(in oklch, var(--primary) 75%, transparent);
+    background-color: color-mix(in oklch, var(--muted-foreground) 75%, transparent);
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklch, var(--primary) 30%, transparent) transparent;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent) transparent;
   }
 
   /* The app shell's single scroll container (DashboardLayout <main>) keeps a
