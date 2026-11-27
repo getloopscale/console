@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowUpToLine, RefreshCw } from 'lucide-react';
 import { Badge, Button, StatusDot, Table, type StatusKind } from '@getloopscale/ui';
-import { formatDate, humanizeAuthor } from '@/lib/formatting/format';
+import { formatDate, formatElapsed, humanizeAuthor } from '@/lib/formatting/format';
 import type { MutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 import { DeploymentRowVisitIcon } from '@/pages/deploy/components/deployment-row-visit-icon';
 import { type Build, type BuildStatus } from '@/lib/api/types';
@@ -164,7 +164,7 @@ export function DeploymentRow({
             title={startedAtAbs}
           >
             {b.started_at
-              ? formatDate(b.started_at, 'relative', now)
+              ? formatElapsed(b.started_at, now ?? Date.now())
               : '—'}
           </span>
         </div>
@@ -191,7 +191,7 @@ export function DeploymentRow({
           title={startedAtAbs}
         >
           {b.started_at
-            ? formatDate(b.started_at, 'relative', now)
+            ? formatElapsed(b.started_at, now ?? Date.now())
             : '—'}
         </span>
       </Table.Cell>
