@@ -89,6 +89,16 @@ export function formatDate(
  * Uses Intl.RelativeTimeFormat for proper grammar. Buckets: minute, hour,
  * day, week, month, year.
  */
+/**
+ * How long ago something that already happened took place. A moment the server stamped ahead
+ * of this clock reads "now", never "in 2 seconds": the two clocks disagree by a little, and the
+ * event is in the past by definition.
+ */
+export function formatElapsed(iso: string | undefined | null, nowMs: number): string {
+  const at = iso ? Date.parse(iso) : Number.NaN;
+  return formatDate(iso, 'relative', Number.isNaN(at) ? nowMs : Math.max(nowMs, at));
+}
+
 function relativeTime(d: Date, nowMs: number): string {
   const diffMs = d.getTime() - nowMs;
   const absSec = Math.abs(diffMs) / 1000;

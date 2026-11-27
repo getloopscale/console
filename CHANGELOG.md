@@ -30,6 +30,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The Deployments list reads "now" for a build that has just started. It read "in 2 seconds" when the server's clock was ahead of the browser's. (#631)
 - The timeline of a deployment reads "Deploying" from the end of the build. It alternated with "Unknown" for about 10 seconds while the release of the build did not exist yet (#624).
 - The Deployments list no longer numbers its rows. The number was the position of the row, so every deploy renumbered the builds (#620).
 - The relative times of the Deployments list advance while the page stays open, and a build that ends shows its duration without a reload (#621).

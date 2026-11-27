@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Undo2 } from 'lucide-react';
 import { Badge, Button, StatusDot, Table } from '@getloopscale/ui';
-import { formatDate, humanizeAuthor } from '@/lib/formatting/format';
+import { formatDate, formatElapsed, humanizeAuthor } from '@/lib/formatting/format';
 import type { RollbackRecord } from '@/lib/api/types';
 import { formatDuration } from '@/pages/deploy/components/deployment-row';
 import {
@@ -53,7 +53,7 @@ export function RollbackRow({ projectName, rollback, targetCommit, now }: Rollba
             <span className="text-label text-muted-foreground">{rollback.failure_reason}</span>
           ) : null}
           <span className="text-label text-muted-foreground tabular-nums md:hidden" title={startedAbs}>
-            {formatDate(rollback.created_at, 'relative', now)}
+            {formatElapsed(rollback.created_at, now ?? Date.now())}
           </span>
         </div>
       </Table.Cell>
@@ -64,7 +64,7 @@ export function RollbackRow({ projectName, rollback, targetCommit, now }: Rollba
       </Table.Cell>
       <Table.Cell className="hidden md:table-cell">
         <span className="text-body-sm text-muted-foreground tabular-nums" title={startedAbs}>
-          {formatDate(rollback.created_at, 'relative', now)}
+          {formatElapsed(rollback.created_at, now ?? Date.now())}
         </span>
       </Table.Cell>
       <Table.Cell align="right" numeric className="hidden md:table-cell">

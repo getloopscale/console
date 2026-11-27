@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import {
+  formatElapsed,
   formatCost,
   formatDate,
   formatDuration,
@@ -88,6 +89,24 @@ describe('formatDate relative to a given moment', () => {
   it('counts from the moment it is given', () => {
     expect(formatDate(started, 'relative', at(15))).toBe('15 seconds ago');
     expect(formatDate(started, 'relative', at(130))).toBe('2 minutes ago');
+  });
+});
+
+// A build the server stamped two seconds ahead of the browser read "in 2 seconds"
+// (getloopscale/loop-console#631).
+describe('formatElapsed', () => {
+  const started = '2026-11-27T07:24:32Z';
+
+  it('reads "now" when the start is ahead of the moment it counts from', () => {
+    expect(formatElapsed(started, Date.parse(started) - 2_000)).toBe('now');
+  });
+
+  it('counts back from the moment it is given', () => {
+    expect(formatElapsed(started, Date.parse(started) + 28_000)).toBe('28 seconds ago');
+  });
+
+  it('keeps the placeholder for a missing start', () => {
+    expect(formatElapsed(undefined, 0)).toBe('—');
   });
 });
 
