@@ -29,6 +29,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The page of a build reaches its final state without a reload. It could stay on "Running" with "Cancel build" after the build succeeded, when the build ended with no final event on the stream. The page now rereads the build every 5 seconds while it is queued, running or cancelling (#606).
 - Deployments names no commit in "Currently serving production" while the project has no active release. It showed the commit of the last build, even one that was running or had failed (#604).
 - Deployments and Status date the last deploy by `last_deploy_at`, the moment traffic switched. They used the creation of the release, so a rollback to an older release read as deployed long ago (#605).
 - The banner that asks an account to verify its email no longer says the account cannot deploy until it does. No API refuses a deploy for that reason, and the account could deploy all along (#593).
