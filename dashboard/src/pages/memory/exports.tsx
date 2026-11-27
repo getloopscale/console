@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, Plus } from 'lucide-react';
-import { Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp } from '@getloopscale/ui';
+import { Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, Timestamp } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

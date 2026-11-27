@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { parseAsInteger, useQueryState } from 'nuqs';
-import { Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@getloopscale/ui';
+import { Card, DataTable, type DataTableColumn, EmptyState, MetricCard, Progress, Select } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
 import { TrendChart, type TrendSeries } from '@getloopscale/ui';
 import { densificar, seriesWindow, type PlottableField } from '@/pages/lens/usage-series';

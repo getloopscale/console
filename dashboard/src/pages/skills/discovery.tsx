@@ -8,9 +8,9 @@ import {
   DataTable,
   EmptyState,
   Input,
-  PageShell,
   type DataTableColumn,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';

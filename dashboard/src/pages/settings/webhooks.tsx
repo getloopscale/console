@@ -7,10 +7,10 @@ import {
   DataTable,
   type DataTableColumn,
   EmptyState,
-  PageShell,
   Sheet,
   Timestamp,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { AppModal } from '@/components/ui/app-modal';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import { deliveryStatusVariant } from '@/lib/webhooks/delivery';

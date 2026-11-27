@@ -1,7 +1,8 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { Badge, Button, Card, PageShell, Select, Textarea } from '@getloopscale/ui';
+import { Badge, Button, Card, Select, Textarea } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';

@@ -8,11 +8,11 @@ import {
   DataTable,
   type DataTableColumn,
   EmptyState,
-  PageShell,
   Sheet,
   Timestamp,
   useToast,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { AddWebhookDialog } from '@/components/dialogs/add-webhook-dialog';
 import { DELIVERIES_READ_FAILURE } from '@/pages/settings/webhook-copy';
 import type { Delivery } from '@/lib/webhooks/delivery';

@@ -6,11 +6,11 @@ import {
   Badge,
   Button,
   Card,
-  PageShell,
   Select,
   Skeleton,
   Textarea,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 

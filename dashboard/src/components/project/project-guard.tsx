@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FolderKanban, Loader2 } from 'lucide-react';
-import { Button, EmptyState, PageShell } from '@getloopscale/ui';
+import { Button, EmptyState } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { useProjects } from '@/hooks/projects/use-projects';
 
 /**

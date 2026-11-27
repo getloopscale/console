@@ -6,15 +6,13 @@ import ForceGraph2D, {
   type LinkObject,
   type NodeObject,
 } from 'react-force-graph-2d';
-import { Card, EmptyState, PageShell, Tabs } from '@getloopscale/ui';
+import { Card, EmptyState, Tabs } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import {
-  useMemoryGraph,
-  type GraphResult,
-} from '@/hooks/memory/use-graph';
+import { useMemoryGraph, type GraphResult } from '@/hooks/memory/use-graph';
 import { themeColor, withAlpha } from '@/lib/theme/canvas-colors';
 
 /**

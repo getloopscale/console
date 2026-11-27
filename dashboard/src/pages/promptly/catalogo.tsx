@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FileText, GitCompare, Search } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@getloopscale/ui';
-
+import { Button, Card, DataTable, EmptyState, type DataTableColumn } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

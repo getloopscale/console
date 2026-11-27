@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Card, DataTable, type DataTableColumn, EmptyState, PageShell } from '@getloopscale/ui';
+import { Card, DataTable, type DataTableColumn, EmptyState } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 

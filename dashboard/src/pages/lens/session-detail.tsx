@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline, Tabs } from '@getloopscale/ui';
+import { Badge, Button, Card, CopyButton, EmptyState, SessionSummary, SessionTimeline, Tabs } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 

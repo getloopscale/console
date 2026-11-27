@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { Button, Card, PageShell } from '@getloopscale/ui';
+import { Button, Card } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

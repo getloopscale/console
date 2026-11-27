@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useDatasets } from '@/hooks/lens/use-datasets';
 import { useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select, Textarea } from '@getloopscale/ui';
+import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, EmptyState, Input, Label, Select, Textarea } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 

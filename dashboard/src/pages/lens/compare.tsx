@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTrace } from '@/hooks/lens/use-trace';
-import { EmptyState, PageShell, TraceCompare } from '@getloopscale/ui';
+import { EmptyState, TraceCompare } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';

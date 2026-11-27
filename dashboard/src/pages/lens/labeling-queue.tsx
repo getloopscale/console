@@ -1,7 +1,8 @@
 import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, PageShell, StatusDot } from '@getloopscale/ui';
+import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, StatusDot } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 

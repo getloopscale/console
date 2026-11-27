@@ -7,12 +7,12 @@ import {
 import {
   Button,
   Card,
-  PageShell,
   Skeleton,
   EmptyState,
   Badge,
   Checkbox,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { triggerBlobDownload } from '@/lib/export/download';
 

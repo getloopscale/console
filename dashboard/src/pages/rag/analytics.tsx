@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useCollections } from '@/hooks/rag/use-collections';
-import { Card, MetricCard, PageShell, Select, Skeleton } from '@getloopscale/ui';
+import { Card, MetricCard, Select, Skeleton } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';

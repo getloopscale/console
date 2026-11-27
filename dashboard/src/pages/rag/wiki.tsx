@@ -1,7 +1,8 @@
 import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@getloopscale/ui';
+import { Badge, Button, Card, EmptyState, Input, Select, Skeleton, Textarea } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/pages/rag/components/markdown-view';
 import { KbEditor } from '@/pages/rag/components/kb-editor';

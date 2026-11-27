@@ -8,10 +8,10 @@ import {
   type DataTableColumn,
   EmptyState,
   Input,
-  PageShell,
   Tabs,
   Timestamp,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { cascadeForgetEntity } from '@/pages/memory/entity-cascade';

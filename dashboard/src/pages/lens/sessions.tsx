@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Card, CopyButton, DataTable, type DataTableColumn, EmptyState, PageShell } from '@getloopscale/ui';
+import { Button, Card, CopyButton, DataTable, type DataTableColumn, EmptyState } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 

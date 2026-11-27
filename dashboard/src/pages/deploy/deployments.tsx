@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
 import { ArrowLeft, CheckCircle2, Play, RefreshCw } from 'lucide-react';
-import { Button, Card, PageShell, Table } from '@getloopscale/ui';
+import { Button, Card, Table } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { estadoDaLista } from '@/lib/list-state';
 import { noDeploysYet } from '@/pages/deploy/empty-states';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
@@ -20,8 +21,6 @@ import { deploymentEntries } from '@/pages/deploy/deployment-entries';
 import { formatDate } from '@/lib/formatting/format';
 import { type Build, type BuildStatus } from '@/lib/api/types';
 import { buildOutcome } from '@/pages/deploy/build-outcome';
-
-
 
 const STATUS_FILTERS: { value: 'all' | BuildStatus; label: string }[] = [
   { value: 'all', label: 'All' },

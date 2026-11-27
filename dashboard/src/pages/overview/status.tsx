@@ -1,4 +1,5 @@
-import { Badge, Card, PageShell, Skeleton } from '@getloopscale/ui';
+import { Badge, Card, Skeleton } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

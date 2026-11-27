@@ -10,11 +10,11 @@ import {
   EmptyState,
   Input,
   Label,
-  PageShell,
   Select,
   Skeleton,
   Timestamp,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';

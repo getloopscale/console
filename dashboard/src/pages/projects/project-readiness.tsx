@@ -1,6 +1,7 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
-import { EmptyState, PageShell } from '@getloopscale/ui';
+import { EmptyState } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDocumentTitle } from '@/hooks/use-page-meta';
 import { useProjects } from '@/hooks/projects/use-projects';

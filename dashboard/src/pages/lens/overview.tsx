@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import { ExploreCard } from '@/components/explore-card';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
 import { RefreshCw } from 'lucide-react';
-import { Button, Card, PageShell, Select, Skeleton } from '@getloopscale/ui';
+import { Button, Card, Select, Skeleton } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { LENS_EXPLORE_CARDS } from '@/components/layout/lens-capabilities';
 

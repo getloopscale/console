@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { colecaoDescrita } from '@/lib/collection-described';
 import { Link } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, Input, PageShell } from '@getloopscale/ui';
+import { Badge, Button, Card, EmptyState, Input } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';

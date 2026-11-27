@@ -1,5 +1,6 @@
 import { type ComponentType, type SVGProps } from 'react';
-import { Card, CodeBlock, EmptyState, PageShell } from '@getloopscale/ui';
+import { Card, CodeBlock, EmptyState } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 

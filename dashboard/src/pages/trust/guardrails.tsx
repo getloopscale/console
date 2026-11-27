@@ -8,9 +8,9 @@ import {
   Card,
   DataTable,
   EmptyState,
-  PageShell,
   type DataTableColumn,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
