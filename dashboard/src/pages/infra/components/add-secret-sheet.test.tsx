@@ -42,6 +42,18 @@ describe('AddSecretSheet — J-22 T3.2', () => {
     expect(prev.checked).toBe(true);
   });
 
+  // A text field followed by a password field is a sign-in form to a browser. Chrome filled
+  // the key with the account email and the value with the saved account password.
+  it('tells the browser that the key and the value are not sign-in credentials', () => {
+    render(
+      <Wrapper>
+        <AddSecretSheet open onOpenChange={vi.fn()} defaultEnvs={['production']} />
+      </Wrapper>,
+    );
+    expect(screen.getByLabelText('Key')).toHaveAttribute('autocomplete', 'off');
+    expect(screen.getByLabelText('Value')).toHaveAttribute('autocomplete', 'new-password');
+  });
+
   it('test_invalid_key_shows_error_no_post', async () => {
     render(
       <Wrapper>

@@ -114,6 +114,7 @@ export function RotateSecretDialog({
             <Input
               id="rotate-confirm"
               type="text"
+              autoComplete="off"
               value={confirmInput}
               onChange={(e) => setConfirmInput(e.target.value)}
               autoFocus
@@ -125,6 +126,7 @@ export function RotateSecretDialog({
             <Input
               id="rotate-new-value"
               type="password"
+              autoComplete="new-password"
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               placeholder="sk_live_•••"

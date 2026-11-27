@@ -52,6 +52,16 @@ describe('RotateSecretDialog — J-22 T3.3', () => {
     expect(rotate).not.toBeDisabled();
   });
 
+  it('tells the browser that the new value is not the saved account password', () => {
+    render(
+      <Wrapper>
+        <RotateSecretDialog open onOpenChange={vi.fn()} secret={SECRET} />
+      </Wrapper>,
+    );
+    expect(screen.getByLabelText(/New value/)).toHaveAttribute('autocomplete', 'new-password');
+    expect(screen.getByLabelText(/Type.*to confirm/)).toHaveAttribute('autocomplete', 'off');
+  });
+
   it('test_case_mismatch_keeps_button_disabled_ec19', () => {
     render(
       <Wrapper>
