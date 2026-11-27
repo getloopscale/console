@@ -16,6 +16,9 @@ vi.mock('./app-sidebar', () => ({
 vi.mock('./top-bar', () => ({
   TopBar: () => <header data-testid="top-bar">topbar</header>,
 }));
+vi.mock('./status-bar', () => ({
+  StatusBar: () => <footer data-testid="status-bar">status</footer>,
+}));
 
 import { useRequireAuth } from '@/hooks/use-auth';
 import { DashboardLayout } from './dashboard-layout';
@@ -58,6 +61,7 @@ describe('DashboardLayout', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument();
     expect(screen.getByTestId('app-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('top-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('status-bar')).toBeInTheDocument();
   });
 
   it('test_dashboard_layout_shows_verification_banner_when_unverified', () => {

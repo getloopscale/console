@@ -52,6 +52,19 @@ describe('TopBar', () => {
     expect(screen.queryByText('My Test Page')).not.toBeInTheDocument();
   });
 
+  it('shows where the user is, as the menu names it', () => {
+    render(<TopBar />, { initialEntries: ['/projects/hello/domains'] });
+    const trail = screen.getByRole('navigation', { name: 'You are here' });
+    const steps = Array.from(trail.querySelectorAll('li')).map((li) => li.textContent);
+    expect(steps).toEqual(['Settings', 'Domains']);
+    expect(screen.getByText('Domains', { selector: '[aria-current="page"]' })).toBeInTheDocument();
+  });
+
+  it('shows no trail on a route no menu entry leads to', () => {
+    render(<TopBar />, { initialEntries: ['/no-such-page'] });
+    expect(screen.queryByRole('navigation', { name: 'You are here' })).not.toBeInTheDocument();
+  });
+
   it('test_top_bar_hides_selector_on_settings_route', () => {
     render(<TopBar />, { initialEntries: ['/settings'] });
     expect(screen.queryByText('All Projects')).not.toBeInTheDocument();

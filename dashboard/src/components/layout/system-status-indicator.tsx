@@ -68,7 +68,7 @@ export function SystemStatusIndicator() {
     <Link
       to="/status"
       data-testid="system-status-indicator"
-      className="flex items-center gap-2 text-label text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+      className="flex h-full items-center gap-1.5 px-2.5 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors whitespace-nowrap"
     >
       <span role="status" aria-label={label} className="flex items-center gap-2">
         <StatusDot level={level} />
