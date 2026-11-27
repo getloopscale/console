@@ -28,7 +28,7 @@ export function ReadinessChecklist({ signals, projectName }: ReadinessChecklistP
   return (
     <Card>
       <Card.Body>
-        <ul className="divide-y divide-border" aria-label="Readiness checklist">
+        <ul className="divide-y divide-border" aria-label="Production checklist">
           {SIGNALS.map((def) => {
             const sig = signals[def.name];
             const status = sig?.status ?? 'unknown';

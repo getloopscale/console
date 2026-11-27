@@ -2,6 +2,7 @@ import { Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import {
+  Box,
   Database,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout';
@@ -199,6 +200,24 @@ export default function App() {
                             title="Databases"
                             description="Provision and operate managed databases for your projects, with backup, restore and connection by environment variable."
                             icon={Database}
+                          />
+                        </Boundaried>
+                      }
+                    />
+                    {/* Sandboxes: announced in the menu (comingSoon) and not built yet. The route exists
+                        so the menu entry leads somewhere, and the screen says what it will do.
+
+                        No `cliCommand` on purpose: there is no sandbox command or SDK call to
+                        offer today. Review by 2027-01-31: it becomes the real screen or leaves
+                        together with the menu entry. */}
+                    <Route
+                      path="/sandboxes"
+                      element={
+                        <Boundaried path="/sandboxes">
+                          <SubPagePlaceholder
+                            title="Sandboxes"
+                            description="Isolated environments where your agents run tools, code and subagents, on their own or next to a deployed app."
+                            icon={Box}
                           />
                         </Boundaried>
                       }

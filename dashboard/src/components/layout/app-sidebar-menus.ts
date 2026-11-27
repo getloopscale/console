@@ -4,6 +4,7 @@ import {
   Activity,
   Bell,
   BookOpen,
+  Box,
   Boxes,
   Database,
   Brain,
@@ -112,29 +113,54 @@ export interface MenuDefinition {
  *      path. Skip it and the submenu exists in full but NEVER opens: only a typed URL
  *      reaches it, which is the one path a real user does not have (cost M24).
  */
+/** Title of the root group of agent services. The Overview grid and several tests look the
+ * group up by it, so a rename cannot empty the grid without a failing test. */
+export const AGENT_SERVICES_GROUP_TITLE = 'Agent Services';
+
 export const MENUS: Record<string, MenuDefinition> = {
   main: {
     id: 'main',
     title: 'LoopScale',
     groups: [
       {
+        items: [{ label: 'Overview', path: '/', icon: LayoutGrid }],
+      },
+      {
+        // Where code runs: deployed apps and, once built, sandboxes.
+        title: 'Compute',
         items: [
-          { label: 'Overview', path: '/', icon: LayoutGrid },
           { label: 'Projects', path: '/projects', icon: FolderKanban },
+          // Sandboxes: announced, not built, so the placeholder suggests no command or SDK call.
+          // PLACEHOLDER: review by 2027-01-31. It then becomes the real screen or leaves
+          // together with the /sandboxes route.
+          { label: 'Sandboxes', path: '/sandboxes', icon: Box, comingSoon: true },
           // M20: Environments removed from the top-level nav — they are a project
           // dimension, managed under /projects/:name/environments (not global).
+          // Domains leaves the root for the same reason once the project menu has its own entry.
           { label: 'Domains', path: '/domains', icon: Globe },
-          { label: 'Team', path: '/team', icon: Users },
         ],
       },
       {
-        // The LoopScale data-plane capabilities (Memory / Knowledge Base / Observability), grouped under one
-        // semantic header instead of three single-item groups whose title repeated the item
-        // label. Each item drills into its own submenu (memory / rag / lens).
-        title: 'Capabilities',
+        // The data-plane capabilities under one header. Most drill into their own submenu.
+        title: AGENT_SERVICES_GROUP_TITLE,
         items: [
           { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
           { label: 'Knowledge Base', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
+          // M25 — PEÇA 1 de 3. A capacidade de prompts. O serviço está no ar desde sempre e a
+          // promessa dele — promover uma revisão entre ambientes sem redeploy — só existia por
+          // `curl`, SDK ou MCP: não havia entrada alguma no menu para quem opera. As outras duas
+          // peças são o objeto `promptly:` abaixo e a linha em `resolveActiveMenu` — as três, ou
+          // nenhuma.
+          { label: 'Prompts', path: '/promptly', icon: FileText, drillsInto: 'promptly' },
+          // M26 — PEÇA 1 de 3. A capacidade skills. Até aqui o único item chamado "Skills" no
+          // menu inteiro era o de `/memory/skills`, que é do loopmem: quem procurava o
+          // registro chegava no produto errado, sem erro algum. As outras duas peças são o
+          // objeto `skills:` abaixo e a linha em `resolveActiveMenu` — as três, ou nenhuma.
+          { label: 'Skills', path: '/skills', icon: Boxes, drillsInto: 'skills' },
+          // M23 — a capacidade trust. Sem esta entrada as rotas /trust existem e ninguém as
+          // alcança pela navegação: o serviço registrava violações que só apareciam por `curl`.
+          { label: 'Trust', path: '/trust', icon: ShieldCheck, drillsInto: 'trust' },
+          { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
           // Databases — ANUNCIADA, nao entregue. `loopscale-db` existe como produto
           // (extensao PostgreSQL) e nao tem superficie alguma no dashboard: nem
           // rota, nem endpoint, nem comando de CLI que a tela pudesse oferecer.
@@ -147,43 +173,24 @@ export const MENUS: Record<string, MenuDefinition> = {
           // `comingSoon` existe para evitar.
           { label: 'Databases', path: '/databases', icon: Database, comingSoon: true },
           { label: 'Workspace', path: '/workspaces', icon: FolderTree },
-          { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
-          // M23 — a capacidade trust. Sem esta entrada as rotas /trust existem e ninguém as
-          // alcança pela navegação: o serviço registrava violações que só apareciam por `curl`.
-          { label: 'Trust', path: '/trust', icon: ShieldCheck, drillsInto: 'trust' },
-          // M26 — PEÇA 1 de 3. A capacidade skills. Até aqui o único item chamado "Skills" no
-          // menu inteiro era o de `/memory/skills`, que é do loopmem: quem procurava o
-          // registro chegava no produto errado, sem erro algum. As outras duas peças são o
-          // objeto `skills:` abaixo e a linha em `resolveActiveMenu` — as três, ou nenhuma.
-          { label: 'Skills', path: '/skills', icon: Boxes, drillsInto: 'skills' },
-          // M25 — PEÇA 1 de 3. A capacidade de prompts. O serviço está no ar desde sempre e a
-          // promessa dele — promover uma revisão entre ambientes sem redeploy — só existia por
-          // `curl`, SDK ou MCP: não havia entrada alguma no menu para quem opera. As outras duas
-          // peças são o objeto `promptly:` abaixo e a linha em `resolveActiveMenu` — as três, ou
-          // nenhuma.
-          { label: 'Prompts', path: '/promptly', icon: FileText, drillsInto: 'promptly' },
         ],
       },
       {
-        // Top-level shortcut to the API Tokens page (also reachable via
-        // Settings → Developer → API Tokens). Uses the /tokens route so the
-        // root sidebar stays active instead of drilling into Settings.
-        title: 'Developer',
-        items: [{ label: 'API Tokens', path: '/tokens', icon: KeyRound }],
-      },
-      {
-        title: 'Billing',
-        items: [{ label: 'Billing', path: '/billing', icon: Receipt }],
-      },
-      {
-        title: 'Activity',
-        items: [{ label: 'Audit log', path: '/audit', icon: History }],
-      },
-      {
+        // What belongs to the organization: people, money, credentials, history, settings.
+        title: 'Organization',
         items: [
+          { label: 'Team', path: '/team', icon: Users },
+          { label: 'Billing', path: '/billing', icon: Receipt },
+          // Shortcut to the page also at Settings → Developer → API Tokens. The /tokens route
+          // keeps the root sidebar active instead of drilling into Settings.
+          { label: 'API Tokens', path: '/tokens', icon: KeyRound },
+          { label: 'Audit log', path: '/audit', icon: History },
           { label: 'Settings', path: '/settings', icon: Settings, drillsInto: 'settings' },
-          { label: 'Profile', path: '/profile', icon: User, drillsInto: 'profile' },
         ],
+      },
+      {
+        // Personal, so outside Organization. Without it only the palette reaches /profile.
+        items: [{ label: 'Profile', path: '/profile', icon: User, drillsInto: 'profile' }],
       },
     ],
   },
@@ -395,25 +402,42 @@ export const MENUS: Record<string, MenuDefinition> = {
     id: 'project',
     title: '{project}',
     parent: 'main',
+    // Three groups, one question each. Labels were renamed; the routes (/connect, /status,
+    // /logs, /scale, /readiness) were not, so bookmarks and URLs the CLI prints keep working.
     groups: [
       {
+        items: [{ label: 'Overview', path: '/projects/{project}', icon: LayoutGrid }],
+      },
+      {
+        // How does my code get here?
+        title: 'Deploy',
         items: [
-          { label: 'Overview', path: '/projects/{project}', icon: LayoutGrid },
           { label: 'Deployments', path: '/projects/{project}/deployments', icon: Rocket },
           // M20: environments as a project dimension — discoverable in the project
           // sub-nav next to Deployments (you deploy INTO an environment).
           { label: 'Environments', path: '/projects/{project}/environments', icon: Boxes },
-          { label: 'Status', path: '/projects/{project}/status', icon: Activity },
-          { label: 'Runtime logs', path: '/projects/{project}/logs', icon: ScrollText },
-          { label: 'Scale', path: '/projects/{project}/scale', icon: SlidersHorizontal },
-          { label: 'Readiness', path: '/projects/{project}/readiness', icon: ShieldCheck },
+          { label: 'Repository', path: '/projects/{project}/connect', icon: Github },
         ],
       },
       {
-        title: 'Configuration',
+        // Is it working?
+        title: 'Run',
+        items: [
+          { label: 'Health', path: '/projects/{project}/status', icon: Activity },
+          { label: 'Logs', path: '/projects/{project}/logs', icon: ScrollText },
+          { label: 'Scaling', path: '/projects/{project}/scale', icon: SlidersHorizontal },
+        ],
+      },
+      {
+        // What do I configure?
+        title: 'Settings',
         items: [
           { label: 'Secrets', path: '/projects/{project}/secrets', icon: KeyRound },
-          { label: 'Repository', path: '/projects/{project}/connect', icon: Github },
+          {
+            label: 'Production checklist',
+            path: '/projects/{project}/readiness',
+            icon: ShieldCheck,
+          },
         ],
       },
     ],

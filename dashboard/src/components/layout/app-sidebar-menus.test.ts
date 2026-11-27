@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { MENUS, resolveActiveMenu } from './app-sidebar-menus';
+import { AGENT_SERVICES_GROUP_TITLE, MENUS, resolveActiveMenu } from './app-sidebar-menus';
 
 /**
  * M13 — a navegação tem DUAS metades, e a segunda é a que ninguém lembra.
@@ -84,7 +84,7 @@ describe('resolveActiveMenu — o playground do M14', () => {
 /**
  * Capacidades anunciadas e não construídas.
  *
- * O menu de Capabilities é onde alguém conta o que o produto entrega — e uma
+ * O grupo Agent Services é onde alguém conta o que o produto entrega — e uma
  * entrada indistinguível das prontas infla essa conta. `comingSoon` é o que
  * separa anunciar um roadmap de afirmar uma entrega.
  *
@@ -93,10 +93,10 @@ describe('resolveActiveMenu — o playground do M14', () => {
  * lá, clicável, agora parecendo pronto.
  */
 describe('capacidades marcadas como em breve', () => {
-  const capabilities = MENUS.main.groups.find((g) => g.title === 'Capabilities');
+  const capabilities = MENUS.main.groups.find((g) => g.title === AGENT_SERVICES_GROUP_TITLE);
 
-  it('o grupo Capabilities existe — o resto depende disto', () => {
-    expect(capabilities, 'grupo "Capabilities" sumiu do menu principal').toBeDefined();
+  it('o grupo Agent Services existe — o resto depende disto', () => {
+    expect(capabilities, 'grupo "Agent Services" sumiu do menu principal').toBeDefined();
   });
 
   it('Databases está declarada e MARCADA como em breve', () => {
@@ -128,5 +128,91 @@ describe('capacidades marcadas como em breve', () => {
       'Capacidade entregue marcada como em breve — o erro oposto, e igualmente caro:\n' +
         'esconde do usuário algo que já funciona.',
     ).toEqual([]);
+  });
+});
+
+/**
+ * The menu answers "what does the product offer, and where". These tests pin the grouping, so a
+ * later edit that moves an item to another group or drops a group title fails here and not in a
+ * screenshot review.
+ */
+describe('main menu groups', () => {
+  const shape = MENUS.main.groups.map((g) => ({
+    title: g.title,
+    labels: g.items.map((i) => i.label),
+  }));
+
+  it('groups the root menu as Overview, Compute, Agent Services, Organization and Profile', () => {
+    expect(shape).toEqual([
+      { title: undefined, labels: ['Overview'] },
+      // Domains stays here until the project-scoped domains page ships; it then leaves the root.
+      { title: 'Compute', labels: ['Projects', 'Sandboxes', 'Domains'] },
+      {
+        title: 'Agent Services',
+        labels: [
+          'Memory',
+          'Knowledge Base',
+          'Prompts',
+          'Skills',
+          'Trust',
+          'Observability',
+          'Databases',
+          'Workspace',
+        ],
+      },
+      { title: 'Organization', labels: ['Team', 'Billing', 'API Tokens', 'Audit log', 'Settings'] },
+      { title: undefined, labels: ['Profile'] },
+    ]);
+  });
+
+  it('exports the Agent Services title that the Overview grid looks the group up by', () => {
+    expect(AGENT_SERVICES_GROUP_TITLE).toBe('Agent Services');
+  });
+
+  it('announces Sandboxes as coming soon, on a route of its own', () => {
+    const sandboxes = MENUS.main.groups.flatMap((g) => g.items).find((i) => i.label === 'Sandboxes');
+    expect(sandboxes).toMatchObject({ path: '/sandboxes', comingSoon: true });
+  });
+
+  it('keeps every root path it had before the regrouping', () => {
+    const paths = MENUS.main.groups.flatMap((g) => g.items).map((i) => i.path);
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        '/', '/projects', '/domains', '/team', '/memory', '/rag', '/databases', '/workspaces',
+        '/observability', '/trust', '/skills', '/promptly', '/tokens', '/billing', '/audit',
+        '/settings', '/profile',
+      ]),
+    );
+  });
+});
+
+describe('project menu groups', () => {
+  const shape = MENUS.project.groups.map((g) => ({
+    title: g.title,
+    labels: g.items.map((i) => i.label),
+  }));
+
+  it('groups the project menu as Overview, Deploy, Run and Settings', () => {
+    expect(shape).toEqual([
+      { title: undefined, labels: ['Overview'] },
+      { title: 'Deploy', labels: ['Deployments', 'Environments', 'Repository'] },
+      { title: 'Run', labels: ['Health', 'Logs', 'Scaling'] },
+      { title: 'Settings', labels: ['Secrets', 'Production checklist'] },
+    ]);
+  });
+
+  // Only the labels changed. A renamed route would break bookmarks, links in the product and the
+  // URLs the CLI prints.
+  it('points each renamed label at the route the page already had', () => {
+    const pathOf = Object.fromEntries(
+      MENUS.project.groups.flatMap((g) => g.items).map((i) => [i.label, i.path]),
+    );
+    expect(pathOf).toMatchObject({
+      Repository: '/projects/{project}/connect',
+      Health: '/projects/{project}/status',
+      Logs: '/projects/{project}/logs',
+      Scaling: '/projects/{project}/scale',
+      'Production checklist': '/projects/{project}/readiness',
+    });
   });
 });

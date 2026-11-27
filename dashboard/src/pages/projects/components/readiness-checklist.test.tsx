@@ -61,6 +61,12 @@ describe('ReadinessChecklist', () => {
     expect(links[0]).toHaveAttribute('href', '/projects/my-api/scale');
   });
 
+  // A screen reader announces this label as the name of the list, so it follows the page heading.
+  it('names the list after the page, Production checklist', () => {
+    renderWith(buildSignals(Object.fromEntries(SIGNALS.map((s) => [s.name, { status: 'unknown' }]))));
+    expect(screen.getByRole('list', { name: 'Production checklist' })).toBeInTheDocument();
+  });
+
   it('says Coming soon for a signal whose page does not exist yet', () => {
     const signals = buildSignals(
       Object.fromEntries(SIGNALS.map((s) => [s.name, { status: 'unknown' }])),

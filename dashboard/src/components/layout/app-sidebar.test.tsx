@@ -22,6 +22,7 @@ describe('AppSidebar', () => {
     for (const label of [
       'Overview',
       'Projects',
+      'Sandboxes',
       'Domains',
       'Billing',
       'Audit log',
@@ -234,7 +235,7 @@ describe('AppSidebar', () => {
  * adicione às rotas sem adicionar ao menu continua invisível, e nenhum teste de rota o pega.
  */
 describe('menu — capacidades do data plane', () => {
-  it('toda capacidade tem entrada no grupo Capabilities', () => {
+  it('toda capacidade tem entrada no grupo Agent Services', () => {
     render(<AppSidebar session={makeSession('Paulo')} />);
 
     for (const label of ['Memory', 'Knowledge Base', 'Workspace', 'Observability', 'Trust']) {

@@ -1,11 +1,14 @@
 ## [Unreleased]
 
 ### Added
+- Sidebar: a Sandboxes entry under Compute, marked as coming soon. It opens a page that says what sandboxes will do; there is nothing to operate yet (#641).
 - The Status screen of a project has a Resources section: CPU and memory of the app against their limits and container restarts, each with the current value and a chart over the last hour, 24 hours or 7 days. A series the platform has not collected yet says so.
 - Deployments: each rollback has a row of its own in the list, where it happened among the builds, with its status, the build it aimed at, who asked, when, and how long it took. The status and environment filters apply to rollbacks too, and the footer counts them. A rollback opens on a page of its own that shows the release the environment left and the one it aimed at, the Deploy and Live phases, and the reason when it failed or was interrupted. The page of a build links to the rollbacks that left it or aimed at it. The console reads `GET /api/v1/projects/{name}/rollbacks` (getloopscale/loopzero#128).
 - `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
 
 ### Changed
+- Sidebar: the root menu is grouped as Compute (Projects, Sandboxes, Domains), Agent Services (the group that was called Capabilities) and Organization (Team, Billing, API Tokens, Audit log, Settings), with Overview above them and Profile below (#641).
+- Project sidebar: the entries are grouped as Deploy (Deployments, Environments, Repository), Run and Settings. Status is now Health, Runtime logs is Logs, Scale is Scaling and Readiness is Production checklist, in the menu, the page heading and the tab title. The addresses of the pages did not change (#641).
 - The console is named loop-console, and every name it shares with the engine follows the platform's `loop-{name}` pattern (getloopscale/loop-runtime#189). It has to be deployed together with an engine of that revision. What changes for an operator:
   - The repository is `getloopscale/loop-console` and the Go module is `github.com/getloopscale/loop-console`.
   - Images are published as `loop-console` and `loop-console-dashboard`.

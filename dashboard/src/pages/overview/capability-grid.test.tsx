@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@/test/render';
-import { MENUS } from '@/components/layout/app-sidebar-menus';
+import { AGENT_SERVICES_GROUP_TITLE, MENUS } from '@/components/layout/app-sidebar-menus';
 
 /**
  * O grid é a tela do B-112: a Overview passa a representar a PLATAFORMA.
@@ -32,8 +32,8 @@ import { CAPACIDADES } from './capabilities';
 
 /** As capacidades como o menu as declara — a mesma fonte que o grid consome. */
 function capacidadesDoMenu(): { label: string; path: string }[] {
-  const grupo = MENUS.main?.groups.find((g) => g.title === 'Capabilities');
-  if (!grupo) throw new Error('o grupo `Capabilities` sumiu do registro do menu');
+  const grupo = MENUS.main?.groups.find((g) => g.title === AGENT_SERVICES_GROUP_TITLE);
+  if (!grupo) throw new Error('o grupo `Agent Services` sumiu do registro do menu');
   return grupo.items.map((i) => ({ label: i.label, path: i.path }));
 }
 

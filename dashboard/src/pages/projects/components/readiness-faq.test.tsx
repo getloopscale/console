@@ -14,6 +14,12 @@ describe('ReadinessFAQ', () => {
     expect(rows[0].getAttribute('aria-expanded')).toBe('true');
   });
 
+  // A screen reader announces this label as the name of the list, so it follows the page heading.
+  it('names the list after the page, Production checklist FAQ', () => {
+    render(<ReadinessFAQ />);
+    expect(screen.getByRole('list', { name: 'Production checklist FAQ' })).toBeInTheDocument();
+  });
+
   it('test_faq_defaultOpen_expands_named_row (T3.2 deep-link)', () => {
     render(<ReadinessFAQ defaultOpen="hpa_configured" />);
     const hpaButton = screen

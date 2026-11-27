@@ -26,7 +26,7 @@ import { test, expect, type Page } from '@playwright/test';
 /**
  * Chega ao acervo CLICANDO a partir da raiz.
  *
- * Duas etapas, porque o menu tem duas: o item `Skills` em Capabilities entra no submenu
+ * Duas etapas, porque o menu tem duas: o item `Skills` em Agent Services entra no submenu
  * (`drillsInto`), e o `Overview` dele abre a tela. Se qualquer uma das três peças do menu faltar,
  * é aqui que o teste morre — e morre no passo que o usuário de fato daria.
  */

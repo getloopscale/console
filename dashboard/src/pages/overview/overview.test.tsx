@@ -27,7 +27,7 @@ vi.mock('@/hooks/overview/use-build-stats', () => ({
   useBuildStats: () => mockUseBuildStats(),
 }));
 
-import { MENUS } from '@/components/layout/app-sidebar-menus';
+import { AGENT_SERVICES_GROUP_TITLE, MENUS } from '@/components/layout/app-sidebar-menus';
 import { OverviewPage } from './overview';
 
 describe('OverviewPage', () => {
@@ -204,7 +204,7 @@ describe('OverviewPage', () => {
     // passaria verde no dia em que a nona capacidade fosse criada e esquecida.
     render(<OverviewPage />);
 
-    const grupo = MENUS.main?.groups.find((g) => g.title === 'Capabilities');
+    const grupo = MENUS.main?.groups.find((g) => g.title === AGENT_SERVICES_GROUP_TITLE);
     const declaradas = grupo?.items ?? [];
     expect(declaradas.length).toBeGreaterThanOrEqual(8);
 

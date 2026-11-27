@@ -48,7 +48,7 @@ const VALID_SIGNALS: ReadonlySet<string> = new Set([
 export function ProjectStatusPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
-  useSetPageTitle(`${name} · Status`);
+  useSetPageTitle(`${name} · Health`);
 
   // T4.2 URL state — ?signal=replicas opens drill-down on initial mount.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,7 +126,7 @@ export function ProjectStatusPage() {
 
   if (loading) {
     return (
-      <PageShell title="Status">
+      <PageShell title="Health">
         <div className="flex items-center justify-center py-12">
           <Loader2
             className="size-6 animate-spin text-muted-foreground"
@@ -139,7 +139,7 @@ export function ProjectStatusPage() {
 
   if (error || !status) {
     return (
-      <PageShell title="Status unavailable">
+      <PageShell title="Health unavailable">
         <EmptyState
           icon={Activity}
           title="Couldn't load project status"
@@ -166,7 +166,7 @@ export function ProjectStatusPage() {
   if (isPreviewOnly) {
     const sibling = status.other_envs_with_releases![0];
     return (
-      <PageShell title="Status">
+      <PageShell title="Health">
         <div className="mb-4">
           <Button asChild variant="ghost" size="sm">
             <Link
@@ -262,7 +262,7 @@ export function ProjectStatusPage() {
       : null;
 
   return (
-    <PageShell title="Status" description="Auto-refresh every 5s.">
+    <PageShell title="Health" description="Auto-refresh every 5s.">
       <div className="mb-4 flex items-center justify-between gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link
