@@ -11,6 +11,9 @@ import { KPIStripStatus } from '@/pages/projects/components/kpi-strip-status';
 import { SignalGrid } from '@/pages/projects/components/signal-grid';
 import { SignalDetailSheet } from '@/pages/projects/components/signal-detail-sheet';
 import { RefreshButton } from '@/pages/projects/components/refresh-button';
+import { serverErrorBand } from '@/hooks/projects/readiness-rules';
+
+const HEALTH_LABEL = { pass: 'Healthy', warn: 'Degraded', fail: 'Unhealthy' } as const;
 
 /**
  * ProjectStatusPage — Plan J-18 T4.1 + T4.2 (v1.1).
@@ -226,10 +229,17 @@ export function ProjectStatusPage() {
     (status.traffic_5xx_pct_1h !== undefined) ||
     (status.alerts_active !== undefined);
   const releaseActive = status.active_release?.status === 'ACTIVE';
+  // A serving app is not a healthy one. The pill takes the worse of the 5xx share over the last
+  // hour and the one on screen, and reads it with the bands of the Readiness screen.
+  const serverErrorShares = [status.traffic_5xx_pct_1h, errorRate].filter(
+    (v): v is number => typeof v === 'number' && Number.isFinite(v),
+  );
+  const healthLabel =
+    serverErrorShares.length === 0 ? 'Healthy' : HEALTH_LABEL[serverErrorBand(Math.max(...serverErrorShares))];
 
   // 8 signals for the grid — same null pattern.
   const signals = {
-    status: releaseActive ? (hasServingSignal ? 'Healthy' : 'Unknown') : 'Progressing',
+    status: releaseActive ? (hasServingSignal ? healthLabel : 'Unknown') : 'Progressing',
     replicas,
     uptime_24h: uptime24h,
     p95_latency: p95LatencyMs,
