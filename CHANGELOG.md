@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- API keys: the create form offers the `sandbox:execute` scope ("Sandboxes: create and run"), which the backend accepts for `/v1/sandboxes` (#652).
 - Code sandboxes through the console: `/v1/sandboxes` and `/v1/capabilities` forward to the LoopSandbox API named in `SANDBOX_API_URL`, which must run with `LOOPSANDBOX_AUTH=gateway` and trust the console's Ed25519 key. The routes accept an API key with the new scope `sandbox:execute`, a login token of the CLI, or a dashboard session. Without `SANDBOX_API_URL` the routes do not exist (#652).
 - Sidebar: a Sandboxes entry under Compute, marked as coming soon. It opens a page that says what sandboxes will do; there is nothing to operate yet (#641).
 - The Status screen of a project has a Resources section: CPU and memory of the app against their limits and container restarts, each with the current value and a chart over the last hour, 24 hours or 7 days. A series the platform has not collected yet says so.
