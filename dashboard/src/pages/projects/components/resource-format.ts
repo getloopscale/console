@@ -12,7 +12,8 @@ const trimmed = (v: number, decimals: number): string => String(Number(v.toFixed
 export function formatCpu(cores: unknown): string | null {
   if (!finite(cores) || cores < 0) return null;
   if (cores === 0) return '0 vCPU';
-  if (cores < 0.001) return '<0.001 vCPU';
+  if (cores < 0.0001) return '<0.0001 vCPU';
+  if (cores < 0.01) return `${trimmed(cores, 4)} vCPU`;
   if (cores < 0.1) return `${trimmed(cores, 3)} vCPU`;
   if (cores < 10) return `${trimmed(cores, 2)} vCPU`;
   return `${trimmed(cores, 1)} vCPU`;

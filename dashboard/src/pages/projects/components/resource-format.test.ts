@@ -12,7 +12,8 @@ import {
 
 describe('formatCpu', () => {
   it('keeps an idle app from reading as zero', () => {
-    expect(formatCpu(0.0002)).toBe('<0.001 vCPU');
+    expect(formatCpu(0.0005030224593961718)).toBe('0.0005 vCPU');
+    expect(formatCpu(0.00004)).toBe('<0.0001 vCPU');
     expect(formatCpu(0)).toBe('0 vCPU');
   });
 

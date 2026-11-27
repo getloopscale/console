@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
 import { linScale } from '@getloopscale/ui';
 import {
   areaPath,
+  axisLabels,
   axisTop,
   drawablePoints,
   formatAxisTime,
@@ -96,7 +97,7 @@ export function ResourceChart({ title, points, format, limit = null, nice, heigh
             </linearGradient>
           </defs>
 
-          {[top, top / 2].map((value) => (
+          {axisLabels(top, format).map((value) => (
             <g key={value}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(value)} y2={y(value)} className="stroke-border" strokeWidth={1} strokeDasharray="2 4" />
               <text x={PAD.left} y={y(value) - 4} className="fill-muted-foreground text-[10px] tabular-nums">

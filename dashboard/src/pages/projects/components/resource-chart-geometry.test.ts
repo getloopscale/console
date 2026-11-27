@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   areaPath,
+  axisLabels,
   axisTop,
   drawablePoints,
   linePath,
@@ -85,5 +86,15 @@ describe('nearestIndex', () => {
 
   it('is -1 with nothing to point at', () => {
     expect(nearestIndex([], 10)).toBe(-1);
+  });
+});
+
+describe('axisLabels', () => {
+  it('labels the top and the middle', () => {
+    expect(axisLabels(40, (v) => `${v} MiB`)).toEqual([40, 20]);
+  });
+
+  it('leaves the middle out when it reads like the top', () => {
+    expect(axisLabels(1, (v) => String(Math.round(v)))).toEqual([1]);
   });
 });

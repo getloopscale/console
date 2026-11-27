@@ -90,3 +90,11 @@ export function formatPointTime(unixSeconds: number, locale?: string): string {
     minute: '2-digit',
   });
 }
+
+/**
+ * The values the y-axis labels: the top and the middle. The middle is left out when it would
+ * read the same as the top, as it does on a count of 0 or 1.
+ */
+export function axisLabels(top: number, format: (v: number) => string): number[] {
+  return format(top / 2) === format(top) ? [top] : [top, top / 2];
+}
