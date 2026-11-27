@@ -95,8 +95,8 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     await userEvent.click(screen.getByLabelText(/get your app live/i));
     // All 5 CLI commands visible em panel expanded.
     // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `loopscale init` (which does NOT
-    // exist in @getloopscale/loop-cli@0.3.1) replaced with canonical `loopscale project create my-app`.
-    expect(screen.getByText('npm install -g @getloopscale/loop-cli')).toBeInTheDocument();
+    // exist in the CLI then) replaced with canonical `loopscale project create my-app`.
+    expect(screen.getByText('npm install -g loopscale')).toBeInTheDocument();
     expect(screen.getByText('loopscale login')).toBeInTheDocument();
     expect(screen.getByText('loopscale project create my-app')).toBeInTheDocument();
     expect(screen.getByText('loopscale deploy')).toBeInTheDocument();

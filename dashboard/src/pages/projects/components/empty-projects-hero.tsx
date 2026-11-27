@@ -18,7 +18,7 @@ interface Template {
 }
 
 // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32 (closes "loopscale init" inexistente):
-// `loopscale init` is NOT a real subcommand in @getloopscale/loop-cli@0.3.1. Replaced with the
+// `loopscale init` is NOT a real subcommand of the CLI then. Replaced with the
 // canonical `loopscale project create <name>` per the CLI's actual surface.
 // EC-5 absorption: per-template names (my-nextjs-app / my-express-api /
 // my-go-service) preserve the per-stack UX signal — without them, the Copy

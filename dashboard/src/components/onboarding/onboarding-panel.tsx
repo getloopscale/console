@@ -38,7 +38,7 @@ const STEPS: ChecklistStep[] = [
     key: 'cli_installed',
     title: 'Install the LoopScale CLI',
     description: 'The CLI is your primary tool. Dashboard is for status + history.',
-    cliCommand: 'npm install -g @getloopscale/loop-cli',
+    cliCommand: 'npm install -g loopscale',
   },
   {
     key: 'logged_in',
@@ -51,7 +51,7 @@ const STEPS: ChecklistStep[] = [
     title: 'Initialize your first project',
     description: 'Connect a repo or start from a starter template.',
     // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `loopscale init` is NOT a real
-    // subcommand in @getloopscale/loop-cli@0.3.1. Replaced with the canonical
+    // subcommand of the CLI then. Replaced with the canonical
     // `loopscale project create my-app` per the CLI's actual surface.
     cliCommand: 'loopscale project create my-app',
   },
