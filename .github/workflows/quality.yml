@@ -200,6 +200,13 @@ jobs:
       - name: Build (inclui typecheck via tsc -b)
         run: npm run build
 
+      # A url() that the build leaves as written is a 404 in production while the build, the
+      # tests and the dev server stay green. Measured on staging on 2026-11-27: both brand fonts
+      # answered 404 because index.css pulled the font stylesheet in with @import. This step
+      # reads dist/ from the build above and fails when a stylesheet points to a missing file.
+      - name: Stylesheet assets exist in dist
+        run: node scripts/check-css-assets.mjs
+
       # B-101/e2e — `tsc -b` acima constrói SÓ o projeto raiz, cujo `include` é `["src"]`.
       # `e2e/` ficava fora de qualquer verificação de tipos, e isso cobrou: `b423ae99` moveu
       # `components/lens/lens-capabilities.ts` e `observability-screens.spec.ts` seguiu

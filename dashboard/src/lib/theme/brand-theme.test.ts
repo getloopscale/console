@@ -91,7 +91,7 @@ describe('brand theme', () => {
     expect(csp.length).toBeGreaterThan(0);
     for (const header of csp) expect(header).not.toMatch(googleFonts);
 
-    expect(read('src/index.css')).toMatch(/@import '@getloopscale\/ui\/fonts\.css';/);
+    expect(read('src/main.tsx')).toMatch(/^import '@getloopscale\/ui\/fonts\.css';$/m);
   });
 
   // A card is a surface of the brand reference: a flat box whose title sits on a strip with a

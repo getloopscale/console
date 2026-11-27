@@ -16,7 +16,6 @@
  * `[data-theme][data-mode]` selector outranks `:root` and `.dark`. */
 @import '@getloopscale/ui/tokens.css' layer(theme);
 @import '@getloopscale/ui/tokens-v4.css';
-@import '@getloopscale/ui/fonts.css';
 /* KB9 — Tailwind v4 typography engine. MUST come AFTER every @import: the CSS spec
  * requires @import to precede all non-import statements, so a @plugin placed between
  * `@import 'tailwindcss'` and the vendor `@import`s invalidates them and Tailwind stops
