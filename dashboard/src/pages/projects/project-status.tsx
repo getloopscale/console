@@ -11,6 +11,7 @@ import { KPIStripStatus } from '@/pages/projects/components/kpi-strip-status';
 import { SignalGrid } from '@/pages/projects/components/signal-grid';
 import { SignalDetailSheet } from '@/pages/projects/components/signal-detail-sheet';
 import { RefreshButton } from '@/pages/projects/components/refresh-button';
+import { ResourceUsageSection } from '@/pages/projects/components/resource-usage-section';
 import { serverErrorBand } from '@/hooks/projects/readiness-rules';
 
 const HEALTH_LABEL = { pass: 'Healthy', warn: 'Degraded', fail: 'Unhealthy' } as const;
@@ -298,6 +299,8 @@ export function ProjectStatusPage() {
         <section aria-label="Signal grid">
           <SignalGrid signals={signals} onDrillDown={handleDrillDown} />
         </section>
+
+        <ResourceUsageSection projectName={name} env={env} />
       </div>
 
       <SignalDetailSheet

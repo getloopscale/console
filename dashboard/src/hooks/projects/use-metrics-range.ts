@@ -44,6 +44,8 @@ export interface MetricsRangeResponse {
 export interface UseMetricsRangeOptions {
   signal: string;
   range?: string;
+  /** Environment to read. The endpoint reads production when omitted. */
+  env?: string;
 }
 
 export interface UseMetricsRangeResult {
@@ -62,38 +64,24 @@ export interface UseMetricsRangeResult {
  * "Collecting data..." for `collecting`, "—" for `prometheus_unreachable`.
  */
 /**
- * B-176 — o parâmetro `env` foi REMOVIDO, e não apenas tirado da chave de cache.
- *
- * Ele nunca chegou à URL. A medição do lado do servidor diz por quê:
- * `loopscale/api/internal/routes/metrics_proxy.go` lê apenas `signal` e `range`, e `buildPromQL` rotula
- * só por `tenant_id`/`project` — o endpoint não tem dimensão de ambiente.
- *
- * Um parâmetro que não vai a lugar nenhum é pior que a ausência dele: quem chama acredita que
- * pediu por ambiente, e a resposta é a mesma série para todos. Quando o endpoint ganhar a
- * dimensão, ele volta na URL e na chave juntos.
+ * `env` names the environment whose series the endpoint reads; without it the endpoint reads
+ * production. It is part of the URL and of the cache key together, so two environments never
+ * share an entry.
  */
 export function useMetricsRange(
   projectName: string | undefined,
   options: UseMetricsRangeOptions,
 ): UseMetricsRangeResult {
-  const { signal, range = '7d' } = options;
+  const { signal, range = '7d', env } = options;
 
   const path = `/api/v1/projects/${encodeURIComponent(
     projectName ?? '',
-  )}/metrics?range=${encodeURIComponent(range)}&signal=${encodeURIComponent(signal)}`;
+  )}/metrics?range=${encodeURIComponent(range)}&signal=${encodeURIComponent(signal)}${
+    env ? `&env=${encodeURIComponent(env)}` : ''
+  }`;
 
   const query = useQuery({
-    // B-176 — `env` saiu da chave. Ele NUNCA foi para a URL, e a medição do lado do servidor
-    // explica por quê: `loopscale/api/internal/routes/metrics_proxy.go` lê apenas `signal` e `range`, e
-    // `buildPromQL` rotula só por `tenant_id`/`project`. O endpoint não tem dimensão de ambiente.
-    //
-    // Manter `env` na chave era pior que inútil: o cache AFIRMAVA que staging e production eram
-    // séries distintas, guardava duas entradas, e servia a mesma série env-agnóstica para as duas.
-    // Quem trocasse de ambiente veria os números "mudarem" para os mesmos valores, e concluiria
-    // que estava olhando o ambiente que pediu.
-    //
-    // Quando o endpoint ganhar a dimensão, `env` volta — na URL E na chave, juntos.
-    queryKey: ['metricsRange', projectName, signal, range],
+    queryKey: ['metricsRange', projectName, signal, range, env ?? null],
     queryFn: () => engineFetch<MetricsRangeResponse>(path, {}, { throwOnError: true }),
     enabled: !!projectName && !!signal,
     // Histogram is mostly static once Prometheus warms up — refetch every 30s

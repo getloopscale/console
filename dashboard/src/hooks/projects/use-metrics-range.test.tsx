@@ -127,6 +127,27 @@ describe('useMetricsRange — T2.2 J-18', () => {
     );
   });
 
+  it('sends the environment when one is named, and only then', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      signal: 'cpu_usage',
+      range: '1h',
+      status: 'ok',
+      data: [],
+    } as MetricsRangeResponse);
+
+    renderHook(() => useMetricsRange('shop', { signal: 'cpu_usage', range: '1h', env: 'preview' }), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() => {
+      expect(mockedEngineFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/shop/metrics?range=1h&signal=cpu_usage&env=preview',
+        expect.anything(),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
+  });
+
   it('default range is "7d" when omitted', async () => {
     mockedEngineFetch.mockResolvedValue({
       signal: 'uptime_24h',
