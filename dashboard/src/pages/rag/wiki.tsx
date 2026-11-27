@@ -430,7 +430,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="kb-save-status" role="status">
               <span
-                className={`inline-block h-2 w-2 rounded-full ${save.isPending ? 'bg-amber-500' : dirty ? 'bg-muted-foreground' : 'bg-emerald-500'}`}
+                className={`inline-block h-2 w-2 rounded-full ${save.isPending ? 'bg-warning' : dirty ? 'bg-muted-foreground' : 'bg-success'}`}
                 aria-hidden="true"
               />
               {save.isPending ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved'}

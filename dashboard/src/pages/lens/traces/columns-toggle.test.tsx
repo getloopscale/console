@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider, violetForge } from '@getloopscale/loopzero-ui';
+import { ThemeProvider } from '@getloopscale/loopzero-ui';
+import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
 
 import { ColumnsToggle } from './columns-toggle';
 import type { ColumnState } from './view-encoding';
@@ -11,7 +12,7 @@ const state: ColumnState = { visibility: {}, density: 'comfortable' } as ColumnS
 function renderToggle() {
   return render(<ColumnsToggle state={state} onChange={vi.fn()} />, {
     wrapper: ({ children }) => (
-      <ThemeProvider themes={[violetForge]} defaultTheme="violet-forge" defaultMode="dark">
+      <ThemeProvider {...TEMA_LOOPSCALE}>
         <button type="button">outside</button>
         {children}
       </ThemeProvider>

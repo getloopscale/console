@@ -115,8 +115,8 @@ export function barGeometry(values: readonly number[]): BarGeometry[] {
 
 const TONE: Record<NonNullable<CategoryBar['tone']>, string> = {
   default: 'bg-primary/70',
-  positive: 'bg-emerald-500/70',
-  warning: 'bg-amber-500/70',
+  positive: 'bg-success/70',
+  warning: 'bg-warning/70',
   muted: 'bg-muted-foreground/40',
 };
 

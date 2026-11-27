@@ -3,7 +3,8 @@ import { render as rtlRender, screen, waitFor, type RenderResult } from '@testin
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { Toaster } from '@getloopscale/ui';
-import { ThemeProvider, violetForge } from '@getloopscale/loopzero-ui';
+import { ThemeProvider } from '@getloopscale/loopzero-ui';
+import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { LensComparePage } from './compare';
 
@@ -23,7 +24,7 @@ function renderCompare(ids: string): RenderResult {
   return rtlRender(<LensComparePage />, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>
-        <ThemeProvider themes={[violetForge]} defaultTheme="violet-forge" defaultMode="dark">
+        <ThemeProvider {...TEMA_LOOPSCALE}>
           <Toaster>
             <MemoryRouter initialEntries={[`/observability/compare?ids=${ids}`]}>
               <PageMetaProvider>{children}</PageMetaProvider>

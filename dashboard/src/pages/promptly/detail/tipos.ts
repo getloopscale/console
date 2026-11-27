@@ -13,7 +13,7 @@ import { labelRows } from '@/pages/promptly/components/projections';
  * continuariam compilando contra a forma antiga, e o erro só apareceria como
  * `undefined` em runtime.
  *
- * É a mesma razão pela qual `PRIMARY_CANONICO` mora num lugar só, e pela qual a
+ * É a mesma razão pela qual `BRAND_PRIMARY` mora num lugar só, e pela qual a
  * chave de cache vem da factory em vez de literal.
  */
 

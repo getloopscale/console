@@ -214,9 +214,9 @@ export function PromptlyDiffPage() {
                   key={i}
                   className={
                     bloco.kind === 'added'
-                      ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+                      ? 'bg-success/10 text-success'
                       : bloco.kind === 'removed'
-                        ? 'bg-red-500/10 text-red-700 dark:text-red-400'
+                        ? 'bg-destructive/10 text-destructive'
                         : 'text-muted-foreground'
                   }
                 >

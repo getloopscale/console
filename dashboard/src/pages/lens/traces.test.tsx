@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { MemoryRouter } from 'react-router-dom';
 import { Toaster } from '@getloopscale/ui';
-import { ThemeProvider, violetForge } from '@getloopscale/loopzero-ui';
+import { ThemeProvider } from '@getloopscale/loopzero-ui';
+import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { render, screen } from '@/test/render';
 
@@ -18,7 +19,7 @@ function renderWithParams(ui: React.ReactElement, searchParams: string): RenderR
   return rtlRender(ui, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>
-        <ThemeProvider themes={[violetForge]} defaultTheme="violet-forge" defaultMode="dark">
+        <ThemeProvider {...TEMA_LOOPSCALE}>
           <Toaster>
             {/* MemoryRouter so the component's react-router useSearchParams (M52 saved-view apply)
                 has a Router; NuqsTestingAdapter isolates the nuqs filter state. Both start at the

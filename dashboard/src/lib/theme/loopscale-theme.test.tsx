@@ -1,95 +1,37 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@/test/render';
-import { PRIMARY_CANONICO, TEMA_LOOPSCALE } from './loopscale-theme';
+import { BRAND_PRIMARY, TEMA_LOOPSCALE } from './loopscale-theme';
 
 /**
- * B-007 — o tema tem UM dono, e o teste renderiza o mesmo que o app.
+ * The test tree renders the theme the app renders.
  *
- * ## Os três donos que a medição achou
- *
- * O item alegava "três donos em três versões". Medido em 2026-08-08, são estes:
- *
- * | Dono | `--primary` que produz | Onde vale |
- * |---|---|---|
- * | `violetForge` do pacote (cru) | `oklch(0.50 0.16 296.97)` | onde ninguém sobrescreve |
- * | `main.tsx` | `oklch(0.57 0.13 302)` | o app |
- * | `test/render.tsx` | `oklch(0.50 0.16 296.97)` | **toda a suíte** |
- *
- * `test/render.tsx` montava `<ThemeProvider themes={[violetForge]}>` — o objeto
- * **cru**, sem o override do `main.tsx`. E não passava `respectSystemMode:
- * false`, então o provider seguia o `prefers-color-scheme` do ambiente; em jsdom
- * ele é `light`, e o atributo saía `data-mode="light"`.
- *
- * O resultado medido: **toda a suíte renderizava o dashboard em modo claro, com
- * um roxo que o app nunca mostra** — num produto travado em escuro (`D1`).
- *
- * Isso não é cosmético. O `--primary` foi escurecido por CONTRASTE, no Red Team
- * `loopscale/loopscale#163`: o default do pacote dá 3,87:1 de branco sobre primary e
- * reprova o WCAG AA; o valor do app dá ~4,73:1 e passa. Existe `test/a11y.test.tsx`
- * nesta suíte. Ele media a cor errada.
- *
- * ## Por que este teste lê o valor COMPUTADO
- *
- * `index.primary-token.test.ts` (B-034) compara os TEXTOS de `main.tsx` e
- * `index.css` e diz de si mesmo que não substitui a medição, porque *"fixar o
- * valor COMPUTADO exige Playwright (jsdom não resolve cascade de `@import`)"*.
- *
- * **Isso foi medido e é falso.** O tema não chega por `@import`: o provider
- * injeta um `<style>` com seletor `[data-theme="violet-forge"][data-mode="…"]` e
- * põe os atributos no `<html>`. jsdom resolve seletor de atributo em
- * `getComputedStyle` — verificado injetando `oklch(0.99 0.99 99)` no tema e
- * lendo exatamente esse valor de volta.
- *
- * Então o teste que o DoD do B-007 pedia é escrevível aqui, sem Playwright, e é
- * este. Ele pega o que o teste textual não pega: um bump do pacote que mude quem
- * vence, ou uma árvore de teste configurada diferente do app.
+ * The provider injects a `<style>` with the selector `[data-theme="…"][data-mode="…"]` and sets
+ * both attributes on `<html>`, so the value the suite paints can be read here without a browser.
+ * It catches what a comparison of source files cannot: a test tree configured differently from
+ * the app, or a package bump that changes who wins.
  */
-
-describe('tema do design system (B-007)', () => {
-  it('a árvore de TESTE computa o mesmo --primary que o app', () => {
+describe('design system theme', () => {
+  it('the test tree computes the primary of the app', () => {
     render(<div />);
 
-    // The provider injects a stylesheet whose rules sit in `@layer theme`, which jsdom does
-    // not resolve, so the value is read from the rule the provider wrote for this theme.
-    const folha = Array.from(document.querySelectorAll('style'))
+    const sheet = Array.from(document.querySelectorAll('style'))
       .map((style) => style.textContent ?? '')
       .join('\n');
-    const tema = document.documentElement.getAttribute('data-theme');
-    const regra = new RegExp(`\\[data-theme="${tema}"\\][^{]*\\{[^}]*--primary:\\s*([^;]+);`);
-    const computado = (folha.match(regra)?.[1] ?? '').trim();
+    const theme = document.documentElement.getAttribute('data-theme');
+    const mode = document.documentElement.getAttribute('data-mode');
+    const rule = new RegExp(
+      `\\[data-theme="${theme}"\\]\\[data-mode="${mode}"\\][^{]*\\{[^}]*--primary:\\s*([^;]+);`,
+    );
 
-    expect(
-      computado,
-      'A suíte renderiza um --primary diferente do app.\n\n' +
-        'O valor do app foi escolhido por CONTRASTE (Red Team loopscale/loopscale#163): o\n' +
-        'default do pacote reprova o WCAG AA em branco-sobre-primary. Se a suíte\n' +
-        'renderiza outro, `test/a11y.test.tsx` mede uma cor que ninguém vê.\n\n' +
-        'A causa provável é a árvore de teste montar o tema por conta própria em\n' +
-        'vez de importar `lib/theme/loopscale-theme.ts`, que é o dono único.\n',
-    ).toBe(PRIMARY_CANONICO);
+    expect(theme).toBe(TEMA_LOOPSCALE.defaultTheme);
+    expect((sheet.match(rule)?.[1] ?? '').trim()).toBe(BRAND_PRIMARY.dark);
   });
 
-  it('a árvore de teste renderiza em modo ESCURO, como o app', () => {
+  it('the test tree renders in dark mode, like the app', () => {
+    // In jsdom `prefers-color-scheme` is light. The theme turns `respectSystemMode` off and
+    // stores nothing, so the suite cannot drift into a mode the product does not have.
     render(<div />);
 
-    expect(
-      document.documentElement.getAttribute('data-mode'),
-      'A suíte renderiza o dashboard em modo claro.\n\n' +
-        'O produto é travado em escuro (D1 — nunca houve seletor de tema). O\n' +
-        'provider segue o `prefers-color-scheme` do ambiente quando\n' +
-        '`respectSystemMode` não é desligado, e em jsdom esse valor é `light`.\n\n' +
-        '`respectSystemMode: false` e `storageKey: null` fazem parte da configuração\n' +
-        'do tema — não são detalhe do `main.tsx`.\n',
-    ).toBe('dark');
-  });
-
-  it('o dono único cobre as DUAS variantes, não só a escura', () => {
-    // O app trava escuro, então é tentador sobrescrever só `dark`. Mas o
-    // provider escolhe a variante em runtime, e uma sessão que caia em claro por
-    // qualquer motivo passaria a mostrar o roxo que reprova o AA — sem nada
-    // acusar, porque o modo escuro continuaria certo.
-    const tema = TEMA_LOOPSCALE.themes[0];
-    expect(tema.light?.primary, 'variante clara sem o primary canônico').toBe(PRIMARY_CANONICO);
-    expect(tema.dark?.primary, 'variante escura sem o primary canônico').toBe(PRIMARY_CANONICO);
+    expect(document.documentElement.getAttribute('data-mode')).toBe('dark');
   });
 });

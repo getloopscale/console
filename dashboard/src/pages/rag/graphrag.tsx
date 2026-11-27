@@ -24,6 +24,7 @@ import {
 } from '@/hooks/rag/use-graphrag';
 import { useAskQuestion } from '@/hooks/rag/use-answers';
 import { collapseGraph, isSuperNodeId } from './graphrag/collapse-graph';
+import { themeColor, withAlpha } from '@/lib/theme/canvas-colors';
 
 /**
  * GraphRAG — /rag/graphrag. The first-class GraphRAG explorer (Microsoft-GraphRAG-style). The graph
@@ -110,7 +111,7 @@ export function RagGraphRagPage() {
   // for nodes outside the focused community, so a click actually highlights a community's subgraph.
   const nodeColor = (n: object): string => {
     const key = (n as GraphNode).community_key ?? '';
-    if (focusCommunity !== null && key !== focusCommunity) return 'rgba(100,116,139,0.25)';
+    if (focusCommunity !== null && key !== focusCommunity) return withAlpha(themeColor('--muted-foreground', '#9BA29F'), 0.25);
     let h = 0;
     for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
     return `hsl(${h}, 65%, 60%)`;
@@ -211,7 +212,7 @@ export function RagGraphRagPage() {
                           }
                           setFocusCommunity((cur) => (cur === node.community_key ? null : node.community_key));
                         }}
-                        linkColor={() => 'rgba(148,163,184,0.35)'}
+                        linkColor={() => withAlpha(themeColor('--muted-foreground', '#9BA29F'), 0.35)}
                         cooldownTicks={80}
                       />
                     </div>

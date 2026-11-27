@@ -1,68 +1,102 @@
-import { violetForge } from '@getloopscale/loopzero-ui';
+import { defineTheme } from '@getloopscale/loopzero-ui';
 
 /**
- * A configuração do tema do dashboard — o dono ÚNICO.
+ * The dashboard's theme, and its only owner.
  *
- * ## Por que este arquivo existe (B-007)
+ * The app (`main.tsx`) and the test tree (`test/render.tsx`) both import this object. They used to
+ * build the theme separately and drifted in color and in mode without anything failing, so the
+ * suite measured a product nobody saw.
  *
- * A configuração vivia inteira dentro do `main.tsx`, e a árvore de teste
- * (`test/render.tsx`) montava a **sua própria**, com o `violetForge` cru. As
- * duas divergiam em duas dimensões ao mesmo tempo, e nada acusava:
+ * The palette is the LoopScale brand: ink and paper in place of pure black and white, one brand
+ * color (a muted lime), Hanken Grotesk and JetBrains Mono. `@getloopscale/ui` ships the same values
+ * as its default tokens, which is what paints the page before React mounts;
+ * `brand-theme.test.ts` fails when the two disagree.
  *
- * | | `--primary` | modo |
- * |---|---|---|
- * | app | `oklch(0.57 0.13 302)` | escuro |
- * | suíte | `oklch(0.50 0.16 296.97)` | **claro** |
- *
- * Toda a suíte renderizava um produto travado em escuro no modo claro, com um
- * roxo que ninguém vê. Config duplicada não diverge porque alguém errou —
- * diverge porque só um dos dois lados é atualizado quando algo muda.
- *
- * ## Por que o `primary` não é o do pacote
- *
- * Red Team `loopscale/loopscale#163`, WCAG 1.4.3. O default do `violetForge`
- * (`oklch(0.50 0.16 296.97)`, e antes dele `oklch(0.628 0.225 296)`) dá 3,87:1
- * de branco sobre primary — reprova o AA para texto normal. O valor daqui é um
- * roxo Dracula neutro (croma 0,13 · matiz 302) e dá ~4,73:1.
- *
- * ## Por que as duas variantes recebem o mesmo valor
- *
- * O app trava escuro, então sobrescrever só `dark` parece bastar. Não basta: o
- * provider escolhe a variante em runtime, e uma sessão que caia em claro por
- * qualquer motivo passaria a mostrar o roxo que reprova o AA — com o modo
- * escuro continuando certo, então nada acusaria.
- *
- * ## `respectSystemMode` e `storageKey` fazem parte do tema
- *
- * Não são detalhe de bootstrap. Sem `respectSystemMode: false` o provider segue
- * o `prefers-color-scheme` e um usuário com o SO em claro vê o app claro. Sem
- * `storageKey: null`, uma sessão anterior que tenha gravado `mode=light`
- * continua sobrescrevendo o `defaultMode` — não há o que persistir num tema
- * travado.
- *
- * Foi exatamente por não carregarem estes dois que os testes caíram em claro.
+ * Lime on paper has no contrast as text or as a mark, so in light mode `primary` is the brand's
+ * dark lime.
  */
+const INK = '#111415';
+const BONE = '#E7E6E0';
+const PAPER = '#FBFAF7';
+const INK_ON_PAPER = '#16191A';
 
-/**
- * O `--primary` do produto. Fixado aqui porque é um valor de CONTRASTE, não de
- * gosto: `lib/theme/loopscale-theme.test.tsx` compara o computado contra ele, e
- * `index.primary-token.test.ts` compara o fallback de CSS contra o mesmo.
- */
-export const PRIMARY_CANONICO = 'oklch(0.57 0.13 302)';
+/** The brand color per mode. A contrast value: `brand-theme.test.ts` measures it. */
+export const BRAND_PRIMARY = { dark: '#C4E34F', light: '#556B00' } as const;
 
-// Sem `as const`: ele tornaria `themes` readonly, e o `ThemeProvider` pede um
-// `Theme[]` mutável. Congelar aqui só produziria um cast na hora de usar.
+const loopscale = defineTheme({
+  name: 'loopscale',
+  label: 'LoopScale',
+  description: 'Ink, paper and one lime.',
+  fonts: {
+    display: '"Hanken Grotesk", ui-sans-serif, system-ui, "Segoe UI", sans-serif',
+    body: '"Hanken Grotesk", ui-sans-serif, system-ui, "Segoe UI", sans-serif',
+    mono: '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace',
+  },
+  dark: {
+    background: INK,
+    foreground: BONE,
+    card: '#181C1D',
+    'card-foreground': BONE,
+    popover: '#1D2223',
+    'popover-foreground': BONE,
+    primary: BRAND_PRIMARY.dark,
+    'primary-foreground': INK,
+    secondary: '#232829',
+    'secondary-foreground': BONE,
+    accent: '#2A3032',
+    'accent-foreground': BONE,
+    muted: '#1F2425',
+    'muted-foreground': '#9BA29F',
+    border: '#2A3032',
+    input: '#2A3032',
+    ring: BRAND_PRIMARY.dark,
+    success: '#5DB98A',
+    'success-foreground': INK,
+    warning: '#E6C84F',
+    'warning-foreground': INK,
+    destructive: '#E8705F',
+    'destructive-foreground': INK,
+    info: '#7FA8D9',
+    'info-foreground': INK,
+  },
+  light: {
+    background: '#F4F3EF',
+    foreground: INK_ON_PAPER,
+    card: PAPER,
+    'card-foreground': INK_ON_PAPER,
+    popover: PAPER,
+    'popover-foreground': INK_ON_PAPER,
+    primary: BRAND_PRIMARY.light,
+    'primary-foreground': PAPER,
+    secondary: '#E9E7E0',
+    'secondary-foreground': INK_ON_PAPER,
+    accent: '#E3E1D9',
+    'accent-foreground': INK_ON_PAPER,
+    muted: '#ECEAE4',
+    'muted-foreground': '#5A615F',
+    border: '#DCDAD3',
+    input: '#DCDAD3',
+    ring: BRAND_PRIMARY.light,
+    success: '#1F7A4F',
+    'success-foreground': PAPER,
+    warning: '#7A6200',
+    'warning-foreground': PAPER,
+    destructive: '#B3372A',
+    'destructive-foreground': PAPER,
+    info: '#2C5E99',
+    'info-foreground': PAPER,
+  },
+  radius: { sm: '4px', md: '7px', lg: '10px', xl: '12px', DEFAULT: '7px' },
+});
+
+// No `as const`: it would make `themes` readonly, and `ThemeProvider` asks for a mutable `Theme[]`.
 export const TEMA_LOOPSCALE = {
-  themes: [
-    {
-      ...violetForge,
-      light: { ...violetForge.light, primary: PRIMARY_CANONICO },
-      dark: { ...violetForge.dark, primary: PRIMARY_CANONICO },
-    },
-  ],
-  defaultTheme: 'violet-forge',
+  themes: [loopscale],
+  defaultTheme: loopscale.name,
   defaultMode: 'dark' as const,
-  // Locked dark (D1): o dashboard nunca ofereceu seletor de tema.
+  // The dashboard is dark only and offers no theme picker. Both settings are part of the theme:
+  // without `respectSystemMode: false` the provider follows `prefers-color-scheme`, and without
+  // `storageKey: null` a stored `mode=light` overrides `defaultMode`.
   respectSystemMode: false,
   storageKey: null,
 };

@@ -56,7 +56,7 @@ function AllProviders({ children, initialEntries = ['/'], historyRouter = false 
   return (
     <QueryClientProvider client={client}>
       {/* B-007 — a MESMA config do app (`lib/theme/loopscale-theme.ts`), e não uma
-          cópia. Antes daqui a árvore de teste montava o `violetForge` cru e
+          cópia. Antes daqui a árvore de teste montava um tema próprio e
           seguia o `prefers-color-scheme` do ambiente: a suíte inteira
           renderizava em modo CLARO, com um `--primary` que o app nunca mostra. */}
       <ThemeProvider {...TEMA_LOOPSCALE}>

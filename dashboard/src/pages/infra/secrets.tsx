@@ -122,7 +122,7 @@ export function SecretsPage() {
             <span
               id="env-filter-error"
               role="alert"
-              className="text-body-sm text-amber-600"
+              className="text-body-sm text-warning"
             >
               Showing default env only — couldn't load full list
             </span>
