@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { flowUrl } from '@/pages/auth/kratos';
 import type { Flow } from './kratos';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Github, Loader2, Zap } from 'lucide-react';
+import { Github, Loader2 } from 'lucide-react';
 import { Button, Card, Input } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
+import { BrandLockup } from '@/pages/auth/components/brand-lockup';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { getSession } from '@/lib/auth/session';
 import { safeNavigator } from '@/lib/navigation';
@@ -248,14 +249,7 @@ export function RegisterPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <Card.Body className="p-8 space-y-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-              <Zap className="size-5 text-primary" aria-hidden="true" />
-            </div>
-            <span className="font-display text-title-sm font-bold tracking-tight text-foreground">
-              LoopScale
-            </span>
-          </div>
+          <BrandLockup />
 
           <div className="space-y-1">
             <h1 className="font-display text-title-sm font-semibold text-foreground">

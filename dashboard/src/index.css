@@ -459,6 +459,7 @@ ul[data-type='taskList'] li[data-checked='true'] > div {
   font-size: 0.75rem;
   line-height: 1rem;
 }
-[data-slot='card-body'] {
-  padding: 1rem;
+/* Only the gap under the strip: the padding a page gives a card body stays as the page set it. */
+[data-slot='card-header'] + [data-slot='card-body'] {
+  padding-top: 1rem;
 }
