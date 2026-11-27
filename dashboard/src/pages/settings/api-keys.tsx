@@ -141,6 +141,13 @@ export const ACTIVE_SCOPES = [
     description:
       'Read raw conversation text, including content flagged as a secret',
   },
+  // Sandbox vertical: the backend accepts `sandbox:execute` on /v1/sandboxes, so the screen has
+  // to offer it, or a key that can create a sandbox cannot be asked for anywhere.
+  {
+    id: 'sandbox:execute',
+    label: 'sandbox:execute',
+    description: 'Sandboxes: create and run',
+  },
   // Promptly vertical (loopprompt, M11 Model B L2). MESMA história do trust logo acima,
   // e a terceira vez que ela se repete: em 2026-08-01 a cadeia estava inteira de pé — borda
   // roteando /v1/promptly/*, ForwardAuth exigindo `promptly:read`, broker cunhando por
