@@ -79,6 +79,18 @@ describe('formatDate', () => {
   });
 });
 
+// The list of deployments kept "15 seconds ago" for minutes: the text was computed once and the
+// compiler kept it, because nothing it read had changed (getloopscale/loop-console#621).
+describe('formatDate relative to a given moment', () => {
+  const started = '2026-11-27T06:44:37Z';
+  const at = (seconds: number) => Date.parse(started) + seconds * 1000;
+
+  it('counts from the moment it is given', () => {
+    expect(formatDate(started, 'relative', at(15))).toBe('15 seconds ago');
+    expect(formatDate(started, 'relative', at(130))).toBe('2 minutes ago');
+  });
+});
+
 describe('formatNumber', () => {
   it('test_format_number_compact_formats_millions', () => {
     expect(formatNumber(1_240_000, 'compact')).toBe('1.24M');

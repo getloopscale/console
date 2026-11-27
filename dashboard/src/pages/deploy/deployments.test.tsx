@@ -205,6 +205,29 @@ describe('DeploymentsPage', () => {
     await waitFor(() => expect(screen.getByText('bbbbbbb')).toBeInTheDocument());
   });
 
+  it('moves the relative start of a row as the clock advances', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockedEngineFetch.mockResolvedValue({
+        builds: [makeBuild('b-1', { commit_sha: 'ccccccc', started_at: new Date(Date.now() - 15_000).toISOString() })],
+        total: 1,
+      } as BuildListResponse);
+
+      renderPage();
+
+      const row = () => screen.getByText('ccccccc').closest('tr') as HTMLElement;
+      await waitFor(() => expect(within(row()).getAllByText(/1[5-9] seconds ago/).length).toBeGreaterThan(0));
+
+      await act(async () => {
+        vi.advanceTimersByTime(120_000);
+      });
+
+      expect(within(row()).getAllByText('2 minutes ago').length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('test_existing_build_updates_status_in_place', async () => {
     mockedEngineFetch.mockResolvedValue({
       builds: [makeBuild('b-1', { commit_sha: 'aaaaaaa', status: 'running' })],
