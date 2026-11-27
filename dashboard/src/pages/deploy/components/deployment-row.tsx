@@ -51,6 +51,8 @@ export interface DeploymentRowProps {
   url?: string;
   /** The long-running mutation of the project, if one is in flight. */
   mutationInFlight: MutationInFlight | null;
+  /** The moment relative times count from, in epoch ms. */
+  now?: number;
 }
 
 /** One build in the Deployments list. */
@@ -60,6 +62,7 @@ export function DeploymentRow({
   activeBuildId,
   url,
   mutationInFlight,
+  now,
 }: DeploymentRowProps) {
   const sha = b.commit_sha.slice(0, 7);
   const inFlightHere =
@@ -161,7 +164,7 @@ export function DeploymentRow({
             title={startedAtAbs}
           >
             {b.started_at
-              ? formatDate(b.started_at, 'relative')
+              ? formatDate(b.started_at, 'relative', now)
               : '—'}
           </span>
         </div>
@@ -188,7 +191,7 @@ export function DeploymentRow({
           title={startedAtAbs}
         >
           {b.started_at
-            ? formatDate(b.started_at, 'relative')
+            ? formatDate(b.started_at, 'relative', now)
             : '—'}
         </span>
       </Table.Cell>

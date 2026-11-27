@@ -16,6 +16,8 @@ export interface RollbackRowProps {
   rollback: RollbackRecord;
   /** The commit of the build the rollback aimed at, when the page has that build. */
   targetCommit?: string;
+  /** The moment relative times count from, in epoch ms. */
+  now?: number;
 }
 
 /**
@@ -25,7 +27,7 @@ export interface RollbackRowProps {
  * status, what it aimed at where a build shows its commit, who asked, when,
  * and how long it took.
  */
-export function RollbackRow({ projectName, rollback, targetCommit }: RollbackRowProps) {
+export function RollbackRow({ projectName, rollback, targetCommit, now }: RollbackRowProps) {
   const status = ROLLBACK_STATUS[rollback.status];
   const target = shortRef(targetCommit, rollback.to.build_id);
   const startedAbs = formatDate(rollback.created_at, 'datetime');
@@ -51,7 +53,7 @@ export function RollbackRow({ projectName, rollback, targetCommit }: RollbackRow
             <span className="text-label text-muted-foreground">{rollback.failure_reason}</span>
           ) : null}
           <span className="text-label text-muted-foreground tabular-nums md:hidden" title={startedAbs}>
-            {formatDate(rollback.created_at, 'relative')}
+            {formatDate(rollback.created_at, 'relative', now)}
           </span>
         </div>
       </Table.Cell>
@@ -62,7 +64,7 @@ export function RollbackRow({ projectName, rollback, targetCommit }: RollbackRow
       </Table.Cell>
       <Table.Cell className="hidden md:table-cell">
         <span className="text-body-sm text-muted-foreground tabular-nums" title={startedAbs}>
-          {formatDate(rollback.created_at, 'relative')}
+          {formatDate(rollback.created_at, 'relative', now)}
         </span>
       </Table.Cell>
       <Table.Cell align="right" numeric className="hidden md:table-cell">

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Re-renders the caller every `intervalMs`, so a time written relative to now ("2 minutes ago")
- * keeps moving while the page stays open. Returns the number of ticks so far.
+ * The current time in epoch ms, read again every `intervalMs`. A time written relative to now
+ * ("2 minutes ago") must take this value as its input: the React Compiler keeps a computation
+ * whose inputs did not change, so a re-render alone leaves the text as it was.
  */
-export function useClockTick(intervalMs: number): number {
-  const [ticks, setTicks] = useState(0);
+export function useNow(intervalMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setTicks((n) => n + 1), intervalMs);
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
     return () => clearInterval(timer);
   }, [intervalMs]);
-  return ticks;
+  return now;
 }

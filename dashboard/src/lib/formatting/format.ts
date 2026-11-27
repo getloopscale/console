@@ -50,6 +50,8 @@ export function isZeroTime(iso: string | undefined | null): boolean {
 export function formatDate(
   iso: string | undefined | null,
   intent: 'date' | 'datetime' | 'relative' | 'long',
+  /** The moment 'relative' counts from, in epoch ms. A caller that re-renders on a clock passes it, so the text depends on the clock and is computed again. */
+  nowMs: number = Date.now(),
 ): string {
   // EC-2: empty string + null + undefined all collapse to em-dash via !iso
   // EC-4 (qa-dogfood-cleanup-2026-06-21 #118): zero-time sentinel too.
@@ -71,7 +73,7 @@ export function formatDate(
         timeStyle: 'short',
       });
     case 'relative':
-      return relativeTime(d);
+      return relativeTime(d, nowMs);
     case 'long':
       return d.toLocaleDateString('en-US', {
         weekday: 'long',
@@ -87,8 +89,8 @@ export function formatDate(
  * Uses Intl.RelativeTimeFormat for proper grammar. Buckets: minute, hour,
  * day, week, month, year.
  */
-function relativeTime(d: Date): string {
-  const diffMs = d.getTime() - Date.now();
+function relativeTime(d: Date, nowMs: number): string {
+  const diffMs = d.getTime() - nowMs;
   const absSec = Math.abs(diffMs) / 1000;
   const rtf = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' });
 
