@@ -94,10 +94,10 @@ The dashboard uses **two** npm packages, with disjoint surfaces (measured
 | Package | Version installed | Owns | Reach |
 |---|---|---|---|
 | `@getloopscale/ui` | `0.38.0` | components | 210 files import it |
-| `@getloopscale/loopzero-ui` | `0.1.0` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 7 files |
+| `@getloopscale/loopzero-ui` | `0.1.0` | the theme (`LoopZeroUIProvider`, `defineTheme`) + `UsageMeter`/`UsageMetric` | 7 files |
 
-There is nothing to consolidate: `@getloopscale/ui` exports 116 symbols and **none**
-match `Theme*`, `Usage*` or `violet*`. What the split does cost is bundle weight,
+There is nothing to consolidate: `@getloopscale/ui` exports 147 symbols and **none**
+match `Theme*`, `Usage*` or `defineTheme`. What the split does cost is bundle weight,
 measured and tracked in `loop-console#474`.
 
 The theme configuration has a **single owner**: `src/lib/theme/loopscale-theme.ts`,
@@ -109,8 +109,8 @@ never shows (B-007).
 
 - **Zero inline hex.** Use tokens via Tailwind preset (`bg-primary`, `text-foreground`, `border-border`) or CSS vars (`hsl(var(--primary))`).
 - **Zero loose spacing values.** Use spacing tokens (`p-4`, `gap-6`); no `padding: 18px`.
-- **Zero loose font weights.** Geist with 400 / 500 / 600 only.
-- **Zero glassmorphism, blur decorativo, backdrop-filter.** Violet Forge rejects.
+- **Zero loose font weights.** Hanken Grotesk with 400 / 500 / 600 only.
+- **Zero glassmorphism, blur decorativo, backdrop-filter.** The brand rejects them.
 - **Zero custom sombras sem token.** Use `shadow-sm`, `shadow-md`, `shadow-lg` tokens.
 - **Zero variações visuais "para resolver problema local".** If pattern recurs ≥2 times, becomes composite.
 - **Zero duplicação de composite existente.** Grep before building.
@@ -135,8 +135,8 @@ Any new recurring need becomes an upstream contribution (per ADR D3 of remediati
 
 | Token category | Source |
 |---|---|
-| Color | Violet Forge theme via `src/lib/theme/loopscale-theme.ts` (the provider applies on the element, which beats any stylesheet); `src/index.css` holds the pre-hydration fallback, aligned to the same value |
-| Typography | Geist Sans + Geist Mono (via `fonts-cdn.css`) |
+| Color | LoopScale brand theme (ink, bone and one lime) via `src/lib/theme/loopscale-theme.ts` (the provider applies on the element, which beats any stylesheet); `src/index.css` holds the pre-hydration fallback, aligned to the same value |
+| Typography | Hanken Grotesk + JetBrains Mono, self-hosted (the font stylesheet of `@getloopscale/ui`, imported in `src/main.tsx`) |
 | Spacing | Tailwind v4 default scale |
 | Radius | `rounded-{sm,md,lg,xl}` |
 | Motion | `--motion-{instant,fast,base,slow}` in `index.css:113-119` |
@@ -371,7 +371,7 @@ The dashboard talks to developers. Be precise, not aspirational.
 | "Next-generation" | Marketing fluff. |
 | "AI-powered" (without context) | Buzzword. |
 | "In 5 minutes" / "In under N seconds" | Marketing claim violates voice rules. |
-| Emoji in label/button/error | Anti-pattern (Violet Forge rule). |
+| Emoji in label/button/error | Anti-pattern (brand rule). |
 
 ### 9.2 Preferred phrasing
 
