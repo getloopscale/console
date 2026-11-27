@@ -26,7 +26,18 @@ vi.mock('@/hooks/use-api', () => ({
   useCloudApi: () => mockUseEngineApi(),
 }));
 
+import { Routes, Route } from 'react-router-dom';
 import { DomainsPage } from './domains';
+
+/** The page lives under a project: it reads the project from its route. */
+function renderPage(path = '/projects/web/domains') {
+  return render(
+    <Routes>
+      <Route path="/projects/:name/domains" element={<DomainsPage />} />
+    </Routes>,
+    { initialEntries: [path] },
+  );
+}
 
 /** Alimenta o caminho de dados real da pagina (useQuery -> engineFetch). */
 function seedDomains(payload: unknown) {
@@ -57,14 +68,14 @@ describe('DomainsPage', () => {
         ],
         total: 1,
     });
-    render(<DomainsPage />);
+    renderPage();
     await waitFor(() => expect(screen.getByText('app.example.com')).toBeInTheDocument());
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
   it('test_domains_add_domain_opens_form', async () => {
     seedDomains({ domains: [], total: 0 });
-    render(<DomainsPage />);
+    renderPage();
     // With no domain yet the page shows its empty state, and the button still opens the form (#581).
     const add = await screen.findByRole('button', { name: /add domain/i });
     await waitFor(() => expect(screen.getByText('No custom domains yet')).toBeInTheDocument());
@@ -94,7 +105,7 @@ describe('DomainsPage', () => {
         ],
         total: 1,
     });
-    render(<DomainsPage />);
+    renderPage();
     // DNS records visible immediately (no expand click)
     await waitFor(() => expect(screen.getByText('CNAME')).toBeInTheDocument());
     expect(screen.getByText('TXT')).toBeInTheDocument();
@@ -120,9 +131,70 @@ describe('DomainsPage', () => {
         ],
         total: 1,
     });
-    render(<DomainsPage />);
+    renderPage();
     await waitFor(() => expect(screen.getByText('Pending DNS')).toBeInTheDocument());
     // DataTable rowActions cell renders Verify button when status = pending_verification
     expect(screen.getByRole('button', { name: /^verify$/i })).toBeInTheDocument();
+  });
+
+  const row = (domain: string, project: string) => ({
+    id: domain,
+    domain,
+    project,
+    app: 'frontend',
+    environment: 'production',
+    status: 'active',
+    cname_target: 'loopscale.app',
+    created_at: '2026-05-20',
+  });
+
+  it('asks the API for the domains of the project in the route', async () => {
+    seedDomains({ domains: [row('app.example.com', 'web')], total: 1 });
+    renderPage('/projects/web/domains');
+
+    await screen.findByText('app.example.com');
+    const paths = mockEngineFetch.mock.calls.map((c) => String(c[0]));
+    expect(paths.filter((p) => p.startsWith('/api/v1/domains?'))).toEqual([
+      expect.stringContaining('project=web'),
+    ]);
+  });
+
+  // The filter is the server's. This guards the screen against an answer that ignores it.
+  it('lists only the domains of its project', async () => {
+    seedDomains({
+      domains: [row('app.example.com', 'web'), row('other.example.org', 'billing')],
+      total: 2,
+    });
+    renderPage('/projects/web/domains');
+
+    await screen.findByText('app.example.com');
+    expect(screen.getAllByText(/\.example\.(com|org)$/).map((e) => e.textContent)).toEqual([
+      'app.example.com',
+    ]);
+  });
+
+  it('is titled Domains, with the project in the tab title', async () => {
+    seedDomains({ domains: [], total: 0 });
+    renderPage('/projects/web/domains');
+
+    expect(await screen.findByRole('heading', { name: 'Domains' })).toBeInTheDocument();
+    expect(document.title).toContain('web · Domains');
+  });
+
+  it('says the domain is removed from this project', async () => {
+    seedDomains({ domains: [row('app.example.com', 'web')], total: 1 });
+    renderPage('/projects/web/domains');
+
+    fireEvent.click(await screen.findByRole('button', { name: /remove|delete/i }));
+    expect(await screen.findByText(/removes the domain from this project/i)).toBeInTheDocument();
+  });
+
+  it('opens the add form for its project when asked by ?action=add', async () => {
+    seedDomains({ domains: [], total: 0 });
+    renderPage('/projects/web/domains?action=add');
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getAllByRole('combobox').map((c) => c.id)).toEqual(['add-domain-app', 'add-domain-env']);
   });
 });

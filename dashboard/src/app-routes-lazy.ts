@@ -58,6 +58,9 @@ export const ProfilePage = lazy(() =>
 export const DomainsPage = lazy(() =>
   import('@/pages/infra/domains').then((m) => ({ default: m.DomainsPage })),
 );
+export const DomainsRedirect = lazy(() =>
+  import('@/pages/infra/domains-redirect').then((m) => ({ default: m.DomainsRedirect })),
+);
 export const ApiKeysPage = lazy(() =>
   import('@/pages/settings/api-keys').then((m) => ({ default: m.ApiKeysPage })),
 );

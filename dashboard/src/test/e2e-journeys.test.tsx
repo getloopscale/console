@@ -196,7 +196,12 @@ describe('E2E journey smoke — Plan v1.0 Final Phase Dogfood QA', () => {
   });
 
   it('journey_8_domains_renders_add_button', () => {
-    render(<DomainsPage />);
+    render(
+      <Routes>
+        <Route path="/projects/:name/domains" element={<DomainsPage />} />
+      </Routes>,
+      { initialEntries: ['/projects/acme-web/domains'] },
+    );
     expect(
       screen.getByRole('button', { name: /add domain/i }),
     ).toBeInTheDocument();

@@ -14,6 +14,8 @@ interface AddDomainSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultProject?: string;
+  /** The project the domain is added to. When set, the dialog does not ask which project. */
+  project?: string;
   onAdded?: (domain: Domain) => void;
 }
 
@@ -27,10 +29,12 @@ export function AddDomainSheet({
   open,
   onOpenChange,
   defaultProject = '',
+  project: fixedProject,
   onAdded,
 }: AddDomainSheetProps) {
   const [domain, setDomain] = useState('');
-  const [project, setProject] = useState(defaultProject);
+  const [pickedProject, setProject] = useState(defaultProject);
+  const project = fixedProject ?? pickedProject;
   const [pickedApp, setApp] = useState('');
   const [environment, setEnvironment] = useState('production');
   const [submitting, setSubmitting] = useState(false);
@@ -127,7 +131,8 @@ export function AddDomainSheet({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={fixedProject ? undefined : 'grid grid-cols-2 gap-3'}>
+              {!fixedProject && (
               <div>
                 <Label htmlFor="add-domain-project">Project</Label>
                 <Select value={project} onValueChange={(v) => { setProject(v); setApp(''); }}>
@@ -141,6 +146,7 @@ export function AddDomainSheet({
                   </Select.Content>
                 </Select>
               </div>
+              )}
               <div>
                 <Label htmlFor="add-domain-app">App</Label>
                 <Select value={app} onValueChange={setApp} disabled={!project || apps.length === 0}>

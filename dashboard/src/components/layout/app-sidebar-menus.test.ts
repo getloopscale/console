@@ -145,8 +145,8 @@ describe('main menu groups', () => {
   it('groups the root menu as Overview, Compute, Agent Services, Organization and Profile', () => {
     expect(shape).toEqual([
       { title: undefined, labels: ['Overview'] },
-      // Domains stays here until the project-scoped domains page ships; it then leaves the root.
-      { title: 'Compute', labels: ['Projects', 'Sandboxes', 'Domains'] },
+      // No Domains: a domain belongs to a project, and the project menu lists it.
+      { title: 'Compute', labels: ['Projects', 'Sandboxes'] },
       {
         title: 'Agent Services',
         labels: [
@@ -178,7 +178,7 @@ describe('main menu groups', () => {
     const paths = MENUS.main.groups.flatMap((g) => g.items).map((i) => i.path);
     expect(paths).toEqual(
       expect.arrayContaining([
-        '/', '/projects', '/domains', '/team', '/memory', '/rag', '/databases', '/workspaces',
+        '/', '/projects', '/team', '/memory', '/rag', '/databases', '/workspaces',
         '/observability', '/trust', '/skills', '/promptly', '/tokens', '/billing', '/audit',
         '/settings', '/profile',
       ]),
@@ -197,7 +197,7 @@ describe('project menu groups', () => {
       { title: undefined, labels: ['Overview'] },
       { title: 'Deploy', labels: ['Deployments', 'Environments', 'Repository'] },
       { title: 'Run', labels: ['Health', 'Logs', 'Scaling'] },
-      { title: 'Settings', labels: ['Secrets', 'Production checklist'] },
+      { title: 'Settings', labels: ['Secrets', 'Domains', 'Production checklist'] },
     ]);
   });
 
@@ -214,5 +214,16 @@ describe('project menu groups', () => {
       Scaling: '/projects/{project}/scale',
       'Production checklist': '/projects/{project}/readiness',
     });
+  });
+
+  it('lists Domains under the project, at a route of the project', () => {
+    const domains = MENUS.project.groups.flatMap((g) => g.items).find((i) => i.label === 'Domains');
+    expect(domains?.path).toBe('/projects/{project}/domains');
+  });
+
+  // The half that makes the menu open: without it the entry exists and the sidebar shows the
+  // root menu on the page it leads to.
+  it('keeps the project menu active on the domains page of a project', () => {
+    expect(resolveActiveMenu('/projects/hello/domains')).toEqual({ id: 'project', projectName: 'hello' });
   });
 });

@@ -32,28 +32,39 @@ export interface CommandContext {
   navigate: NavigateFunction;
   /** Top-N recent projects (sort: last_deploy DESC per EC-12). */
   recentProjects: { name: string; last_deploy?: string }[];
+  /** The project of the current route, when the user is inside one. */
+  currentProject?: string;
 }
 
 export function buildCommands(ctx: CommandContext): CommandItem[] {
-  const { navigate, recentProjects } = ctx;
+  const { navigate, recentProjects, currentProject } = ctx;
+  // Domains belong to a project, so the two domain commands exist only inside one. Outside,
+  // there is no page to send them to.
+  const domainsPath = currentProject
+    ? `/projects/${encodeURIComponent(currentProject)}/domains`
+    : null;
 
-  // Navigate (8 commands)
+  // Navigate (7 commands, 8 inside a project)
   const navigateCommands: CommandItem[] = [
     { id: 'nav-projects', category: 'navigate', label: 'Projects', icon: FolderKanban, perform: () => navigate('/projects') },
     { id: 'nav-deployments', category: 'navigate', label: 'Deployments', icon: Rocket, keywords: ['builds', 'deploys'], perform: () => navigate('/projects') /* per-project — palette uses project context if any */ },
     { id: 'nav-audit', category: 'navigate', label: 'Audit log', icon: History, perform: () => navigate('/audit') },
     { id: 'nav-team', category: 'navigate', label: 'Team', icon: Users, keywords: ['members', 'invite'], perform: () => navigate('/team') },
-    { id: 'nav-domains', category: 'navigate', label: 'Domains', icon: Globe, keywords: ['custom', 'dns'], perform: () => navigate('/domains') },
+    ...(domainsPath
+      ? [{ id: 'nav-domains', category: 'navigate' as const, label: 'Domains', icon: Globe, keywords: ['custom', 'dns'], perform: () => navigate(domainsPath) }]
+      : []),
     { id: 'nav-billing', category: 'navigate', label: 'Billing', icon: Receipt, keywords: ['plan', 'stripe', 'invoice'], perform: () => navigate('/billing') },
     { id: 'nav-settings', category: 'navigate', label: 'Settings', icon: Settings, perform: () => navigate('/settings') },
     { id: 'nav-profile', category: 'navigate', label: 'Profile', icon: User, perform: () => navigate('/profile') },
   ];
 
-  // Action (4 commands) — EC-03 URL query param strategy
+  // Action (3 commands, 4 inside a project) — EC-03 URL query param strategy
   const actionCommands: CommandItem[] = [
     { id: 'act-new-project', category: 'action', label: 'Create project…', icon: Plus, keywords: ['add', 'new'], perform: () => navigate('/projects?action=new') },
     { id: 'act-invite-member', category: 'action', label: 'Invite member…', icon: Plus, keywords: ['add', 'team'], perform: () => navigate('/team?action=invite') },
-    { id: 'act-add-domain', category: 'action', label: 'Add domain…', icon: Plus, keywords: ['new', 'custom'], perform: () => navigate('/domains?action=add') },
+    ...(domainsPath
+      ? [{ id: 'act-add-domain', category: 'action' as const, label: 'Add domain…', icon: Plus, keywords: ['new', 'custom'], perform: () => navigate(`${domainsPath}?action=add`) }]
+      : []),
     { id: 'act-add-secret', category: 'action', label: 'Add secret…', icon: KeyRound, keywords: ['new', 'env'], perform: () => navigate('/projects') /* secrets are per-project; navigates to projects page for selection */ },
   ];
 

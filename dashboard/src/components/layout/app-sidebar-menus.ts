@@ -134,10 +134,8 @@ export const MENUS: Record<string, MenuDefinition> = {
           // PLACEHOLDER: review by 2027-01-31. It then becomes the real screen or leaves
           // together with the /sandboxes route.
           { label: 'Sandboxes', path: '/sandboxes', icon: Box, comingSoon: true },
-          // M20: Environments removed from the top-level nav — they are a project
-          // dimension, managed under /projects/:name/environments (not global).
-          // Domains leaves the root for the same reason once the project menu has its own entry.
-          { label: 'Domains', path: '/domains', icon: Globe },
+          // M20: Environments and Domains are not here — both are a project dimension, managed
+          // under /projects/:name/environments and /projects/:name/domains (not global).
         ],
       },
       {
@@ -433,6 +431,7 @@ export const MENUS: Record<string, MenuDefinition> = {
         title: 'Settings',
         items: [
           { label: 'Secrets', path: '/projects/{project}/secrets', icon: KeyRound },
+          { label: 'Domains', path: '/projects/{project}/domains', icon: Globe },
           {
             label: 'Production checklist',
             path: '/projects/{project}/readiness',
