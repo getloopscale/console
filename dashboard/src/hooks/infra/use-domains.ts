@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import { domainsRefetchInterval } from './domains-refetch-interval';
 /**
  * The row shape GET /api/v1/domains actually returns.
  *
@@ -68,5 +69,6 @@ export function useDomains() {
         {},
         { throwOnError: true },
       ),
+    refetchInterval: (q) => domainsRefetchInterval(q.state.data),
   });
 }
