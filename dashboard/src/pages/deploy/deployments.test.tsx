@@ -360,6 +360,70 @@ describe('DeploymentsPage', () => {
     expect(previewVisitLink).not.toBeNull();
   });
 
+  // A project whose first build is still running has no release. The banner used to fall
+  // back to the last build's commit and announce it as serving production.
+  it('names no commit as serving production while the project has no active release', async () => {
+    const builds: Build[] = [
+      makeBuild('build-c84daa5191812ab9', {
+        status: 'running',
+        environment: 'production',
+        commit_sha: '602f3c255148d392c2c3e7b22f8376513da928f4',
+      }),
+    ];
+    mockedEngineFetch.mockImplementation(async (path: unknown) => {
+      const url = String(path);
+      if (url.includes('/status')) {
+        return {
+          active_release: null,
+          url: '',
+          last_build: {
+            id: 'build-c84daa5191812ab9',
+            status: 'RUNNING',
+            commit_sha: '602f3c255148d392c2c3e7b22f8376513da928f4',
+          },
+        };
+      }
+      if (url.includes('/builds')) {
+        return { builds, total: builds.length } as BuildListResponse;
+      }
+      return {} as BuildListResponse;
+    });
+
+    renderPage();
+
+    await screen.findByRole('link', { name: /view/i });
+    expect(screen.queryByText(/currently serving production/i)).toBeNull();
+  });
+
+  // After a rollback the serving release is an old one. Its creation time read as
+  // "deployed 14 minutes ago" seconds after the rollback finished.
+  it('dates the serving banner by the last deploy, not by the creation of the release', async () => {
+    const builds: Build[] = [makeBuild('build-c84daa5191812ab9', { environment: 'production' })];
+    mockedEngineFetch.mockImplementation(async (path: unknown) => {
+      const url = String(path);
+      if (url.includes('/status')) {
+        return {
+          active_release: {
+            build_id: 'build-c84daa5191812ab9',
+            git_commit: '602f3c255148d392c2c3e7b22f8376513da928f4',
+            created_at: '2020-01-01T00:00:00Z',
+          },
+          last_deploy_at: new Date(Date.now() - 20_000).toISOString(),
+          url: 'https://example-app-production.getloopscale.app',
+        };
+      }
+      if (url.includes('/builds')) {
+        return { builds, total: builds.length } as BuildListResponse;
+      }
+      return {} as BuildListResponse;
+    });
+
+    renderPage();
+
+    const banner = await screen.findByLabelText(/production active commit 602f3c2/i);
+    expect(within(banner).getByText(/seconds ago/i)).toBeInTheDocument();
+  });
+
   it('counts only the rows the status filter shows in the footer', async () => {
     mockedEngineFetch.mockResolvedValue({
       builds: [

@@ -29,6 +29,8 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- Deployments names no commit in "Currently serving production" while the project has no active release. It showed the commit of the last build, even one that was running or had failed (#604).
+- Deployments and Status date the last deploy by `last_deploy_at`, the moment traffic switched. They used the creation of the release, so a rollback to an older release read as deployed long ago (#605).
 - The banner that asks an account to verify its email no longer says the account cannot deploy until it does. No API refuses a deploy for that reason, and the account could deploy all along (#593).
 -- Authentication errors from the console's API, the consent page and the device page name the CLI as `loopscale login`. They still said `theo login`.
 - The build detail page shows a finished deploy as finished when the engine's timeline stopped before its last event. A build whose `deploy_status` is `succeeded`, `superseded`, `rolled_back` or `archived` no longer reads "Deploying" with a running Live clock and "Rolling out…" (#589).
