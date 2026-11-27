@@ -162,6 +162,8 @@ describe('AttestationTab — same distinction, same reason', () => {
     // The digest is the audit trail the tab exists to show — asserted rather than the tab's
     // chrome, so the test fails if the read stops reaching the screen.
     expect(await screen.findByText(/sha256:abc123def456/)).toBeInTheDocument();
+    // The registry host belongs to the platform and stays off the screen.
+    expect(screen.getByText('getloopscale/app:sha256-abc123.sig')).toBeInTheDocument();
   });
 
   it('says there is no attestation when the read succeeded and returned none', async () => {

@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Badge, Card, EmptyState } from '@getloopscale/ui';
 import { useBuildAttestation } from '@/hooks/deploy/use-build-artifacts';
 import { formatDate } from '@/lib/formatting/format';
+import { withoutRegistryHost } from '@/pages/deployment-tabs/image-reference';
 
 /**
  * AttestationTab — Plan J-17 T5.6.
@@ -106,7 +107,7 @@ export function AttestationTab() {
                 Signature reference
               </p>
               <p className="mt-1 font-mono text-muted-foreground break-all text-label">
-                {att.image_signature}
+                {withoutRegistryHost(att.image_signature)}
               </p>
             </div>
           )}

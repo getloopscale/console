@@ -15,6 +15,7 @@ import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { CancelBuildDialog } from '@/pages/deploy/components/cancel-build-dialog';
 import { PromoteToProductionDialog } from '@/pages/deploy/components/promote-to-production-dialog';
 import { queryKeys } from '@/lib/api/query-keys';
+import { effectiveDeployStatus } from '@/hooks/deploy/deployment-refetch-interval';
 
 /**
  * DeploymentDetailLayout — Plan J-17 T5.1 + T5.2.
@@ -146,7 +147,7 @@ export function DeploymentDetailLayout() {
         <DeployTimelineHero
           deployId={build.build_id}
           buildStatus={build.status}
-          deployStatus={build.deploy_status}
+          deployStatus={effectiveDeployStatus(build)}
           liveRelease={{
             commitShort: projectStatus?.active_release?.git_commit?.slice(0, 7) ?? null,
             activeSince: projectStatus?.last_deploy_at ?? projectStatus?.active_release?.created_at ?? null,

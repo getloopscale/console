@@ -45,8 +45,6 @@ export interface DeploymentRowProps {
   projectName: string;
   /** The build this row shows; `b` below. */
   build: Build;
-  /** 1 for the newest build on the page. */
-  order: number;
   /** The build the row's own environment serves, when the page knows it. */
   activeBuildId?: string;
   /** The URL of the row's own environment. */
@@ -59,7 +57,6 @@ export interface DeploymentRowProps {
 export function DeploymentRow({
   projectName,
   build: b,
-  order,
   activeBuildId,
   url,
   mutationInFlight,
@@ -89,17 +86,11 @@ export function DeploymentRow({
     inFlightHere == null && rowEnvActiveBuildId === b.build_id;
   // Ordering signal: filtered is already sorted by created_at
   // desc in the hook (most recent first), so #1 is the newest.
-  const orderLabel = `#${order}`;
   const startedAtAbs = b.started_at
     ? formatDate(b.started_at, 'datetime')
     : undefined;
   return (
     <Table.Row>
-      <Table.Cell className="hidden sm:table-cell">
-        <span className="font-mono text-label tabular-nums text-muted-foreground">
-          {orderLabel}
-        </span>
-      </Table.Cell>
       <Table.Cell>
         {(() => {
           const ns = buildOutcome(b);

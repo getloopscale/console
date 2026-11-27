@@ -47,16 +47,6 @@ describe('deploymentEntries', () => {
     expect(keys(entries)).toEqual(['rb-2', 'build-b', 'rb-1', 'build-a']);
   });
 
-  it('numbers the builds only, so a rollback does not shift them', () => {
-    const entries = deploymentEntries(
-      [build('build-b', '2026-11-25T19:42:00Z'), build('build-a', '2026-11-25T18:16:00Z')],
-      [rollback('rb-1', '2026-11-25T19:00:00Z')],
-      all,
-    );
-
-    expect(entries.map((e) => (e.kind === 'build' ? e.order : null))).toEqual([1, null, 2]);
-  });
-
   it('orders a build by when it started, as the table shows it', () => {
     const entries = deploymentEntries(
       [build('build-a', '2026-11-25T18:00:00Z', { started_at: '2026-11-25T19:30:00Z' })],

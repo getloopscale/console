@@ -30,6 +30,11 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The timeline of a deployment reads "Deploying" from the end of the build. It alternated with "Unknown" for about 10 seconds while the release of the build did not exist yet (#624).
+- The Deployments list no longer numbers its rows. The number was the position of the row, so every deploy renumbered the builds (#620).
+- The relative times of the Deployments list advance while the page stays open, and a build that ends shows its duration without a reload (#621).
+- The build log shows the message of a pipeline control line and not the raw `::loop-runtime::` line (#622).
+- The Attestation tab shows the signature reference without the host of the platform's registry (#623).
 - The "Status" pill of the Status screen reads "Degraded" or "Unhealthy" when the app answers 5xx, with the bands the Readiness screen applies: 0.01% and 0.05% of requests. It takes the worse of the share over the last hour and the error rate on screen. It read "Healthy" for any app with an active release and traffic, at any error rate (#615).
 - The timeline of a build reads "Deploying" during the rollout and "Live" once it serves, with no reload. For a redeploy that reused its image it flipped between "Unknown" and "Deploying" and stayed there: the page stopped rereading the build when the build succeeded, while its deploy was still in progress (#613).
 - The project selector in the top bar shows the project of the current screen. It read "All Projects" on every project screen (#616).
