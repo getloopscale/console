@@ -98,12 +98,7 @@ export function ResourceChart({ title, points, format, limit = null, nice, heigh
           </defs>
 
           {axisLabels(top, format).map((value) => (
-            <g key={value}>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(value)} y2={y(value)} className="stroke-border" strokeWidth={1} strokeDasharray="2 4" />
-              <text x={PAD.left} y={y(value) - 4} className="fill-muted-foreground text-[10px] tabular-nums">
-                {format(value)}
-              </text>
-            </g>
+            <line key={value} x1={PAD.left} x2={width - PAD.right} y1={y(value)} y2={y(value)} className="stroke-border" strokeWidth={1} strokeDasharray="2 4" />
           ))}
           <line x1={PAD.left} x2={width - PAD.right} y1={baselineY} y2={baselineY} className="stroke-border" strokeWidth={1} />
 
@@ -119,6 +114,21 @@ export function ResourceChart({ title, points, format, limit = null, nice, heigh
           <path d={areaPath(data, x, y, baselineY)} fill={`url(#${gradientId})`} />
           <path d={linePath(data, x, y)} fill="none" className="stroke-primary" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
           {data.length === 1 ? <circle cx={x(first.t)} cy={y(first.v)} r={4} className="fill-primary" /> : null}
+
+          {/* Drawn after the series, with an outline in the colour of the card, so a line that
+              crosses a label does not strike it through. */}
+          {axisLabels(top, format).map((value) => (
+            <text
+              key={value}
+              x={PAD.left}
+              y={y(value) - 4}
+              className="fill-muted-foreground stroke-card text-[10px] tabular-nums"
+              strokeWidth={3}
+              style={{ paintOrder: 'stroke' }}
+            >
+              {format(value)}
+            </text>
+          ))}
 
           {active ? (
             <g data-slot="resource-chart-cursor">
