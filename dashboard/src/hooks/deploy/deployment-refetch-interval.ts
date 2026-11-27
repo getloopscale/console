@@ -1,6 +1,8 @@
 import type { Build } from '@/lib/api/types';
 
-const IN_FLIGHT_STATUSES = new Set(['queued', 'running', 'cancelling']);
+// Every other status is a build still in progress: QUEUED, RUNNING, RELEASING, CANCELLING,
+// and any status a newer engine adds.
+const FINAL_STATUSES = new Set(['succeeded', 'failed', 'cancelled']);
 const IN_FLIGHT_REFETCH_MS = 5000;
 
 /**
@@ -10,5 +12,5 @@ const IN_FLIGHT_REFETCH_MS = 5000;
  */
 export function deploymentRefetchInterval(build: Build | null | undefined): number | false {
   if (!build) return false;
-  return IN_FLIGHT_STATUSES.has(String(build.status).toLowerCase()) ? IN_FLIGHT_REFETCH_MS : false;
+  return FINAL_STATUSES.has(String(build.status).toLowerCase()) ? false : IN_FLIGHT_REFETCH_MS;
 }
