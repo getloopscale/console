@@ -252,6 +252,19 @@ describe('ProjectStatusPage — replicas and collecting signals', () => {
     expect(screen.getByLabelText('Project KPI strip')).toHaveTextContent(/Replicas2/);
   });
 
+  // A rollback makes an old release serve again. Its creation time read as "18m ago" five
+  // minutes after the rollback, while the API answered the real moment in last_deploy_at.
+  it('dates the last deploy by last_deploy_at, not by the creation of the release', () => {
+    mockUseKpiMetric.mockReturnValue(null);
+    mockUseProjectStatus.mockReturnValue({
+      status: activeStatus({ last_deploy_at: new Date(Date.now() - 5 * 60_000).toISOString() }),
+      loading: false,
+      error: null,
+    });
+    renderAt('/projects/acme/status');
+    expect(screen.getByText('Last deploy').closest('button, div')).toHaveTextContent(/5m ago/);
+  });
+
   it('prefers replicas_ready from the status response', () => {
     mockUseKpiMetric.mockImplementation((_n, signal) => (signal === 'replicas_ready' ? 1 : null));
     mockUseProjectStatus.mockReturnValue({

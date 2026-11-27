@@ -136,6 +136,9 @@ export function AddSecretSheet({
               <Input
                 id="secret-name"
                 type="text"
+                // A text field before a password field reads as a sign-in form, and the
+                // browser fills in the saved account email and password.
+                autoComplete="off"
                 placeholder="STRIPE_SECRET_KEY"
                 value={name}
                 onChange={(e) => setName(e.target.value.toUpperCase())}
@@ -152,6 +155,7 @@ export function AddSecretSheet({
               <Input
                 id="secret-value"
                 type="password"
+                autoComplete="new-password"
                 placeholder="sk_live_•••"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}

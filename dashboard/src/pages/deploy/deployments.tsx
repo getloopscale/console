@@ -206,15 +206,12 @@ export function DeploymentsPage() {
     () => builds.find((b) => b.build_id === activeBuildId) ?? builds[0],
     [builds, activeBuildId],
   );
-  const activeSha = (
-    prodStatus?.active_release?.git_commit ??
-    prodStatus?.last_build?.commit_sha
-  )?.slice(0, 7);
-  // Prefer the release activation time (when traffic switched) over the
-  // build finished_at (which only times the build pipeline, not the
-  // release sync).
-  const activeFinishedAt =
-    prodStatus?.active_release?.created_at ?? prodStatus?.last_build?.finished_at;
+  // Only a release serves traffic. With no active release (a first build still running, or
+  // one that failed) there is no commit to name, so the banner stays hidden.
+  const activeSha = prodStatus?.active_release?.git_commit?.slice(0, 7);
+  // `last_deploy_at` is when traffic last switched. A rollback makes an old release
+  // serve again, and its creation time would read as a deploy from long ago.
+  const activeFinishedAt = prodStatus?.last_deploy_at ?? prodStatus?.active_release?.created_at;
 
   // Server already filtered (when status / env != all) — client filter
   // mantém como fallback safety net se server ignorar query param.

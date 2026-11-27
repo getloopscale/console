@@ -237,7 +237,9 @@ export function ProjectStatusPage() {
     rps,
     // M15 T2: bind the real alerts_active from the status wire (was hardcoded null).
     alerts_active: (status.alerts_active ?? null) as number | null,
-    last_deploy_time: status.active_release?.created_at ?? null,
+    // When traffic last switched. A rollback serves an old release again, and its
+    // creation time is not the moment of the deploy.
+    last_deploy_time: status.last_deploy_at ?? status.active_release?.created_at ?? null,
   };
 
   // Backend T1.1: status response now has `metrics_range_url` populated when
