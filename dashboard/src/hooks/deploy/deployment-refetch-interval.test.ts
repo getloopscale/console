@@ -1,6 +1,7 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { Build } from '@/lib/api/types';
-import { deploymentRefetchInterval } from './use-deployment';
+import { deploymentRefetchInterval } from './deployment-refetch-interval';
 
 const build = (status: string) => ({ status }) as unknown as Build;
 
