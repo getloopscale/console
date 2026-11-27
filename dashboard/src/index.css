@@ -437,15 +437,17 @@ ul[data-type='taskList'] li[data-checked='true'] > div {
 
 /* A card is a surface of the brand reference: a flat box, and its title on a strip with a
  * divider under it. The design system draws a shadow and a tall heading. These rules sit outside
- * any layer so they apply to every card of the console, whatever size the card was given. */
+ * any layer so they apply to every card of the console, whatever size the card was given.
+ *
+ * What that costs: a rule outside a layer beats every utility class. A `className` on a `Card`,
+ * `Card.Header`, `Card.Title` or `Card.Description` cannot change a property set here (shadow,
+ * header padding and divider, title and description type). Direction, alignment and gap of the
+ * header are not set here, so a header laid out as a row keeps its classes. */
 [data-slot='card'] {
   box-shadow: none;
 }
 [data-slot='card-header'] {
-  min-height: 2.5rem;
-  justify-content: center;
-  gap: 0.125rem;
-  padding: 0.5rem 1rem;
+  padding: 0.625rem 1rem;
   border-bottom: 1px solid var(--border);
 }
 [data-slot='card-title'] {
