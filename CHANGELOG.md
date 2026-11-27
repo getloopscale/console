@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Code sandboxes through the console: `/v1/sandboxes` and `/v1/capabilities` forward to the LoopSandbox API named in `SANDBOX_API_URL`, which must run with `LOOPSANDBOX_AUTH=gateway` and trust the console's Ed25519 key. The routes accept an API key with the new scope `sandbox:execute`, a login token of the CLI, or a dashboard session. Without `SANDBOX_API_URL` the routes do not exist (#652).
 - Sidebar: a Sandboxes entry under Compute, marked as coming soon. It opens a page that says what sandboxes will do; there is nothing to operate yet (#641).
 - The Status screen of a project has a Resources section: CPU and memory of the app against their limits and container restarts, each with the current value and a chart over the last hour, 24 hours or 7 days. A series the platform has not collected yet says so.
 - Deployments: each rollback has a row of its own in the list, where it happened among the builds, with its status, the build it aimed at, who asked, when, and how long it took. The status and environment filters apply to rollbacks too, and the footer counts them. A rollback opens on a page of its own that shows the release the environment left and the one it aimed at, the Deploy and Live phases, and the reason when it failed or was interrupted. The page of a build links to the rollbacks that left it or aimed at it. The console reads `GET /api/v1/projects/{name}/rollbacks` (getloopscale/loopzero#128).
@@ -8,6 +9,10 @@
 
 ### Changed
 - The console renders in the LoopScale brand: ink and bone in place of black and white, lime as the one brand color in place of violet, Hanken Grotesk for text and JetBrains Mono for code. It still has dark mode only. The fonts are served by the console, so it no longer asks Google Fonts for anything, and the Content-Security-Policy no longer allows `fonts.googleapis.com` or `fonts.gstatic.com`. `@getloopscale/ui` goes from 0.37 to 0.38 (#649).
+- The frame around every page changed. The sidebar is 256 pixels wide and marks the page you are in with a lighter row and a lime bar on its left, where the whole row was lime. The top bar is 48 pixels high and shows the group and the page next to the project selector (Settings, Domains). The platform status moved from the foot of the sidebar to a status bar along the bottom of the window, so it stays in view on every page (#649).
+- Every page has the same header: the title in a smaller size with the main action on the same line, on the right. The main action is a neutral button, where it was lime; lime now marks where you are and what has focus (#649).
+- Cards are flat boxes with the title on a strip and a divider under it, where they had a shadow and a tall heading. The page content uses the full width of the window (#649).
+- The sign-up card shows the LoopScale mark over the name, as the sign-in card does. It showed a lightning icon (#649).
 - Status colors follow the theme: the deploy timeline, the live release badge, the prompt diff, the connection dot and the secrets warnings use the theme's success, warning, error and info colors in place of fixed green, yellow, red and blue (#649).
 - Sidebar: the root menu is grouped as Compute (Projects, Sandboxes), Agent Services (the group that was called Capabilities) and Organization (Team, Billing, API Tokens, Audit log, Settings), with Overview above them and Profile below (#641).
 - Domains moved into the project. The project sidebar lists Domains under Settings, and `/projects/<name>/domains` shows and adds only the domains of that project, without asking which project. `/domains` redirects there when the organization has exactly one project, and to the list of projects otherwise. The command palette offers Domains and Add domain only inside a project, and the Custom domain item of the Production checklist links to the project's page (#641).
@@ -36,6 +41,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The brand fonts load. The production build pointed to font files it did not ship, so every page fell back to the system typeface (#653).
 - Memory graph: labels, borders and links are drawn in the theme's colors. The canvas was handed `hsl(...)` around a complete color, which is not a color, so it kept whatever fill came before (#649).
 - Production checklist: Custom domain is measured from the domains of the project. It read the first page of every domain of the organization, so a project whose domain fell outside that page read as having none (#641).
 - Onboarding: the install step shows `npm install -g loopscale`. It showed `@getloopscale/loop-cli`, a package npm does not have.

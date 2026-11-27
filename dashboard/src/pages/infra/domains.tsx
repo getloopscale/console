@@ -8,11 +8,11 @@ import {
   Card,
   CodeBlock,
   CopyButton,
-  PageShell,
   StatusDot,
   Table,
   type StatusKind,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

@@ -13,6 +13,7 @@ import { buildCommands, sortByRecentDeploy } from '@/components/command/commands
 import { OnboardingPanel } from '@/components/onboarding/onboarding-panel';
 import { AppSidebar } from './app-sidebar';
 import { resolveActiveMenu } from './app-sidebar-menus';
+import { StatusBar } from './status-bar';
 import { TopBar } from './top-bar';
 
 interface DashboardLayoutProps {
@@ -77,13 +78,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         shell. TopBar + sidebar stay pinned; only the content region scrolls.
       */}
       <div className="bg-background h-screen overflow-hidden text-foreground flex">
-        <div className="nav-scroll border-r border-border/60 shrink-0 overflow-y-auto">
+        <div className="nav-scroll shrink-0 overflow-y-auto">
           <AppSidebar session={session} />
         </div>
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar onCommandPaletteOpen={() => setPaletteOpen(true)} />
           <main id="main-content" className="flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-screen-2xl px-6 py-6">
+            <div className="w-full px-6 py-5">
               {!verified && !onObservability && (
                 <div className="mb-6">
                   <VerificationBanner />
@@ -92,6 +93,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               {children}
             </div>
           </main>
+          <StatusBar />
         </div>
       </div>
       <CommandPalette

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { Card, PageShell } from '@getloopscale/ui';
+import { Card } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';

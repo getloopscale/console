@@ -91,6 +91,21 @@ describe('brand theme', () => {
     expect(csp.length).toBeGreaterThan(0);
     for (const header of csp) expect(header).not.toMatch(googleFonts);
 
-    expect(read('src/index.css')).toMatch(/@import '@getloopscale\/ui\/fonts\.css';/);
+    expect(read('src/main.tsx')).toMatch(/^import '@getloopscale\/ui\/fonts\.css';$/m);
+  });
+
+  // A card is a surface of the brand reference: a flat box whose title sits on a strip with a
+  // divider under it. The design system draws a shadow and a tall heading; index.css brings
+  // every card of the console to the reference at once.
+  it('draws a card as a flat surface with a title strip', () => {
+    const css = read('src/index.css');
+    const rule = (selector: string): string => {
+      const at = css.indexOf(`${selector} {`);
+      expect(at, `index.css has no rule for ${selector}`).toBeGreaterThan(-1);
+      return css.slice(at, css.indexOf('}', at));
+    };
+    expect(rule(`[data-slot='card']`)).toMatch(/box-shadow:\s*none/);
+    expect(rule(`[data-slot='card-header']`)).toMatch(/border-bottom:\s*1px solid var\(--border\)/);
+    expect(rule(`[data-slot='card-title']`)).toMatch(/font-size:\s*0\.875rem/);
   });
 });

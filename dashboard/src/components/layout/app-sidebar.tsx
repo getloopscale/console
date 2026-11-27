@@ -7,7 +7,6 @@ import {
   Search,
 } from 'lucide-react';
 import { Input, Sidebar } from '@getloopscale/ui';
-import { SystemStatusIndicator } from './system-status-indicator';
 import type { Session } from '@/lib/auth/session';
 import { TeamSwitcher } from '@/components/layout/team-switcher';
 import { useOnboardingState } from '@/hooks/use-onboarding-state';
@@ -40,6 +39,13 @@ interface AppSidebarProps {
  * full page reload that loses JWT in memory. Use `as="button" + navigate()`.
  *
  */
+/** A row of the menu: 32 pixels high, quiet until hovered. */
+const NAV_ROW =
+  'relative h-8 gap-2.5 rounded-md px-2.5 py-0 text-[13px] font-normal text-foreground/80 hover:bg-muted/60 hover:text-foreground';
+/** The row the user is in: lighter, with a bar in the brand color on its left. */
+const NAV_HERE =
+  'bg-muted font-medium text-foreground before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-primary';
+
 export function AppSidebar({ session }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -118,25 +124,25 @@ export function AppSidebar({ session }: AppSidebarProps) {
   const renderPanel = (menu: MenuDefinition) => (
     <>
       {menu.parent ? (
-        <Sidebar.Header className="p-3">
+        <Sidebar.Header className="h-12 shrink-0 border-border px-3">
           <button
             type="button"
             onClick={handleBack}
-            className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-body-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            className="flex shrink-0 items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
             aria-label={`Back to ${MENUS[menu.parent].title}`}
           >
             <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
             <span>Back</span>
           </button>
           <p
-            className="px-2 pt-2 text-label-caps uppercase tracking-wider text-muted-foreground truncate"
+            className="ml-auto min-w-0 truncate text-[13px] font-semibold tracking-tight text-foreground"
             title={resolvedTitle}
           >
             {resolvedTitle}
           </p>
         </Sidebar.Header>
       ) : (
-        <Sidebar.Header className="p-3">
+        <Sidebar.Header className="h-12 shrink-0 border-border px-3">
           <TeamSwitcher fallbackName={userName} />
         </Sidebar.Header>
       )}
@@ -185,8 +191,8 @@ export function AppSidebar({ session }: AppSidebarProps) {
               <Sidebar.Item
                 key={item.path + ':' + item.label}
                 as="button"
-                icon={Icon}
                 active={isActive(item.path)}
+                className={`${NAV_ROW} ${isActive(item.path) ? NAV_HERE : ''}`}
                 onClick={() => handleItemClick(item)}
                 title={
                   resolvePlaceholders(item.label, resolved.projectName) +
@@ -198,8 +204,12 @@ export function AppSidebar({ session }: AppSidebarProps) {
                  * the composite's internal layout stack them vertically. Wrapping
                  * in one flex container guarantees horizontal placement with the
                  * chevron pinned right via justify-between. */}
-                <span className="flex w-full items-center justify-between gap-2">
-                  <span className="truncate">{item.label}</span>
+                <span className="flex w-full items-center gap-2.5">
+                  <Icon
+                    className={`size-4 shrink-0 ${isActive(item.path) ? '' : 'opacity-80'}`}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   {/* O selo e visual E textual: `aria-hidden` aqui deixaria quem usa
                    * leitor de tela com uma entrada indistinguivel das prontas. O
                    * nome acessivel vem do `title` acima, que ja carrega
@@ -250,7 +260,7 @@ export function AppSidebar({ session }: AppSidebarProps) {
           to { transform: translateX(0); opacity: 1; }
         }
       `}</style>
-      <Sidebar className="w-[220px]">
+      <Sidebar>
         <div key={activeMenuId} className={`flex flex-col h-full ${slideClass}`}>
           {renderPanel(activeMenu)}
 
@@ -281,9 +291,6 @@ export function AppSidebar({ session }: AppSidebarProps) {
                   <span>Replay onboarding</span>
                 </button>
               )}
-              {/* M21 — was a literal `● Operational` with a fixed aria-label and no
-                  data behind it. Now derived from the real aggregate, and clickable. */}
-              <SystemStatusIndicator />
             </div>
           </Sidebar.Footer>
         </div>

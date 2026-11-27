@@ -9,9 +9,9 @@ import {
   DataTable,
   EmptyState,
   Input,
-  PageShell,
   type DataTableColumn,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';

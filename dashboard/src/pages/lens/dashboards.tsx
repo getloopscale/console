@@ -11,12 +11,12 @@ import {
   EmptyState,
   Input,
   MetricCard,
-  PageShell,
   PercentileChart,
   Select,
   Skeleton,
   Timestamp,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { nextBoardName } from './dashboards/board-name';

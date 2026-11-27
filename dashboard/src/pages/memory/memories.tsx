@@ -9,9 +9,9 @@ import {
   type DataTableColumn,
   EmptyState,
   Input,
-  PageShell,
   Timestamp,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ForgetMemoryDialog } from '@/pages/memory/forget-dialog';
 import { EmDash, ExpandableText, TablePager } from '@/pages/memory/row-cells';
 import { ScopeSelect } from '@/pages/memory/scope-switcher';

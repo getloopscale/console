@@ -7,7 +7,8 @@ import {
 } from '@/hooks/settings/use-api-keys';
 import type { APIKeyView, CreateKeyResponse } from '@/hooks/settings/api-keys-api';
 import {History, Key, Plus, Recycle, Trash2} from 'lucide-react';
-import {Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp} from '@getloopscale/ui';
+import { Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, Timestamp } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import {Alert} from '@/components/ui/alert-guard';
 import { ListTruncationNotice } from '@/components/ui/list-truncation-notice';
 import {usePageMeta} from '@/hooks/use-page-meta';

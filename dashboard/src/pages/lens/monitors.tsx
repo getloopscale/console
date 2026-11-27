@@ -10,12 +10,12 @@ import {
   EmptyState,
   Input,
   Label,
-  PageShell,
   Select,
   type Severity,
   SeverityBadge,
   Skeleton,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';

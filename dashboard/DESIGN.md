@@ -93,7 +93,7 @@ The dashboard uses **two** npm packages, with disjoint surfaces (measured
 
 | Package | Version installed | Owns | Reach |
 |---|---|---|---|
-| `@getloopscale/ui` | `0.37.1` | components | 209 files import it |
+| `@getloopscale/ui` | `0.38.0` | components | 210 files import it |
 | `@getloopscale/loopzero-ui` | `0.1.0` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 7 files |
 
 There is nothing to consolidate: `@getloopscale/ui` exports 116 symbols and **none**
@@ -760,7 +760,7 @@ Every screen task in the remediation plan passes a 12-item visual checklist befo
 [ ] 3. Hierarchy clear (one dominant element; secondary supports).
 [ ] 4. Font sizes correct (matches scale: text-label / body-sm / body / title-sm / display-md).
 [ ] 5. Buttons with correct weight (primary scarce; ghost/secondary majority).
-[ ] 6. Cards without excessive border/shadow (1 border + subtle shadow max).
+[ ] 6. Cards are flat: one border, no shadow, the title on a strip with a divider. `src/index.css` sets this for every `Card` with rules outside any layer, so a `className` on `Card`, `Card.Header`, `Card.Title` or `Card.Description` cannot change the shadow, the header padding and divider, or the title and description type.
 [ ] 7. Primary color used with restraint (one primary action per surface zone).
 [ ] 8. Semantic states consistent (success=green, warning=yellow, destructive=red — never mixed).
 [ ] 9. Icons necessary (every icon has reason; decorative removed).

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryState, parseAsString } from 'nuqs';
 import { Brain, Download, History, ShieldAlert, X } from 'lucide-react';
-import { Badge, Button, Card, PageShell, Table } from '@getloopscale/ui';
+import { Badge, Button, Card, Table } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { usePaginacao } from '@/lib/pagination';

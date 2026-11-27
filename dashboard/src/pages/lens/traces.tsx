@@ -3,7 +3,8 @@ import { useTraces, useAttributeKeys, useCreateRegressionDataset } from '@/hooks
 import { fetchForExport, TRACES_PAGE_SIZE } from '@/hooks/lens/traces-api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { Button, Card, DataTable, EmptyState, Input, PageShell } from '@getloopscale/ui';
+import { Button, Card, DataTable, EmptyState, Input } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 

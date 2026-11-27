@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { LoopZeroUIProvider } from '@getloopscale/loopzero-ui';
 import { TEMA_LOOPSCALE } from '@/lib/theme/loopscale-theme';
+// The font stylesheet is imported here and not from index.css: the build resolves the font
+// urls of a stylesheet imported from a module, and leaves them as written in one pulled in
+// with @import, which made both fonts a 404 on staging.
+import '@getloopscale/ui/fonts.css';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
 import { queryClient } from './lib/http/query-client';

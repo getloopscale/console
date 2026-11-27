@@ -8,12 +8,12 @@ import {
   DataTable,
   type DataTableColumn,
   EmptyState,
-  PageShell,
   type Severity,
   SeverityBadge,
   Skeleton,
   Timestamp,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { AlertCreateForm } from '@/pages/lens/components/alert-create-form';

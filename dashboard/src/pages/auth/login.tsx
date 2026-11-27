@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2 } from 'lucide-react';
 import { Button, Card, CodeBlock, FormField, Input } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { BrandLockup } from '@/pages/auth/components/brand-lockup';
 import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { LoginErrorBanner } from '@/pages/auth/components/login-error-banner';
 import { CookieBlockedAlert } from '@/pages/auth/components/cookie-blocked-alert';
@@ -285,21 +286,7 @@ export function LoginPage() {
               PNG (~6 KB) for Safari < 14 / Firefox < 65 / IE. alt="" because
               the wordmark below already provides the accessible name
               (avoids screen-reader duplication). */}
-          <div className="flex flex-col items-center gap-2">
-            <picture>
-              <source srcSet="/logo-128.webp" type="image/webp" />
-              <img
-                src="/logo-128.png"
-                alt=""
-                width={60}
-                height={60}
-                className="size-[60px]"
-              />
-            </picture>
-            <span className="font-display text-title-sm font-bold tracking-tight text-foreground">
-              LoopScale
-            </span>
-          </div>
+          <BrandLockup />
 
           {/* T1.4 microcopy: universal welcome, locked-narrative subtitle. */}
           <div className="space-y-1">

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FlaskConical, ShieldCheck } from 'lucide-react';
-import { Button, Card, FormField, PageShell, Textarea } from '@getloopscale/ui';
+import { Button, Card, FormField, Textarea } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { GuardrailRuleFields } from '@/pages/trust/components/guardrail-rule-fields';
 

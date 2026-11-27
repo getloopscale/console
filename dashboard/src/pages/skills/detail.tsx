@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Badge, Button, Card, Input, PageShell } from '@getloopscale/ui';
+import { Badge, Button, Card, Input } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';

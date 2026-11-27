@@ -1,8 +1,8 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Link, useSearchParams, useNavigate, type NavigateFunction } from 'react-router-dom';
 import { ExternalLink, Plus } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, PageShell, StatusDot, Table } from '@getloopscale/ui';
-import type { StatusKind } from '@getloopscale/ui';
+import { Badge, Button, Card, Checkbox, StatusDot, Table, type StatusKind } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { estadoDaLista } from '@/lib/list-state';
 import { searchWithoutResult } from '@/pages/projects/empty-states';

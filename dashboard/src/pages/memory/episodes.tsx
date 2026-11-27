@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useDebouncedValue } from '@/hooks/memory/use-debounced-value';
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, History, Search, X } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, Input, PageShell, Timestamp } from '@getloopscale/ui';
+import { Badge, Button, Card, EmptyState, Input, Timestamp } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { ScopeSelect } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';

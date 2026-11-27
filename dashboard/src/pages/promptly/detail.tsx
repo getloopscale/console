@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Button, PageShell } from '@getloopscale/ui';
+import { Button } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import {
   dependentRows,
   hasComposition,

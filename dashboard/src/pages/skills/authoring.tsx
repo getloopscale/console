@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Badge, Button, Card, Input, PageShell } from '@getloopscale/ui';
+import { Badge, Button, Card, Input } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { faseDaOperacao } from '@/pages/skills/components/operation-state';

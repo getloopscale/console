@@ -14,6 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -45,6 +46,7 @@ import (
 	"github.com/getloopscale/loop-console/internal/rag"
 	"github.com/getloopscale/loop-console/internal/ratelimit"
 	"github.com/getloopscale/loop-console/internal/routes"
+	"github.com/getloopscale/loop-console/internal/sandboxgateway"
 	"github.com/getloopscale/loop-console/internal/serviceversions"
 	"github.com/getloopscale/loop-console/internal/skills"
 	"github.com/getloopscale/loop-console/internal/storage"
@@ -1750,6 +1752,30 @@ func main() {
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)
 	})
+
+	// Code sandboxes. The same paths serve the SDK and CLI with an API key that
+	// carries sandbox:execute, and the dashboard and the CLI with a login.
+	if cfg.SandboxAPIURL != "" {
+		if serviceSigner == nil {
+			logger.Error("SANDBOX_API_URL is set but LOOP_RUNTIME_SERVICE_AUTH_ED25519_PRIVATE_KEY is not: the sandbox accepts signed requests only")
+			os.Exit(1)
+		}
+		sandboxTarget, parseErr := url.Parse(cfg.SandboxAPIURL)
+		if parseErr != nil {
+			logger.Error("SANDBOX_API_URL is not a URL", "error", parseErr)
+			os.Exit(1)
+		}
+		sandboxes, gwErr := sandboxgateway.New(sandboxTarget, serviceSigner, logger)
+		if gwErr != nil {
+			logger.Error("sandbox gateway init failed", "error", gwErr)
+			os.Exit(1)
+		}
+		sandboxCaller := auth.KeyOrCaller(auth.RequireScope(db, "sandbox:execute"), requireJWT)
+		r.With(sandboxCaller).Handle("/v1/sandboxes", sandboxes)
+		r.With(sandboxCaller).Handle("/v1/sandboxes/*", sandboxes)
+		r.With(sandboxCaller).Handle("/v1/capabilities", sandboxes)
+		logger.Info("sandbox gateway enabled", "target", sandboxTarget.Host)
+	}
 
 	r.Route("/engine", func(r chi.Router) {
 		r.Use(requireJWT) // Dashboard must be authenticated

@@ -16,7 +16,6 @@
  * `[data-theme][data-mode]` selector outranks `:root` and `.dark`. */
 @import '@getloopscale/ui/tokens.css' layer(theme);
 @import '@getloopscale/ui/tokens-v4.css';
-@import '@getloopscale/ui/fonts.css';
 /* KB9 — Tailwind v4 typography engine. MUST come AFTER every @import: the CSS spec
  * requires @import to precede all non-import statements, so a @plugin placed between
  * `@import 'tailwindcss'` and the vendor `@import`s invalidates them and Tailwind stops
@@ -433,4 +432,35 @@ ul[data-type='taskList'] li > div {
 ul[data-type='taskList'] li[data-checked='true'] > div {
   color: var(--color-muted-foreground);
   text-decoration: line-through;
+}
+
+/* A card is a surface of the brand reference: a flat box, and its title on a strip with a
+ * divider under it. The design system draws a shadow and a tall heading. These rules sit outside
+ * any layer so they apply to every card of the console, whatever size the card was given.
+ *
+ * What that costs: a rule outside a layer beats every utility class. A `className` on a `Card`,
+ * `Card.Header`, `Card.Title` or `Card.Description` cannot change a property set here (shadow,
+ * header padding and divider, title and description type). Direction, alignment and gap of the
+ * header are not set here, so a header laid out as a row keeps its classes. */
+[data-slot='card'] {
+  box-shadow: none;
+}
+[data-slot='card-header'] {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+[data-slot='card-title'] {
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+[data-slot='card-description'] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+/* Only the gap under the strip: the padding a page gives a card body stays as the page set it. */
+[data-slot='card-header'] + [data-slot='card-body'] {
+  padding-top: 1rem;
 }

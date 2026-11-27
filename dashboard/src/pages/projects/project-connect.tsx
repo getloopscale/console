@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Github, Link2, Loader2, Unlink2 } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, Input, Label, PageShell } from '@getloopscale/ui';
+import { Badge, Button, Card, Checkbox, Input, Label } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
@@ -14,10 +15,7 @@ import {
   disconnectProjectRepository,
 } from '@/hooks/projects/github-connect';
 import { deriveConnectStep } from '@/hooks/projects/connect-fsm';
-import {
-  githubErrorMessage,
-  INSTALLATION_NEEDS_AUTHORIZATION,
-} from '@/hooks/projects/github-connect-errors';
+import { githubErrorMessage, INSTALLATION_NEEDS_AUTHORIZATION } from '@/hooks/projects/github-connect-errors';
 import { ApiError, refusalReason } from '@/lib/http/api';
 import { safeNavigator } from '@/lib/navigation';
 import type { InstallationRepository } from '@/lib/api/types';

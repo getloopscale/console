@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Brain, Search } from 'lucide-react';
-import { Badge, Button, Card, Input, PageShell, Textarea } from '@getloopscale/ui';
+import { Badge, Button, Card, Input, Textarea } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { Alert } from '@/components/ui/alert-guard';
 import { ReflectCard } from '@/pages/memory/reflect-card';
 import { usePageMeta } from '@/hooks/use-page-meta';

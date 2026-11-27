@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Brain, Loader2, Sparkles } from 'lucide-react';
-import { Button, Card, PageShell, PlanBadge, type PlanTier } from '@getloopscale/ui';
+import { Button, Card, PlanBadge, type PlanTier } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { UsageMeter, type UsageMetric as UsageMeterMetric } from '@getloopscale/loopzero-ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
@@ -394,7 +395,6 @@ export function BillingPage() {
     </PageShell>
   );
 }
-
 
 /**
  * MemoryUsageCard — Plan 4 cross-cut from dashboard-memory-section-roadmap.md.

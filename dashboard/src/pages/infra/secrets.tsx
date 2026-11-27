@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, KeyRound, Plus, Upload } from 'lucide-react';
-import { Button, Card, PageShell } from '@getloopscale/ui';
+import { Button, Card } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useSecrets } from '@/hooks/infra/use-secrets';

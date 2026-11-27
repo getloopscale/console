@@ -9,9 +9,9 @@ import {
 import {
   Card,
   EmptyState,
-  PageShell,
   ProjectCard,
 } from '@getloopscale/ui';
+import { PageShell } from '@/components/ui/page-shell';
 import { ContentGrid } from '@/components/layout';
 import { OverviewKPIStrip } from '@/pages/overview/components/overview-kpi-strip';
 import { DeploysActivity } from '@/pages/overview/components/deploys-activity';
