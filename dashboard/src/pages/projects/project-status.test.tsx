@@ -265,6 +265,25 @@ describe('ProjectStatusPage — replicas and collecting signals', () => {
     expect(screen.getByText('Last deploy').closest('button, div')).toHaveTextContent(/5m ago/);
   });
 
+  // Staging read "Healthy" beside an error rate of 20% (#615). The pill applies the 5xx bands
+  // of the Readiness screen to the worst of the two readings the page has.
+  it.each([
+    [0, 0, 'Healthy'],
+    [0.02, 0, 'Degraded'],
+    [0.2, 0, 'Unhealthy'],
+    [0, 20, 'Unhealthy'],
+    [undefined, 0.03, 'Degraded'],
+  ])('a 5xx share of %s over the hour and %s now reads %s', (hourPct, nowPct, label) => {
+    mockUseKpiMetric.mockImplementation((_n, signal) => (signal === 'error_rate' ? nowPct : null));
+    mockUseProjectStatus.mockReturnValue({
+      status: activeStatus({ replicas_ready: 2, traffic_5xx_pct_1h: hourPct as number | undefined }),
+      loading: false,
+      error: null,
+    });
+    renderAt('/projects/acme/status');
+    expect(screen.getByLabelText(`Status: ${String(label)}`)).toBeInTheDocument();
+  });
+
   it('prefers replicas_ready from the status response', () => {
     mockUseKpiMetric.mockImplementation((_n, signal) => (signal === 'replicas_ready' ? 1 : null));
     mockUseProjectStatus.mockReturnValue({

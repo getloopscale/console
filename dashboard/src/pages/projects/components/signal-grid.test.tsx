@@ -162,6 +162,12 @@ describe('SignalGrid — T3.2 J-18 (EC-7 absorption: 8 pills always render)', ()
     expect(container.querySelector('.text-destructive')).toBeInTheDocument();
   });
 
+  it('Status=Unhealthy renders with destructive tone', () => {
+    const { container } = render(<SignalGrid signals={{ status: 'Unhealthy' }} />);
+    expect(screen.getByLabelText('Status: Unhealthy').querySelector('.text-destructive')).toBeInTheDocument();
+    expect(container.querySelector('.text-success')).toBeNull();
+  });
+
   it('Replicas=0 renders with destructive tone', () => {
     const { container } = render(<SignalGrid signals={{ replicas: 0 }} />);
     expect(screen.getByText('0')).toBeInTheDocument();

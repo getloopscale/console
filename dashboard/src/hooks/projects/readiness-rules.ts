@@ -87,6 +87,16 @@ function readAutoscaled(status: ReportedScale | null | undefined): boolean | nul
   return typeof status?.replicas_desired === 'number' ? false : null;
 }
 
+/**
+ * The band of a 5xx share, in percent of requests, aligned with the LoopScale SLO. Readiness
+ * and the pill of the Status screen read the same rule, so the two cannot disagree.
+ */
+export function serverErrorBand(pct: number): 'pass' | 'warn' | 'fail' {
+  if (pct < 0.01) return 'pass';
+  if (pct < 0.05) return 'warn';
+  return 'fail';
+}
+
 /** A status field the response did not carry (or carried as something other than a number). */
 function measured(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -169,9 +179,7 @@ export const RULES: Readonly<Record<SignalName, Rule>> = {
   // 5xx bands over 1h, aligned with the LoopScale SLO.
   logs_healthy: (m) => {
     if (m.statusUnavailable || m.errorRate5xx1h === null) return 'unknown';
-    if (m.errorRate5xx1h < 0.01) return 'pass';
-    if (m.errorRate5xx1h < 0.05) return 'warn';
-    return 'fail';
+    return serverErrorBand(m.errorRate5xx1h);
   },
 
   // The API reports no cache hit rate. Having a build says nothing about the cache, so the signal

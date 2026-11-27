@@ -30,7 +30,7 @@ import { formatLatencyMs, formatRps } from '@/pages/projects/components/metric-f
  * regardless of partial input — defensively shows "—" rather than blanking.
  */
 interface SignalValues {
-  status?: 'Healthy' | 'Progressing' | 'Degraded' | 'Unknown' | string | null;
+  status?: 'Healthy' | 'Progressing' | 'Degraded' | 'Unhealthy' | 'Unknown' | string | null;
   replicas?: number | null;
   uptime_24h?: number | null;
   p95_latency?: number | null;
@@ -102,7 +102,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     tone: (v) => {
       if (v === 'Healthy') return 'success';
       if (v === 'Progressing') return 'warning';
-      if (v === 'Degraded') return 'destructive';
+      if (v === 'Degraded' || v === 'Unhealthy') return 'destructive';
       return 'muted';
     },
   },
