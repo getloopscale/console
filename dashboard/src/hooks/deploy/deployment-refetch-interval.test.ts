@@ -9,6 +9,14 @@ const build = (status: string) => ({ status }) as unknown as Build;
 // before the page subscribes to the stream, and the header kept "Running" and "Cancel build"
 // on a build the API already answered as SUCCEEDED.
 describe('deploymentRefetchInterval', () => {
+  // The engine holds a build in RELEASING while the release rolls out. Staging showed that
+  // status between RUNNING and SUCCEEDED, and a page that stopped reading there would stay on it.
+  it('keeps reading a build that is releasing, or in a status it does not know', () => {
+    for (const status of ['RELEASING', 'releasing', 'SOMETHING_NEW']) {
+      expect(deploymentRefetchInterval(build(status))).toBe(5000);
+    }
+  });
+
   it('keeps reading a build that has not finished', () => {
     for (const status of ['QUEUED', 'RUNNING', 'CANCELLING', 'running']) {
       expect(deploymentRefetchInterval(build(status))).toBe(5000);
