@@ -2,7 +2,7 @@ import type { ElementType } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { Card } from '@getloopscale/ui';
-import { MENUS } from '@/components/layout/app-sidebar-menus';
+import { AGENT_SERVICES_GROUP_TITLE, MENUS } from '@/components/layout/app-sidebar-menus';
 import { useCloudApi } from '@/hooks/use-api';
 import { formatNumber } from '@/lib/formatting/format';
 import {
@@ -39,7 +39,7 @@ import {
  * produto em sete requisições trocaria um defeito de descoberta por um de latência.
  */
 export function CapabilityGrid() {
-  const grupo = MENUS.main?.groups.find((g) => g.title === 'Capabilities');
+  const grupo = MENUS.main?.groups.find((g) => g.title === AGENT_SERVICES_GROUP_TITLE);
   const itens = grupo?.items ?? [];
 
   if (itens.length === 0) return null;

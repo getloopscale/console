@@ -30,7 +30,7 @@ import { test, expect, type Page } from '@playwright/test';
 /**
  * Chega ao catálogo CLICANDO a partir da raiz.
  *
- * Duas etapas, porque o menu tem duas: o item `Prompts` em Capabilities entra no submenu
+ * Duas etapas, porque o menu tem duas: o item `Prompts` em Agent Services entra no submenu
  * (`drillsInto`), e o item dele abre a tela. Se qualquer uma das três peças do menu faltar,
  * é aqui que o teste morre — e morre no passo que o usuário de fato daria.
  *

@@ -24,7 +24,10 @@ vi.mock('@/hooks/deploy/use-log-stream', () => ({
   useLogStream: (path: string | null, opts: { paused?: boolean }) => mockUseLogStream(path, opts),
 }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: vi.fn() }));
-vi.mock('@/hooks/use-page-meta', () => ({ useSetPageTitle: vi.fn() }));
+const mockSetPageTitle = vi.fn();
+vi.mock('@/hooks/use-page-meta', () => ({
+  useSetPageTitle: (title: string) => mockSetPageTitle(title),
+}));
 // M16: env selector reads useEnvironments (react-query). This test renders the
 // page without a QueryClientProvider, so mock it to a stable empty list — the
 // default env stays 'production', keeping the stream-path assertions valid.
@@ -44,6 +47,13 @@ function renderPage() {
 
 describe('RuntimeLogsPage (J-19 T1.1 — R1 TimeRangePicker wire)', () => {
   beforeEach(() => mockUseLogStream.mockClear());
+
+  // The page is named after its menu entry, "Logs"; the route keeps /logs.
+  it('is titled Logs, in the heading and in the tab', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Logs' })).toBeInTheDocument();
+    expect(mockSetPageTitle).toHaveBeenCalledWith('my-app · Logs');
+  });
 
   // 2026-06-13 LIVE walkthrough fix gates (BLOCKER F-tests-1 closure):
   // Default range was changed from '1h' → '5m' (commit e80d7c4f sponsor UX).

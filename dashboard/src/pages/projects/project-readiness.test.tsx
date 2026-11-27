@@ -26,7 +26,8 @@ describe('ProjectReadinessPage (Sprint 1 T1.1)', () => {
       loading: false,
     });
     renderAtRoute('/projects/acme-storefront/readiness');
-    expect(screen.getByText('Production readiness')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Production checklist' })).toBeInTheDocument();
+    expect(document.title).toContain('acme-storefront · Production checklist');
   });
 
   it('test_renders_empty_state_when_project_not_found', () => {
@@ -43,6 +44,6 @@ describe('ProjectReadinessPage (Sprint 1 T1.1)', () => {
     mockUseProjects.mockReturnValue({ projects: [], loading: true });
     renderAtRoute('/projects/acme-storefront/readiness');
     // PageShell renders skeleton when loading prop true — assert title at minimum
-    expect(screen.getByText('Production readiness')).toBeInTheDocument();
+    expect(screen.getByText('Production checklist')).toBeInTheDocument();
   });
 });

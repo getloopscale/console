@@ -121,6 +121,9 @@ describe('ProjectScalePage — what runs', () => {
     });
     renderAt('/projects/demo/scale');
     expect(screen.getByTestId('running-replicas')).toHaveTextContent('2 replicas');
+    // The page is named after its menu entry, "Scaling"; the route keeps /scale.
+    expect(screen.getByRole('heading', { name: 'Scaling' })).toBeInTheDocument();
+    expect(document.title).toContain('demo · Scaling');
     // Anchors the "never 2 replicas" denial in the M15 case below: the page can render this text.
     expect(screen.getAllByText(/2 replicas/).length).toBeGreaterThanOrEqual(1);
   });

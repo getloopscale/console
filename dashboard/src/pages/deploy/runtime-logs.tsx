@@ -21,7 +21,7 @@ import { TimeRangePicker } from '@/pages/deploy/components/time-range-picker';
 export function RuntimeLogsPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
-  useSetPageTitle(`${name} · Runtime logs`);
+  useSetPageTitle(`${name} · Logs`);
   const [paused, setPaused] = useState(false);
   // J-19 T1.1: time-range selector (default last 5 minutes). Drives `?since=`.
   const [selectedRange, setSelectedRange] = useState('5m');
@@ -37,7 +37,7 @@ export function RuntimeLogsPage() {
 
   return (
     <PageShell
-      title="Runtime logs"
+      title="Logs"
       description={`Live log stream for ${name}.`}
     >
       <div className="mb-4 flex items-center justify-between gap-3">

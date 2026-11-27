@@ -65,7 +65,7 @@ function scalableApps(apps: ReadonlyArray<{ name: string; type?: string }> | und
 export function ProjectScalePage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
-  useSetPageTitle(`${name} · Scale`);
+  useSetPageTitle(`${name} · Scaling`);
 
   // Local edit state
   const [mode, setMode] = useState<HPAMode>('manual');
@@ -194,7 +194,7 @@ export function ProjectScalePage() {
 
   return (
     <PageShell
-      title="Scale"
+      title="Scaling"
       description={`Replica count and autoscaling for ${name}.`}
     >
       <div className="mb-4">

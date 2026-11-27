@@ -27,7 +27,7 @@ export function ReadinessFAQ({ defaultOpen }: ReadinessFAQProps) {
         </Card.Description>
       </Card.Header>
       <Card.Body>
-        <ul className="divide-y divide-border" aria-label="Readiness FAQ">
+        <ul className="divide-y divide-border" aria-label="Production checklist FAQ">
           {SIGNALS.map((def) => (
             <FAQRow
               key={def.name}

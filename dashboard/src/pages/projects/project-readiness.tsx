@@ -30,7 +30,7 @@ export function ProjectReadinessPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
   const [searchParams] = useSearchParams();
-  useDocumentTitle(name ? `${name} · Readiness` : 'Readiness');
+  useDocumentTitle(name ? `${name} · Production checklist` : 'Production checklist');
 
   const { projects, loading: projectsLoading } = useProjects();
   const projectExists = projects.some((p) => p.name === name);
@@ -42,7 +42,7 @@ export function ProjectReadinessPage() {
   // once useProjects has settled (avoid flashing "not found" during load).
   if (!projectsLoading && !projectExists) {
     return (
-      <PageShell title="Production readiness">
+      <PageShell title="Production checklist">
         <EmptyState
           icon={ShieldCheck}
           title="Project not found"
@@ -57,7 +57,7 @@ export function ProjectReadinessPage() {
 
   return (
     <PageShell
-      title="Production readiness"
+      title="Production checklist"
       description="Signals that indicate how production-ready this project is."
       loading={projectsLoading || signalsLoading}
     >

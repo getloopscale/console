@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { MENUS } from '@/components/layout/app-sidebar-menus';
+import { AGENT_SERVICES_GROUP_TITLE, MENUS } from '@/components/layout/app-sidebar-menus';
 import { CAPACIDADES, estadoDaCapacidade, type EstadoDaCapacidade } from './capabilities';
 
 /**
@@ -27,8 +27,8 @@ import { CAPACIDADES, estadoDaCapacidade, type EstadoDaCapacidade } from './capa
 
 /** O grupo do menu que declara o que a plataforma oferece. */
 function capacidadesDeclaradas(): { label: string; path: string }[] {
-  const grupo = MENUS.main?.groups.find((g) => g.title === 'Capabilities');
-  if (!grupo) throw new Error('o grupo `Capabilities` sumiu do registro do menu');
+  const grupo = MENUS.main?.groups.find((g) => g.title === AGENT_SERVICES_GROUP_TITLE);
+  if (!grupo) throw new Error('o grupo `Agent Services` sumiu do registro do menu');
   return grupo.items.map((i) => ({ label: i.label, path: i.path }));
 }
 

@@ -153,6 +153,9 @@ describe('ProjectStatusPage — Red Team loop-console#98 closure', () => {
 
     // Auto-refresh blurb still visible on the happy path.
     expect(screen.getByText(/auto-refresh every 5s/i)).toBeInTheDocument();
+    // The page is named after its menu entry, "Health"; the route keeps /status.
+    expect(screen.getByRole('heading', { name: 'Health' })).toBeInTheDocument();
+    expect(document.title).toContain('acme · Health');
   });
 
   // J-18 — the KPI strip renders the current metric value derived from the
