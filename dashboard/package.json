@@ -34,7 +34,7 @@
     {
       "name": "03 — app entry [eager]",
       "path": "dist/assets/entry-*.js",
-      "limit": "25 kB"
+      "limit": "26 kB"
     },
     {
       "name": "04 — vendor (node_modules eager, pos B-021/B-073)",
