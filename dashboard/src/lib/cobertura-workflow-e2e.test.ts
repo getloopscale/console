@@ -63,6 +63,20 @@ describe('cobertura do workflow e2e-ui', () => {
     ).toEqual([]);
   });
 
+  it('can be started by hand on a branch', () => {
+    // The screenshot references can only be recorded on the CI runner. Without a manual
+    // trigger, a change to anything they show has to merge, turn develop red and be
+    // followed by a second pull request that copies the new images out of the failed run.
+    const workflow = readFileSync(WORKFLOW, 'utf8');
+    const triggers = /^on:\n((?:[ \t]+.*\n|\n)+)/m.exec(workflow)?.[1] ?? '';
+
+    expect(triggers, 'the `on:` block of e2e-ui.yml was not found').not.toBe('');
+    expect(triggers).toMatch(/^ {2}workflow_dispatch:/m);
+    expect(triggers, 'the push to develop is still what gates the branch').toMatch(
+      /^ {2}push:\n\s+branches: \[develop\]/m,
+    );
+  });
+
   it('nenhuma exclusão declarada aponta para um arquivo que não existe mais', () => {
     // Uma exclusão órfã é pior que nenhuma: ela sugere que alguém decidiu algo sobre um
     // arquivo que já foi embora, e a próxima pessoa herda a decisão sem o objeto dela.

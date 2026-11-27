@@ -100,6 +100,10 @@ name: e2e-ui
 on:
   push:
     branches: [develop]
+  # Manual run on a branch (`gh workflow run e2e-ui --ref workspace`). The screenshot references
+  # can only be recorded on this runner, so a change to what they show runs here before the pull
+  # request, and the new images come from the `playwright-report` artifact of that run.
+  workflow_dispatch:
 
 permissions:
   contents: read
