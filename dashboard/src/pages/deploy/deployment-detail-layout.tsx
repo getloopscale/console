@@ -137,6 +137,7 @@ export function DeploymentDetailLayout() {
           onCancel={handleCancel}
           onRollback={handleRollback}
           onRedeploy={handleRedeploy}
+          servesEnvironment={projectStatus?.active_release?.build_id === build.build_id}
           onPromoteToProduction={handlePromoteToProduction}
         />
         {/* Plan deploy-timeline-canonical-5-phases — canonical 5-phase hero
@@ -148,7 +149,7 @@ export function DeploymentDetailLayout() {
           deployStatus={build.deploy_status}
           liveRelease={{
             commitShort: projectStatus?.active_release?.git_commit?.slice(0, 7) ?? null,
-            activeSince: projectStatus?.active_release?.created_at ?? null,
+            activeSince: projectStatus?.last_deploy_at ?? projectStatus?.active_release?.created_at ?? null,
             url: projectStatus?.url ?? null,
             // M15 T4: repoUrl omitted — there is no real repo-URL source in this
             // view's data, so passing a hardcoded null pretended a capability the

@@ -34,6 +34,8 @@ export interface BuildHeaderProps {
   onCancel: () => void;
   onRollback: () => void;
   onRedeploy: () => void;
+  /** True when this build's release is the one serving its environment: there is nothing to roll back to. */
+  servesEnvironment?: boolean;
   /**
    * Optional. When provided AND the build environment is a preview
    * (i.e. not "production") AND the build status is succeeded, renders
@@ -95,6 +97,7 @@ export function BuildHeader({
   onRedeploy,
   onPromoteToProduction,
   projectName,
+  servesEnvironment = false,
 }: BuildHeaderProps) {
   const sha = build.commit_sha.slice(0, 7);
   // Backend returns CAPS statuses; normalize once so every comparison
@@ -119,7 +122,7 @@ export function BuildHeader({
   // raw action buttons so the user can't double-fire (backend lock
   // would 409 anyway, but the transitional badge is the canonical
   // UX signal).
-  const showRollback = ns === 'succeeded' && !inFlightHere;
+  const showRollback = ns === 'succeeded' && !inFlightHere && !servesEnvironment;
   // Promote-to-Production visibility:
   //   - callback wired by the caller (back-compat: hidden when absent)
   //   - build is succeeded (no point promoting an in-flight / failed)
