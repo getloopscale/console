@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { FolderKanban, Search } from 'lucide-react';
 import { Select } from '@getloopscale/ui';
 import { useProjects } from '@/hooks/projects/use-projects';
@@ -37,14 +37,16 @@ export function TopBar({ showProjectSelector = true, onCommandPaletteOpen }: Top
   const { projects } = useProjects();
   const location = useLocation();
   const navigate = useNavigate();
-  const { name: routeProjectName } = useParams<{ name: string }>();
 
   // Hide selector on routes that don't make project sense
   const hideOnPaths = ['/settings', '/profile', '/billing'];
   const shouldShowSelector =
     showProjectSelector && !hideOnPaths.some((p) => location.pathname.startsWith(p));
 
-  const selectorValue = routeProjectName ?? 'all';
+  // The layout mounts this bar above the routes that carry `:name`, so useParams has no
+  // project here. The name is read from the path and counts only when it is a listed project.
+  const routeProjectName = matchPath('/projects/:name/*', location.pathname)?.params.name;
+  const selectorValue = projects.some((p) => p.name === routeProjectName) ? routeProjectName! : 'all';
 
   return (
     <header className="h-14 border-b border-border/60 bg-background/95 backdrop-blur-sm sticky top-0 z-20 flex items-center gap-4 px-6">

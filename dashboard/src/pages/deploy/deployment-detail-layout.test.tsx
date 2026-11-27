@@ -74,6 +74,50 @@ function renderBuildOf(environment: string) {
   );
 }
 
+/** A succeeded production build, with the release of `servingBuildId` serving since a rollback 30 seconds ago. */
+function renderProductionBuild(servingBuildId: string) {
+  mockedEngineFetch.mockImplementation(async (path: string) => {
+    if (path.includes('/status')) {
+      return {
+        ...statusOf('production', 'f35d9b7aaaa'),
+        active_release: {
+          id: 'rel-1',
+          build_id: servingBuildId,
+          status: 'ACTIVE',
+          git_commit: 'f35d9b7aaaa',
+          created_at: '2026-11-25T21:09:03Z',
+        },
+        last_deploy_at: new Date(Date.now() - 30_000).toISOString(),
+      };
+    }
+    if (path.endsWith('/rollbacks')) return { rollbacks: [] };
+    if (path.includes('/builds/')) {
+      return {
+        build_id: 'build-1',
+        project_id: 'app',
+        environment: 'production',
+        status: 'succeeded',
+        commit_sha: 'f35d9b7aaaa',
+        created_by: 'u-1',
+        created_at: '2026-11-25T21:08:00Z',
+      };
+    }
+    return null;
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <Toaster>
+        <MemoryRouter initialEntries={['/projects/app/deployments/build-1']}>
+          <Routes>
+            <Route path="/projects/:name/deployments/:id" element={<DeploymentDetailLayout />} />
+          </Routes>
+        </MemoryRouter>
+      </Toaster>
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   queryClient.clear();
   __resetSharedEventSources();
@@ -93,5 +137,27 @@ describe('DeploymentDetailLayout', () => {
     );
     expect(mockedEngineFetch.mock.calls.map((c) => String(c[0])).filter((p) => p.endsWith('/status'))).toEqual([]);
     expect(screen.getByTestId('deploy-timeline-hero')).not.toHaveTextContent('f35d9b7');
+  });
+
+  // Staging offered Rollback on the build marked ACTIVE (#614).
+  it('offers Rollback on a build that does not serve, and only Redeploy on the one that does', async () => {
+    const headerActions = () =>
+      screen.getAllByRole('button', { name: /rollback to this build|redeploy/i }).map((b) => b.textContent?.trim());
+
+    const other = renderProductionBuild('build-other');
+    await screen.findByRole('button', { name: /rollback to this build/i });
+    expect(headerActions()).toEqual(['Rollback', 'Redeploy']);
+    other.unmount();
+
+    renderProductionBuild('build-1');
+    await waitFor(() => expect(screen.getByTestId('deploy-timeline-hero')).toHaveTextContent(/live \d+s ago/));
+    expect(headerActions()).toEqual(['Redeploy']);
+  });
+
+  // The strip said "live 32m ago" for a release that a rollback had put back a minute before (#605).
+  it('dates the live release by the last deploy, not by the creation of the release', async () => {
+    renderProductionBuild('build-1');
+    const hero = await screen.findByTestId('deploy-timeline-hero');
+    await waitFor(() => expect(hero).toHaveTextContent(/live (30|31|32)s ago/));
   });
 });

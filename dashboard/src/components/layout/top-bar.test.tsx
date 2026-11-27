@@ -89,6 +89,20 @@ describe('TopBar', () => {
     expect(screen.queryByText('acme-payments')).not.toBeInTheDocument();
   });
 
+  // The bar is mounted by the layout, above the routes that carry `:name`, so useParams gave
+  // it no project and the selector read "All Projects" on every project screen (#616).
+  it('shows the project of the current route in the selector', () => {
+    mockUseProjects.mockReturnValue({ projects: [{ name: 'hello' }, { name: 'acme-web' }], loading: false });
+    render(<TopBar />, { initialEntries: ['/projects/hello/status'] });
+    expect(screen.getByRole('combobox', { name: /select project/i })).toHaveTextContent('hello');
+  });
+
+  it('shows All Projects on a route under /projects that names no project of the list', () => {
+    mockUseProjects.mockReturnValue({ projects: [{ name: 'hello' }], loading: false });
+    render(<TopBar />, { initialEntries: ['/projects/new'] });
+    expect(screen.getByRole('combobox', { name: /select project/i })).toHaveTextContent('All Projects');
+  });
+
   it('test_top_bar_select_handles_empty_projects', () => {
     // EC-4: empty project list (new account). Trigger still renders with
     // "All Projects" sentinel; no acme-* text leaks.

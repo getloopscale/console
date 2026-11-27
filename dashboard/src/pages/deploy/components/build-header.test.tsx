@@ -29,6 +29,7 @@ function renderHeader(
     onRollback?: () => void;
     onRedeploy?: () => void;
     onPromoteToProduction?: (() => void) | null;
+    servesEnvironment?: boolean;
   } = {},
 ) {
   // null = explicitly omit the prop (back-compat coverage); undefined =
@@ -45,6 +46,7 @@ function renderHeader(
         onCancel={opts.onCancel ?? vi.fn()}
         onRollback={opts.onRollback ?? vi.fn()}
         onRedeploy={opts.onRedeploy ?? vi.fn()}
+        servesEnvironment={opts.servesEnvironment}
         {...promoteProp}
       />
     </MemoryRouter>,
@@ -94,6 +96,18 @@ describe('BuildHeader', () => {
     const { unmount: unmount2 } = renderHeader(makeBuild({ status: 'failed' }));
     expect(screen.queryByRole('button', { name: /rollback/i })).not.toBeInTheDocument();
     unmount2();
+  });
+
+  // Rolling back to the release that already serves changes nothing and still asked for a
+  // typed confirmation. Staging offered it on the build marked ACTIVE.
+  it('offers no rollback on the build that already serves its environment', () => {
+    const { unmount } = renderHeader(makeBuild({ status: 'succeeded' }), { servesEnvironment: false });
+    expect(screen.getByRole('button', { name: /rollback/i })).toBeInTheDocument();
+    unmount();
+
+    renderHeader(makeBuild({ status: 'succeeded' }), { servesEnvironment: true });
+    expect(screen.queryByRole('button', { name: /rollback/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /redeploy/i })).toBeInTheDocument();
   });
 
   it('test_redeploy_button_always_visible', async () => {
