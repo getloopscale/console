@@ -16,6 +16,7 @@ import { CancelBuildDialog } from '@/pages/deploy/components/cancel-build-dialog
 import { PromoteToProductionDialog } from '@/pages/deploy/components/promote-to-production-dialog';
 import { queryKeys } from '@/lib/api/query-keys';
 import { effectiveDeployStatus } from '@/hooks/deploy/deployment-refetch-interval';
+import { useNow } from '@/hooks/deploy/use-clock-tick';
 
 /**
  * DeploymentDetailLayout — Plan J-17 T5.1 + T5.2.
@@ -47,6 +48,8 @@ const TABS = [
 export function DeploymentDetailLayout() {
   useRequireAuth();
   const { name = '', id = '' } = useParams<{ name: string; id: string }>();
+  // The wait for a release is bounded in time, so the timeline reads the clock as an input.
+  const now = useNow(15_000);
   useSetPageTitle(`${name} · Deployment ${id.slice(0, 7)}`);
   const { build, loading, error } = useDeployment(id);
   // The release the build's own environment serves, for the badge that ends
@@ -147,7 +150,7 @@ export function DeploymentDetailLayout() {
         <DeployTimelineHero
           deployId={build.build_id}
           buildStatus={build.status}
-          deployStatus={effectiveDeployStatus(build)}
+          deployStatus={effectiveDeployStatus(build, now)}
           liveRelease={{
             commitShort: projectStatus?.active_release?.git_commit?.slice(0, 7) ?? null,
             activeSince: projectStatus?.last_deploy_at ?? projectStatus?.active_release?.created_at ?? null,
