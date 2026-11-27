@@ -11,8 +11,8 @@ function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
 }
 
 describe('buildCommands (Sprint 2 T2.3)', () => {
-  it('test_12_base_commands_plus_quick_jumps', () => {
-    // 8 navigate + 4 action = 12 base; + 3 project quick-jumps if available
+  it('test_10_base_commands_plus_quick_jumps', () => {
+    // 7 navigate + 3 action = 10 base outside a project; + 3 project quick-jumps if available
     const ctx = makeCtx({
       recentProjects: [
         { name: 'a', last_deploy: '2026-05-27T10:00:00Z' },
@@ -21,7 +21,7 @@ describe('buildCommands (Sprint 2 T2.3)', () => {
       ],
     });
     const cmds = buildCommands(ctx);
-    expect(cmds).toHaveLength(15);
+    expect(cmds).toHaveLength(13);
   });
 
   it('test_each_command_has_unique_id', () => {
@@ -61,11 +61,28 @@ describe('buildCommands (Sprint 2 T2.3)', () => {
     expect(navigate).toHaveBeenCalledWith('/team?action=invite');
   });
 
-  it('test_action_add_domain_uses_action_query_param', () => {
+  // Domains belong to a project. Inside one, the two domain commands open that project's page.
+  it('opens the domains of the current project', () => {
     const navigate = vi.fn();
-    const cmds = buildCommands(makeCtx({ navigate }));
+    const cmds = buildCommands(makeCtx({ navigate, currentProject: 'my api' }));
+    cmds.find((c) => c.id === 'nav-domains')?.perform();
+    expect(navigate).toHaveBeenCalledWith('/projects/my%20api/domains');
+  });
+
+  it('opens the add form on the domains of the current project', () => {
+    const navigate = vi.fn();
+    const cmds = buildCommands(makeCtx({ navigate, currentProject: 'hello' }));
     cmds.find((c) => c.id === 'act-add-domain')?.perform();
-    expect(navigate).toHaveBeenCalledWith('/domains?action=add');
+    expect(navigate).toHaveBeenCalledWith('/projects/hello/domains?action=add');
+  });
+
+  // Outside a project there is no page to send them to, and a command named "Add domain" that
+  // lands on the list of projects promises what it does not do.
+  it('offers the domain commands only inside a project', () => {
+    const idsOf = (ctx: CommandContext) => buildCommands(ctx).map((c) => c.id);
+    const inside = idsOf(makeCtx({ currentProject: 'hello' }));
+    const outside = idsOf(makeCtx());
+    expect(inside.filter((id) => !outside.includes(id))).toEqual(['nav-domains', 'act-add-domain']);
   });
 
   it('test_project_quick_jumps_take_top_3', () => {

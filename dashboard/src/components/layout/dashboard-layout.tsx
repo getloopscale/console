@@ -12,6 +12,7 @@ import { CommandPalette } from '@/components/command/command-palette';
 import { buildCommands, sortByRecentDeploy } from '@/components/command/commands';
 import { OnboardingPanel } from '@/components/onboarding/onboarding-panel';
 import { AppSidebar } from './app-sidebar';
+import { resolveActiveMenu } from './app-sidebar-menus';
 import { TopBar } from './top-bar';
 
 interface DashboardLayoutProps {
@@ -40,11 +41,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     pathname === '/observability' || pathname.startsWith('/observability/');
   const { open: paletteOpen, setOpen: setPaletteOpen } = useCommandPalette();
   const { projects } = useProjects();
+  // The project of the route, by the same rule that picks the sidebar menu.
+  const currentProject = resolveActiveMenu(pathname).projectName;
 
   // EC-12: project quick-jumps sorted by last_deploy DESC, tiebreaker created_at
   const commands = useMemo(
-    () => buildCommands({ navigate, recentProjects: sortByRecentDeploy(projects) }),
-    [navigate, projects],
+    () => buildCommands({ navigate, recentProjects: sortByRecentDeploy(projects), currentProject }),
+    [navigate, projects, currentProject],
   );
 
   if (session === null) {

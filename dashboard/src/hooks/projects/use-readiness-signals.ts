@@ -65,7 +65,7 @@ export function useReadinessSignals(
   const status = useProjectStatus(projectName);
   const connection = useProjectConnected(projectName);
   const secrets = useSecrets({ project: projectName ?? '' });
-  const domains = useDomains();
+  const domains = useDomains(projectName);
 
   return useMemo(() => {
     const loading =

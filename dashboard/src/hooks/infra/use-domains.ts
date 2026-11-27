@@ -60,12 +60,15 @@ export interface DomainsResponse {
  * as "no domains yet". The caller still has to READ `isError`; this only guarantees there is
  * something to read.
  */
-export function useDomains() {
+export function useDomains(project?: string) {
+  // The API filters by project. Filtering a page of results on the client would hide the domains
+  // of the project that fell on another page.
+  const filter = project ? `project=${encodeURIComponent(project)}&` : '';
   return useQuery({
-    queryKey: queryKeys.domains.list(),
+    queryKey: queryKeys.domains.list(project ? { project } : undefined),
     queryFn: () =>
       engineFetch<DomainsResponse>(
-        `/api/v1/domains?limit=${LIST_SAFETY_CEILING}`,
+        `/api/v1/domains?${filter}limit=${LIST_SAFETY_CEILING}`,
         {},
         { throwOnError: true },
       ),

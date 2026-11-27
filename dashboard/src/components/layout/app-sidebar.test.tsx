@@ -23,7 +23,6 @@ describe('AppSidebar', () => {
       'Overview',
       'Projects',
       'Sandboxes',
-      'Domains',
       'Billing',
       'Audit log',
       'Settings',
@@ -111,7 +110,7 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('button', { name: /^skills$/i })).toBeInTheDocument();
   });
 
-  it('a RAIZ mostra Domains e Projects — o par que dá sentido às ausências abaixo', () => {
+  it('a RAIZ mostra Sandboxes e Projects — o par que dá sentido às ausências abaixo', () => {
     // B-242 — seis asserções deste arquivo provam que um submenu abriu afirmando que 'Domains' e
     // 'Projects' NÃO estão na tela. Elas só significam alguma coisa se esses dois textos forem
     // encontráveis em ALGUM estado; sem isso, um seletor quebrado (um rename, um typo) satisfaz
@@ -122,7 +121,7 @@ describe('AppSidebar', () => {
     // nenhum caso do arquivo executava.
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/'] });
 
-    expect(screen.getByText('Domains')).toBeInTheDocument();
+    expect(screen.getByText('Sandboxes')).toBeInTheDocument();
     expect(screen.getByText('Projects')).toBeInTheDocument();
   });
 
@@ -138,7 +137,8 @@ describe('AppSidebar', () => {
     // estados não guarda nada — é o mesmo erro, uma camada acima, de validar digitando a URL.
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/skills'] });
 
-    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    // An item only this submenu has: seeing it proves the submenu opened.
+    expect(screen.getByText('Discovery')).toBeInTheDocument();
     expect(screen.queryByText('Projects')).not.toBeInTheDocument();
     expect(screen.getByText('Overview')).toBeInTheDocument();
   });
@@ -151,7 +151,8 @@ describe('AppSidebar', () => {
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly/new'] });
 
     expect(screen.getByText('New revision')).toBeInTheDocument();
-    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    // An item only this submenu has: seeing it proves the submenu opened.
+    expect(screen.getByText('Catalog')).toBeInTheDocument();
   });
 
   it('M12 — comparar NÃO entra no menu, e a ausência é decisão', () => {
@@ -161,6 +162,13 @@ describe('AppSidebar', () => {
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly'] });
 
     expect(screen.queryByText(/comparar/i)).not.toBeInTheDocument();
+  });
+
+  it('opens the project menu on the domains page, with Domains under Settings', () => {
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/projects/hello/domains'] });
+
+    expect(screen.getByRole('button', { name: 'Domains' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Production checklist')).toBeInTheDocument();
   });
 
   it('M25 — a capacidade Prompts está na raiz e leva ao submenu por CLIQUE', () => {
@@ -177,7 +185,8 @@ describe('AppSidebar', () => {
     // da raiz — foi esse o guard falso que a sessão vizinha corrigiu neste mesmo arquivo.
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly'] });
 
-    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    // An item only this submenu has: seeing it proves the submenu opened.
+    expect(screen.getByText('New revision')).toBeInTheDocument();
     expect(screen.queryByText('Projects')).not.toBeInTheDocument();
     expect(screen.getByText('Overview')).toBeInTheDocument();
   });
@@ -187,7 +196,8 @@ describe('AppSidebar', () => {
     // o menu que levou até ele — e o operador perderia a navegação exatamente ao usá-la.
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly/saudacao'] });
 
-    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    // An item only this submenu has: seeing it proves the submenu opened.
+    expect(screen.getByText('New revision')).toBeInTheDocument();
     expect(screen.getByText('Overview')).toBeInTheDocument();
   });
 
@@ -196,7 +206,8 @@ describe('AppSidebar', () => {
     // skill fecharia o menu que levou até ela — e o operador perderia a navegação ao usá-la.
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/skills/sk_1/versions'] });
 
-    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    // An item only this submenu has: seeing it proves the submenu opened.
+    expect(screen.getByText('Discovery')).toBeInTheDocument();
     expect(screen.getByText('Overview')).toBeInTheDocument();
   });
 

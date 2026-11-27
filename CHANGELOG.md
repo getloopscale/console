@@ -7,7 +7,8 @@
 - `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
 
 ### Changed
-- Sidebar: the root menu is grouped as Compute (Projects, Sandboxes, Domains), Agent Services (the group that was called Capabilities) and Organization (Team, Billing, API Tokens, Audit log, Settings), with Overview above them and Profile below (#641).
+- Sidebar: the root menu is grouped as Compute (Projects, Sandboxes), Agent Services (the group that was called Capabilities) and Organization (Team, Billing, API Tokens, Audit log, Settings), with Overview above them and Profile below (#641).
+- Domains moved into the project. The project sidebar lists Domains under Settings, and `/projects/<name>/domains` shows and adds only the domains of that project, without asking which project. `/domains` redirects there when the organization has exactly one project, and to the list of projects otherwise. The command palette offers Domains and Add domain only inside a project, and the Custom domain item of the Production checklist links to the project's page (#641).
 - Project sidebar: the entries are grouped as Deploy (Deployments, Environments, Repository), Run and Settings. Status is now Health, Runtime logs is Logs, Scale is Scaling and Readiness is Production checklist, in the menu, the page heading and the tab title. The addresses of the pages did not change (#641).
 - The console is named loop-console, and every name it shares with the engine follows the platform's `loop-{name}` pattern (getloopscale/loop-runtime#189). It has to be deployed together with an engine of that revision. What changes for an operator:
   - The repository is `getloopscale/loop-console` and the Go module is `github.com/getloopscale/loop-console`.
@@ -33,6 +34,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- Production checklist: Custom domain is measured from the domains of the project. It read the first page of every domain of the organization, so a project whose domain fell outside that page read as having none (#641).
 - Onboarding: the install step shows `npm install -g loopscale`. It showed `@getloopscale/loop-cli`, a package npm does not have.
 - Environments: the Health column shows the ready replicas of each environment, read from `replicas_ready` of the environment list (getloopscale/loop-runtime#224). It showed a dash for every environment. A reading older than five minutes shows a dash, and the uptime cell, which nothing ever filled, is gone. (#637)
 - A row of the Domains page follows the API after "Verify" and after a removal. It stayed "Verified" or "Removing" until a reload. (#635)

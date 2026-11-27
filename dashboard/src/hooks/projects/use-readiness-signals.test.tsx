@@ -112,6 +112,15 @@ describe('useReadinessSignals (J-21 v1.1)', () => {
     expect(result.current.totalSignals).toBe(8);
   });
 
+  // The list of domains is paginated. Reading all of them and searching for the project would
+  // report "no domain" for a project whose domain fell outside the first page.
+  it('asks for the domains of the project it measures', () => {
+    mockAllSettled();
+    mockListEndpoints({ connected: false, secrets: [], domains: [] });
+    renderHook(() => useReadinessSignals('my-api'), { wrapper: wrapper() });
+    expect(mockedUseDomains).toHaveBeenCalledWith('my-api');
+  });
+
   it('measures auto-deploy, secrets and custom domain from their endpoints', () => {
     // Staging loop-app: deployed by the CLI, no repository, one secret, no domain.
     mockAllSettled();

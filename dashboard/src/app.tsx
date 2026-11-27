@@ -33,7 +33,7 @@ import {
   CheckEmailPage,
   DeviceSuccessPage,
   DeviceVerifyPage,
-  DomainsPage,
+  DomainsRedirect,
   LoginPage,
   NotFoundPage,
   OverviewPage,
@@ -172,7 +172,8 @@ export default function App() {
                     <Route path="/environments" element={<Navigate to="/projects" replace />} />
                     <Route path="/team" element={<Boundaried path="/team"><TeamPage /></Boundaried>} />
                     <Route path="/billing" element={<Boundaried path="/billing"><BillingPage /></Boundaried>} />
-                    <Route path="/domains" element={<Boundaried path="/domains"><DomainsPage /></Boundaried>} />
+                    {/* Domains live inside a project; the old address redirects. */}
+                    <Route path="/domains" element={<Boundaried path="/domains"><DomainsRedirect /></Boundaried>} />
                     {/* Canonical API token URL is /settings/tokens (sidebar → Settings → Developer
                         → API Tokens). /api-keys kept as redirect for backward compat with bookmarks
                         and any external link issued before the consolidation. */}

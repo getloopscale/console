@@ -78,7 +78,7 @@ describe('ReadinessChecklist', () => {
     expect(screen.queryAllByRole('link', { name: /Fix it/i })).toHaveLength(0);
   });
 
-  it('sends a missing custom domain to the Domains page', () => {
+  it("sends a missing custom domain to the project's Domains page", () => {
     const signals = buildSignals(
       Object.fromEntries(SIGNALS.map((s) => [s.name, { status: 'unknown' }])),
     );
@@ -87,7 +87,7 @@ describe('ReadinessChecklist', () => {
 
     const links = screen.getAllByRole('link', { name: /Fix it/i });
     expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute('href', '/domains');
+    expect(links[0]).toHaveAttribute('href', '/projects/my-api/domains');
     expect(screen.queryAllByText(/Coming soon/i)).toHaveLength(0);
   });
 

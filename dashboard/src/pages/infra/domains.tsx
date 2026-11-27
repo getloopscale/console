@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { AddDomainSheet } from "@/pages/infra/components/add-domain-sheet";
 import { Globe, Loader2, RefreshCw, Shield, Trash2 } from 'lucide-react';
 import {
@@ -149,7 +149,9 @@ function DomainStatusWatcher({ domainName }: { domainName: string }) {
 
 export function DomainsPage() {
   useRequireAuth();
-  useSetPageTitle('Domains');
+  // The page is a project's: it lists and adds the domains of the project in its route.
+  const { name: projectName = '' } = useParams<{ name: string }>();
+  useSetPageTitle(`${projectName} · Domains`);
 
   // B-017 — a lista precisa morar na MESMA hierarquia que as mutations invalidam.
   // Antes ela usava useEngineApi, cuja chave e ['engine', '/api/v1/domains'],
@@ -174,11 +176,12 @@ export function DomainsPage() {
   // B-244 — a leitura vive no hook do dominio (`hooks/infra/use-domains.ts`), nao aqui: a
   // pagina nao escolhe URL, limite, politica de erro nem query key. A flag `isError` continua
   // sendo LIDA aqui, que e o que `estadoDaLista` obriga e o que o comentario acima explica.
-  const domainsQuery = useDomains();
+  const domainsQuery = useDomains(projectName);
   const data = domainsQuery.data ?? null;
   const loading = domainsQuery.isLoading;
   const readError = domainsQuery.isError;
-  const domains = data?.domains ?? [];
+  // The API filters by project; this keeps the screen right if an answer ignores the filter.
+  const domains = (data?.domains ?? []).filter((d) => d.project === projectName);
   const [verifying, setVerifying] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
@@ -287,7 +290,7 @@ export function DomainsPage() {
             <Table.Header>
               <Table.Row>
                 <Table.HeaderCell>Domain</Table.HeaderCell>
-                <Table.HeaderCell>Project / App</Table.HeaderCell>
+                <Table.HeaderCell>App</Table.HeaderCell>
                 <Table.HeaderCell className="hidden md:table-cell">
                   Environment
                 </Table.HeaderCell>
@@ -323,7 +326,7 @@ export function DomainsPage() {
                     </Table.Cell>
                     <Table.Cell>
                       <span className="font-mono text-label text-muted-foreground">
-                        {d.project}/{d.app}
+                        {d.app}
                       </span>
                     </Table.Cell>
                     <Table.Cell className="hidden md:table-cell">
@@ -429,7 +432,7 @@ export function DomainsPage() {
         title={`Remove "${deleteTarget ?? ''}"?`}
         description={
           <>
-            This removes the domain from your workspace. DNS records at your
+            This removes the domain from this project. DNS records at your
             provider stay in place — you'll need to remove them separately.
           </>
         }
@@ -447,7 +450,7 @@ export function DomainsPage() {
       />
     </PageShell>
     {/* Outside the shell: the shell swaps its children for the empty state. */}
-    <AddDomainSheet open={addOpen} onOpenChange={setAddOpen} />
+    <AddDomainSheet open={addOpen} onOpenChange={setAddOpen} project={projectName} />
     </>
   );
 }

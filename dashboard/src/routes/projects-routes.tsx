@@ -7,6 +7,7 @@ import {
   AttestationTab,
   DeploymentDetailLayout,
   DeploymentsPage,
+  DomainsPage,
   RollbackDetailPage,
   EnvironmentsPage,
   LogsTab,
@@ -113,6 +114,10 @@ export const rotasDeProjects = (
     <Route
     path="/projects/:name/readiness"
     element={<Boundaried path="/projects/:name/readiness"><ProjectGuard><ProjectReadinessPage /></ProjectGuard></Boundaried>}
+    />
+    <Route
+    path="/projects/:name/domains"
+    element={<Boundaried path="/projects/:name/domains"><ProjectGuard><DomainsPage /></ProjectGuard></Boundaried>}
     />
     <Route
     path="/projects/:name/environments"

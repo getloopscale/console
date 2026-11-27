@@ -59,6 +59,25 @@ describe('AddDomainSheet', () => {
     );
   });
 
+  // On the Domains page of a project the project is the one of the route: nothing to pick.
+  it('adds to the project it is given, without asking which project', async () => {
+    buildApps.current = [{ name: 'web', type: 'server' }];
+    render(<AddDomainSheet open onOpenChange={() => {}} project="hello" />);
+    fireEvent.change(screen.getByLabelText('Domain'), { target: { value: 'app.example.com' } });
+
+    expect(screen.getAllByRole('combobox').map((c) => c.id)).toEqual(['add-domain-app', 'add-domain-env']);
+    fireEvent.click(screen.getByRole('button', { name: 'Add domain' }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        domain: 'app.example.com',
+        project: 'hello',
+        app: 'web',
+        environment: 'production',
+      }),
+    );
+  });
+
   it('says the project has no app and sends nothing', async () => {
     buildApps.current = [];
     open();
