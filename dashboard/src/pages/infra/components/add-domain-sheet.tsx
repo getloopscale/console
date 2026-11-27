@@ -6,6 +6,8 @@ import { Alert } from '@/components/ui/alert-guard';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useAddDomain } from '@/hooks/mutations/use-domains';
 import { useEnvironments } from '@/hooks/use-environments';
+import { useProjectStatus } from '@/hooks/use-project-status';
+import { useDeployment } from '@/hooks/deploy/use-deployment';
 import type { Domain } from '@/lib/api/types';
 
 interface AddDomainSheetProps {
@@ -29,7 +31,7 @@ export function AddDomainSheet({
 }: AddDomainSheetProps) {
   const [domain, setDomain] = useState('');
   const [project, setProject] = useState(defaultProject);
-  const [app, setApp] = useState('');
+  const [pickedApp, setApp] = useState('');
   const [environment, setEnvironment] = useState('production');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,15 +45,27 @@ export function AddDomainSheet({
   // só a chave divergia. E `use-bulk-delete-projects` invalida `['projects']`, que não alcança
   // `['engine', …]`: com `staleTime` de 60s, um projeto apagado continuava sendo oferecido aqui.
   const { projects } = useProjects();
-  const selectedProject = projects.find((p) => p.name === project);
-  const apps = selectedProject?.apps ?? [];
   const { envs } = useEnvironments(project);
+  // The names of a project's apps live in its build records. The list of projects carries only
+  // a count, so reading them from there left this selector empty and the form unsendable.
+  const { status } = useProjectStatus(project || undefined, { env: environment, intervalMs: 0, enabled: open });
+  const { build: appsBuild } = useDeployment(status?.active_release?.build_id ?? status?.last_build?.id);
+  const apps = (appsBuild?.apps ?? []).map((a) => a.name);
+  const app = apps.includes(pickedApp) ? pickedApp : (apps[0] ?? '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!DOMAIN_PATTERN.test(domain)) {
       setError('Enter a valid domain (e.g., app.example.com).');
+      return;
+    }
+    if (!project) {
+      setError('Pick the project the domain points to.');
+      return;
+    }
+    if (!app) {
+      setError(`${project} has no deployed app in ${environment}. Deploy it there, then add the domain.`);
       return;
     }
     setSubmitting(true);
@@ -135,7 +149,7 @@ export function AddDomainSheet({
                   </Select.Trigger>
                   <Select.Content>
                     {apps.map((a) => (
-                      <Select.Item key={a.name} value={a.name}>{a.name}</Select.Item>
+                      <Select.Item key={a} value={a}>{a}</Select.Item>
                     ))}
                   </Select.Content>
                 </Select>

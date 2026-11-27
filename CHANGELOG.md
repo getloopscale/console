@@ -30,6 +30,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The Add custom domain dialog lists the apps of the project and can be submitted. The App selector was always disabled, so every attempt ended in an error. It now says so when the project has no deployed app. (#633)
 - The Deployments list reads "now" for a build that has just started. It read "in 2 seconds" when the server's clock was ahead of the browser's. (#631)
 - The timeline of a deployment reads "Deploying" from the end of the build. It alternated with "Unknown" for about 10 seconds while the release of the build did not exist yet (#624).
 - The Deployments list no longer numbers its rows. The number was the position of the row, so every deploy renumbered the builds (#620).
