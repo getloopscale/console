@@ -39,7 +39,7 @@ export function PageHeader({
   );
 }
 
-export function SurfaceHeading({
+function SurfaceHeading({
   title,
   icon: Icon,
   count,
@@ -159,15 +159,6 @@ export function Row({
         <div className={ROW}>{body}</div>
       )}
     </li>
-  );
-}
-
-/** A line of muted text inside a surface: nothing to list, or a note. */
-export function Quiet({ children, role }: { children: ReactNode; role?: 'status' }) {
-  return (
-    <p role={role} className="px-4 py-3 text-sm text-muted-foreground">
-      {children}
-    </p>
   );
 }
 
