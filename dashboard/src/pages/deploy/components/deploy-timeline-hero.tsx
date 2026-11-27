@@ -115,7 +115,7 @@ export function DeployTimelineHero({
       {aggregatorDegradedReason ? (
         <div
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-50/50 px-3 py-2 text-sm text-yellow-900 dark:bg-yellow-950/20 dark:text-yellow-100"
+          className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
         >
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <p className="leading-snug">{aggregatorDegradedReason}</p>
@@ -186,7 +186,7 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
         // In-progress: extra emphasis — primary-tinted ring halo + thicker left
         // accent so the active phase is unmistakable across the 5-cell row.
         isActive
-          ? 'ring-2 ring-blue-500/30 dark:ring-blue-400/30 border-l-4 border-l-blue-500 shadow-sm'
+          ? 'ring-2 ring-info/30 border-l-4 border-l-info shadow-sm'
           : '',
       ]
         .filter(Boolean)
@@ -200,13 +200,13 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
           <span
             className={[
               'relative inline-flex h-5 w-5 items-center justify-center rounded-full',
-              isActive ? 'bg-blue-500/15 ring-1 ring-blue-500/40' : '',
+              isActive ? 'bg-info/15 ring-1 ring-info/40' : '',
             ].join(' ')}
           >
             {isActive ? (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 rounded-full bg-blue-500/40 motion-safe:animate-ping"
+                className="pointer-events-none absolute inset-0 rounded-full bg-info/40 motion-safe:animate-ping"
               />
             ) : null}
             <Icon
@@ -222,7 +222,7 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
           <span
             className={[
               'text-sm',
-              isActive ? 'font-semibold text-blue-900 dark:text-blue-100' : 'font-medium',
+              isActive ? 'font-semibold text-info' : 'font-medium',
               !isActive ? tone.label : '',
             ].join(' ')}
           >
@@ -275,13 +275,13 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
       )}
 
       {isDegraded && cell.degradedReason ? (
-        <p className="mt-2 text-xs text-yellow-900 dark:text-yellow-100 line-clamp-2">
+        <p className="mt-2 text-xs text-warning line-clamp-2">
           {cell.degradedReason}
         </p>
       ) : null}
 
       {isTerminal && cell.status === 'failed' && cell.degradedReason ? (
-        <p className="mt-2 text-xs text-red-900 dark:text-red-100 line-clamp-2">
+        <p className="mt-2 text-xs text-destructive line-clamp-2">
           {cell.degradedReason}
         </p>
       ) : null}
@@ -318,19 +318,19 @@ function StepRow({ step }: { step: PhaseStep }) {
   const isSucceeded = step.status === 'succeeded';
   const Icon = isSucceeded ? Check : isFailed ? X : Loader2;
   const tone = isSucceeded
-    ? 'text-green-600 dark:text-green-400'
+    ? 'text-success'
     : isFailed
-      ? 'text-red-600 dark:text-red-400'
-      : 'text-blue-600 dark:text-blue-400';
+      ? 'text-destructive'
+      : 'text-info';
   return (
     <li
       className={[
         'group relative flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors',
         // Running: emphatic highlight — left accent bar + tinted bg + ring halo + animate-pulse layer.
         isRunning
-          ? 'bg-blue-50/70 ring-1 ring-inset ring-blue-500/30 dark:bg-blue-950/30 dark:ring-blue-400/30 border-l-2 border-l-blue-500'
+          ? 'bg-info/10 ring-1 ring-inset ring-info/30 border-l-2 border-l-info'
           : isFailed
-            ? 'bg-red-50/50 dark:bg-red-950/20'
+            ? 'bg-destructive/10'
             : 'hover:bg-muted/40',
       ].join(' ')}
       data-step-name={step.name}
@@ -341,14 +341,14 @@ function StepRow({ step }: { step: PhaseStep }) {
       {isRunning ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-0.5 top-1/2 -translate-y-1/2 inline-flex h-3 w-3 rounded-full bg-blue-500/30 motion-safe:animate-ping"
+          className="pointer-events-none absolute left-0.5 top-1/2 -translate-y-1/2 inline-flex h-3 w-3 rounded-full bg-info/30 motion-safe:animate-ping"
         />
       ) : null}
       <span className="relative flex items-center gap-1.5 min-w-0">
         <span
           className={[
             'relative inline-flex h-4 w-4 items-center justify-center rounded-full',
-            isRunning ? 'bg-blue-500/15 ring-1 ring-blue-500/40' : '',
+            isRunning ? 'bg-info/15 ring-1 ring-info/40' : '',
           ].join(' ')}
         >
           <Icon
@@ -363,7 +363,7 @@ function StepRow({ step }: { step: PhaseStep }) {
         <span
           className={[
             'truncate',
-            isRunning ? 'font-semibold text-blue-900 dark:text-blue-100' : 'font-medium',
+            isRunning ? 'font-semibold text-info' : 'font-medium',
           ].join(' ')}
           title={step.name}
         >
@@ -376,7 +376,7 @@ function StepRow({ step }: { step: PhaseStep }) {
       <span
         className={[
           'font-mono tabular-nums shrink-0',
-          isRunning ? 'text-blue-700 dark:text-blue-300' : 'text-muted-foreground',
+          isRunning ? 'text-info' : 'text-muted-foreground',
         ].join(' ')}
       >
         <StepDuration step={step} />
@@ -493,23 +493,23 @@ function toneFor(status: PhaseState['status']): ToneTokens {
   switch (status) {
     case 'completed':
       return {
-        surface: 'bg-green-50/40 dark:bg-green-950/15',
-        border: 'border-green-500/40',
-        icon: 'text-green-600 dark:text-green-400',
+        surface: 'bg-success/10',
+        border: 'border-success/40',
+        icon: 'text-success',
         label: 'text-foreground',
       };
     case 'in_progress':
       return {
-        surface: 'bg-blue-50/60 dark:bg-blue-950/20',
-        border: 'border-blue-500/50',
-        icon: 'text-blue-600 dark:text-blue-400',
+        surface: 'bg-info/10',
+        border: 'border-info/50',
+        icon: 'text-info',
         label: 'text-foreground',
       };
     case 'failed':
       return {
-        surface: 'bg-red-50/50 dark:bg-red-950/20',
-        border: 'border-red-500/50',
-        icon: 'text-red-600 dark:text-red-400',
+        surface: 'bg-destructive/10',
+        border: 'border-destructive/50',
+        icon: 'text-destructive',
         label: 'text-foreground',
       };
     case 'canceled':
@@ -521,9 +521,9 @@ function toneFor(status: PhaseState['status']): ToneTokens {
       };
     case 'degraded':
       return {
-        surface: 'bg-yellow-50/50 dark:bg-yellow-950/20',
-        border: 'border-yellow-500/50',
-        icon: 'text-yellow-600 dark:text-yellow-400',
+        surface: 'bg-warning/10',
+        border: 'border-warning/50',
+        icon: 'text-warning',
         label: 'text-foreground',
       };
     case 'ready':
@@ -589,17 +589,17 @@ function overallLabel(overall: OverallStatus): string {
 function overallTone(overall: OverallStatus): string {
   switch (overall) {
     case 'live':
-      return 'bg-green-100/70 text-green-900 ring-green-500/30 dark:bg-green-950/40 dark:text-green-200';
+      return 'bg-success/10 text-success ring-success/30';
     case 'running':
-      return 'bg-blue-100/70 text-blue-900 ring-blue-500/30 dark:bg-blue-950/40 dark:text-blue-200';
+      return 'bg-info/10 text-info ring-info/30';
     case 'queued':
       return 'bg-muted text-muted-foreground ring-border';
     case 'failed':
-      return 'bg-red-100/70 text-red-900 ring-red-500/30 dark:bg-red-950/40 dark:text-red-200';
+      return 'bg-destructive/10 text-destructive ring-destructive/30';
     case 'canceled':
       return 'bg-muted text-muted-foreground ring-border';
     case 'degraded':
-      return 'bg-yellow-100/70 text-yellow-900 ring-yellow-500/30 dark:bg-yellow-950/40 dark:text-yellow-200';
+      return 'bg-warning/10 text-warning ring-warning/30';
     default:
       return 'bg-muted text-muted-foreground ring-border';
   }

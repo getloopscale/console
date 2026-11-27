@@ -29,7 +29,7 @@ export function ConnectionDot({ state }: { state: StreamState }) {
         aria-hidden="true"
         className={[
           'h-1.5 w-1.5 rounded-full',
-          connected ? 'bg-emerald-500 motion-safe:animate-pulse' : 'bg-muted-foreground',
+          connected ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground',
         ].join(' ')}
       />
     </span>

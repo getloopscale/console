@@ -185,7 +185,7 @@ export function BulkUploadSheet({
             {parsed.warnings.map((w) => (
               <div
                 key={`${w.line}-${w.message}`}
-                className="text-label text-amber-600 dark:text-amber-400"
+                className="text-label text-warning"
               >
                 Line {w.line}: {w.message}
               </div>

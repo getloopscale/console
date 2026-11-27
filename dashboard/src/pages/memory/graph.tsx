@@ -15,6 +15,7 @@ import {
   useMemoryGraph,
   type GraphResult,
 } from '@/hooks/memory/use-graph';
+import { themeColor, withAlpha } from '@/lib/theme/canvas-colors';
 
 /**
  * loopmem-graph-gateway-dashboard — /memory/graph.
@@ -296,20 +297,14 @@ function GraphCanvas({ data, labelIds }: { data: ForceGraphData; labelIds: Reado
   }, []);
 
   // Theme colors (canvas cannot use Tailwind classes — read the CSS tokens once).
-  const theme = useMemo(() => {
-    const cs = getComputedStyle(document.documentElement);
-    const tok = (name: string, fallback: string): string => {
-      const raw = cs.getPropertyValue(name).trim();
-      return raw ? `hsl(${raw})` : fallback;
-    };
-    return {
-      fg: tok('--foreground', '#e5e5e5'),
-      muted: tok('--muted-foreground', '#8a8a8a'),
-      border: tok('--border', '#2a2a2a'),
-    };
-  }, []);
-  const withAlpha = (color: string, a: number): string =>
-    color.startsWith('hsl(') ? color.replace(')', ` / ${String(a)})`) : color;
+  const theme = useMemo(
+    () => ({
+      fg: themeColor('--foreground', '#e5e5e5'),
+      muted: themeColor('--muted-foreground', '#8a8a8a'),
+      border: themeColor('--border', '#2a2a2a'),
+    }),
+    [],
+  );
 
   // Adjacency for hover neighbor-highlighting (built from the string-id links).
   const adjacency = useMemo(() => {

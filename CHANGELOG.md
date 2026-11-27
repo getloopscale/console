@@ -8,6 +8,7 @@
 
 ### Changed
 - The console renders in the LoopScale brand: ink and bone in place of black and white, lime as the one brand color in place of violet, Hanken Grotesk for text and JetBrains Mono for code. It still has dark mode only. The fonts are served by the console, so it no longer asks Google Fonts for anything, and the Content-Security-Policy no longer allows `fonts.googleapis.com` or `fonts.gstatic.com`. `@getloopscale/ui` goes from 0.37 to 0.38 (#649).
+- Status colors follow the theme: the deploy timeline, the live release badge, the prompt diff, the connection dot and the secrets warnings use the theme's success, warning, error and info colors in place of fixed green, yellow, red and blue (#649).
 - Sidebar: the root menu is grouped as Compute (Projects, Sandboxes), Agent Services (the group that was called Capabilities) and Organization (Team, Billing, API Tokens, Audit log, Settings), with Overview above them and Profile below (#641).
 - Domains moved into the project. The project sidebar lists Domains under Settings, and `/projects/<name>/domains` shows and adds only the domains of that project, without asking which project. `/domains` redirects there when the organization has exactly one project, and to the list of projects otherwise. The command palette offers Domains and Add domain only inside a project, and the Custom domain item of the Production checklist links to the project's page (#641).
 - Project sidebar: the entries are grouped as Deploy (Deployments, Environments, Repository), Run and Settings. Status is now Health, Runtime logs is Logs, Scale is Scaling and Readiness is Production checklist, in the menu, the page heading and the tab title. The addresses of the pages did not change (#641).
@@ -35,6 +36,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- Memory graph: labels, borders and links are drawn in the theme's colors. The canvas was handed `hsl(...)` around a complete color, which is not a color, so it kept whatever fill came before (#649).
 - Production checklist: Custom domain is measured from the domains of the project. It read the first page of every domain of the organization, so a project whose domain fell outside that page read as having none (#641).
 - Onboarding: the install step shows `npm install -g loopscale`. It showed `@getloopscale/loop-cli`, a package npm does not have.
 - Environments: the Health column shows the ready replicas of each environment, read from `replicas_ready` of the environment list (getloopscale/loop-runtime#224). It showed a dash for every environment. A reading older than five minutes shows a dash, and the uptime cell, which nothing ever filled, is gone. (#637)

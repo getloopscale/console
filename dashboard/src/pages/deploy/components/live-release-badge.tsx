@@ -66,10 +66,10 @@ export function LiveReleaseBadge({
   const Icon = state === 'serving' ? Check : state === 'not-deployed' ? Ban : Loader2;
   const tone =
     state === 'serving'
-      ? 'bg-emerald-50/70 ring-emerald-500/30 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'
+      ? 'bg-success/10 ring-success/30 text-success'
       : state === 'not-deployed'
         ? 'bg-muted/60 ring-border text-foreground'
-        : 'bg-blue-50/70 ring-blue-500/30 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100';
+        : 'bg-info/10 ring-info/30 text-info';
   const label =
     state === 'serving'
       ? 'Serving'
