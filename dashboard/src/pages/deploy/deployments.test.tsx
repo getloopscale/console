@@ -421,6 +421,7 @@ describe('DeploymentsPage', () => {
     renderPage();
 
     const banner = await screen.findByLabelText(/production active commit 602f3c2/i);
+    expect(screen.getByText(/currently serving production/i)).toBeInTheDocument();
     expect(within(banner).getByText(/seconds ago/i)).toBeInTheDocument();
   });
 
