@@ -5,6 +5,7 @@ import { Button, Card, PageShell, StatusDot, Table } from '@getloopscale/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { estadoDaLista } from '@/lib/list-state';
 import { useEngineApi } from '@/hooks/use-api';
+import { useNow } from '@/hooks/deploy/use-clock-tick';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { CreateEnvironmentSheet } from '@/pages/infra/components/create-environment-sheet';
 import { DeleteEnvironmentDialog } from '@/pages/infra/components/delete-environment-dialog';
@@ -21,9 +22,10 @@ interface Environment {
   project?: string;
   projects?: number;
   domain?: string;
-  // KPI fields (v1.1 — page-level SSE multiplex will populate when wired)
-  replicas?: number | null;
-  uptime?: number | null;
+  // The ready replicas the API last read for the environment, and when. Absent for an
+  // environment it never read.
+  replicas_ready?: number | null;
+  replicas_ready_at?: string | null;
   last_deploy?: string | null;
   last_deploy_sha?: string | null;
 }
@@ -105,6 +107,8 @@ export function EnvironmentsPage() {
   // falhou produzia zero ambientes e a tela afirmava "No environments yet".
   // Polled: a promote answers 202 and the target's deploy shows up seconds later.
   const { data, loading, error: readError } = useEngineApi<EnvsResponse>('/api/v1/environments', { refetchInterval: 15_000 });
+  // The relative times and the age of the replicas reading follow this clock.
+  const now = useNow(15_000);
   const [searchQuery, setSearchQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   // O alvo da exclusão carrega o projeto no TIPO: só linhas já recortadas pelo projeto da rota
@@ -275,8 +279,9 @@ export function EnvironmentsPage() {
                         </Table.Cell>
                         <Table.Cell>
                           <EnvironmentKPIRow
-                            replicas={env.replicas}
-                            uptime={env.uptime}
+                            replicasReady={env.replicas_ready}
+                            replicasReadyAt={env.replicas_ready_at}
+                            nowMs={now}
                             lastDeploy={env.last_deploy}
                             lastDeploySha={env.last_deploy_sha}
                           />

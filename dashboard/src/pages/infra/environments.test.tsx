@@ -135,6 +135,23 @@ describe('EnvironmentsPage', () => {
   // project's environments.
   // ===========================================================================
 
+  it('shows the ready replicas the list answers for an environment', () => {
+    mockUseEngineApi.mockReturnValue({
+      data: {
+        environments: [
+          { name: 'production', status: 'active', project: 'web', replicas_ready: 2, replicas_ready_at: new Date().toISOString() },
+          { name: 'preview', status: 'active', project: 'web' },
+        ],
+      },
+      loading: false,
+      error: false,
+      isSuccess: true,
+    });
+    renderAt('/projects/web/environments');
+    expect(screen.getByText('2 replicas')).toBeInTheDocument();
+    expect(screen.getAllByTitle('Ready replicas: no reading in the last 5 minutes')).toHaveLength(1);
+  });
+
   it('test_M20_scopes_to_the_route_project_only', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
