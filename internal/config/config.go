@@ -69,6 +69,12 @@ type Config struct {
 	// Env: ENGINE_API_URL (default: "http://loop-runtime-api.loopscale-system:8080")
 	EngineAPIURL string
 
+	// SandboxAPIURL is the internal URL of the LoopSandbox API, which must run with
+	// LOOPSANDBOX_AUTH=gateway and trust this service's Ed25519 key. Empty leaves
+	// /v1/sandboxes unmounted.
+	// Env: SANDBOX_API_URL (default: none)
+	SandboxAPIURL string
+
 	// JWTIssuer is the expected issuer in JWT tokens (must match Hydra config).
 	// Env: JWT_ISSUER (default: HydraPublicURL + "/")
 	JWTIssuer string
@@ -314,6 +320,7 @@ func Load() Config {
 		HydraAdminURL:     envOr("HYDRA_ADMIN_URL", "http://ory-hydra-admin.loopscale-system:4445"),
 		HydraClientID:     envOr("HYDRA_CLIENT_ID", "loopscale-cli"),
 		EngineAPIURL:      envOr("ENGINE_API_URL", "http://loop-runtime-api.loopscale-system:8080"),
+		SandboxAPIURL:     os.Getenv("SANDBOX_API_URL"),
 		Environment:       envOr("LOOP_RUNTIME_ENV", "dev"),
 	}
 	cfg.JWTIssuer = envOr("JWT_ISSUER", cfg.HydraPublicURL+"/")

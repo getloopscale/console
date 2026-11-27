@@ -109,6 +109,10 @@ var validScopes = map[string]bool{
 	// storage:admin: the vertical is in-process (no broker key mint, unlike rag).
 	"storage:read":  true,
 	"storage:write": true,
+	// Sandbox vertical: a key with sandbox:execute creates and uses code sandboxes
+	// on /v1/sandboxes. The console signs the request for the sandbox service, so
+	// no downstream key is minted.
+	"sandbox:execute": true,
 	// Trust vertical (loopguardrails, M10-M11 Model B L2) — a customer issues a key
 	// carrying trust:read/write/delete for the unified /v1/trust edge.
 	//
