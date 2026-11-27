@@ -196,6 +196,23 @@ describe('a timeline that stopped short', () => {
 });
 
 describe('B-174 — a defesa contra chegada fora de ordem passa a existir', () => {
+  // Between two phases no phase is in progress. With the build phase done and the rest pending,
+  // the hero read "Unknown" during the rollout of a redeploy that reused its image (#613).
+  it('reads as running between phases while the build record says the deploy is in progress', async () => {
+    const { result, rerender } = renderHook(
+      ({ deployStatus }: { deployStatus?: string }) => useDeployTimeline('build-1', { deployStatus }),
+      { initialProps: { deployStatus: 'in_progress' } as { deployStatus?: string } },
+    );
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    act(() => {
+      MockEventSource.instances[0].emit('deploy_timeline.build.completed', { timestamp: 't1' }, '1');
+    });
+    expect(result.current.overall).toBe('running');
+
+    rerender({ deployStatus: undefined });
+    expect(result.current.overall).toBe('unknown');
+  });
+
   it('uma fase anterior a uma CONCLUÍDA não fica pendente para sempre', async () => {
     // O laço que dizia fazer isto tinha corpo VAZIO: `foundActive` era escrito e lido só dentro de
     // um `if` sem instruções. Na reconexão, `deploy.completed` pode chegar antes de

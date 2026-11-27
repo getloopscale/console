@@ -158,16 +158,20 @@ export function useDeployTimeline(
       phases,
       currentPhase: faseCorrente(phases),
       aggregatorDegradedReason: estado.aggregatorDegradedReason,
-      overall: deriveOverall(phases, estado.aggregatorDegradedReason),
+      overall: deriveOverall(phases, estado.aggregatorDegradedReason, options.deployStatus),
       connected: stream.connected,
       lastEventID: stream.lastEventID,
     };
   }, [stream.events, stream.connected, stream.lastEventID, options.deployStatus]);
 }
 
+/** Deploy statuses of a build whose release is still rolling out or back. */
+const DEPLOY_STILL_MOVING = new Set(['in_progress', 'rolling_back']);
+
 function deriveOverall(
   phases: PhaseState[],
   aggregatorReason: string | null,
+  deployStatus: string | undefined,
 ): OverallStatus {
   if (aggregatorReason) return 'degraded';
   const live = phases[phases.length - 1];
@@ -181,5 +185,7 @@ function deriveOverall(
     if (p.status === 'in_progress') return 'running';
   }
   if (phases.every((p) => p.status === 'pending')) return 'queued';
+  // Between two phases none is in progress. The build record still says whether the deploy moves.
+  if (deployStatus && DEPLOY_STILL_MOVING.has(deployStatus)) return 'running';
   return 'unknown';
 }

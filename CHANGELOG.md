@@ -29,6 +29,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The timeline of a build reads "Deploying" during the rollout and "Live" once it serves, with no reload. For a redeploy that reused its image it flipped between "Unknown" and "Deploying" and stayed there: the page stopped rereading the build when the build succeeded, while its deploy was still in progress (#613).
 - The project selector in the top bar shows the project of the current screen. It read "All Projects" on every project screen (#616).
 - The page of a build offers no "Rollback" when that build already serves its environment, and its timeline dates the live release by `last_deploy_at` (#614, #605).
 - "Add secret" and "Rotate" open with empty fields. Chrome treated them as a login form and filled the account e-mail into the key and the saved password into the value (#607).
