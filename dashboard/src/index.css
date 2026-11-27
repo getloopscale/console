@@ -434,3 +434,31 @@ ul[data-type='taskList'] li[data-checked='true'] > div {
   color: var(--color-muted-foreground);
   text-decoration: line-through;
 }
+
+/* A card is a surface of the brand reference: a flat box, and its title on a strip with a
+ * divider under it. The design system draws a shadow and a tall heading. These rules sit outside
+ * any layer so they apply to every card of the console, whatever size the card was given. */
+[data-slot='card'] {
+  box-shadow: none;
+}
+[data-slot='card-header'] {
+  min-height: 2.5rem;
+  justify-content: center;
+  gap: 0.125rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+[data-slot='card-title'] {
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+[data-slot='card-description'] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+[data-slot='card-body'] {
+  padding: 1rem;
+}

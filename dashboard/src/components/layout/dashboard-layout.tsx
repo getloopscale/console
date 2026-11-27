@@ -84,7 +84,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar onCommandPaletteOpen={() => setPaletteOpen(true)} />
           <main id="main-content" className="flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-screen-2xl px-6 py-6">
+            <div className="w-full px-6 py-5">
               {!verified && !onObservability && (
                 <div className="mb-6">
                   <VerificationBanner />
