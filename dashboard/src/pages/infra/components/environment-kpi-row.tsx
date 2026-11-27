@@ -1,56 +1,46 @@
-import { Activity, Clock, Layers } from 'lucide-react';
+import { Clock, Layers } from 'lucide-react';
 
 interface EnvironmentKPIRowProps {
-  /** Number of replicas currently ready in this env. undefined → empty. */
-  replicas?: number | null;
-  /** Uptime % over last 24h. undefined → empty. */
-  uptime?: number | null;
-  /** ISO timestamp of last successful deploy. undefined → empty. */
+  /** The ready replicas the API last read for the environment. Absent: never read. */
+  replicasReady?: number | null;
+  /** When that reading was taken, ISO 8601. */
+  replicasReadyAt?: string | null;
+  /** ISO timestamp of the last successful deploy. */
   lastDeploy?: string | null;
-  /** Short commit SHA of last deploy, linkable to /deployments/<sha>. */
+  /** Commit of the last deploy. */
   lastDeploySha?: string | null;
+  /**
+   * The current time in epoch ms. An input, not read inside: the React Compiler keeps a
+   * computation whose inputs did not change, so a time read inside would never advance.
+   */
+  nowMs: number;
 }
 
+/** A reading older than this says nothing about the environment now. Ten poller intervals. */
+const READING_MAX_AGE_MS = 5 * 60 * 1000;
+const NO_READING = 'Ready replicas: no reading in the last 5 minutes';
+
 /**
- * EnvironmentKPIRow — Plan J-10 v1.1 T2.4 (NEW).
- *
- * Inline KPI strip for an environment row in the /environments table.
- * Three signals v1.0 per blueprint § 2.3 + ADR D4:
- *   - replicas (count, tabular)
- *   - uptime % over 24h (tabular)
- *   - last_deploy timestamp (relative) + sha link
- *
- * Empty state: each cell shows "—" honest when value is undefined/null
- * (not 0 — blueprint § 2.3 "honest empty" pattern: avoids users misreading
- * 0 as "no traffic" vs "no data").
- *
- * Future signals (J-18 will cover): error_rate, build_duration, cost.
- *
- * SSE multiplex (D4): the values come from a page-level SSE stream
- * filtered per env_id — single connection per origin (browser EventSource
- * limit 6 on HTTP/1.1). This component is dumb: just renders props.
+ * The health cells of one row of the Environments table: the ready replicas and the last
+ * deploy. A value the API did not answer is a dash, never a zero, which would read as
+ * "nothing runs".
  */
 export function EnvironmentKPIRow({
-  replicas,
-  uptime,
+  replicasReady,
+  replicasReadyAt,
   lastDeploy,
   lastDeploySha,
+  nowMs,
 }: EnvironmentKPIRowProps) {
+  const replicas = freshReplicas(replicasReady, replicasReadyAt, nowMs);
   return (
     <div className="flex items-center gap-4 text-label">
       <span
         className="inline-flex items-center gap-1 tabular-nums text-muted-foreground"
-        title="Ready replicas"
+        title={replicas === null ? NO_READING : 'Ready replicas'}
       >
         <Layers className="size-3" aria-hidden="true" />
-        <span>{formatReplicas(replicas)}</span>
-      </span>
-      <span
-        className="inline-flex items-center gap-1 tabular-nums text-muted-foreground"
-        title="Uptime over last 24h"
-      >
-        <Activity className="size-3" aria-hidden="true" />
-        <span>{formatUptime(uptime)}</span>
+        <span>{replicas === null ? '—' : `${replicas} replica${replicas !== 1 ? 's' : ''}`}</span>
       </span>
       <span
         className="inline-flex items-center gap-1 tabular-nums text-muted-foreground"
@@ -61,32 +51,33 @@ export function EnvironmentKPIRow({
         }
       >
         <Clock className="size-3" aria-hidden="true" />
-        <span>{formatLastDeploy(lastDeploy, lastDeploySha)}</span>
+        <span>{formatLastDeploy(lastDeploy, lastDeploySha, nowMs)}</span>
       </span>
     </div>
   );
 }
 
-function formatReplicas(replicas?: number | null): string {
-  if (replicas === undefined || replicas === null) return '—';
-  return `${replicas} replica${replicas !== 1 ? 's' : ''}`;
-}
-
-function formatUptime(uptime?: number | null): string {
-  if (uptime === undefined || uptime === null) return '—';
-  if (uptime >= 100) return '100%';
-  return `${uptime.toFixed(2)}%`;
+/** The ready replicas when their reading is recent, null otherwise. */
+function freshReplicas(
+  replicas: number | null | undefined,
+  readAt: string | null | undefined,
+  nowMs: number,
+): number | null {
+  if (replicas === undefined || replicas === null || !readAt) return null;
+  const at = Date.parse(readAt);
+  if (Number.isNaN(at) || nowMs - at > READING_MAX_AGE_MS) return null;
+  return replicas;
 }
 
 function formatLastDeploy(
-  lastDeploy?: string | null,
-  sha?: string | null,
+  lastDeploy: string | null | undefined,
+  sha: string | null | undefined,
+  nowMs: number,
 ): string {
   if (!lastDeploy) return '—';
   const ts = new Date(lastDeploy).getTime();
   if (Number.isNaN(ts)) return '—';
-  const deltaMs = Date.now() - ts;
-  const rel = relativeFromMs(deltaMs);
+  const rel = relativeFromMs(nowMs - ts);
   return sha ? `${rel} (${sha.slice(0, 7)})` : rel;
 }
 
