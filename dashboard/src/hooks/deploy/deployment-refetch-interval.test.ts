@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { Build } from '@/lib/api/types';
-import { deploymentRefetchInterval } from './deployment-refetch-interval';
+import { awaitsRelease, deploymentRefetchInterval, effectiveDeployStatus } from './deployment-refetch-interval';
 
 const build = (status: string, deploy_status?: string) => ({ status, deploy_status }) as unknown as Build;
 
@@ -46,5 +46,37 @@ describe('deploymentRefetchInterval', () => {
   it('does not poll before the first answer or for a build that does not exist', () => {
     expect(deploymentRefetchInterval(undefined)).toBe(false);
     expect(deploymentRefetchInterval(null)).toBe(false);
+  });
+});
+
+// The API answers SUCCEEDED a few seconds before the release of the build exists, with no
+// deploy_status. The page stopped reading there, and for about 10 seconds the timeline flipped
+// between "Unknown" and "Deploying" (#624).
+describe('a build that succeeded and has no release yet', () => {
+  const NOW = Date.parse('2026-11-27T02:35:00Z');
+  const ended = (secondsAgo: number, deploy_status?: string) =>
+    ({ status: 'SUCCEEDED', deploy_status, finished_at: new Date(NOW - secondsAgo * 1000).toISOString() }) as unknown as Build;
+
+  it('awaits its release for two minutes after the build ended', () => {
+    expect(awaitsRelease(ended(5), NOW)).toBe(true);
+    expect(awaitsRelease(ended(119), NOW)).toBe(true);
+    expect(awaitsRelease(ended(121), NOW)).toBe(false);
+  });
+
+  it('does not await a release that exists, a build that did not succeed or one with no end time', () => {
+    expect(awaitsRelease(ended(5, 'in_progress'), NOW)).toBe(false);
+    expect(awaitsRelease({ status: 'FAILED', finished_at: new Date(NOW - 5000).toISOString() } as unknown as Build, NOW)).toBe(false);
+    expect(awaitsRelease({ status: 'SUCCEEDED' } as unknown as Build, NOW)).toBe(false);
+  });
+
+  it('keeps being read while it awaits the release', () => {
+    expect(deploymentRefetchInterval(ended(5), NOW)).toBe(5000);
+    expect(deploymentRefetchInterval(ended(300), NOW)).toBe(false);
+  });
+
+  it('counts as a deploy in progress for the timeline, and only while it awaits', () => {
+    expect(effectiveDeployStatus(ended(5), NOW)).toBe('in_progress');
+    expect(effectiveDeployStatus(ended(300), NOW)).toBeUndefined();
+    expect(effectiveDeployStatus(ended(5, 'succeeded'), NOW)).toBe('succeeded');
   });
 });

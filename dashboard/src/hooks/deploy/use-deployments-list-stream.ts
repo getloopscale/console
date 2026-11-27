@@ -122,6 +122,14 @@ export function useDeploymentsListStream(
         refetchedFor.current.add(id);
         needsRefetch = true;
       }
+      // An event that ends a build without its duration (a failed build's) leaves the row with
+      // nothing to show for it. The list holds the duration, so it is read again, once per build.
+      const ended = ev.type === 'build.succeeded' || ev.type === 'build.failed';
+      const endKey = `ended:${id}`;
+      if (ended && known.has(id) && data.duration_seconds === undefined && !refetchedFor.current.has(endKey)) {
+        refetchedFor.current.add(endKey);
+        needsRefetch = true;
+      }
     }
     if (needsRefetch) {
       void queryClient.invalidateQueries({

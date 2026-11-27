@@ -4,6 +4,7 @@ import { Badge, Button, Input } from '@getloopscale/ui';
 import { triggerLogDownload } from '@/pages/deploy/export/log-download';
 import type { LogLine, LogLevel } from '@/lib/api/types';
 import { parseAnsi } from '@/pages/deploy/components/ansi';
+import { readableLogMessage } from '@/pages/deploy/components/pipeline-control-line';
 
 interface LogViewerProps {
   lines: LogLine[];
@@ -136,7 +137,7 @@ const LogLineRow = memo(function LogLineRow({ line, index }: { line: LogLine; in
         </Badge>
       )}
       <span className={`flex-1 break-all ${LEVEL_COLOR[line.level]}`}>
-        {parseAnsi(line.msg)}
+        {parseAnsi(readableLogMessage(line.msg))}
       </span>
     </div>
   );

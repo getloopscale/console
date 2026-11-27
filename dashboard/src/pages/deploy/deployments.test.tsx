@@ -145,6 +145,15 @@ describe('DeploymentsPage', () => {
 
     await waitFor(() => expect(screen.queryByText(/no deployments/i)).not.toBeInTheDocument());
     expect(screen.getByText('1234567')).toBeInTheDocument();
+    // No positional number column: a row's position changes with every deploy (#620).
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
+      'Status',
+      'Commit',
+      'Author',
+      'Started',
+      'Duration',
+      'View deployment',
+    ]);
   });
 
   // B-242 — the anchor for the absence assertion above. No case in this file ever showed the
@@ -214,14 +223,15 @@ describe('DeploymentsPage', () => {
 
     const es = MockEventSource.instances[0];
     await act(async () => {
-      es.emit('build.succeeded', { build_id: 'b-1', status: 'succeeded' });
+      es.emit('build.succeeded', { build_id: 'b-1', status: 'succeeded', duration_seconds: 42 });
     });
 
     await waitFor(() => {
       const newRow = screen.getByText('aaaaaaa').closest('tr');
       expect(within(newRow as HTMLElement).getByText(/succeeded/i)).toBeInTheDocument();
     });
-    // SSE patches in place, no refetch of the BUILDS LIST. (useProjectStatus
+    // The event carries the duration, so SSE patches in place with no refetch of the BUILDS LIST
+    // (an event without one makes the list read again, #621). (useProjectStatus
     // refetches its own /status endpoint on a separate interval; we only
     // assert the builds list query was hit once.)
     const buildsCalls = mockedEngineFetch.mock.calls.filter(([p]) =>

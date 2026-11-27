@@ -31,11 +31,11 @@ export function RollbackRow({ projectName, rollback, targetCommit }: RollbackRow
   const startedAbs = formatDate(rollback.created_at, 'datetime');
   return (
     <Table.Row data-testid="rollback-row">
-      <Table.Cell className="hidden sm:table-cell">
-        <Undo2 className="size-4 text-muted-foreground" aria-hidden="true" />
-      </Table.Cell>
       <Table.Cell>
-        <StatusDot status={status.kind} label={status.label} />
+        <span className="inline-flex items-center gap-2">
+          <Undo2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <StatusDot status={status.kind} label={status.label} />
+        </span>
       </Table.Cell>
       <Table.Cell>
         <div className="flex flex-col gap-0.5">

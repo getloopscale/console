@@ -9,6 +9,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeploymentsListStream } from '@/hooks/deploy/use-deployments-list-stream';
 import { useProjectStatus } from '@/hooks/use-project-status';
+import { useClockTick } from '@/hooks/deploy/use-clock-tick';
 import { useMutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 import { useBuildEnvs } from '@/hooks/deploy/use-build-envs';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
@@ -71,6 +72,8 @@ function envChipLabel(env: string): string {
 export function DeploymentsPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
+  // The rows write their start relative to now; without a tick they froze at the first render.
+  useClockTick(30_000);
   useSetPageTitle(name ? `${name} · Deployments` : 'Deployments');
   // T2.3 + EC-05 wire: status filter lives in URL (bookmarkable, browser
   // back/forward works). Filter value flows into useDeployments → queryKey
@@ -416,7 +419,6 @@ export function DeploymentsPage() {
           <Table>
             <Table.Header>
               <Table.Row>
-                <Table.HeaderCell className="hidden sm:table-cell">#</Table.HeaderCell>
                 <Table.HeaderCell>Status</Table.HeaderCell>
                 <Table.HeaderCell>Commit</Table.HeaderCell>
                 <Table.HeaderCell className="hidden md:table-cell">
@@ -443,7 +445,6 @@ export function DeploymentsPage() {
                     key={entry.build.build_id}
                     projectName={name}
                     build={entry.build}
-                    order={entry.order}
                     activeBuildId={activeBuildIdByEnv[entry.build.environment]}
                     url={urlByEnv[entry.build.environment]}
                     mutationInFlight={mutationInFlight}

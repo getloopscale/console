@@ -262,4 +262,30 @@ describe('useDeploymentsListStream', () => {
     // No refetch needed for in-place patch — engineFetch called only once.
     expect(mockedEngineFetch).toHaveBeenCalledTimes(1);
   });
+
+  // A failed build's event carries no duration, and the row read "Failed" with an empty duration
+  // until a reload (getloopscale/loop-console#621). The list reads the build again, once.
+  it('reads the list again when a build ends without a duration in the event', async () => {
+    mockedEngineFetch.mockResolvedValueOnce({
+      builds: [makeBuild('b-1', { status: 'running' })],
+      total: 1,
+    } as BuildListResponse);
+    mockedEngineFetch.mockResolvedValue({
+      builds: [makeBuild('b-1', { status: 'failed', duration_seconds: 101 })],
+      total: 1,
+    } as BuildListResponse);
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDeploymentsListStream('teste'), { wrapper });
+    await waitFor(() => expect(result.current.builds[0]?.status).toBe('running'));
+
+    const es = MockEventSource.instances[0];
+    await act(async () => {
+      es.emit('build.failed', { build_id: 'b-1', status: 'failed' });
+      es.emit('build.failed', { build_id: 'b-1', status: 'failed' });
+    });
+
+    await waitFor(() => expect(result.current.builds[0]?.duration_seconds).toBe(101));
+    expect(mockedEngineFetch).toHaveBeenCalledTimes(2);
+  });
 });

@@ -7,7 +7,7 @@ import type { Build, RollbackRecord } from '@/lib/api/types';
  * of its own between the builds, where it happened in time.
  */
 export type DeploymentEntry =
-  | { kind: 'build'; build: Build; at: number; /** 1 for the newest build shown. */ order: number }
+  | { kind: 'build'; build: Build; at: number }
   | { kind: 'rollback'; rollback: RollbackRecord; at: number };
 
 export interface DeploymentEntryFilters {
@@ -53,7 +53,6 @@ export function deploymentEntries(
     kind: 'build' as const,
     build,
     at: instant(build.started_at ?? build.created_at),
-    order: 0,
   }));
   const oldestBuild = buildRows.reduce((min, row) => Math.min(min, row.at), Number.POSITIVE_INFINITY);
 
@@ -63,11 +62,6 @@ export function deploymentEntries(
     .map((rollback) => ({ kind: 'rollback' as const, rollback, at: instant(rollback.created_at) }))
     .filter((row) => !filters.moreBuildsOnServer || row.at >= oldestBuild);
 
-  const entries: DeploymentEntry[] = [...buildRows, ...rollbackRows].sort((a, b) => b.at - a.at);
-  let order = 0;
-  for (const entry of entries) {
-    if (entry.kind === 'build') entry.order = ++order;
-  }
-  return entries;
+  return [...buildRows, ...rollbackRows].sort((a, b) => b.at - a.at);
 }
 

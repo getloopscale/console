@@ -29,6 +29,16 @@ describe('LogViewer (J-19 T1.2 — R2 ANSI render integration)', () => {
     expect(screen.getByText(/connection refused/)).toBeInTheDocument();
   });
 
+  it('shows the message of a pipeline control line and not its marker', () => {
+    const lines: LogLine[] = [
+      { ts: TS, level: 'info', msg: '::loop-runtime:: phase=install step=install-deps level=info msg="Install deps starting"' },
+    ];
+    render(
+      <LogViewer lines={lines} connected={true} error={false} paused={false} onTogglePause={vi.fn()} onClear={vi.fn()} />,
+    );
+    expect(document.querySelector('[data-line-index="0"]')?.lastElementChild?.textContent).toBe('Install deps starting');
+  });
+
   it('test_log_viewer_plain_msg_renders_unchanged_no_extra_span', () => {
     const lines: LogLine[] = [
       { ts: TS, level: 'info', msg: 'plain message no ANSI' },
