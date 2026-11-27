@@ -29,6 +29,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The project selector in the top bar shows the project of the current screen. It read "All Projects" on every project screen (#616).
 - The page of a build offers no "Rollback" when that build already serves its environment, and its timeline dates the live release by `last_deploy_at` (#614, #605).
 - "Add secret" and "Rotate" open with empty fields. Chrome treated them as a login form and filled the account e-mail into the key and the saved password into the value (#607).
 - The page of a build reaches its final state without a reload. It could stay on "Running" with "Cancel build" after the build succeeded, when the build ended with no final event on the stream. The page now rereads the build every 5 seconds until it reaches a final status (#606).
