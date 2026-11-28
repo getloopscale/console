@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import { Button, Input, Label, Select, Sheet } from '@getloopscale/ui';
+import { Loader2, UserPlus } from 'lucide-react';
+import { Button, Input, Label, Select } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { AppModal } from '@/components/ui/app-modal';
 import { useInviteMember } from '@/hooks/mutations/use-team';
 import type { TeamMember, TeamRole } from '@/lib/api/types';
 
@@ -56,57 +57,54 @@ export function InviteMemberSheet({ open, onOpenChange, onInvited }: InviteMembe
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-        <form onSubmit={handleSubmit} className="flex h-full flex-col">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>Invite teammate</Sheet.Title>
-            <Sheet.Description>
-              They'll receive an email with a join link.
-            </Sheet.Description>
-          </Sheet.Header>
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Invite teammate"
+      description="They'll receive an email with a join link."
+      icon={<UserPlus className="size-4" aria-hidden="true" />}
+      busy={submitting}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button type="submit" form="invite-member-form" disabled={submitting}>
+            {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {submitting ? 'Sending…' : 'Send invite'}
+          </Button>
+        </>
+      }
+    >
+      <form id="invite-member-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="invite-email">Email</Label>
+          <Input
+            id="invite-email"
+            type="email"
+            placeholder="teammate@acme.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+            required
+          />
+        </div>
 
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div>
-              <Label htmlFor="invite-email">Email</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                placeholder="teammate@acme.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoFocus
-                required
-              />
-            </div>
+        <div>
+          <Label htmlFor="invite-role">Role</Label>
+          <Select value={role} onValueChange={(v) => setRole(v as TeamRole)}>
+            <Select.Trigger id="invite-role">
+              <Select.Value placeholder="Member" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="member">Member · view + deploy</Select.Item>
+              <Select.Item value="admin">Admin · manage team + billing</Select.Item>
+            </Select.Content>
+          </Select>
+        </div>
 
-            <div>
-              <Label htmlFor="invite-role">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as TeamRole)}>
-                <Select.Trigger id="invite-role">
-                  <Select.Value placeholder="Member" />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="member">Member · view + deploy</Select.Item>
-                  <Select.Item value="admin">Admin · manage team + billing</Select.Item>
-                </Select.Content>
-              </Select>
-            </div>
-
-            {error && <Alert intent="destructive" description={error} />}
-          </Sheet.Body>
-
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {submitting ? 'Sending…' : 'Send invite'}
-            </Button>
-          </Sheet.Footer>
-        </form>
-      </Sheet.Content>
-    </Sheet>
+        {error && <Alert intent="destructive" description={error} />}
+      </form>
+    </AppModal>
   );
 }

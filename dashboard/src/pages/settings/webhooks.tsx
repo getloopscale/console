@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { History, Plus, Trash2 } from 'lucide-react';
+import { History, Plus, Send, Trash2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -7,7 +7,6 @@ import {
   DataTable,
   type DataTableColumn,
   EmptyState,
-  Sheet,
   Timestamp,
 } from '@getloopscale/ui';
 import { PageShell } from '@/components/ui/page-shell';
@@ -260,48 +259,47 @@ function DeliveriesSheet({
   const deliveries = query.data?.deliveries ?? [];
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right">
-        <Sheet.Header>
-          <Sheet.Title>Recent deliveries</Sheet.Title>
-          <Sheet.Description>
-            {webhook.label} · last {deliveries.length} {deliveries.length === 1 ? 'delivery' : 'deliveries'}
-          </Sheet.Description>
-        </Sheet.Header>
-        <Sheet.Body className="space-y-3">
-          {/* B-167 — único local fora de `empty=`; `query.isError` existia e não era lido. */}
-          {query.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading deliveries…</p>
-          ) : query.isError ? (
-            <p className="text-sm text-muted-foreground" data-testid="deliveries-error">{DELIVERIES_READ_FAILURE}</p>
-          ) : deliveries.length === 0 ? (
-            <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">No deliveries yet.</p>
-          ) : (
-            deliveries.map((d) => (
-              <Card key={d.id} data-testid={`delivery-${d.id}`}>
-                <Card.Body>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={deliveryStatusVariant(d.status)}>{d.status}</Badge>
-                      <span className="text-sm font-medium">{d.event_type}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      <Timestamp value={d.created_at} /> · attempt {d.attempt_count}
-                      {d.last_response_status ? ` · HTTP ${d.last_response_status}` : ''}
-                    </p>
-                    {d.last_error_message ? (
-                      <p className="text-xs text-destructive truncate" title={d.last_error_message}>
-                        {d.last_error_message}
-                      </p>
-                    ) : null}
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Recent deliveries"
+      description={<>{webhook.label} · last {deliveries.length} {deliveries.length === 1 ? 'delivery' : 'deliveries'}</>}
+      icon={<Send className="size-4" aria-hidden="true" />}
+      size="lg"
+    >
+      <div className="space-y-3">
+        {/* B-167 — único local fora de `empty=`; `query.isError` existia e não era lido. */}
+        {query.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading deliveries…</p>
+        ) : query.isError ? (
+          <p className="text-sm text-muted-foreground" data-testid="deliveries-error">{DELIVERIES_READ_FAILURE}</p>
+        ) : deliveries.length === 0 ? (
+          <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">No deliveries yet.</p>
+        ) : (
+          deliveries.map((d) => (
+            <Card key={d.id} data-testid={`delivery-${d.id}`}>
+              <Card.Body>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={deliveryStatusVariant(d.status)}>{d.status}</Badge>
+                    <span className="text-sm font-medium">{d.event_type}</span>
                   </div>
-                </Card.Body>
-              </Card>
-            ))
-          )}
-        </Sheet.Body>
-      </Sheet.Content>
-    </Sheet>
+                  <p className="text-xs text-muted-foreground">
+                    <Timestamp value={d.created_at} /> · attempt {d.attempt_count}
+                    {d.last_response_status ? ` · HTTP ${d.last_response_status}` : ''}
+                  </p>
+                  {d.last_error_message ? (
+                    <p className="text-xs text-destructive truncate" title={d.last_error_message}>
+                      {d.last_error_message}
+                    </p>
+                  ) : null}
+                </div>
+              </Card.Body>
+            </Card>
+          ))
+        )}
+      </div>
+    </AppModal>
   );
 }
 

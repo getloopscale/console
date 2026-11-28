@@ -292,7 +292,7 @@ export function LensMonitorsPage() {
         description="Alert when an evaluator score crosses a threshold."
         footer={
           <>
-            <Button variant="secondary" onClick={closeCreate}>
+            <Button variant="ghost" onClick={closeCreate}>
               Cancel
             </Button>
             <Button

@@ -33,6 +33,9 @@ test.describe('M22 — o monitor de prompt pela tela', () => {
   test('do menu à regra criada, com o uso medido e o estado de avaliação visíveis', async ({ page }) => {
     await navegarAteAlertasPeloMenu(page);
 
+    // The create form is a modal, opened from the page's primary action.
+    await page.getByRole('button', { name: /new alert rule/i }).click();
+
     // ---- A quarta métrica está oferecida ------------------------------------------------
     await page.getByRole('combobox', { name: /Metric/i }).click();
     await expect(page.getByRole('option', { name: /prompt/i })).toBeVisible();

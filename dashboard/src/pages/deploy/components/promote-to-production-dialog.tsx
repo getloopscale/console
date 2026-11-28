@@ -160,7 +160,8 @@ export function PromoteToProductionDialog({
     <AppModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={<span className="inline-flex items-center gap-2"><ArrowUpToLine className="size-5 text-primary" aria-hidden="true" />Promote {sha} to production</span>}
+      title={<>Promote {sha} to production</>}
+      icon={<ArrowUpToLine className="size-4" aria-hidden="true" />}
       description={<>This will make <span className="font-mono">{sha}</span> the
             production deploy of{' '}<span className="font-mono">{projectName}</span>. Visitors will see
             this version. The current production release becomes the previous

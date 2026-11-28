@@ -1,5 +1,7 @@
-import { Badge, Card, Sheet, Timestamp } from '@getloopscale/ui';
+import { History } from 'lucide-react';
+import { Badge, Card, Timestamp } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { AppModal } from '@/components/ui/app-modal';
 import { useApiKeyLineage } from '@/hooks/settings/use-api-keys';
 import type { APIKeyView, LineageItem } from '@/hooks/settings/api-keys-api';
 
@@ -39,7 +41,7 @@ interface LineageSheetProps {
 }
 
 /**
- * API Key Lineage View plan T7.4 — Sheet drawer showing the rotation chain
+ * API Key Lineage View plan T7.4 — modal showing the rotation chain
  * as a vertical timeline. Each item: prefix + name + status badge.
  * Current key highlighted with a "Current" badge.
  */
@@ -48,33 +50,29 @@ export function LineageSheet({ target, onClose }: LineageSheetProps) {
   const query = useApiKeyLineage(target?.id);
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <Sheet.Content side="right">
-        <Sheet.Header>
-          <Sheet.Title>Rotation history</Sheet.Title>
-          <Sheet.Description>
-            {target
-              ? `Lineage of "${target.name}" — root key first, current key last.`
-              : null}
-          </Sheet.Description>
-        </Sheet.Header>
-        <div className="p-4 space-y-3" data-testid="lineage-timeline">
-          {query.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading lineage…</p>
-          ) : query.isError ? (
-            <Alert
-              intent="warning"
-              title="Could not load lineage"
-              description="Try again in a moment."
-            />
-          ) : (
-            (query.data?.lineage ?? []).map((item) => (
-              <LineageRow key={item.id} item={item} />
-            ))
-          )}
-        </div>
-      </Sheet.Content>
-    </Sheet>
+    <AppModal
+      open={open}
+      onClose={onClose}
+      title="Rotation history"
+      description={target ? `Lineage of "${target.name}" — root key first, current key last.` : undefined}
+      icon={<History className="size-4" aria-hidden="true" />}
+    >
+      <div className="space-y-3" data-testid="lineage-timeline">
+        {query.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading lineage…</p>
+        ) : query.isError ? (
+          <Alert
+            intent="warning"
+            title="Could not load lineage"
+            description="Try again in a moment."
+          />
+        ) : (
+          (query.data?.lineage ?? []).map((item) => (
+            <LineageRow key={item.id} item={item} />
+          ))
+        )}
+      </div>
+    </AppModal>
   );
 }
 

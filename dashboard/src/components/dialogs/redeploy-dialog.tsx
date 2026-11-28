@@ -75,12 +75,9 @@ export function RedeployDialog({
     <AppModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={
-        <span className="inline-flex items-center gap-2">
-          <RefreshCw className="size-5 text-primary" aria-hidden="true" />
-          Redeploy {sha}
-        </span>
-      }
+      title={<>Redeploy {sha}</>}
+      icon={<RefreshCw className="size-4" aria-hidden="true" />}
+      busy={redeploy.isPending}
       description={
         <>
           A new build will start from commit{' '}

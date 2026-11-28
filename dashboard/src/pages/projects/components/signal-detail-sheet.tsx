@@ -116,8 +116,22 @@ export function SignalDetailSheet({
               role="status"
               className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-body-sm text-destructive"
             >
-              Metrics service unreachable. Try again in a moment.
+              Could not read the metric: the metrics service is unreachable. Try again in a moment.
             </div>
+          )}
+
+          {/* A reading that came back empty and a reading that has not come back are different
+              facts, and neither may leave the modal blank. */}
+          {status === 'ok' && data.length === 0 && (
+            <p role="status" className="text-body-sm text-muted-foreground">
+              No data points in the last 7 days.
+            </p>
+          )}
+
+          {status === 'unknown' && (
+            <p role="status" aria-live="polite" className="text-body-sm text-muted-foreground">
+              Reading the metric…
+            </p>
           )}
 
           {status === 'ok' && data.length > 0 && (

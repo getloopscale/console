@@ -222,7 +222,7 @@ export function SkillsPage() {
       onClose={() => setDetail(null)}
       title={<>{detail.description}</>}
       description={<><span className="font-mono">{detail.repoId}</span>{detail.codeLanguage ? ` · ${detail.codeLanguage}` : ''}</>}
-      footer={<><Button variant="secondary" onClick={() => setDetail(null)}>
+      footer={<><Button variant="ghost" onClick={() => setDetail(null)}>
                 Close
               </Button></>}
     >

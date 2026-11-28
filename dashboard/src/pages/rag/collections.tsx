@@ -5,7 +5,7 @@ import {
   type Collection,
 } from '@/hooks/rag/use-collections';
 import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { FolderPlus, Plus, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
@@ -13,11 +13,13 @@ import {
   type DataTableColumn,
   EmptyState,
   Input,
+  Label,
   Skeleton,
   Timestamp,
 } from '@getloopscale/ui';
 import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -37,6 +39,7 @@ export function RagCollectionsPage() {
   useRequireAuth();
 
   const [name, setName] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Collection | null>(null);
 
   const query = useCollections();
@@ -66,39 +69,20 @@ export function RagCollectionsPage() {
 
   const items = query.data?.items ?? [];
 
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setName('');
+    create.reset();
+  };
+
   return (
     <>
-      <PageShell title="Collections" description="Create and manage the collections documents are ingested into.">
+      <PageShell
+        title="Collections"
+        description="Create and manage the collections documents are ingested into."
+        primaryAction={{ label: 'New collection', icon: Plus, onClick: () => setCreateOpen(true) }}
+      >
         <div className="space-y-6">
-          <Card>
-            <Card.Body>
-              <form
-                className="flex items-end gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (name.trim()) create.mutate(name.trim(), { onSuccess: () => setName('') });
-                }}
-              >
-                <div className="flex-1">
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="New collection name"
-                    aria-label="New collection name"
-                  />
-                </div>
-                <Button type="submit" disabled={!name.trim() || create.isPending}>
-                  Create
-                </Button>
-              </form>
-              {create.isError ? (
-                <Alert intent="destructive" title="Could not create the collection" className="mt-3">
-                  Try again shortly.
-                </Alert>
-              ) : null}
-            </Card.Body>
-          </Card>
-
           {query.isLoading ? (
             <Skeleton />
           ) : query.isError ? (
@@ -114,6 +98,52 @@ export function RagCollectionsPage() {
           )}
         </div>
       </PageShell>
+
+      <AppModal
+        open={createOpen}
+        onClose={closeCreate}
+        title="New collection"
+        description="Documents are ingested into a collection, and a search runs over one collection at a time."
+        icon={<FolderPlus className="size-4" aria-hidden="true" />}
+        size="sm"
+        busy={create.isPending}
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={closeCreate} disabled={create.isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" form="new-collection-form" disabled={!name.trim() || create.isPending}>
+              {create.isPending ? 'Creating…' : 'Create collection'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="new-collection-form"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) create.mutate(name.trim(), { onSuccess: closeCreate });
+          }}
+        >
+          <div>
+            <Label htmlFor="new-collection-name">Name</Label>
+            <Input
+              id="new-collection-name"
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="product-docs"
+              aria-label="New collection name"
+            />
+          </div>
+          {create.isError ? (
+            <Alert intent="destructive" title="Could not create the collection">
+              Try again shortly.
+            </Alert>
+          ) : null}
+        </form>
+      </AppModal>
 
       {pendingDelete ? (
         <ConfirmDialog

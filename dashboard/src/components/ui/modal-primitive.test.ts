@@ -94,6 +94,38 @@ describe('primitivo de modal único', () => {
     ).toEqual([PRIMITIVO]);
   });
 
+  it('no screen opens a side drawer or the upstream dialog', () => {
+    // The console has ONE way to show a transient screen: the centered `AppModal`. A side
+    // drawer (`Sheet`) or the design system `Dialog` is a second way, with its own width,
+    // header and footer, and that is how "Add secret" came to slide in from the right while
+    // "New environment", on the screen next to it, opened in the middle.
+    //
+    // The command palette is the one exception: it is a search box, with no title bar and no
+    // footer, so the layout of a modal does not apply to it.
+    const EXCEPTIONS = new Set(['components/command/command-palette.tsx']);
+    const offenders: string[] = [];
+    let scanned = 0;
+    for (const f of arquivosDeProducao()) {
+      const rel = relative(SRC, f).replace(/\\/g, '/');
+      const src = readFileSync(f, 'utf8');
+      scanned++;
+      if (EXCEPTIONS.has(rel)) continue;
+      for (const m of src.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*'@getloopscale\/ui'/g)) {
+        const names = m[1].split(',').map((part) => part.trim().split(/\s+as\s+/)[0]);
+        for (const name of names) {
+          if (name === 'Sheet' || name === 'Dialog') offenders.push(`${rel}: ${name}`);
+        }
+      }
+    }
+    expect(scanned, 'the guard scanned no file').toBeGreaterThanOrEqual(200);
+    expect(
+      offenders,
+      'A screen imports `Sheet` or `Dialog` from the design system.\n\n' +
+        'Use `AppModal` (`@/components/ui/app-modal`). If it lacks something the screen needs,\n' +
+        'add it to `AppModal`, so every modal gets it.\n',
+    ).toEqual([]);
+  });
+
   it('nenhum call site escolhe uma largura da MESMA FAMÍLIA dos tokens', () => {
     // O outro modo de a padronização vazar: manter um primitivo só e deixar a
     // largura voltar pelo `className` de cada call site.

@@ -1,6 +1,7 @@
 // alert-create-form.tsx
 //
-// O formulário de criação, separado da página.
+// Os campos do formulário de criação, separados da página. O `<form>` em si fica na página,
+// ao lado do botão de enviar do rodapé do modal, que o alcança por `form="<id>"`.
 //
 // Saiu de `pages/lens/alerts.tsx` no M22: a página passou de 463 para 526 linhas ao ganhar a
 // métrica escopada a prompt, e o orçamento da casa é 500. Extrair o formulário é a mitigação que
@@ -9,7 +10,7 @@
 // É presentational puro: todo estado vive na página, toda validação vive em `alert-draft.ts`.
 // Nada aqui busca dado nem decide se o par métrica↔prompt é válido.
 
-import { Button, Input, Select } from '@getloopscale/ui';
+import { Input, Select } from '@getloopscale/ui';
 import { requiresPromptName } from '@/pages/lens/components/alert-draft';
 import type { AlertDraft } from '@/pages/lens/components/alert-draft';
 import type { AlertField } from '@/pages/lens/components/alert-draft';
@@ -23,8 +24,6 @@ export interface AlertCreateFormProps {
   readonly metrics: readonly { value: string; label: string }[];
   readonly comparators: readonly { value: string; label: string }[];
   readonly windows: readonly { value: string; label: string }[];
-  readonly canCreate: boolean;
-  readonly onSubmit: () => void;
   /** Problemas a EXIBIR — só os campos já tocados. A validação em si vive em `alert-draft.ts`. */
   readonly problems?: Partial<Record<AlertField, string>>;
   /** O uso medido AGORA do prompt digitado — ausente enquanto não há prompt alvo. */
@@ -39,15 +38,8 @@ export interface AlertCreateFormProps {
 
 export function AlertCreateForm(p: AlertCreateFormProps) {
   return (
-    <form
-      className="flex flex-wrap items-end gap-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!p.canCreate) return;
-        p.onSubmit();
-      }}
-    >
-      <div className="min-w-[160px] flex-1">
+    <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+      <div className="sm:col-span-2">
         <label htmlFor="rule-name" className="mb-1 block text-xs font-medium text-muted-foreground">
           Name
         </label>
@@ -64,7 +56,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">Metric</span>
         <Select value={p.draft.metric} onValueChange={(v) => p.onChange('metric', v)}>
-          <Select.Trigger className="w-[160px]" aria-label="Metric">
+          <Select.Trigger className="w-full" aria-label="Metric">
             <Select.Value />
           </Select.Trigger>
           <Select.Content>
@@ -77,7 +69,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
         </Select>
       </div>
       {requiresPromptName(p.draft.metric) ? (
-        <div className="min-w-[160px]">
+        <div>
           <label htmlFor="rule-prompt" className="mb-1 block text-xs font-medium text-muted-foreground">
             Prompt
           </label>
@@ -99,7 +91,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">When</span>
         <Select value={p.draft.comparator} onValueChange={(v) => p.onChange('comparator', v)}>
-          <Select.Trigger className="w-[80px]" aria-label="Comparator">
+          <Select.Trigger className="w-full" aria-label="Comparator">
             <Select.Value />
           </Select.Trigger>
           <Select.Content>
@@ -118,7 +110,6 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
         <Input
           id="rule-threshold"
           type="number"
-          className="w-[110px]"
           value={p.draft.threshold}
           onChange={(e) => p.onChange('threshold', e.target.value)}
           placeholder="5"
@@ -148,7 +139,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">Over</span>
         <Select value={p.draft.windowSeconds} onValueChange={(v) => p.onChange('windowSeconds', v)}>
-          <Select.Trigger className="w-[140px]" aria-label="Window">
+          <Select.Trigger className="w-full" aria-label="Window">
             <Select.Value />
           </Select.Trigger>
           <Select.Content>
@@ -163,7 +154,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">Notify</span>
         <Select value={p.draft.webhookId || undefined} onValueChange={(v) => p.onChange('webhookId', v)}>
-          <Select.Trigger className="w-[200px]" aria-label="Notify webhook">
+          <Select.Trigger className="w-full" aria-label="Notify webhook">
             <Select.Value placeholder="Select a webhook" />
           </Select.Trigger>
           <Select.Content>
@@ -175,9 +166,6 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
           </Select.Content>
         </Select>
       </div>
-      <Button type="submit" disabled={!p.canCreate}>
-        Create rule
-      </Button>
-    </form>
+    </div>
   );
 }

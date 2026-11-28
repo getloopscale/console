@@ -335,7 +335,7 @@ function NewPageEditor({
           </aside>
         </div>
       <div className="flex items-center justify-end gap-2">
-        <Button variant="secondary" onClick={onCancel} disabled={create.isPending}>
+        <Button variant="ghost" onClick={onCancel} disabled={create.isPending}>
           Cancel
         </Button>
         <Button disabled={!canCreate} onClick={submit}>

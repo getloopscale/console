@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import { Button, Input, Label, Sheet } from '@getloopscale/ui';
+import { KeyRound, Loader2 } from 'lucide-react';
+import { Button, Input, Label } from '@getloopscale/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { AppModal } from '@/components/ui/app-modal';
 import { SecretsNotSavedError, useCreateSecret } from '@/hooks/mutations/use-secrets-mutations';
 
 interface AddSecretSheetProps {
@@ -119,105 +120,99 @@ export function AddSecretSheet({
     }
   };
 
+  const close = () => {
+    reset();
+    onOpenChange(false);
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-        <form onSubmit={handleSubmit} className="flex h-full flex-col">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>Add secret</Sheet.Title>
-            <Sheet.Description>
-              Encrypted at rest. Value is never logged or shown again after submit.
-            </Sheet.Description>
-          </Sheet.Header>
-
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div>
-              <Label htmlFor="secret-name">Key</Label>
-              <Input
-                id="secret-name"
-                type="text"
-                // A text field before a password field reads as a sign-in form, and the
-                // browser fills in the saved account email and password.
-                autoComplete="off"
-                placeholder="STRIPE_SECRET_KEY"
-                value={name}
-                onChange={(e) => setName(e.target.value.toUpperCase())}
-                autoFocus
-                required
-              />
-              <p className="mt-1 text-label text-muted-foreground">
-                SCREAMING_SNAKE_CASE, 2-64 characters.
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="secret-value">Value</Label>
-              <Input
-                id="secret-value"
-                type="password"
-                autoComplete="new-password"
-                placeholder="sk_live_•••"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                required
-              />
-            </div>
-
-            <fieldset>
-              <legend className="text-body-sm font-medium">Environments</legend>
-              <div className="mt-2 flex flex-wrap gap-3">
-                {availableEnvs.map((env) => (
-                  <label key={env} className="flex items-center gap-2 text-body-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedEnvs.includes(env)}
-                      onChange={() => toggleEnv(env)}
-                      aria-label={`Scope to ${env}`}
-                    />
-                    {env}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            {awaitingConfirmation && (
-              <Alert
-                intent="warning"
-                description={`${name} already exists in ${replacedEnvs.join(', ')}. Replacing it changes the value the app reads after its next deploy.`}
-                className="mt-2"
-              />
+    <AppModal
+      open={open}
+      onClose={close}
+      title="Add secret"
+      description="Encrypted at rest. Value is never logged or shown again after submit."
+      icon={<KeyRound className="size-4" aria-hidden="true" />}
+      busy={submitting}
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={close} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button type="submit" form="add-secret-form" disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Adding…
+              </>
+            ) : awaitingConfirmation ? (
+              'Replace value'
+            ) : (
+              'Add secret'
             )}
+          </Button>
+        </>
+      }
+    >
+      <form id="add-secret-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="secret-name">Key</Label>
+          <Input
+            id="secret-name"
+            type="text"
+            // A text field before a password field reads as a sign-in form, and the
+            // browser fills in the saved account email and password.
+            autoComplete="off"
+            placeholder="STRIPE_SECRET_KEY"
+            value={name}
+            onChange={(e) => setName(e.target.value.toUpperCase())}
+            autoFocus
+            required
+          />
+          <p className="mt-1 text-label text-muted-foreground">
+            SCREAMING_SNAKE_CASE, 2-64 characters.
+          </p>
+        </div>
 
-            {error && <Alert intent="destructive" description={error} className="mt-2" />}
-          </Sheet.Body>
+        <div>
+          <Label htmlFor="secret-value">Value</Label>
+          <Input
+            id="secret-value"
+            type="password"
+            autoComplete="new-password"
+            placeholder="sk_live_•••"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            required
+          />
+        </div>
 
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                reset();
-                onOpenChange(false);
-              }}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Adding…
-                </>
-              ) : awaitingConfirmation ? (
-                'Replace value'
-              ) : (
-                'Add secret'
-              )}
-            </Button>
-          </Sheet.Footer>
-        </form>
-      </Sheet.Content>
-    </Sheet>
+        <fieldset>
+          <legend className="text-body-sm font-medium">Environments</legend>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {availableEnvs.map((env) => (
+              <label key={env} className="flex items-center gap-2 text-body-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedEnvs.includes(env)}
+                  onChange={() => toggleEnv(env)}
+                  aria-label={`Scope to ${env}`}
+                />
+                {env}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {awaitingConfirmation && (
+          <Alert
+            intent="warning"
+            description={`${name} already exists in ${replacedEnvs.join(', ')}. Replacing it changes the value the app reads after its next deploy.`}
+            className="mt-2"
+          />
+        )}
+
+        {error && <Alert intent="destructive" description={error} className="mt-2" />}
+      </form>
+    </AppModal>
   );
 }

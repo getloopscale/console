@@ -161,6 +161,24 @@ describe('SignalDetailSheet — T3.3 J-18', () => {
     expect(screen.getByText('3 data points')).toBeInTheDocument();
   });
 
+  it('says so when the metric has no data points, where the modal used to open blank', async () => {
+    mockedEngineFetch.mockResolvedValue({ signal: 'alerts_active', range: '7d', status: 'ok', data: [] });
+
+    render(
+      withQueryClient(
+        <SignalDetailSheet
+          open={true}
+          onOpenChange={() => {}}
+          signal="alerts_active"
+          projectName="teste"
+          env="production"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText('No data points in the last 7 days.')).toBeInTheDocument();
+  });
+
   it('EC-13: Grafana button is disabled when grafanaBaseURL is empty', async () => {
     mockedEngineFetch.mockResolvedValue({
       signal: 'replicas',
