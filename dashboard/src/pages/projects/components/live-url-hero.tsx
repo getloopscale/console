@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
-import { Badge, Card, Skeleton } from '@getloopscale/ui';
+import { Badge, Button, Card, Skeleton } from '@getloopscale/ui';
 import type { ProjectStatusDetail } from '@/lib/api/types';
 import { copyToClipboard } from '@/lib/export/clipboard';
 
@@ -147,15 +147,12 @@ export function LiveUrlHero({
           >
             <Copy className="size-4" aria-hidden="true" />
           </button>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-label font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <ExternalLink className="size-4" aria-hidden="true" />
-            Visit
-          </a>
+          <Button asChild size="sm">
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="size-4" aria-hidden="true" />
+              Visit
+            </a>
+          </Button>
         </div>
         <span role="status" aria-live="polite" className="sr-only">
           {copyMessage}

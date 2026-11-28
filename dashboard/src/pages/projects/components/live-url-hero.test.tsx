@@ -59,6 +59,14 @@ describe('LiveUrlHero', () => {
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
   });
 
+  it('draws the visit link as the primary button of the design system, not a lime fill', () => {
+    render(<LiveUrlHero status={makeStatus()} loading={false} />);
+    const link = screen.getByRole('link', { name: /visit/i });
+    // Lime is the accent of the brand; a filled lime action exists nowhere else in the console.
+    expect(link.className).not.toMatch(/(^|\s)bg-primary(\s|$)/);
+    expect(link.className).not.toMatch(/text-primary-foreground/);
+  });
+
   it('renders pending badge when status.url is absent (ADR D3)', () => {
     render(<LiveUrlHero status={makeStatus({ url: undefined })} loading={false} />);
     expect(screen.getByText(/URL pending/i)).toBeInTheDocument();
