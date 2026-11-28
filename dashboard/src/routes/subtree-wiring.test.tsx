@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { createRoutesFromChildren } from 'react-router-dom';
+import { sandboxRoutes } from './sandboxes-routes';
 import { rotasDeTrust } from './trust-routes';
 
 /**
@@ -56,5 +57,17 @@ describe('subtrees de rotas extraídos (B-003)', () => {
       .filter((r) => !r.element)
       .map((r) => r.path);
     expect(semElemento).toEqual([]);
+  });
+
+  it('react-router sees the four routes of the Sandboxes area, each with an element', () => {
+    const routes = createRoutesFromChildren(sandboxRoutes);
+
+    expect(routes.map((r) => r.path).sort()).toEqual([
+      '/sandboxes',
+      '/sandboxes/:id',
+      '/sandboxes/secrets',
+      '/sandboxes/templates',
+    ]);
+    expect(routes.filter((r) => !r.element).map((r) => r.path)).toEqual([]);
   });
 });
