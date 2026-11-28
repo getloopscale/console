@@ -442,6 +442,7 @@ export function WorkspacePage() {
         title={deleteTarget ? `Delete “${deleteTarget.path}”?` : 'Delete file?'}
         description="This permanently removes the file from your workspace. This cannot be undone."
         confirmLabel="Delete file"
+        intent="destructive"
         loading={deleting}
         onConfirm={onConfirmDelete}
       />
@@ -453,6 +454,7 @@ export function WorkspacePage() {
         title={sel.bulkTarget?.prefixes.length ? 'Delete folder?' : 'Delete selected?'}
         description={`This permanently removes ${bulkCountLabel} from your workspace. This cannot be undone.`}
         confirmLabel="Delete"
+        intent="destructive"
         loading={sel.bulkDeleting}
         onConfirm={sel.confirmBulk}
       />
