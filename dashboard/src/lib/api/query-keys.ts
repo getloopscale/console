@@ -97,6 +97,7 @@ export const queryKeys = {
     denials: (id: string) => ['sandboxes', 'detail', id, 'denials'] as const,
     logs: (id: string) => ['sandboxes', 'detail', id, 'logs'] as const,
     metrics: (id: string) => ['sandboxes', 'detail', id, 'metrics'] as const,
+    files: (id: string, directory: string) => ['sandboxes', 'detail', id, 'files', directory] as const,
   },
   team: {
     all: ['team'] as const,
