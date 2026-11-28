@@ -23,7 +23,6 @@ import {
   type StartOrder,
 } from './list-view';
 import { outboundNetwork, STATE_VARIANTS } from './sandbox-labels';
-import { SandboxSections } from './sandbox-sections';
 import { Segmented } from './segmented';
 
 /** The choices of the auto-refresh control, as the interval in ms or "off". */
@@ -54,7 +53,7 @@ export function SandboxesPage() {
   return (
     <PageShell
       title="Sandboxes"
-      description={<SandboxSections />}
+      description="Isolated environments your agents start to run code."
       onTitleChange={setPageTitle}
       loading={loading}
       empty={estadoDaLista(

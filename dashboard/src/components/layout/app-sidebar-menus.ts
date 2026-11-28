@@ -1,5 +1,6 @@
 import type { ElementType } from 'react';
 import { LENS_SIDEBAR_GROUPS } from '@/components/layout/lens-capabilities';
+import { SANDBOXES_MENU } from '@/components/layout/sandboxes-menu';
 import {
   Activity,
   Bell,
@@ -130,7 +131,7 @@ export const MENUS: Record<string, MenuDefinition> = {
         title: 'Compute',
         items: [
           { label: 'Projects', path: '/projects', icon: FolderKanban },
-          { label: 'Sandboxes', path: '/sandboxes', icon: Box },
+          { label: 'Sandboxes', path: '/sandboxes', icon: Box, drillsInto: 'sandboxes' },
           // M20: Environments and Domains are not here — both are a project dimension, managed
           // under /projects/:name/environments and /projects/:name/domains (not global).
         ],
@@ -189,6 +190,7 @@ export const MENUS: Record<string, MenuDefinition> = {
       },
     ],
   },
+  sandboxes: SANDBOXES_MENU,
   settings: {
     id: 'settings',
     title: 'Settings',
@@ -458,6 +460,7 @@ export function resolveActiveMenu(pathname: string): ResolvedMenu {
   if (projectMatch && !RESERVED_PROJECT_SLUGS.has(projectMatch[1])) {
     return { id: 'project', projectName: decodeURIComponent(projectMatch[1]) };
   }
+  if (pathname === '/sandboxes' || pathname.startsWith('/sandboxes/')) return { id: 'sandboxes' };
   if (pathname.startsWith('/settings')) return { id: 'settings' };
   if (pathname.startsWith('/profile')) return { id: 'profile' };
   if (pathname.startsWith('/rag')) return { id: 'rag' };

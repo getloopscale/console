@@ -175,6 +175,24 @@ describe('main menu groups', () => {
     expect(sandboxes?.comingSoon).toBeUndefined();
   });
 
+  it('opens Sandboxes as a submenu of its own, like every other area with more than one screen', () => {
+    const sandboxes = MENUS.main.groups.flatMap((g) => g.items).find((i) => i.label === 'Sandboxes');
+    expect(sandboxes?.drillsInto).toBe('sandboxes');
+    expect(MENUS.sandboxes).toMatchObject({ title: 'Sandboxes', parent: 'main' });
+    expect(MENUS.sandboxes.groups.flatMap((g) => g.items).map((i) => [i.label, i.path])).toEqual([
+      ['Sandboxes', '/sandboxes'],
+      ['Templates', '/sandboxes/templates'],
+      ['Secrets', '/sandboxes/secrets'],
+    ]);
+  });
+
+  it('keeps the Sandboxes submenu active on every route of the area, and only there', () => {
+    for (const path of ['/sandboxes', '/sandboxes/templates', '/sandboxes/secrets', '/sandboxes/sbx_open01']) {
+      expect(resolveActiveMenu(path), path).toEqual({ id: 'sandboxes' });
+    }
+    expect(resolveActiveMenu('/sandboxesfoo')).toEqual({ id: 'main' });
+  });
+
   it('keeps every root path it had before the regrouping', () => {
     const paths = MENUS.main.groups.flatMap((g) => g.items).map((i) => i.path);
     expect(paths).toEqual(

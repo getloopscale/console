@@ -37,6 +37,13 @@ describe("SandboxesPage", () => {
     vi.clearAllMocks();
   });
 
+  it("says what the screen holds where the links between screens used to be", async () => {
+    mockCloudFetch.mockResolvedValue({ sandboxes: [open] });
+    render(<SandboxesPage />);
+
+    expect(await screen.findByText("Isolated environments your agents start to run code.")).toBeInTheDocument();
+  });
+
   it("lists each sandbox with its image, state and outbound network", async () => {
     mockCloudFetch.mockResolvedValue({ sandboxes: [open, restricted] });
     render(<SandboxesPage />);
