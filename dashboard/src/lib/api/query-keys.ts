@@ -90,6 +90,10 @@ export const queryKeys = {
   // ['team'] enquanto team.tsx lia a lista com useEngineApi, cuja chave e
   // ['engine', '/api/v1/teams/members']. Arvores disjuntas, entao convidar ou
   // remover um membro nunca atualizava a tabela.
+  sandboxes: {
+    all: ['sandboxes'] as const,
+    list: () => ['sandboxes', 'list'] as const,
+  },
   team: {
     all: ['team'] as const,
     list: (filters?: Record<string, unknown>) =>

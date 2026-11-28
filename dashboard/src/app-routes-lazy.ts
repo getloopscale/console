@@ -97,6 +97,9 @@ export const SkillsPage = lazy(() =>
 export const RagOverviewPage = lazy(() =>
   import('@/pages/rag/overview').then((m) => ({ default: m.RagOverviewPage })),
 );
+export const SandboxesPage = lazy(() =>
+  import('@/pages/sandboxes/sandboxes').then((m) => ({ default: m.SandboxesPage })),
+);
 export const WorkspacePage = lazy(() =>
   import('@/pages/workspace/overview').then((m) => ({ default: m.WorkspacePage })),
 );

@@ -169,9 +169,10 @@ describe('main menu groups', () => {
     expect(AGENT_SERVICES_GROUP_TITLE).toBe('Agent Services');
   });
 
-  it('announces Sandboxes as coming soon, on a route of its own', () => {
+  it('offers Sandboxes as a built screen, on a route of its own', () => {
     const sandboxes = MENUS.main.groups.flatMap((g) => g.items).find((i) => i.label === 'Sandboxes');
-    expect(sandboxes).toMatchObject({ path: '/sandboxes', comingSoon: true });
+    expect(sandboxes).toMatchObject({ path: '/sandboxes' });
+    expect(sandboxes?.comingSoon).toBeUndefined();
   });
 
   it('keeps every root path it had before the regrouping', () => {
