@@ -42,6 +42,21 @@ html[data-density] {
   --animate-slide-in: slide-in 0.4s ease-out;
   --animate-fade-in: fade-in 0.3s ease-out;
   --animate-pulse-subtle: pulse-subtle 2s ease-in-out infinite;
+  --animate-modal-overlay: fade-in 0.15s ease-out;
+  --animate-modal-in: modal-in 0.18s cubic-bezier(0.2, 0, 0, 1);
+
+  /* The `scale` property, not `transform`: the centered panel is placed with `translate`,
+     and a `transform` keyframe would fight it for the length of the animation. */
+  @keyframes modal-in {
+    0% {
+      opacity: 0;
+      scale: 0.97;
+    }
+    100% {
+      opacity: 1;
+      scale: 1;
+    }
+  }
 
   @keyframes slide-in {
     0% {

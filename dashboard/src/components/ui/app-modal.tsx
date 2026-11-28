@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
-import { X } from 'lucide-react';
+import { TriangleAlert, X } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 
 /**
@@ -38,13 +38,19 @@ import { twMerge } from 'tailwind-merge';
  */
 type AppModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
-/** Size token → max-width. One width scale instead of an ad-hoc `max-w-*` per call site. */
+/**
+ * Size token → max-width. One width scale instead of an ad-hoc `max-w-*` per call site.
+ * Below the `sm` breakpoint the panel is a bottom sheet that spans the screen, whatever
+ * its size token.
+ */
 const SIZE_MAX_WIDTH: Record<AppModalSize, string> = {
   sm: 'max-w-md',
   md: 'max-w-lg',
   lg: 'max-w-2xl',
   xl: 'max-w-4xl',
 };
+
+type AppModalIntent = 'default' | 'destructive';
 
 export interface AppModalProps {
   /** Controlled open state. */
@@ -57,6 +63,19 @@ export interface AppModalProps {
   readonly description?: ReactNode;
   /** Width token — defaults to `md`. */
   readonly size?: AppModalSize;
+  /**
+   * `destructive` puts a warning mark in the header, so the panel says what kind of action
+   * it is before the reader reaches the button.
+   */
+  readonly intent?: AppModalIntent;
+  /** An icon for the header. A destructive panel gets its warning mark without one. */
+  readonly icon?: ReactNode;
+  /**
+   * An action is in flight. ESC, the overlay and the close button stop closing the panel:
+   * closing in the middle of a request leaves the operator without the answer, and on a
+   * delete that answer is the only evidence of what happened.
+   */
+  readonly busy?: boolean;
   /**
    * Footer actions (e.g. Cancel + primary). Omitted → no footer region.
    *
@@ -76,69 +95,122 @@ export interface AppModalProps {
   readonly children?: ReactNode;
   /** Escape hatch for a rare bespoke width/spacing; merged after the size token. */
   readonly contentClassName?: string;
+  /** Escape hatch for a body that manages its own padding (a table, a full-bleed preview). */
+  readonly bodyClassName?: string;
   /** Hide the built-in close (X) button (Radix still closes on ESC/overlay). */
   readonly hideCloseButton?: boolean;
 }
 
+/**
+ * The layout every modal shares: a header (icon, title, description), a body that scrolls
+ * on its own, and a footer bar for the actions. The header and the footer stay in place
+ * while a long body scrolls, so the title and the buttons never leave the screen.
+ */
 export function AppModal({
   open,
   onClose,
   title,
   description,
   size = 'md',
+  intent = 'default',
+  icon,
+  busy = false,
   footer,
   children,
   contentClassName,
+  bodyClassName,
   hideCloseButton,
 }: AppModalProps) {
+  const mark = icon ?? (intent === 'destructive' ? <TriangleAlert className="size-4" aria-hidden="true" /> : null);
   return (
     <RadixDialog.Root
       open={open}
       onOpenChange={(next) => {
-        if (!next) onClose();
+        if (!next && !busy) onClose();
       }}
     >
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in" />
+        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] animate-modal-overlay" />
         <RadixDialog.Content
+          data-intent={intent}
+          aria-busy={busy || undefined}
+          onEscapeKeyDown={(event) => {
+            if (busy) event.preventDefault();
+          }}
+          onInteractOutside={(event) => {
+            if (busy) event.preventDefault();
+          }}
           className={twMerge(
-            'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-background p-6 text-foreground shadow-2xl animate-fade-in',
+            'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-2xl animate-modal-in',
+            // Phone: a sheet docked to the bottom edge. The `max-sm:` variants sit apart from
+            // the base classes, so a call site that sets its own width keeps it on desktop.
+            'max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-2xl',
             SIZE_MAX_WIDTH[size],
             contentClassName,
           )}
         >
-          <div className="flex flex-col gap-1.5 pr-6">
-            <RadixDialog.Title className="text-lg font-semibold leading-none tracking-tight text-foreground">
-              {title}
-            </RadixDialog.Title>
-            {description ? (
-              // `asChild` + `<div>`: a descrição é um contêiner, não um parágrafo (B-104).
-              //
-              // `RadixDialog.Description` renderiza `Primitive.p`, e treze call sites passam
-              // bloco nesta prop — `<p><div>…</div></p>`, HTML inválido. `asChild` faz o Radix
-              // aplicar o `id` (o alvo do `aria-describedby`) ao elemento que damos, em vez de
-              // criar o dele: o contrato de acessibilidade fica idêntico e o aninhamento passa
-              // a ser legal.
-              //
-              // O que NÃO é o motivo, porque foi medido e é falso: a primeira versão do B-104
-              // dizia que o parser fecharia o `<p>` e o leitor de tela perderia a descrição.
-              // Medido em navegador real, o `aria-describedby` resolvia e o texto estava
-              // inteiro — o React monta o DOM por API, não pelo parser. A invalidez é latente,
-              // não ativa: ela cobra no dia em que este HTML for PARSEADO (render no servidor,
-              // pré-render, hidratação a partir de markup).
-              <RadixDialog.Description asChild>
-                <div className="text-sm text-muted-foreground">{description}</div>
-              </RadixDialog.Description>
+          <div data-slot="modal-header" className="flex shrink-0 items-start gap-3 px-6 pb-4 pt-5 pr-14">
+            {mark ? (
+              <span
+                data-slot="modal-icon"
+                className={twMerge(
+                  'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border',
+                  intent === 'destructive'
+                    ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                    : 'border-primary/20 bg-primary/10 text-primary',
+                )}
+              >
+                {mark}
+              </span>
             ) : null}
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <RadixDialog.Title className="text-base font-semibold leading-6 tracking-tight text-foreground">
+                {title}
+              </RadixDialog.Title>
+              {description ? (
+                // `asChild` + `<div>`: a descrição é um contêiner, não um parágrafo (B-104).
+                //
+                // `RadixDialog.Description` renderiza `Primitive.p`, e treze call sites passam
+                // bloco nesta prop — `<p><div>…</div></p>`, HTML inválido. `asChild` faz o Radix
+                // aplicar o `id` (o alvo do `aria-describedby`) ao elemento que damos, em vez de
+                // criar o dele: o contrato de acessibilidade fica idêntico e o aninhamento passa
+                // a ser legal.
+                //
+                // O que NÃO é o motivo, porque foi medido e é falso: a primeira versão do B-104
+                // dizia que o parser fecharia o `<p>` e o leitor de tela perderia a descrição.
+                // Medido em navegador real, o `aria-describedby` resolvia e o texto estava
+                // inteiro — o React monta o DOM por API, não pelo parser. A invalidez é latente,
+                // não ativa: ela cobra no dia em que este HTML for PARSEADO (render no servidor,
+                // pré-render, hidratação a partir de markup).
+                <RadixDialog.Description asChild>
+                  <div className="text-body-sm text-muted-foreground">{description}</div>
+                </RadixDialog.Description>
+              ) : null}
+            </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-          {footer ? <div className="flex items-center justify-end gap-2">{footer}</div> : null}
+          {/* `empty:hidden`: a confirmation with no fields has no body, and an empty band
+              between the header and the footer would read as content that failed to load. */}
+          <div
+            data-slot="modal-body"
+            className={twMerge('min-h-0 flex-1 overflow-y-auto border-t border-border px-6 py-5 empty:hidden', bodyClassName)}
+          >
+            {children}
+          </div>
+          {footer ? (
+            <div
+              data-slot="modal-footer"
+              className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-muted/40 px-6 py-3 sm:flex-row sm:items-center sm:justify-end"
+            >
+              {footer}
+            </div>
+          ) : null}
           {!hideCloseButton ? (
             <RadixDialog.Close
               aria-label="Close"
-              className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              disabled={busy}
+              className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
             >
-              <X className="h-4 w-4" />
+              <X className="size-4" aria-hidden="true" />
             </RadixDialog.Close>
           ) : null}
         </RadixDialog.Content>

@@ -110,6 +110,58 @@ describe('AppModal — standardized modal primitive', () => {
   });
 });
 
+describe('AppModal — one layout for every modal', () => {
+  it('lays the panel out as header, body and footer regions', () => {
+    render(
+      <AppModal open onClose={() => {}} title="Add secret" footer={<button type="button">Save</button>}>
+        <p>fields</p>
+      </AppModal>,
+    );
+    const dialog = screen.getByRole('dialog');
+    const slots = [...dialog.querySelectorAll('[data-slot]')].map((el) => el.getAttribute('data-slot'));
+    expect(slots).toEqual(['modal-header', 'modal-body', 'modal-footer']);
+    expect(dialog.querySelector('[data-slot="modal-body"]')).toHaveTextContent('fields');
+    expect(dialog.querySelector('[data-slot="modal-footer"]')).toHaveTextContent('Save');
+  });
+
+  it('keeps the panel open while an action is in flight', () => {
+    const onClose = vi.fn();
+    render(
+      <AppModal open onClose={onClose} title="Deleting" busy>
+        <p>body</p>
+      </AppModal>,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalledTimes(0);
+  });
+
+  it('marks a destructive panel so the header warns before the button does', () => {
+    render(
+      <AppModal open onClose={() => {}} title="Delete project?" intent="destructive">
+        <p>body</p>
+      </AppModal>,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('data-intent', 'destructive');
+    expect(dialog.querySelector('[data-slot="modal-icon"]')).toBeInTheDocument();
+  });
+
+  it('draws a caller icon in the header', () => {
+    render(
+      <AppModal open onClose={() => {}} title="Invite teammate" icon={<svg data-testid="invite-icon" />}>
+        <p>body</p>
+      </AppModal>,
+    );
+    expect(screen.getByRole('dialog').querySelector('[data-slot="modal-icon"]')).toContainElement(
+      screen.getByTestId('invite-icon'),
+    );
+  });
+});
+
 describe('a descrição aceita conteúdo de bloco (B-104)', () => {
   /**
    * `RadixDialog.Description` renderiza `Primitive.p`, e treze call sites passam

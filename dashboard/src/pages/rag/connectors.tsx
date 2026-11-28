@@ -283,7 +283,7 @@ export function RagConnectorsPage() {
         title="Connect a source"
         description="Pick the collection to ingest into, then authorize the provider. You’ll be redirected to grant access, then back here."
         footer={
-          <Button variant="secondary" onClick={() => setAddOpen(false)}>
+          <Button variant="ghost" onClick={() => setAddOpen(false)}>
             Close
           </Button>
         }

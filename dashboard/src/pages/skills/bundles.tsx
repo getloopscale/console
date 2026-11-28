@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { Package } from 'lucide-react';
+import { Package, PackagePlus, Plus } from 'lucide-react';
 import {
   Button,
   Card,
   DataTable,
   EmptyState,
   Input,
+  Label,
   type DataTableColumn,
 } from '@getloopscale/ui';
 import { PageShell } from '@/components/ui/page-shell';
+import { AppModal } from '@/components/ui/app-modal';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -49,6 +51,7 @@ export function BundlesPage() {
   const invalidarBundles = useInvalidateBundles();
   const [name, setNome] = useState('');
   const [erroCriacao, setErroCriacao] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
     const query = useBundles<BundlesPayload>();
 
@@ -57,6 +60,7 @@ export function BundlesPage() {
     onSuccess: () => {
       setNome('');
       setErroCriacao(null);
+      setCreateOpen(false);
       // B-052 — invalida a RAIZ do dominio. As chaves literais que estavam aqui
       // deixaram de ser lidas no instante em que as paginas migraram: manter uma
       // delas seria invalidar o que ninguem le, e a lista mostraria dado velho.
@@ -66,6 +70,12 @@ export function BundlesPage() {
     // uso), enquanto qualquer paráfrase nossa envelhece na primeira mudança do backend.
     onError: (err) => setErroCriacao(promotionRefusal(err, 'Could not create the bundle.')),
   });
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setNome('');
+    setErroCriacao(null);
+  };
 
   const rows = Array.isArray(query.data?.bundles) ? query.data.bundles : [];
   const failed = Boolean(query.error);
@@ -105,6 +115,7 @@ export function BundlesPage() {
     <PageShell
       title="Distribution"
       description="Hand a set of skills to someone outside this workspace — without giving them an account here."
+      primaryAction={{ label: 'New bundle', icon: Plus, onClick: () => setCreateOpen(true) }}
     >
       {/* O QUE É a distribuição, dito na própria tela.
 
@@ -138,43 +149,6 @@ export function BundlesPage() {
         />
       ) : null}
 
-      {erroCriacao !== null ? (
-        <Alert intent="destructive" title="The bundle was not created" description={erroCriacao} />
-      ) : null}
-
-      <Card>
-        <Card.Header>
-          <Card.Title asChild>
-            <h2>New bundle</h2>
-          </Card.Title>
-          <Card.Description>
-            The name is how the bundle appears to whoever installs it. Once created, issue a token
-            in its detail page to grant access.
-          </Card.Description>
-        </Card.Header>
-        <form
-          className="flex gap-2 px-6 pb-6"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const limpo = name.trim();
-            if (limpo === '') return;
-            create.mutate(limpo);
-          }}
-        >
-          <Input
-            aria-label="Bundle name"
-            placeholder="e.g. support skills"
-            value={name}
-            onChange={(e) => setNome(e.target.value)}
-          />
-          {/* Desabilitado enquanto vazio: o backend recusaria, e deixar clicável ensinaria o
-              operador a descobrir a regra pelo erro. */}
-          <Button type="submit" disabled={name.trim() === '' || create.isPending}>
-            {create.isPending ? 'Creating…' : 'Create bundle'}
-          </Button>
-        </form>
-      </Card>
-
       <Card>
         <Card.Header>
           <Card.Title asChild>
@@ -197,12 +171,59 @@ export function BundlesPage() {
               description={
                 failed
                   ? 'Try again in a moment. Until then, there is no way to know what this workspace distributes.'
-                  : 'Create a bundle above to group skills and hand them out with a delegated token.'
+                  : 'Create a bundle to group skills and hand them out with a delegated token.'
               }
             />
           }
         />
       </Card>
+      <AppModal
+        open={createOpen}
+        onClose={closeCreate}
+        title="New bundle"
+        description="The name is how the bundle appears to whoever installs it. Once created, issue a token in its detail page to grant access."
+        icon={<PackagePlus className="size-4" aria-hidden="true" />}
+        size="sm"
+        busy={create.isPending}
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={closeCreate} disabled={create.isPending}>
+              Cancel
+            </Button>
+            {/* Desabilitado enquanto vazio: o backend recusaria, e deixar clicável ensinaria o
+                operador a descobrir a regra pelo erro. */}
+            <Button type="submit" form="new-bundle-form" disabled={name.trim() === '' || create.isPending}>
+              {create.isPending ? 'Creating…' : 'Create bundle'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="new-bundle-form"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const limpo = name.trim();
+            if (limpo === '') return;
+            create.mutate(limpo);
+          }}
+        >
+          <div>
+            <Label htmlFor="new-bundle-name">Name</Label>
+            <Input
+              id="new-bundle-name"
+              autoFocus
+              aria-label="Bundle name"
+              placeholder="e.g. support skills"
+              value={name}
+              onChange={(e) => setNome(e.target.value)}
+            />
+          </div>
+          {erroCriacao !== null ? (
+            <Alert intent="destructive" title="The bundle was not created" description={erroCriacao} />
+          ) : null}
+        </form>
+      </AppModal>
     </PageShell>
   );
 }

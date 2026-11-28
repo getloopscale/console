@@ -77,7 +77,7 @@ export function WikiSearch({
   };
 
   return (
-    <AppModal open={open} onClose={onClose} size="lg" title="Search wiki" hideCloseButton contentClassName="gap-3">
+    <AppModal open={open} onClose={onClose} size="lg" title="Search wiki" hideCloseButton>
       <div className="flex min-h-0 flex-col gap-2">
         <Input
           autoFocus

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
@@ -16,8 +16,11 @@ describe('RagCollectionsPage (/rag/collections)', () => {
     render(<RagCollectionsPage />);
     expect(await screen.findByText('docs')).toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText(/new collection name/i), 'reports');
-    await userEvent.click(screen.getByRole('button', { name: /create/i }));
+    // The create form is a modal, like every other create action in the console.
+    await userEvent.click(screen.getByRole('button', { name: /new collection/i }));
+    const dialog = within(screen.getByRole('dialog', { name: /new collection/i }));
+    await userEvent.type(dialog.getByLabelText(/new collection name/i), 'reports');
+    await userEvent.click(dialog.getByRole('button', { name: /create collection/i }));
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/rag/collections',
       expect.objectContaining({ method: 'POST' }),

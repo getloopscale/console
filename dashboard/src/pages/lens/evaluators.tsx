@@ -374,7 +374,7 @@ export function LensEvaluatorsPage() {
         description="Score traces with a rule predicate or an LLM judge."
         footer={
           <>
-            <Button variant="secondary" onClick={closeCreate}>
+            <Button variant="ghost" onClick={closeCreate}>
               Cancel
             </Button>
             <Button onClick={submitCreate} disabled={!canCreate || create.isPending}>

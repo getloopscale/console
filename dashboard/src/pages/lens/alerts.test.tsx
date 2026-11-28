@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { waitFor } from '@testing-library/react';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
@@ -46,6 +46,8 @@ function mockRoutes(opts: { rules?: unknown[]; webhooks?: unknown[] } = {}) {
     return Promise.resolve({});
   });
 }
+/** The create form lives in a modal: open it the way the operator does. */
+const openCreate = async () => userEvent.click(await screen.findByRole('button', { name: /new alert rule/i }));
 const calls = (method: string) =>
   mockCloudFetch.mock.calls.filter((c) => typeof c[0] === 'string' && (c[0] as string).includes('/alert-rules') && (c[1] as { method?: string })?.method === method);
 
@@ -117,6 +119,7 @@ describe('LensAlertsPage (M53)', () => {
   it('discloses "register a webhook first" when the workspace has none', async () => {
     mockRoutes({ webhooks: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     expect(await screen.findByText(/register a webhook first/i)).toBeInTheDocument();
     // #175: the instruction BODY renders (how to register), not just the title.
     expect(screen.getByText(/add one under/i)).toBeInTheDocument();
@@ -125,9 +128,19 @@ describe('LensAlertsPage (M53)', () => {
     expect(screen.getByRole('link', { name: /webhooks/i })).toHaveAttribute('href', '/observability/webhooks');
   });
 
+  it('opens the create form in a modal, not in the page', async () => {
+    mockRoutes({});
+    render(<LensAlertsPage />);
+    await openCreate();
+    const dialog = within(screen.getByRole('dialog', { name: /new alert rule/i }));
+    expect(dialog.getByLabelText(/rule name/i)).toBeInTheDocument();
+    expect(dialog.getByRole('button', { name: /create rule/i })).toBeDisabled();
+  });
+
   it('creates a rule (POST metric/comparator/threshold/window/webhook_id)', async () => {
     mockRoutes({});
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('button', { name: /create rule/i });
     await userEvent.type(screen.getByLabelText(/rule name/i), 'high errors');
     await userEvent.type(screen.getByLabelText(/^threshold$/i), '5');
@@ -144,6 +157,7 @@ describe('LensAlertsPage (M53)', () => {
   it('create is disabled until name, threshold and webhook are set', async () => {
     mockRoutes({});
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('button', { name: /create rule/i });
     expect(screen.getByRole('button', { name: /create rule/i })).toBeDisabled();
   });
@@ -237,6 +251,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
   it('oferece a métrica de prompt no seletor', async () => {
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     expect(await screen.findByRole('option', { name: /prompt/i })).toBeInTheDocument();
@@ -246,6 +261,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
     // O risco #1 registrado: a tela é compartilhada, e a quarta métrica não pode custar as outras.
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     for (const rotulo of [/error rate/i, /cost/i, /latency/i]) {
@@ -258,6 +274,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
     // recusa para depois do clique.
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     expect(screen.queryByLabelText(/Prompt/i)).not.toBeInTheDocument();
 
@@ -269,6 +286,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
   it('não deixa criar a regra de prompt sem o nome do prompt', async () => {
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
@@ -284,6 +302,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
   it('cria a regra de prompt com prompt_name no corpo', async () => {
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
@@ -305,6 +324,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
     // O CHECK de pareamento vale nos dois sentidos: mandar o campo aqui faz o backend recusar.
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByLabelText(/Rule name/i);
     await userEvent.type(screen.getByLabelText(/Rule name/i), 'erro geral');
     await userEvent.type(screen.getByLabelText(/Threshold/i), '5');
@@ -328,6 +348,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
       return Promise.resolve({});
     });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
@@ -346,6 +367,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
       return Promise.resolve({});
     });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
@@ -364,6 +386,7 @@ describe('LensAlertsPage — M22, o formulário ensina em vez de ralhar', () => 
     // Acusar antes do primeiro toque transforma a tela de partida numa tela de erro.
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
@@ -376,6 +399,7 @@ describe('LensAlertsPage — M22, o formulário ensina em vez de ralhar', () => 
     // operador vê que não pode criar e não descobre o que falta.
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
@@ -436,6 +460,7 @@ describe('LensAlertsPage — M22 DoD-3, o deep-link tem CONSUMIDOR', () => {
   it('sem o parâmetro, nada muda — regressão', async () => {
     mockRoutes({ rules: [] });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByRole('combobox', { name: /Metric/i });
     expect(screen.queryByLabelText(/^Prompt$/i)).not.toBeInTheDocument();
   });
@@ -530,6 +555,7 @@ describe('LensAlertsPage — M22, a recusa do serviço chega à tela', () => {
       return Promise.resolve({});
     });
     render(<LensAlertsPage />);
+    await openCreate();
     await screen.findByLabelText(/Rule name/i);
     await userEvent.type(screen.getByLabelText(/Rule name/i), 'erro');
     await userEvent.type(screen.getByLabelText(/Threshold/i), '5');

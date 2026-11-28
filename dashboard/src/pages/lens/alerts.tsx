@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
-import { History, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { History, Plus, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
@@ -16,7 +16,7 @@ import {
 import { PageShell } from '@/components/ui/page-shell';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
-import { AlertCreateForm } from '@/pages/lens/components/alert-create-form';
+import { AlertRuleModal } from '@/pages/lens/components/alert-rule-modal';
 import type { AlertDraft, AlertField } from '@/pages/lens/components/alert-draft';
 import {
   EMPTY_ALERT_DRAFT,
@@ -162,6 +162,9 @@ export function LensAlertsPage() {
   const [touched, setTouched] = useState<ReadonlySet<AlertField>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<AlertRule | null>(null);
   const [openHistory, setOpenHistory] = useState<AlertRule | null>(null); // M84 — expanded rule's history
+  // The form opens by itself when the page is reached through the `?prompt=` deep link: the link
+  // promises a rule that is already filled in, and a closed modal would hide that.
+  const [createOpen, setCreateOpen] = useState(promptDoLink !== '');
 
   const rules = useAlertRules();
   const webhooks = useWorkspaceWebhooks();
@@ -174,6 +177,7 @@ export function LensAlertsPage() {
         setThreshold('');
         setWebhookId('');
         setPromptName('');
+        setCreateOpen(false);
       },
     });
 
@@ -341,61 +345,29 @@ export function LensAlertsPage() {
 
   const rows = rules.data?.alert_rules ?? [];
 
+  // A refused creation is reported inside the modal: behind the overlay nobody would read it.
+  const createFailedInModal = writeError === 'create' && createOpen;
+  const writeErrorAlert = (
+    <Alert
+      intent="destructive"
+      title={`Could not ${writeError} the alert rule`}
+      description={
+        serviceMessage ??
+        'The change was not saved — try again, or check your access to this workspace.'
+      }
+      data-testid="alerts-write-error"
+    />
+  );
+
   return (
     <>
-      <PageShell title="Alerts" description="Get notified when a metric crosses a threshold.">
+      <PageShell
+        title="Alerts"
+        description="Get notified when a metric crosses a threshold."
+        primaryAction={{ label: 'New alert rule', icon: Plus, onClick: () => setCreateOpen(true) }}
+      >
         <div className="space-y-6">
-          {writeError ? (
-            <Alert
-              intent="destructive"
-              title={`Could not ${writeError} the alert rule`}
-              description={
-                serviceMessage ??
-                'The change was not saved — try again, or check your access to this workspace.'
-              }
-              data-testid="alerts-write-error"
-            />
-          ) : null}
-          <Card>
-            <Card.Header>
-              <h2 className="text-sm font-medium">Create an alert rule</h2>
-            </Card.Header>
-            <Card.Body>
-              {availableWebhooks.length === 0 ? (
-                <Alert intent="warning" title="Register a webhook first">
-                  Alerts are delivered to a registered webhook. Add one under{' '}
-                  <Link to="/observability/webhooks" className="font-medium text-primary underline underline-offset-2">
-                    Observability › Webhooks →
-                  </Link>
-                  , then create a rule here.
-                </Alert>
-              ) : (
-                <AlertCreateForm
-                  draft={draft}
-                  onChange={onFieldChange}
-                  problems={problemasVisiveis}
-                  webhooks={availableWebhooks}
-                  metrics={METRICS}
-                  comparators={COMPARATORS}
-                  windows={WINDOWS}
-                  canCreate={canCreate}
-                  onSubmit={() => submitCreate(toCreateBody(draft))}
-                  currentUsage={
-                    targetPrompt !== ''
-                      ? {
-                          loading: currentUsage.isLoading,
-                          // Contrato quebrado é leitura falha, não medição — mesmo com 200.
-                          failure: currentUsage.isError || (!currentUsage.isLoading && resolutionsNow === undefined),
-                          resolucoes: resolutionsNow,
-                          windowDays: measuredValueWindow,
-                        }
-                      : undefined
-                  }
-                />
-              )}
-            </Card.Body>
-          </Card>
-
+          {writeError && !createFailedInModal ? writeErrorAlert : null}
           {rules.isLoading ? (
             <ListSkeleton label="alert rules" />
           ) : rules.isError ? (
@@ -403,7 +375,7 @@ export function LensAlertsPage() {
               The lens service is unavailable. Try again shortly.
             </Alert>
           ) : rows.length === 0 ? (
-            <EmptyState title="No alert rules yet" description="Create a rule above to get notified on a threshold breach." />
+            <EmptyState title="No alert rules yet" description="Create a rule to get notified on a threshold breach." />
           ) : (
             <Card>
               <DataTable columns={columns} data={rows} rowKey={(r) => r.id} />
@@ -425,6 +397,34 @@ export function LensAlertsPage() {
           ) : null}
         </div>
       </PageShell>
+
+      <AlertRuleModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        pending={create.isPending}
+        canCreate={canCreate}
+        onSubmit={() => submitCreate(toCreateBody(draft))}
+        failure={createFailedInModal ? writeErrorAlert : null}
+        fields={{
+          draft,
+          onChange: onFieldChange,
+          problems: problemasVisiveis,
+          webhooks: availableWebhooks,
+          metrics: METRICS,
+          comparators: COMPARATORS,
+          windows: WINDOWS,
+          currentUsage:
+            targetPrompt !== ''
+              ? {
+                  loading: currentUsage.isLoading,
+                  // Contrato quebrado é leitura falha, não medição — mesmo com 200.
+                  failure: currentUsage.isError || (!currentUsage.isLoading && resolutionsNow === undefined),
+                  resolucoes: resolutionsNow,
+                  windowDays: measuredValueWindow,
+                }
+              : undefined,
+        }}
+      />
 
       {pendingDelete !== null ? (
         <ConfirmDialog

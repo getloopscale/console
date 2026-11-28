@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, RotateCw, Trash2 } from 'lucide-react';
+import { Plus, RotateCw, Send, Trash2 } from 'lucide-react';
+import { AppModal } from '@/components/ui/app-modal';
 import {
   Badge,
   Button,
@@ -8,7 +9,6 @@ import {
   DataTable,
   type DataTableColumn,
   EmptyState,
-  Sheet,
   Timestamp,
   useToast,
 } from '@getloopscale/ui';
@@ -33,7 +33,7 @@ import {
 
 /**
  * Plan 3 of dashboard-memory-section-roadmap.md, T3.7.
- * Delivery Replay plan, T8.4 — adds per-delivery Replay button to a Sheet
+ * Delivery Replay plan, T8.4 — adds per-delivery Replay button to a modal
  * listing all 10 recent deliveries per webhook.
  *
  * /memory/webhooks — webhook registration + delivery inspection UI.
@@ -210,7 +210,7 @@ function RecentDeliveriesBadge({
 }
 
 /**
- * Delivery Replay plan T8.4 — Sheet listing all recent deliveries with a
+ * Delivery Replay plan T8.4 — modal listing all recent deliveries with a
  * per-row Replay button gated on status (failed | dead_letter only).
  */
 interface DeliveriesSheetProps {
@@ -257,33 +257,32 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <Sheet.Content side="right">
-          <Sheet.Header>
-            <Sheet.Title>Recent deliveries</Sheet.Title>
-            <Sheet.Description>
-              {webhook.label} · last {deliveries.length} {deliveries.length === 1 ? 'delivery' : 'deliveries'}
-            </Sheet.Description>
-          </Sheet.Header>
-          <Sheet.Body className="space-y-3">
-            {query.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading deliveries…</p>
-            ) : query.isError ? (
-              <EmptyState title="Could not read this webhook's deliveries" description={DELIVERIES_READ_FAILURE} />
-            ) : deliveries.length === 0 ? (
-              <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
-            ) : (
-              deliveries.map((d) => (
-                <DeliveryCard
-                  key={d.id}
-                  delivery={d}
-                  onReplayClick={() => setPendingReplay(d)}
-                />
-              ))
-            )}
-          </Sheet.Body>
-        </Sheet.Content>
-      </Sheet>
+      <AppModal
+        open={open}
+        onClose={() => onOpenChange(false)}
+        title="Recent deliveries"
+        description={<>{webhook.label} · last {deliveries.length} {deliveries.length === 1 ? 'delivery' : 'deliveries'}</>}
+        icon={<Send className="size-4" aria-hidden="true" />}
+        size="lg"
+      >
+        <div className="space-y-3">
+          {query.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading deliveries…</p>
+          ) : query.isError ? (
+            <EmptyState title="Could not read this webhook's deliveries" description={DELIVERIES_READ_FAILURE} />
+          ) : deliveries.length === 0 ? (
+            <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
+          ) : (
+            deliveries.map((d) => (
+              <DeliveryCard
+                key={d.id}
+                delivery={d}
+                onReplayClick={() => setPendingReplay(d)}
+              />
+            ))
+          )}
+        </div>
+      </AppModal>
 
       {pendingReplay ? (
         <ConfirmDialog

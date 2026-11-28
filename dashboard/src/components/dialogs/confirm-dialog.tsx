@@ -106,9 +106,11 @@ export function ConfirmDialog({
       title={title}
       description={description}
       size="sm"
+      intent={intent === 'destructive' ? 'destructive' : 'default'}
+      busy={pending}
       footer={
         <>
-          <Button ref={cancelRef} variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
+          <Button ref={cancelRef} variant="ghost" onClick={() => onOpenChange(false)} disabled={pending}>
             {cancelLabel}
           </Button>
           <Button

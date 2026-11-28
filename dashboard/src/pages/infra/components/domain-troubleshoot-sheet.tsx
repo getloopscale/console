@@ -1,6 +1,8 @@
-import { Card, Dialog } from '@getloopscale/ui';
+import { Card } from '@getloopscale/ui';
 import { AlertTriangle, BookOpen, Globe, HelpCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+
+import { AppModal } from '@/components/ui/app-modal';
 
 /**
  * J-11 Domains plan v1.1 T2.4 — DomainTroubleshootSheet.
@@ -71,14 +73,13 @@ export function DomainTroubleshootSheet({
   const tip = failureMode ? (TIPS[failureMode] ?? GENERIC_TIP) : GENERIC_TIP;
   const Icon = tip.icon;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Troubleshoot {domainName}</Dialog.Title>
-          <Dialog.Description>
-            Steps you can try to resolve this domain&apos;s verification issue.
-          </Dialog.Description>
-        </Dialog.Header>
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={`Troubleshoot ${domainName}`}
+      description="Steps you can try to resolve this domain's verification issue."
+    >
+      <div className="space-y-4">
         <Card>
           <Card.Body>
             <div className="flex items-start gap-3">
@@ -101,8 +102,8 @@ export function DomainTroubleshootSheet({
             Open the troubleshooting guide
           </a>
         </div>
-      </Dialog.Content>
-    </Dialog>
+      </div>
+    </AppModal>
   );
 }
 

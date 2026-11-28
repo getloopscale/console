@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Crown } from 'lucide-react';
-import {
-  Button,
-} from '@getloopscale/ui';
-import { AppModal } from '@/components/ui/app-modal';
-import { Alert } from '@/components/ui/alert-guard';
-import { Link } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { readPlanLimitDetail, type PlanLimitDetail } from '@/lib/http/event-payloads';
+
+// The listener is mounted with the app; the panel is fetched the first time a plan limit is
+// hit. Most sessions never see it, and it would otherwise keep the modal in the first paint.
+const PlanLimitUpgradePanel = lazy(() =>
+  import('./plan-limit-upgrade-panel').then((m) => ({ default: m.PlanLimitUpgradePanel })),
+);
 
 /**
  * PlanLimitUpgradeModal — Plan J-10 v1.1 T2.6 (NEW).
@@ -54,43 +53,11 @@ export function PlanLimitUpgradeModal() {
     return () => window.removeEventListener('loopscale:plan-limit', handler);
   }, []);
 
-  const resourceLabel = detail?.resource ?? 'this resource';
-  const currentPlan = (detail?.current_plan ?? 'Free').replace(/^\w/, (c) =>
-    c.toUpperCase(),
-  );
-  const message =
-    detail?.message ??
-    `You've reached your ${currentPlan} plan limit for ${resourceLabel}. Upgrade to add more.`;
-
+  // `detail` stays null until the first event, so nothing is fetched before a limit is hit.
+  if (!open && detail === null) return null;
   return (
-    // Sem `size`: o default `md` é `max-w-lg`, a mesma largura herdada antes.
-    <AppModal
-      open={open}
-      onClose={() => setOpen(false)}
-      title={
-        <span className="inline-flex items-center gap-2">
-          <Crown className="size-5 text-warning" aria-hidden="true" />
-          Plan limit reached
-        </span>
-      }
-      description={message}
-      footer={
-        <>
-          <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-            Not now
-          </Button>
-          <Button asChild>
-            <Link to="/billing" onClick={() => setOpen(false)}>
-              Upgrade plan
-            </Link>
-          </Button>
-        </>
-      }
-    >
-      <Alert
-        intent="info"
-        description="Upgrade unlocks higher limits, advanced features, and priority support. You can cancel anytime."
-      />
-    </AppModal>
+    <Suspense fallback={null}>
+      <PlanLimitUpgradePanel open={open} detail={detail} onClose={() => setOpen(false)} />
+    </Suspense>
   );
 }
