@@ -14,6 +14,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useMemoryGraph, type GraphResult } from '@/hooks/memory/use-graph';
 import { themeColor, withAlpha } from '@/lib/theme/canvas-colors';
+import { seriesColor } from '@/lib/theme/series-colors';
 
 /**
  * loopmem-graph-gateway-dashboard — /memory/graph.
@@ -58,22 +59,9 @@ export interface ForceGraphData {
   links: ForceLink[];
 }
 
-/** Distinct cluster palette tuned for the dark dashboard surface (`--background`
- *  0 0% 4%). Connected components cycle through these so each cluster reads as
- *  its own color in addition to its spatial grouping. */
-const CLUSTER_COLORS = [
-  '#3ecf8e', // brand emerald
-  '#60a5fa',
-  '#f472b6',
-  '#fbbf24',
-  '#a78bfa',
-  '#34d399',
-  '#f87171',
-  '#22d3ee',
-  '#fb923c',
-  '#c084fc',
-];
-const colorForGroup = (group: number): string => CLUSTER_COLORS[group % CLUSTER_COLORS.length] ?? CLUSTER_COLORS[0]!;
+/** Connected components take the series colors in order, so each cluster reads as its own
+ *  color in addition to its spatial grouping. */
+const colorForGroup = (group: number): string => seriesColor(group);
 
 /**
  * Shape the {nodes, edges} REST payload into force-graph data:

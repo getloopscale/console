@@ -9,6 +9,7 @@
 - `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
 
 ### Changed
+- Chart series and the clusters of the memory graph use one set of six colors with no purple, chosen for the dark surface of the brand and checked for color-blind separation. The Observability charts drew their first series in indigo (#649).
 - The console renders in the LoopScale brand: ink and bone in place of black and white, lime as the one brand color in place of violet, Hanken Grotesk for text and JetBrains Mono for code. It still has dark mode only. The fonts are served by the console, so it no longer asks Google Fonts for anything, and the Content-Security-Policy no longer allows `fonts.googleapis.com` or `fonts.gstatic.com`. `@getloopscale/ui` goes from 0.37 to 0.38 (#649).
 - The frame around every page changed. The sidebar is 256 pixels wide and marks the page you are in with a lighter row and a lime bar on its left, where the whole row was lime. The top bar is 48 pixels high and shows the group and the page next to the project selector (Settings, Domains). The platform status moved from the foot of the sidebar to a status bar along the bottom of the window, so it stays in view on every page (#649).
 - Every page has the same header: the title in a smaller size with the main action on the same line, on the right. The main action is a neutral button, where it was lime; lime now marks where you are and what has focus (#649).

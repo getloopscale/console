@@ -11,20 +11,15 @@ import type {
   LatencyBucket,
   ModelBucket,
 } from '@/hooks/lens/use-observability';
+import { seriesColor } from '@/lib/theme/series-colors';
 
-
-
-
-
-// A fixed, colorblind-conscious palette; series index maps into it (wraps for safety).
-const PALETTE = ['#6366f1', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ec4899'];
 const ERROR_COLOR = '#ef4444';
 const OTHERS_COLOR = '#94a3b8';
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 export function throughputSeries(traffic: TrafficBucket[]): TrendSeries[] {
-  return [{ name: 'traces', color: PALETTE[0], points: traffic.map((t, x) => ({ x, y: t.traceCount })) }];
+  return [{ name: 'traces', color: seriesColor(0), points: traffic.map((t, x) => ({ x, y: t.traceCount })) }];
 }
 
 /** Error-rate as a %-line straight from the pre-computed `errorRate` (opik parity — no re-derivation). */
@@ -35,8 +30,8 @@ export function errorRateSeries(traffic: TrafficBucket[]): TrendSeries[] {
 /** p50/p95/p99 overlaid on a shared ms axis (phoenix/opik "together" convergence). */
 export function latencySeries(latency: LatencyBucket[]): TrendSeries[] {
   return [
-    { name: 'p50', color: PALETTE[0], points: latency.map((l, x) => ({ x, y: l.p50Ms })) },
-    { name: 'p95', color: PALETTE[1], points: latency.map((l, x) => ({ x, y: l.p95Ms })) },
+    { name: 'p50', color: seriesColor(0), points: latency.map((l, x) => ({ x, y: l.p50Ms })) },
+    { name: 'p95', color: seriesColor(1), points: latency.map((l, x) => ({ x, y: l.p95Ms })) },
     { name: 'p99', color: ERROR_COLOR, points: latency.map((l, x) => ({ x, y: l.p99Ms })) },
   ];
 }
@@ -96,7 +91,7 @@ function byModelSeries(rows: ModelBucket[], valueOf: (r: ModelBucket) => number,
 
   const out: TrendSeries[] = top.map((m, i) => ({
     name: m,
-    color: PALETTE[i % PALETTE.length],
+    color: seriesColor(i),
     points: byKey.get(m)!.map((y, x) => ({ x, y: round3(y) })),
   }));
   if (hasOthers) {
@@ -166,7 +161,7 @@ export function scoresToSeries(buckets: ScoreBucket[], topN = 6): TrendSeries[] 
   }
   return names.map((n, i) => ({
     name: n,
-    color: PALETTE[i % PALETTE.length],
+    color: seriesColor(i),
     points: periods.map((_, x) => ({ x, y: byName.get(n)!.get(x) ?? Number.NaN })),
   }));
 }
