@@ -215,6 +215,16 @@ describe("SandboxDetailPage", () => {
     expect(await screen.findByRole("link", { name: "Download a b.txt" })).toBeInTheDocument();
   });
 
+  it("asks for a running sandbox in the Terminal tab of a paused one", async () => {
+    serve({ "GET ": { ...sandbox, state: "paused" } });
+    const user = userEvent.setup();
+    open();
+
+    await user.click(await screen.findByRole("tab", { name: "Terminal" }));
+
+    expect(await screen.findByText(/A terminal needs a running sandbox/)).toBeInTheDocument();
+  });
+
   it("says the sandbox no longer exists instead of showing an empty page", async () => {
     serve({ "GET ": new Error("sandbox not found") });
     open();
