@@ -70,6 +70,7 @@ const EXACT_NAMES = [
   // node_modules para o vendor, entao o pacote precisa ser ejetado aqui tambem.
   // Medido: as duas coisas juntas e que tiram o peso do caminho critico.
   'canvas-confetti',
+  '@xterm',
 ];
 
 /** Familias cujo hifen final ja ancora: `remark-` nunca casa `remarkable`. */

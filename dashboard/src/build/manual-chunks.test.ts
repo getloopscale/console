@@ -121,4 +121,11 @@ describe('LAZY_ONLY_RE — a familia so alcancada por rota lazy (B-097)', () => 
     expect(manualChunks('/x/node_modules/@tiptap/starter-kit/index.js')).toBeUndefined();
     expect(manualChunks('/x/node_modules/@tiptapfake/index.js')).toBe('vendor');
   });
+
+  it('keeps the terminal emulator out of the eager vendor chunk', () => {
+    // Only the Terminal tab of a sandbox imports it, dynamically. In `vendor` it
+    // cost every first paint 67 kB and broke the bundle budget.
+    expect(manualChunks('/x/node_modules/@xterm/xterm/lib/xterm.mjs')).toBeUndefined();
+    expect(manualChunks('/x/node_modules/@xterm/addon-fit/lib/addon-fit.mjs')).toBeUndefined();
+  });
 });
