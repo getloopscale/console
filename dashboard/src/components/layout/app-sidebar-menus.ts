@@ -126,14 +126,11 @@ export const MENUS: Record<string, MenuDefinition> = {
         items: [{ label: 'Overview', path: '/', icon: LayoutGrid }],
       },
       {
-        // Where code runs: deployed apps and, once built, sandboxes.
+        // Where code runs: deployed apps and sandboxes.
         title: 'Compute',
         items: [
           { label: 'Projects', path: '/projects', icon: FolderKanban },
-          // Sandboxes: announced, not built, so the placeholder suggests no command or SDK call.
-          // PLACEHOLDER: review by 2027-01-31. It then becomes the real screen or leaves
-          // together with the /sandboxes route.
-          { label: 'Sandboxes', path: '/sandboxes', icon: Box, comingSoon: true },
+          { label: 'Sandboxes', path: '/sandboxes', icon: Box },
           // M20: Environments and Domains are not here — both are a project dimension, managed
           // under /projects/:name/environments and /projects/:name/domains (not global).
         ],
