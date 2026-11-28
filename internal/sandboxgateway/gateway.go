@@ -63,7 +63,19 @@ func New(target *url.URL, signer Signer, logger *slog.Logger) (http.Handler, err
 		_ = deadlines.SetReadDeadline(time.Time{})
 		_ = deadlines.SetWriteDeadline(time.Time{})
 
+		// A browser opens a WebSocket for any page and sends the session cookie
+		// with it, and the cross-origin check of the caller gate covers unsafe
+		// methods only. The terminal is a GET, so its origin is checked here.
+		if isUpgrade(r) && !fromThisHost(r) {
+			logger.Warn("sandbox gateway: refused an upgrade from another origin", "path", r.URL.Path, "origin", r.Header.Get("Origin"))
+			writeError(w, http.StatusForbidden, "CROSS_ORIGIN_REJECTED", "This request did not come from the LoopScale dashboard.")
+			return
+		}
+
 		out := r.Clone(r.Context())
+		// The sandbox compares Origin with its own host, which is not the one the
+		// browser reached. The check above already answered for it.
+		out.Header.Del("Origin")
 		for name := range out.Header {
 			if strings.HasPrefix(http.CanonicalHeaderKey(name), identityHeaderPrefix) {
 				out.Header.Del(name)
@@ -80,6 +92,21 @@ func New(target *url.URL, signer Signer, logger *slog.Logger) (http.Handler, err
 		}
 		proxy.ServeHTTP(w, out)
 	}), nil
+}
+
+func isUpgrade(r *http.Request) bool {
+	return r.Header.Get("Upgrade") != ""
+}
+
+// fromThisHost reports whether the request names no origin, as a client outside
+// a browser does, or the origin of the host it was sent to.
+func fromThisHost(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	return err == nil && parsed.Host != "" && strings.EqualFold(parsed.Host, r.Host)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

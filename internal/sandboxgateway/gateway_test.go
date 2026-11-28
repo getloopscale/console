@@ -256,3 +256,52 @@ func TestNewRefusesAnIncompleteConfiguration(t *testing.T) {
 		t.Error("a gateway with no signer was accepted")
 	}
 }
+
+var upgrade = map[string]string{"Connection": "Upgrade", "Upgrade": "websocket"}
+
+func withOrigin(origin string) map[string]string {
+	headers := map[string]string{"Origin": origin}
+	for k, v := range upgrade {
+		headers[k] = v
+	}
+	return headers
+}
+
+func TestRefusesATerminalOpenedByAPageOfAnotherSite(t *testing.T) {
+	r := newRig(t, alice, nil)
+
+	resp := r.do(t, http.MethodGet, "/v1/sandboxes/sbx_1/pty", "", withOrigin("https://evil.example"))
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("a terminal opened from https://evil.example answered %d, want 403", resp.StatusCode)
+	}
+	select {
+	case <-r.received:
+		t.Error("the sandbox received the terminal request of another site")
+	default:
+	}
+}
+
+func TestForwardsATerminalOpenedByTheDashboardWithoutItsOrigin(t *testing.T) {
+	r := newRig(t, alice, nil)
+
+	r.do(t, http.MethodGet, "/v1/sandboxes/sbx_1/pty", "", withOrigin(r.gateway.URL))
+
+	got := <-r.received
+	if origin := got.Header.Get("Origin"); origin != "" {
+		t.Errorf("the sandbox received Origin %q; it compares it with its own host and would refuse the dashboard", origin)
+	}
+	if got.Header.Get("Upgrade") != "websocket" {
+		t.Errorf("the sandbox received Upgrade %q, want websocket", got.Header.Get("Upgrade"))
+	}
+}
+
+func TestForwardsATerminalOpenedOutsideABrowser(t *testing.T) {
+	r := newRig(t, alice, nil)
+
+	r.do(t, http.MethodGet, "/v1/sandboxes/sbx_1/pty", "", upgrade)
+
+	if got := <-r.received; got.URL.Path != "/v1/sandboxes/sbx_1/pty" {
+		t.Errorf("the sandbox received %s", got.URL.Path)
+	}
+}
