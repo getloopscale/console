@@ -195,3 +195,64 @@ export function useSandboxFiles(id: string, directory: string, enabled: boolean)
     enabled,
   });
 }
+
+/** A row of `GET /v1/templates`: one of the built-in images, or one the organization registered. */
+export interface SandboxTemplate {
+  name: string;
+  image: string;
+  description?: string;
+  builtin?: boolean;
+  id?: string;
+  version?: string;
+}
+
+/** The templates a sandbox of this organization can start from. */
+export function useSandboxTemplates() {
+  return useQuery({
+    queryKey: queryKeys.sandboxes.templates(),
+    queryFn: () => cloudFetch<{ templates: SandboxTemplate[] }>('/v1/templates', {}, { throwOnError: true }),
+  });
+}
+
+/** A secret of the organization. The API has no field for the value. */
+export interface SandboxSecret {
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** The names of the secrets a sandbox can receive as environment variables. */
+export function useSandboxSecrets() {
+  return useQuery({
+    queryKey: queryKeys.sandboxes.secrets(),
+    queryFn: () => cloudFetch<{ secrets: SandboxSecret[] }>('/v1/secrets', {}, { throwOnError: true }),
+  });
+}
+
+/** Create a secret or replace its value, then read the list again. */
+export function useSaveSandboxSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, value }: { name: string; value: string }) =>
+      cloudFetch(
+        `/v1/secrets/${encodeURIComponent(name)}`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }) },
+        { throwOnError: true },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sandboxes.secrets() });
+    },
+  });
+}
+
+/** Delete a secret, then read the list again. */
+export function useDeleteSandboxSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      cloudFetch(`/v1/secrets/${encodeURIComponent(name)}`, { method: 'DELETE' }, { throwOnError: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sandboxes.secrets() });
+    },
+  });
+}

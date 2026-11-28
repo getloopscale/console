@@ -98,6 +98,8 @@ export const queryKeys = {
     logs: (id: string) => ['sandboxes', 'detail', id, 'logs'] as const,
     metrics: (id: string) => ['sandboxes', 'detail', id, 'metrics'] as const,
     files: (id: string, directory: string) => ['sandboxes', 'detail', id, 'files', directory] as const,
+    templates: () => ['sandboxes', 'templates'] as const,
+    secrets: () => ['sandboxes', 'secrets'] as const,
   },
   team: {
     all: ['team'] as const,

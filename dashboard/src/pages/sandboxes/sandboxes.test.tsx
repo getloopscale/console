@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { render, screen, waitFor } from "@/test/render";
+import { render, screen, waitFor, within } from "@/test/render";
 
 vi.mock("@/hooks/use-auth", () => ({
   useRequireAuth: () => ({ active: true, identity: { id: "test", traits: { email: "u@x.com" } } }),
@@ -58,7 +58,7 @@ describe("SandboxesPage", () => {
 
     await user.type(await screen.findByRole("searchbox", { name: "Search by sandbox ID" }), "locked");
 
-    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["sbx_locked02"]);
+    expect(within(screen.getByRole("table")).getAllByRole("link").map((a) => a.textContent)).toEqual(["sbx_locked02"]);
   });
 
   it("keeps only the paused sandbox when Paused is chosen, and counts every sandbox", async () => {
@@ -68,7 +68,7 @@ describe("SandboxesPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Paused 1" }));
 
-    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["sbx_locked02"]);
+    expect(within(screen.getByRole("table")).getAllByRole("link").map((a) => a.textContent)).toEqual(["sbx_locked02"]);
     expect(screen.getByTestId("concurrent-sandboxes")).toHaveTextContent("3 concurrent sandboxes");
   });
 
@@ -76,7 +76,7 @@ describe("SandboxesPage", () => {
     mockCloudFetch.mockResolvedValue({ sandboxes: [open, restricted] });
     const user = userEvent.setup();
     render(<SandboxesPage />);
-    const ids = () => screen.getAllByRole("link").map((a) => a.textContent);
+    const ids = () => within(screen.getByRole("table")).getAllByRole("link").map((a) => a.textContent);
 
     await screen.findByText("sbx_open01");
     expect(ids()).toEqual(["sbx_locked02", "sbx_open01"]);
