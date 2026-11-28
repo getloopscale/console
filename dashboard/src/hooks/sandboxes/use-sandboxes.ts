@@ -172,3 +172,26 @@ export function useSandboxMetricsSeries(id: string, enabled: boolean) {
     enabled,
   });
 }
+
+/** An entry of a directory of the sandbox. */
+export interface SandboxFileEntry {
+  name: string;
+  size: number;
+  is_dir: boolean;
+}
+
+/** The entries directly under a directory of the workspace, read while `enabled`. */
+export function useSandboxFiles(id: string, directory: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.sandboxes.files(id, directory),
+    queryFn: () =>
+      cloudFetch<{ files: SandboxFileEntry[] }>(
+        sandboxPath(id, `/files?path=${encodeURIComponent(directory)}`),
+        {},
+        { throwOnError: true },
+      ),
+    refetchInterval: SANDBOX_REFETCH_MS,
+    retry: false,
+    enabled,
+  });
+}

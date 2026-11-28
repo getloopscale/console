@@ -186,6 +186,35 @@ describe("SandboxDetailPage", () => {
     expect(screen.getByTestId("disk-now")).toHaveTextContent("1 MiB of 64 MiB");
   });
 
+  it("walks the workspace in the Filesystem tab and offers each file for download", async () => {
+    mockCloudFetch.mockImplementation(async (path: string) => {
+      if (path === "/v1/sandboxes/sbx_one01") return sandbox;
+      if (path.endsWith("/files?path=%2Fworkspace"))
+        return { files: [{ name: "a b.txt", size: 2048, is_dir: false }, { name: "src", size: 0, is_dir: true }] };
+      if (path.endsWith("/files?path=%2Fworkspace%2Fsrc"))
+        return { files: [{ name: "main.py", size: 10, is_dir: false }] };
+      return { denials: [], entries: [] };
+    });
+    const user = userEvent.setup();
+    open();
+
+    await user.click(await screen.findByRole("tab", { name: "Filesystem" }));
+    expect(await screen.findByRole("link", { name: "Download a b.txt" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/v1\/sandboxes\/sbx_one01\/files\/workspace\/a%20b\.txt$/),
+    );
+    expect(screen.getByText("2 KiB")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open directory src" }));
+    expect(await screen.findByRole("link", { name: "Download main.py" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/files\/workspace\/src\/main\.py$/),
+    );
+
+    await user.click(screen.getByRole("button", { name: "workspace" }));
+    expect(await screen.findByRole("link", { name: "Download a b.txt" })).toBeInTheDocument();
+  });
+
   it("says the sandbox no longer exists instead of showing an empty page", async () => {
     serve({ "GET ": new Error("sandbox not found") });
     open();

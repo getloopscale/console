@@ -18,6 +18,7 @@ import {
 } from '@/hooks/sandboxes/use-sandboxes';
 import { formatDate } from '@/lib/formatting/format';
 import { expiresIn, metadataPairs, ruleLines, runningFor } from './list-view';
+import { FilesTab } from './files-tab';
 import { MonitoringTab } from './monitoring-tab';
 import { outboundNetwork, sandboxFailure, STATE_VARIANTS } from './sandbox-labels';
 
@@ -280,6 +281,7 @@ export function SandboxDetailPage() {
               <Tabs.Trigger value="network">Network</Tabs.Trigger>
               <Tabs.Trigger value="logs">Logs</Tabs.Trigger>
               <Tabs.Trigger value="monitoring">Monitoring</Tabs.Trigger>
+              <Tabs.Trigger value="files">Filesystem</Tabs.Trigger>
             </Tabs.List>
             <Tabs.Content value="network">
               <NetworkTab sandbox={sandbox} />
@@ -289,6 +291,9 @@ export function SandboxDetailPage() {
             </Tabs.Content>
             <Tabs.Content value="monitoring">
               <MonitoringTab id={id} active={tab === 'monitoring'} />
+            </Tabs.Content>
+            <Tabs.Content value="files">
+              <FilesTab id={id} active={tab === 'files'} />
             </Tabs.Content>
           </Tabs>
         </div>
