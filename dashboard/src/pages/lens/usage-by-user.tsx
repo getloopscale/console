@@ -68,7 +68,7 @@ export const cabeSerie = (days: number): boolean =>
  * Eram cinco. O validador de paleta da `dataviz` reprovou a paleta de cinco nos dois temas, e
  * reprovou também as seis alternativas que testei: com cinco matizes dentro da faixa de luminosidade
  * do tema escuro, algum par sempre cai abaixo do piso de separação sob daltonismo (o pior foi
- * `#a855f7↔#6366f1`, ΔE 0,9 sob protanopia — duas das cinco linhas eram praticamente a mesma).
+ * o roxo contra o índigo, ΔE 0,9 sob protanopia — duas das cinco linhas eram praticamente a mesma).
  * Quatro passa `--pairs all` em claro E escuro. A própria skill antecipa isto: *cinco linhas podem
  * não caber, e a saída é cortar séries, não inventar cor.*
  *
@@ -86,7 +86,7 @@ const ROWS_IN_CHART = 4;
  * passos — se um dia houver seletor de tema, é aqui que ele entra, e não antes.
  *
  * Medido com `validate_palette.js --mode dark --pairs all`: `ALL CHECKS PASS`. A anterior
- * (`#6366f1 #f59e0b #22c55e #06b6d4 #a855f7`) reprovava: `#22c55e↔#f59e0b` ΔE 5,7 sob protanopia,
+ * (índigo, âmbar, verde, ciano e roxo do Tailwind) reprovava: `#22c55e↔#f59e0b` ΔE 5,7 sob protanopia,
  * abaixo do piso de 6 — nem a cláusula de encoding secundário a salvava.
  */
 const CORES = ['#0072B2', '#A87200', '#009E73', '#9E5A80'] as const;
