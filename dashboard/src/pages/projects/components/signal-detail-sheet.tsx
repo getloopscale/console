@@ -120,6 +120,20 @@ export function SignalDetailSheet({
             </div>
           )}
 
+          {/* A reading that came back empty and a reading that has not come back are different
+              facts, and neither may leave the modal blank. */}
+          {status === 'ok' && data.length === 0 && (
+            <p role="status" className="text-body-sm text-muted-foreground">
+              No data points in the last 7 days.
+            </p>
+          )}
+
+          {status === 'unknown' && (
+            <p role="status" aria-live="polite" className="text-body-sm text-muted-foreground">
+              Reading the metric…
+            </p>
+          )}
+
           {status === 'ok' && data.length > 0 && (
             <div className="overflow-auto">
               <p className="mb-2 text-label uppercase text-muted-foreground">

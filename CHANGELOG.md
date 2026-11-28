@@ -9,6 +9,8 @@
 - `VITE_OAUTH_URL` sets the OAuth2 server's public origin (Hydra). The dashboard follows a redirect there, so `login` from the CLI completes when Hydra runs on a host of its own (#531).
 
 ### Changed
+- Every create, edit and confirm action opens in the same centered modal: a header with an icon, the title and the description, a body that scrolls on its own, and a footer bar. "Add secret", "Bulk upload .env", "Invite teammate", "Rotation history", "Recent deliveries", the trace detail and the file preview no longer slide in from the right. A destructive confirmation shows a warning mark in the header, a modal with a request in flight does not close, and on a phone the panel docks to the bottom of the screen (#662).
+- Collections, Distribution and Alerts: the create form moved from the top of the page into a modal opened by "New collection", "New bundle" and "New alert rule". A refused creation is reported inside the modal, which stays open (#662).
 - Project overview: the Visit link of the live URL is the primary button of the console, bone on ink, where it was a block of solid lime. Lime stays the accent of the brand and no action is filled with it (#649).
 - Chart series and the clusters of the memory graph use one set of six colors with no purple, chosen for the dark surface of the brand and checked for color-blind separation. The Observability charts drew their first series in indigo (#649).
 - The console renders in the LoopScale brand: ink and bone in place of black and white, lime as the one brand color in place of violet, Hanken Grotesk for text and JetBrains Mono for code. It still has dark mode only. The fonts are served by the console, so it no longer asks Google Fonts for anything, and the Content-Security-Policy no longer allows `fonts.googleapis.com` or `fonts.gstatic.com`. `@getloopscale/ui` goes from 0.37 to 0.38 (#649).
@@ -44,6 +46,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- Status: the detail of a signal with no data points opened as an empty modal. It now says there are no data points in the last 7 days (#662).
 - The replica slider and the scaling mode radios on the Scaling screen take the brand color. Native form controls were drawn in the browser's own blue (#649).
 - The brand fonts load. The production build pointed to font files it did not ship, so every page fell back to the system typeface (#653).
 - Memory graph: labels, borders and links are drawn in the theme's colors. The canvas was handed `hsl(...)` around a complete color, which is not a color, so it kept whatever fill came before (#649).
