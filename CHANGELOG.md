@@ -43,6 +43,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- The replica slider and the scaling mode radios on the Scaling screen take the brand color. Native form controls were drawn in the browser's own blue (#649).
 - The brand fonts load. The production build pointed to font files it did not ship, so every page fell back to the system typeface (#653).
 - Memory graph: labels, borders and links are drawn in the theme's colors. The canvas was handed `hsl(...)` around a complete color, which is not a color, so it kept whatever fill came before (#649).
 - Production checklist: Custom domain is measured from the domains of the project. It read the first page of every domain of the organization, so a project whose domain fell outside that page read as having none (#641).

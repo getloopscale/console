@@ -108,4 +108,10 @@ describe('brand theme', () => {
     expect(rule(`[data-slot='card-header']`)).toMatch(/border-bottom:\s*1px solid var\(--border\)/);
     expect(rule(`[data-slot='card-title']`)).toMatch(/font-size:\s*0\.875rem/);
   });
+
+  // A native range, radio or checkbox takes the browser's own blue unless the page names an
+  // accent color. The Scaling screen has a range and two radios.
+  it('paints native form controls in the brand color', () => {
+    expect(read('src/index.css')).toMatch(/^html \{[^}]*accent-color:\s*var\(--primary\)/m);
+  });
 });
