@@ -1771,9 +1771,7 @@ func main() {
 			os.Exit(1)
 		}
 		sandboxCaller := auth.KeyOrCaller(auth.RequireScope(db, "sandbox:execute"), requireJWT)
-		r.With(sandboxCaller).Handle("/v1/sandboxes", sandboxes)
-		r.With(sandboxCaller).Handle("/v1/sandboxes/*", sandboxes)
-		r.With(sandboxCaller).Handle("/v1/capabilities", sandboxes)
+		sandboxgateway.Mount(r, sandboxes, sandboxCaller, requireJWT)
 		logger.Info("sandbox gateway enabled", "target", sandboxTarget.Host)
 	}
 
