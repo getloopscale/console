@@ -116,7 +116,7 @@ export function SignalDetailSheet({
               role="status"
               className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-body-sm text-destructive"
             >
-              Metrics service unreachable. Try again in a moment.
+              Could not read the metric: the metrics service is unreachable. Try again in a moment.
             </div>
           )}
 

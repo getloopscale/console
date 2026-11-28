@@ -134,7 +134,10 @@ export function DeleteEnvironmentDialog({
     <AppModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={<span className="inline-flex items-center gap-2"><Trash2 className="size-5" aria-hidden="true" />Delete environment {envName}?</span>}
+      title={<>Delete environment {envName}?</>}
+      icon={<Trash2 className="size-4" aria-hidden="true" />}
+      intent="destructive"
+      busy={deleteEnv.isPending}
       description={<>This action is permanent and cannot be undone.</>}
       footer={<><Button
               ref={cancelRef}

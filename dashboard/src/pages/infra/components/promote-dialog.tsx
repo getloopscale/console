@@ -190,7 +190,8 @@ export function PromoteDialog({
     <AppModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={<span className="inline-flex items-center gap-2"><Rocket className="size-5 text-primary" aria-hidden="true" />Promote release</span>}
+      title="Promote release"
+      icon={<Rocket className="size-4" aria-hidden="true" />}
       description={<>Copy the active release of <span className="font-mono">{fromEnv || '...'}</span>{' '}into <span className="font-mono">{toEnv || '...'}</span>. The source release
             stays active until the target deploy completes.</>}
       footer={<><Button

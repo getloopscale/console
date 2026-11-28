@@ -127,7 +127,8 @@ export function RollbackDialog({
     <AppModal
       open={open}
       onClose={() => onOpenChange(false)}
-      title={<span className="inline-flex items-center gap-2"><Undo2 className="size-5 text-warning" aria-hidden="true" />Rollback to {sha}</span>}
+      title={<>Rollback to {sha}</>}
+      icon={<Undo2 className="size-4" aria-hidden="true" />}
       description={<>This will replace the current release in <span className="font-mono">{targetBuild.environment}</span> with the build from commit <span className="font-mono">{sha}</span>.</>}
       footer={<><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
