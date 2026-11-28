@@ -12,6 +12,7 @@ import { rotasDeTrust } from '@/routes/trust-routes';
 import { rotasDeMemory } from '@/routes/memory-routes';
 import { rotasDeRag } from '@/routes/rag-routes';
 import { rotasDeSkills } from '@/routes/skills-routes';
+import { sandboxRoutes } from '@/routes/sandboxes-routes';
 import { rotasDePromptly } from '@/routes/promptly-routes';
 import { rotasDeObservability } from '@/routes/observability-routes';
 import { rotasDeSettings } from '@/routes/settings-routes';
@@ -42,10 +43,6 @@ import {
   StatusPage,
   TeamPage,
   VerificationPage,
-  SandboxDetailPage,
-  SandboxesPage,
-  SandboxSecretsPage,
-  SandboxTemplatesPage,
   WorkspacePage,
 } from '@/app-routes-lazy';
 
@@ -208,10 +205,7 @@ export default function App() {
                         </Boundaried>
                       }
                     />
-                    <Route path="/sandboxes" element={<Boundaried path="/sandboxes"><SandboxesPage /></Boundaried>} />
-                    <Route path="/sandboxes/templates" element={<Boundaried path="/sandboxes/templates"><SandboxTemplatesPage /></Boundaried>} />
-                    <Route path="/sandboxes/secrets" element={<Boundaried path="/sandboxes/secrets"><SandboxSecretsPage /></Boundaried>} />
-                    <Route path="/sandboxes/:id" element={<Boundaried path="/sandboxes/:id"><SandboxDetailPage /></Boundaried>} />
+                    {sandboxRoutes}
                     <Route path="/workspaces" element={<Boundaried path="/workspaces"><WorkspacePage /></Boundaried>} />
                     <Route path="/storage" element={<Navigate to="/workspaces" replace />} />
                     {rotasDeRag}
