@@ -51,6 +51,7 @@
 - Environments: the Protected checkbox of New environment and the Protected column. The engine has no such field, so the checkbox protected nothing, and the column hid the delete button of rows that a payload marked. Every environment row now has its delete button (#573).
 
 ### Fixed
+- Deleting a project, a Workspace file or a Workspace folder asks for confirmation in the destructive style, with the warning mark and the destructive button, like the other deletions (#667).
 - Status: the detail of a signal with no data points opened as an empty modal. It now says there are no data points in the last 7 days (#662).
 - The replica slider and the scaling mode radios on the Scaling screen take the brand color. Native form controls were drawn in the browser's own blue (#649).
 - The brand fonts load. The production build pointed to font files it did not ship, so every page fell back to the system typeface (#653).

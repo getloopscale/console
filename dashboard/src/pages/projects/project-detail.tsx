@@ -474,6 +474,7 @@ export function ProjectDetailPage() {
           description="This permanently removes the project, its environments, and all deploys. This cannot be undone."
           confirmationPhrase={project.name}
           confirmLabel="Delete project"
+          intent="destructive"
           loading={deleting}
           onConfirm={handleDeleteProject}
         />

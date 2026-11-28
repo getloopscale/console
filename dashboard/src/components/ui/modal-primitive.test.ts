@@ -126,6 +126,31 @@ describe('primitivo de modal único', () => {
     ).toEqual([]);
   });
 
+  it('a confirmation that deletes, removes or revokes is marked destructive', () => {
+    // Found on staging: "Delete project" opened with the neutral button and no warning mark,
+    // while "Delete Team", one screen away, had both. The mark and the red button come from
+    // `intent="destructive"`, and a call site that forgets it looks like a harmless question.
+    const offenders: string[] = [];
+    let confirmations = 0;
+    for (const f of arquivosDeProducao()) {
+      const src = readFileSync(f, 'utf8');
+      // The element ends at the `/>` that sits at the indent of its own opening tag: a `/>`
+      // further in belongs to something inside `description`.
+      for (const m of src.matchAll(/^([ \t]*)<ConfirmDialog\b([\s\S]*?)\n\1\/>/gm)) {
+        confirmations++;
+        const props = m[2];
+        const title = /title=\{?[`"']([^\n]{0,80})/.exec(props)?.[1] ?? '';
+        const label = /confirmLabel=\{?[`"']([^\n`"']{0,40})/.exec(props)?.[1] ?? '';
+        const destroys = /^(delete|remove|revoke)\b/i.test(title) || /^(delete|remove|revoke)\b/i.test(label);
+        if (destroys && !/\bintent=/.test(props)) {
+          offenders.push(`${relative(SRC, f).replace(/\\/g, '/')}: ${title || label}`);
+        }
+      }
+    }
+    expect(confirmations, 'the guard scanned no confirmation').toBeGreaterThanOrEqual(20);
+    expect(offenders, 'Add `intent="destructive"` to the ConfirmDialog.\n').toEqual([]);
+  });
+
   it('nenhum call site escolhe uma largura da MESMA FAMÍLIA dos tokens', () => {
     // O outro modo de a padronização vazar: manter um primitivo só e deixar a
     // largura voltar pelo `className` de cada call site.
