@@ -18,6 +18,7 @@ import {
 } from '@/hooks/sandboxes/use-sandboxes';
 import { formatDate } from '@/lib/formatting/format';
 import { expiresIn, metadataPairs, ruleLines, runningFor } from './list-view';
+import { MonitoringTab } from './monitoring-tab';
 import { outboundNetwork, sandboxFailure, STATE_VARIANTS } from './sandbox-labels';
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -278,12 +279,16 @@ export function SandboxDetailPage() {
             <Tabs.List>
               <Tabs.Trigger value="network">Network</Tabs.Trigger>
               <Tabs.Trigger value="logs">Logs</Tabs.Trigger>
+              <Tabs.Trigger value="monitoring">Monitoring</Tabs.Trigger>
             </Tabs.List>
             <Tabs.Content value="network">
               <NetworkTab sandbox={sandbox} />
             </Tabs.Content>
             <Tabs.Content value="logs">
               <LogsTab id={id} active={tab === 'logs'} />
+            </Tabs.Content>
+            <Tabs.Content value="monitoring">
+              <MonitoringTab id={id} active={tab === 'monitoring'} />
             </Tabs.Content>
           </Tabs>
         </div>

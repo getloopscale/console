@@ -166,6 +166,26 @@ describe("SandboxDetailPage", () => {
     expect(await screen.findByText(/server ready/)).toBeInTheDocument();
   });
 
+  it("shows the memory and the disk in use in the Monitoring tab", async () => {
+    serve({
+      "GET /metrics": {
+        at: "2026-11-27T10:00:03Z",
+        cpu_usage_ns: 1_000_000_000,
+        memory_used_bytes: 64 * 1024 * 1024,
+        memory_limit_bytes: 512 * 1024 * 1024,
+        disk_used_bytes: 1024 * 1024,
+        disk_limit_bytes: 64 * 1024 * 1024,
+      },
+    });
+    const user = userEvent.setup();
+    open();
+
+    await user.click(await screen.findByRole("tab", { name: "Monitoring" }));
+
+    await waitFor(() => expect(screen.getByTestId("memory-now")).toHaveTextContent("64 MiB of 512 MiB"));
+    expect(screen.getByTestId("disk-now")).toHaveTextContent("1 MiB of 64 MiB");
+  });
+
   it("says the sandbox no longer exists instead of showing an empty page", async () => {
     serve({ "GET ": new Error("sandbox not found") });
     open();

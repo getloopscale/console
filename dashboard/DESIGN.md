@@ -93,7 +93,7 @@ The dashboard uses **two** npm packages, with disjoint surfaces (measured
 
 | Package | Version installed | Owns | Reach |
 |---|---|---|---|
-| `@getloopscale/ui` | `0.38.0` | components | 214 files import it |
+| `@getloopscale/ui` | `0.38.0` | components | 215 files import it |
 | `@getloopscale/loopzero-ui` | `0.1.0` | the theme (`LoopZeroUIProvider`, `defineTheme`) + `UsageMeter`/`UsageMetric` | 7 files |
 
 There is nothing to consolidate: `@getloopscale/ui` exports 147 symbols and **none**

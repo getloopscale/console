@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cloudFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import { appendSample, type MetricsSample } from '@/lib/sandboxes/metrics-series';
 
 /** A row of `GET /v1/sandboxes`, as the sandbox service documents it. */
 export interface SandboxRow {
@@ -141,6 +142,32 @@ export function useSandboxLogs(id: string, enabled: boolean) {
     queryFn: () =>
       cloudFetch<{ entries: SandboxLogEntry[]; truncated: boolean }>(sandboxPath(id, '/logs'), {}, { throwOnError: true }),
     refetchInterval: SANDBOX_REFETCH_MS,
+    retry: false,
+    enabled,
+  });
+}
+
+/** How often the Monitoring tab takes a sample. A burst of CPU shows within two samples. */
+const METRICS_SAMPLE_MS = 3_000;
+
+/**
+ * The CPU, memory and disk of a sandbox over the time its page has been open.
+ *
+ * The API answers the current figures and keeps no history, so each read adds
+ * one sample to the series this query holds. The series starts when the tab
+ * is first opened and is dropped with the page.
+ */
+export function useSandboxMetricsSeries(id: string, enabled: boolean) {
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.sandboxes.metrics(id);
+  return useQuery({
+    queryKey,
+    queryFn: async () => {
+      const sample = await cloudFetch<MetricsSample>(sandboxPath(id, '/metrics'), {}, { throwOnError: true });
+      const series = queryClient.getQueryData<MetricsSample[]>(queryKey) ?? [];
+      return sample ? appendSample(series, sample) : series;
+    },
+    refetchInterval: METRICS_SAMPLE_MS,
     retry: false,
     enabled,
   });
