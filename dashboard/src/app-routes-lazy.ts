@@ -100,6 +100,9 @@ export const RagOverviewPage = lazy(() =>
 export const SandboxesPage = lazy(() =>
   import('@/pages/sandboxes/sandboxes').then((m) => ({ default: m.SandboxesPage })),
 );
+export const SandboxDetailPage = lazy(() =>
+  import('@/pages/sandboxes/sandbox-detail').then((m) => ({ default: m.SandboxDetailPage })),
+);
 export const WorkspacePage = lazy(() =>
   import('@/pages/workspace/overview').then((m) => ({ default: m.WorkspacePage })),
 );

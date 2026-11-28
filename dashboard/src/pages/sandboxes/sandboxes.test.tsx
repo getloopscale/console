@@ -51,6 +51,47 @@ describe("SandboxesPage", () => {
     expect(mockCloudFetch.mock.calls[0][0]).toMatch(/^\/v1\/sandboxes\?/);
   });
 
+  it("narrows the list to the sandbox whose id is searched", async () => {
+    mockCloudFetch.mockResolvedValue({ sandboxes: [open, restricted] });
+    const user = userEvent.setup();
+    render(<SandboxesPage />);
+
+    await user.type(await screen.findByRole("searchbox", { name: "Search by sandbox ID" }), "locked");
+
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["sbx_locked02"]);
+  });
+
+  it("keeps only the paused sandbox when Paused is chosen, and counts every sandbox", async () => {
+    mockCloudFetch.mockResolvedValue({ sandboxes: [open, restricted, { ...open, id: "sbx_third03" }] });
+    const user = userEvent.setup();
+    render(<SandboxesPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Paused 1" }));
+
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["sbx_locked02"]);
+    expect(screen.getByTestId("concurrent-sandboxes")).toHaveTextContent("3 concurrent sandboxes");
+  });
+
+  it("reverses the order of the start time from the header", async () => {
+    mockCloudFetch.mockResolvedValue({ sandboxes: [open, restricted] });
+    const user = userEvent.setup();
+    render(<SandboxesPage />);
+    const ids = () => screen.getAllByRole("link").map((a) => a.textContent);
+
+    await screen.findByText("sbx_open01");
+    expect(ids()).toEqual(["sbx_locked02", "sbx_open01"]);
+    await user.click(screen.getByRole("button", { name: /^Started/ }));
+    expect(ids()).toEqual(["sbx_open01", "sbx_locked02"]);
+  });
+
+  it("links each sandbox to its page and shows its labels", async () => {
+    mockCloudFetch.mockResolvedValue({ sandboxes: [{ ...open, metadata: { suite: "demo" } }] });
+    render(<SandboxesPage />);
+
+    expect(await screen.findByRole("link", { name: "sbx_open01" })).toHaveAttribute("href", "/sandboxes/sbx_open01");
+    expect(screen.getByText("suite=demo")).toBeInTheDocument();
+  });
+
   it("says how to create one when there are none", async () => {
     mockCloudFetch.mockResolvedValue({ sandboxes: [] });
     render(<SandboxesPage />);
