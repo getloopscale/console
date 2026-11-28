@@ -14,7 +14,6 @@ import {
 import { formatDate } from "@/lib/formatting/format";
 import { estadoDaLista } from "@/lib/list-state";
 import { sandboxFailure } from "./sandbox-labels";
-import { SandboxSections } from "./sandbox-sections";
 
 /** What the API accepts as the name of a secret: the name of an environment variable. */
 const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -55,7 +54,7 @@ export function SandboxSecretsPage() {
     <>
       <PageShell
         title="Sandbox secrets"
-        description={<SandboxSections />}
+        description="Values a sandbox receives as environment variables."
         onTitleChange={setPageTitle}
         loading={secretsQuery.isLoading}
         primaryAction={{

@@ -4,7 +4,6 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useSandboxTemplates } from '@/hooks/sandboxes/use-sandboxes';
 import { sandboxFailure } from './sandbox-labels';
-import { SandboxSections } from './sandbox-sections';
 
 /** The images a sandbox can start from, each with the call that starts one. */
 export function SandboxTemplatesPage() {
@@ -16,7 +15,7 @@ export function SandboxTemplatesPage() {
   return (
     <PageShell
       title="Sandbox templates"
-      description={<SandboxSections />}
+      description="The images a sandbox can start from."
       onTitleChange={setPageTitle}
       loading={templatesQuery.isLoading}
     >
